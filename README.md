@@ -2,6 +2,8 @@
 
 Premier prototype de navigation spatiale en portrait. Une galaxie procédurale, ses systèmes orbitaux et les surfaces de ses planètes se parcourent par glissement, zoom et sélection. L'interface reprend la direction graphique des études : galaxie organique, système en plan technique bleu, surface topographique contrastée.
 
+Les [captures du prototype sur GitHub](https://github.com/Erazer88/Hardgraft/tree/codex/nereide-prototype/docs/images) présentent les vues mobile et bureau, ainsi que les étapes du zoom continu.
+
 ## Ouvrir le prototype
 
 Les fichiers prêts à télécharger sont dans le dépôt : [prototype HTML autonome](dist/nereide-zoom-continu.html) et [archive ZIP des sources](dist/nereide-sources.zip). Sur GitHub, ouvrir le fichier puis utiliser **Download raw file** pour le récupérer.
