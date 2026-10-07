@@ -1,0 +1,5 @@
+artifacts/
+dist/*
+!dist/nereide-zoom-continu.html
+!dist/nereide-sources.zip
+__pycache__/
