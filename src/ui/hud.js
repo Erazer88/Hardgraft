@@ -12,19 +12,20 @@
       $('toast').classList.toggle('above-inspector', !$('inspector').hidden);
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 3200);
     }
-    function showSelection(item, { state, planetCount }) {
+    function showSelection(item, { state, systemModel }) {
       const panel = $('inspector'); panel.hidden = false;
       $('toast').classList.remove('visible');
       if (state.level === 'galaxy') {
-        const count = planetCount;
+        const count = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE'; $('selection-name').textContent = item.name;
-        $('selection-info').textContent = `Étoile de classe ${item.stellarClass}. ${count} mondes en orbite attendent leur premier relevé.`;
+        $('selection-info').textContent = `Étoile de classe ${item.stellarClass}. ${count ? `${count} planète${count > 1 ? 's' : ''} détectée${count > 1 ? 's' : ''}.` : 'Aucune planète détectée.'} ${belts ? `${belts} ceinture${belts > 1 ? 's' : ''} de débris.` : 'Aucune ceinture de débris.'}`;
         $('selection-meta').textContent = `X ${Math.round(item.x)} · Y ${Math.round(item.y)}   /   ${state.exploration.visited.has(item.id) ? 'VISITÉ' : 'DÉTECTÉ'}`;
         $('enter-label').textContent = 'Zoomer sur le système'; $('enter-button').hidden = false; $('enter-button').disabled = false;
       } else if (state.level === 'system') {
         $('selection-type').textContent = 'CORPS PLANÉTAIRE'; $('selection-name').textContent = item.name;
-        $('selection-info').textContent = item.kind === 'gazeuse' ? 'Géante gazeuse. Une atmosphère profonde, sans surface solide.' : 'Un monde ' + item.kind + '. Son relief et ses ressources peuvent être cartographiés.';
-        $('selection-meta').textContent = `${(item.orbit / 220).toFixed(2)} UA   /   PÉRIODE ${Math.round(TAU / item.speed)} s`;
+        $('selection-info').textContent = item.kind === 'gazeuse' ? 'Géante gazeuse. Une atmosphère profonde, sans surface solide.' :
+          `Monde ${item.kind}. Température estimée : ${Math.round(item.temperature)} °C. Atmosphère ${item.atmosphere}${item.startingCandidate ? '. Candidat à l’installation.' : '.'}`;
+        $('selection-meta').textContent = `${item.distanceAU.toFixed(2)} UA   /   PÉRIODE ${Math.round(TAU / item.speed)} s`;
         $('enter-label').textContent = item.kind === 'gazeuse' ? 'Aucune surface solide' : 'Zoomer sur la surface';
         $('enter-button').hidden = false; $('enter-button').disabled = item.kind === 'gazeuse';
       } else {
@@ -54,7 +55,7 @@
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const camera = scaleCamera;
       const span = (width < 600 ? 50 : 96) / camera.zoom;
-      $('scale-text').textContent = (level === 'system' ? (span / 220).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
+      $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
     }
     return Object.freeze({ toast, showSelection, update });
   }

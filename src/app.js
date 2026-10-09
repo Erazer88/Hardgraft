@@ -49,7 +49,7 @@
     if (contexts.has(star.id)) return contexts.get(star.id);
     const model = World.createSystem(state.seed, star.id, galaxy);
     const neighborDistance = Math.min(...galaxy.systems.filter(s => s.id !== star.id).map(s => distance(s, star)));
-    const scale = Math.max(.001, Math.min(.012, neighborDistance * .32 / (model.planets.at(-1).orbit + 150)));
+    const scale = Math.max(.001, Math.min(.012, neighborDistance * .32 / model.extent));
     const context = { star, model, frame: { x: star.x, y: star.y, scale }, terrains: new Map() };
     contexts.set(star.id, context); return context;
   }
@@ -58,7 +58,7 @@
   }
   function prepareTerrain(planet, context = state.context) {
     if (!context.terrains.has(planet.id)) {
-      terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height);
+      terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
       state.terrain = terrainData;
       terrainTexture = renderer.createTerrainTexture(planet, terrainData);
       context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture });
@@ -74,9 +74,16 @@
     if (state.tracking?.planet.id === planet.id && state.tracking.context === context) return;
     state.tracking = { planet, context, position: planetWorldPosition(planet, context) };
   }
+  function systemViewZoom(model) {
+    return Math.min(W - 60, Math.max(80, H - 300)) / (model.extent * 2.35);
+  }
+  function systemCamera() {
+    const zoom = systemViewZoom(state.context.model);
+    return worldCamera(state.context.frame, { x: 0, y: -30 / zoom, zoom });
+  }
   function homeCamera() {
     if (state.level === 'galaxy') return { x: home.x - 200, y: home.y - 160, zoom: Math.max(.09, fitZoom(1900)) };
-    if (state.level === 'system') return worldCamera(state.context.frame, { x: 115, y: 120, zoom: Math.max(.10, Math.min((W - 50) / 1900, (H - 210) / 2100)) });
+    if (state.level === 'system') return systemCamera();
     return worldCamera(surfaceFrame(), { x: terrainData.width * Config.terrain.textureScale / 2, y: terrainData.height * Config.terrain.textureScale / 2,
       zoom: Math.max(W / (terrainData.width * Config.terrain.textureScale), H / (terrainData.height * Config.terrain.textureScale)) * 1.08 });
   }
@@ -105,7 +112,7 @@
     if (state.camera.zoom >= .7 && !state.tracking && !cameraMoving()) {
       const nearest = [...known].sort((a, b) => distance(a, state.camera) - distance(b, state.camera))[0];
       const contextDistance = state.context ? distance(state.context.star, state.camera) : Infinity;
-      const extent = state.context ? state.context.model.planets.at(-1).orbit * state.context.frame.scale : 0;
+      const extent = state.context ? state.context.model.extent * state.context.frame.scale : 0;
       if (nearest && (!state.context || contextDistance > extent * 2 + Math.max(W, H) / state.camera.zoom * .7)) state.context = prepareSystem(nearest);
     }
     if (previousContext !== state.context) { state.focusPlanet = null; clearSelection(); }
@@ -113,8 +120,8 @@
     if (state.context) {
       const context = state.context, frame = context.frame;
       const localZoom = state.camera.zoom * frame.scale;
-      const center = project(frame.x, frame.y), visibleRadius = context.model.planets.at(-1).orbit * localZoom;
-      if (localZoom >= .08 && center.x + visibleRadius >= 0 && center.x - visibleRadius <= W && center.y + visibleRadius >= 0 && center.y - visibleRadius <= H) {
+      const center = project(frame.x, frame.y), visibleRadius = context.model.extent * localZoom;
+      if (localZoom >= Math.min(.08, systemViewZoom(context.model) * .85) && center.x + visibleRadius >= 0 && center.x - visibleRadius <= W && center.y + visibleRadius >= 0 && center.y - visibleRadius <= H) {
         state.level = 'system'; state.system = context.model; state.exploration.visited.add(context.star.id);
         const selectedPlanet = state.selected?.kind ? state.selected : null;
         const candidates = context.model.planets.filter(p => p.kind !== 'gazeuse');
@@ -171,13 +178,14 @@
     if (!star.discovered && !state.reveal) return;
     state.context = prepareSystem(star); state.system = state.context.model;
     state.tracking = null; state.focusPlanet = null; clearSelection();
-    const camera = worldCamera(state.context.frame, { x: 115, y: 120, zoom: Math.max(.1, Math.min((W - 50) / 1900, (H - 210) / 2100)) });
+    const camera = systemCamera();
     focusCamera(camera.x, camera.y, camera.zoom); persist();
   }
   function enterPlanet() {
     if (state.level !== 'system') return;
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
-    if (!planet || planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
+    if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
+    if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
     const record = prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
@@ -187,7 +195,7 @@
     clearSelection(); state.tracking = null;
     if (state.level === 'surface') {
       state.focusPlanet = null;
-      const camera = worldCamera(state.context.frame, { x: 115, y: 120, zoom: Math.max(.1, Math.min((W - 50) / 1900, (H - 210) / 2100)) });
+      const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
     } else if (state.level === 'system') {
       const star = state.context.star; state.focusPlanet = null;
@@ -198,7 +206,7 @@
     clearSelection(); state.tracking = null;
     if (state.level === 'galaxy') focusCamera(0, 0, fitZoom(11200));
     else if (state.level === 'system') {
-      const camera = worldCamera(state.context.frame, { x: 0, y: 0, zoom: fitZoom(state.system.planets.at(-1).orbit * 2.35) });
+      const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
     } else {
       followPlanet(state.planet);
@@ -216,8 +224,8 @@
   function select(item) {
     state.selected = item;
     if (state.level === 'system') state.focusPlanet = item;
-    const planetCount = state.level === 'galaxy' ? prepareSystem(item).model.planets.length : 0;
-    hud.showSelection(item, { state, planetCount }); updateUI();
+    const systemModel = state.level === 'galaxy' ? prepareSystem(item).model : state.system;
+    hud.showSelection(item, { state, systemModel }); updateUI();
   }
   function scanAt(point) {
     const from = state.selected && !state.selected.surfacePoint ? state.selected : home;

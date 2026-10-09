@@ -36,14 +36,7 @@
     return Math.min(upper, Math.max(lower, value));
   }
 
-  const STAR_CLASSES = [
-    { type: 'M', color: '#cb937a', weight: 0.36, size: 0.7 },
-    { type: 'K', color: '#dcc498', weight: 0.28, size: 0.85 },
-    { type: 'G', color: '#e5dec1', weight: 0.20, size: 1 },
-    { type: 'F', color: '#d5e0e3', weight: 0.10, size: 1.12 },
-    { type: 'A', color: '#a4c3dd', weight: 0.05, size: 1.25 },
-    { type: 'B', color: '#91abc9', weight: 0.01, size: 1.4 }
-  ];
+  const STAR_CLASSES = root.OrbitWorldgenData.stars;
   const NAME_STARTS = ['Al', 'Er', 'Ves', 'Cor', 'Is', 'Tau', 'Hel', 'Ori', 'Cal', 'Mer', 'Sol', 'Vir', 'Nae', 'Eri', 'Ant', 'Aster', 'Lyr', 'Cass', 'Thal', 'Nox'];
   const NAME_ENDS = ['ara', 'ion', 'éa', 'aris', 'ora', 'is', 'ède', 'arae', 'ène', 'os', 'ys', 'onia', 'ius', 'ande', 'ine', 'ea'];
 
@@ -127,59 +120,8 @@
     return { seed, radius: GALAXY_RADIUS, systems, homeId: home.id };
   }
 
-  const PLANET_TYPES = [
-    { kind: 'tellurique', color: '#90a58b' },
-    { kind: 'océanique', color: '#6097ad' },
-    { kind: 'aride', color: '#bd9c77' },
-    { kind: 'glacée', color: '#99b5c6' },
-    { kind: 'volcanique', color: '#b9846d' },
-    { kind: 'gazeuse', color: '#b4aa92' }
-  ];
-  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-
-  function createSystem(seed, systemId, existingGalaxy) {
-    const random = rng(hashSeed(String(seed) + ':system:' + systemId));
-    const galaxy = existingGalaxy || createGalaxy(seed);
-    const galacticSystem = galaxy.systems.find(system => system.id === systemId);
-    const name = galacticSystem ? galacticSystem.name : systemName(seed, systemId);
-    const stellarClass = galacticSystem ? galacticSystem.stellarClass : starClass(random).type;
-    const starDefinition = STAR_CLASSES.find(star => star.type === stellarClass);
-    const count = 4 + Math.floor(random() * 4);
-    const planets = [];
-    const innerOrbit = 205 + random() * 35;
-    const outerOrbit = 970 + random() * 120;
-    for (let i = 0; i < count; i += 1) {
-      const orbit = innerOrbit + (outerOrbit - innerOrbit) * i / (count - 1) +
-        (i === 0 || i === count - 1 ? 0 : (random() - 0.5) * 30);
-      // The first home world is habitable; other planets vary with radius.
-      let typeIndex = Math.floor(random() * PLANET_TYPES.length);
-      if (name === 'Néréide' && i === 1) typeIndex = 0;
-      if (i === count - 1 && random() > 0.36) typeIndex = 5;
-      const type = PLANET_TYPES[typeIndex];
-      planets.push({
-        id: systemId + ':p-' + i,
-        name: name + ' ' + ROMAN[i],
-        orbit,
-        radius: type.kind === 'gazeuse' ? 19 + random() * 10 : 9 + random() * 8,
-        phase: random() * TAU,
-        // Radians per game second. Relative periods obey Kepler's third law.
-        speed: 0.050 * Math.pow(220 / orbit, 1.5),
-        color: type.color, kind: type.kind,
-        seed: hashSeed(String(seed) + ':' + systemId + ':terrain:' + i)
-      });
-    }
-    const beltGap = 1 + Math.floor(random() * (count - 2));
-    const beltOrbit = (planets[beltGap].orbit + planets[beltGap + 1].orbit) * 0.5;
-    return {
-      id: systemId, name,
-      star: { radius: 48 + random() * 13, color: starDefinition.color, type: stellarClass },
-      planets,
-      debris: [
-        { orbit: beltOrbit, width: 20 + random() * 18, phase: random() * TAU },
-        { orbit: outerOrbit + 95, width: 26, phase: random() * TAU }
-      ],
-      wreck: { orbit: beltOrbit + 38, phase: random() * TAU }
-    };
+  function createSystem(seed, systemId, existingGalaxy, settings) {
+    return root.OrbitSystemGeneration.create(seed, systemId, existingGalaxy || createGalaxy(seed), settings);
   }
 
   function planetPosition(planet, time) {
@@ -213,7 +155,7 @@
     return value / normalization;
   }
 
-  function createTerrain(seed, width = 320, height = 240) {
+  function createTerrain(seed, width = 320, height = 240, planet = null) {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
     const terrainSeed = hashSeed(String(seed) + ':terrain');
@@ -260,19 +202,21 @@
     }
 
     // Vary the ocean coverage while retaining usable land for every map.
-    const targetWater = raw.length * (0.30 + random() * 0.16);
+    const waterFraction = clamp(planet?.surfaceWater ?? (0.30 + random() * 0.16), 0, root.OrbitWorldgenData.planets.maxSurfaceWater);
+    const targetWater = raw.length * waterFraction;
     let cumulative = 0, rawSeaLevel = 0;
     for (; rawSeaLevel < 255; rawSeaLevel += 1) {
       cumulative += histogram[rawSeaLevel];
       if (cumulative >= targetWater) break;
     }
+    if (waterFraction === 0) rawSeaLevel = histogram.findIndex(count => count > 0) - 4;
     const seaLevel = 102;
     for (let i = 0; i < raw.length; i += 1) {
       elevation[i] = Math.round(clamp(raw[i] + seaLevel - rawSeaLevel, 0, 255));
     }
 
     const resources = [];
-    const resourceTypes = ['fer', 'cuivre', 'silice', 'cristal'];
+    const resourceTypes = root.OrbitWorldgenData.deposits;
     let attempts = 0;
     const requestedResources = Math.max(4, Math.min(24, Math.floor(raw.length / 4500)));
     while (resources.length < requestedResources && attempts < 500) {
@@ -281,7 +225,11 @@
       const altitude = elevation[y * width + x];
       if (altitude <= seaLevel + 10) continue;
       if (resources.some(resource => Math.hypot(resource.x - x, resource.y - y) < Math.min(width, height) * 0.09)) continue;
-      resources.push({ type: resourceTypes[Math.floor(random() * resourceTypes.length)], x, y });
+      // A natal candidate has at least one accessible deposit of each basic
+      // solid resource. Water is represented by its sea and water abundance.
+      const definition = planet?.startingCandidate && resources.length < resourceTypes.length ? resourceTypes[resources.length] :
+        resourceTypes[Math.floor(random() * resourceTypes.length)];
+      resources.push({ ...definition, x, y, abundance: planet?.resources?.[definition.id] ?? .5 });
     }
     return { width, height, elevation, moisture, seaLevel, resources };
   }

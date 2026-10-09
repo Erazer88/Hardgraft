@@ -4,9 +4,11 @@ Premier prototype de navigation spatiale en portrait. Une galaxie procédurale, 
 
 Les [captures du prototype sur GitHub](https://github.com/Erazer88/Hardgraft/tree/codex/nereide-prototype/docs/images) présentent les vues mobile et bureau, ainsi que les étapes du zoom continu.
 
-Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Le lot Agent 00 prépare la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). La génération variée des systèmes et le gameplay industriel appartiennent aux missions suivantes.
+Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Agent 00 a préparé la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). Agent 01 ajoute la [génération variée des systèmes](docs/WORLDGEN.md). Le prochain lot concerne les ressources et la construction.
 
 ## Ouvrir le prototype
+
+[Lancer le jeu dans le navigateur](https://raw.githack.com/Erazer88/Hardgraft/codex/nereide-prototype/dist/nereide-zoom-continu.html). Ce lien suit la branche du prototype ; la version est affichée en bas du jeu.
 
 Les fichiers prêts à télécharger sont dans le dépôt : [prototype HTML autonome](dist/nereide-zoom-continu.html) et [archive ZIP des sources](dist/nereide-sources.zip). Sur GitHub, ouvrir le fichier puis utiliser **Download raw file** pour le récupérer.
 
@@ -39,8 +41,10 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 ## Contenu et limites de ce prototype
 
 - 2 560 systèmes, dont 560 par bras sur quatre bras et 320 dans le noyau.
-- Quatre à sept planètes par système. Les vitesses relatives suivent la troisième loi de Kepler, avec des durées comprimées pour le jeu.
-- Débris orbitaux et repère d'épave. Le transfert et le rendez-vous orbital ont été retirés ; ils seront intégrés ultérieurement.
+- De zéro à dix planètes par système, avec une majorité de systèmes ordinaires. Espacements compacts, réguliers ou étendus ; zéro à trois ceintures de débris et épaves occasionnelles. Les fréquences sont configurables dans `src/data/worldgen.js`.
+- Température estimée, atmosphère, eau, gravité et activité géologique varient progressivement. La température dépend de la luminosité stellaire, de la distance physique et de la pression. Les vitesses relatives suivent la troisième loi de Kepler, avec des durées comprimées pour le jeu.
+- Le système natal possède quatre à six planètes et un candidat tempéré à l'installation. Sa carte garantit des gisements de fer, cuivre, silice et carbone, ainsi que de l'eau. Ces données préparent l'industrie ; l'extraction n'est pas encore implémentée.
+- Le transfert et le rendez-vous orbital seront intégrés ultérieurement.
 - Surfaces reproductibles avec continents, océans, côtes, altitude, ombrage de relief, courbes de niveau et gisements. La surface est une carte régionale rectangulaire, pas encore une projection complète du globe.
 - Une seule caméra et un repère galactique commun : chaque système est inclus dans son étoile, chaque carte dans sa planète. Le zoom ne remplace pas la scène et ne réinitialise pas le cadrage. Les tailles relatives sont adaptées à la navigation du prototype ; ce n'est pas une simulation des distances physiques réelles.
 - Le terrain peut être agrandi jusqu'à l'échelle locale prévue pour les futures usines. Le zoom maximal dépend de la résolution de la carte pour préserver un relief lisible. Les usines, la collecte, l'économie et les stratégies énergétiques restent hors du périmètre de cette version.
@@ -60,6 +64,10 @@ Les tests d'architecture exécutent les modules de simulation, sauvegarde, explo
 Le test navigateur utilise Chromium installé et le protocole DevTools natif, sans bibliothèque additionnelle. Il attend le serveur sur le port 8000 et produit des captures dans `artifacts/`. Les résultats d'émulation mobile ne remplacent pas un essai sur appareil physique.
 
 La validation couvre les écrans 390 × 844 et 1440 × 900 : sélection réelle par toucher, navigation et retours, glissement, pincement à deux doigts, génération par menu et mission de sonde révélant de nouveaux systèmes. Elle contrôle aussi, aux seuils de détail, le facteur de zoom, la stabilité du point visé et le retour au cadrage initial après dézoom.
+
+Les tests de génération vérifient aussi la distribution sur 2 560 systèmes et les conditions de départ sur 64 graines. Les tests navigateur visitent des systèmes vides, à une planète, entièrement gazeux et riches, puis vérifient leurs cadrages et retours.
+
+La génération v2 modifie la composition des systèmes et les niveaux d'eau des cartes existantes. Les positions des étoiles, leurs identifiants et les découvertes sauvegardées sont conservés. Une graine reproduit exactement le même univers pour une même version du générateur et de ses paramètres.
 
 Dans ce navigateur cloud géré, la politique de l'organisation bloque le protocole `file://` avant que l'application soit exécutée. Le même HTML autonome est testé par HTTP avec contrôle de l'absence de requêtes externes. L'ouverture locale sur un navigateur personnel et les appareils physiques restent à essayer.
 

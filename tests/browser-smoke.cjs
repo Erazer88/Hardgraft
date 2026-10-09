@@ -331,6 +331,56 @@ async function checkContinuousZoom(cdp, name, mobile) {
     `${name} orbital rendezvous interface is removed`);
 }
 
+async function checkSystemVariety(cdp, name, mobile) {
+  await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
+  await cdp.evaluate('document.querySelector("#reveal-toggle").checked = true; document.querySelector("#reveal-toggle").dispatchEvent(new Event("change"))');
+  const scenarios = [
+    ['empty', 'model.planets.length === 0 && model.debris.length === 0 && !model.wreck'],
+    ['single', 'model.planets.length === 1'],
+    ['gas-only', 'model.planets.length > 0 && model.planets.every(p => p.kind === "gazeuse")'],
+    ['rich', 'model.planets.length >= 8 && model.debris.length >= 2']
+  ];
+  for (const [scenario, predicate] of scenarios) {
+    await cdp.click('#overview-button');
+    await settle(cdp, `${name} galaxy overview before ${scenario}`);
+    const target = await cdp.evaluate(`(() => {
+      const debug = window.OrbitalDebug, state = debug.getState();
+      const galaxy = window.OrbitWorld.createGalaxy(state.seed), camera = debug.getCamera();
+      for (const star of galaxy.systems) {
+        const point = window.OrbitCamera.project(star, camera, {width:innerWidth,height:innerHeight});
+        if (point.x < 60 || point.x > innerWidth-60 || point.y < 270 || point.y > innerHeight-230) continue;
+        const model = window.OrbitWorld.createSystem(state.seed, star.id, galaxy);
+        if (${predicate}) return {id:star.id, point, count:model.planets.length};
+      }
+      return null;
+    })()`);
+    assert.ok(target, `${name} ${scenario} system is available for real selection`);
+    await cdp.evaluate(`window.OrbitalDebug.zoomAt(8, ${target.point.x}, ${target.point.y})`);
+    await cdp.tapAt(target.point, mobile);
+    assert.equal((await cdp.evaluate(stateExpression)).selectedId, target.id, `${name} ${scenario} star tap selects its system`);
+    if (scenario === 'empty') assert.match(await cdp.evaluate('document.querySelector("#selection-info").textContent'), /Aucune planète/);
+    await cdp.click('#enter-button');
+    await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} enters ${scenario}`);
+    assert.equal((await cdp.evaluate(stateExpression)).planetCount, target.count);
+    await cdp.click('#overview-button');
+    await settle(cdp, `${name} ${scenario} system overview`);
+    assert.equal((await cdp.evaluate(stateExpression)).level, 'system');
+    await cdp.click('#home-button');
+    await settle(cdp, `${name} ${scenario} recenter`);
+    const camera = await cdp.evaluate(cameraExpression);
+    assert.ok(Object.values(camera).every(Number.isFinite));
+    if (scenario === 'empty' || scenario === 'gas-only') {
+      await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
+      assert.equal((await cdp.evaluate(stateExpression)).level, 'system');
+      assert.deepEqual(await cdp.evaluate(cameraExpression), camera);
+    }
+    await cdp.screenshot(`${name}-worldgen-${scenario}.png`);
+    await cdp.click('#back-button');
+    await cdp.until('window.OrbitalDebug.getState().level === "galaxy" && !window.OrbitalDebug.getState().moving', `${name} leaves ${scenario}`);
+  }
+  process.stdout.write(`PASS ${name}: empty, single-planet, gas-only and rich systems, overview and return\n`);
+}
+
 async function runViewport(cdp, viewport, runtimeErrors) {
   const { name, width, height, mobile } = viewport;
   await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
@@ -458,6 +508,7 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await cdp.until(`!(${menuVisibleExpression})`, `${name} continue closes menu`);
   assert.equal((await cdp.evaluate(stateExpression)).level, 'galaxy', `${name} regenerate returns to galaxy`);
   await checkLayout(cdp, width, height);
+  await checkSystemVariety(cdp, name, mobile);
   assert.deepEqual(runtimeErrors, [], `${name} has no JavaScript or console errors`);
   process.stdout.write(`PASS ${name}: galaxy → system → surface → back, seeds, menu, layout\n`);
 }

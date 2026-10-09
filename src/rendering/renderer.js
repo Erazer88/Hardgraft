@@ -159,7 +159,7 @@
 
     function drawSystem(cam, system, context) {
       const star = project(0, 0, cam), sr = system.star.radius * cam.zoom;
-      const detailed = cam.zoom >= .075;
+      const detailed = cam.zoom >= Math.min(.075, Math.min(W - 60, Math.max(80, H - 300)) / (system.extent * 2.35) * .8);
       const planetLabels = [{ x: star.x - 65, y: star.y + sr + 11, w: 130, h: 31 }];
       for (const planet of system.planets) {
         const radius = planet.orbit * cam.zoom;
@@ -193,8 +193,11 @@
           const p = project(Math.cos(angle) * radius, Math.sin(angle) * radius, cam);
           if (p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H) dot(ctx, p.x, p.y, .35 + random() * .55, '#a3a89b66');
         }
-        const belt = system.debris[0], bp = project(Math.cos(belt.phase) * belt.orbit, Math.sin(belt.phase) * belt.orbit, cam);
-        label(ctx, 'DÉBRIS', bp.x + 10, bp.y - 12, '#8c9a99', 8);
+        for (const belt of system.debris) {
+          const bp = project(Math.cos(belt.phase) * belt.orbit, Math.sin(belt.phase) * belt.orbit, cam);
+          label(ctx, 'DÉBRIS', bp.x + 10, bp.y - 12, '#8c9a99', 8);
+        }
+        if (!system.planets.length) label(ctx, 'AUCUNE PLANÈTE DÉTECTÉE', star.x, star.y + sr + 58, '#7d98a9', 8, 'center');
       }
       for (const planet of system.planets) {
         const pos = World.planetPosition(planet, state.simulation.time), p = project(pos.x, pos.y, cam);
@@ -211,7 +214,9 @@
         const selected = state.selected?.id === planet.id;
         if (selected && radius < 90) circle(ctx, p.x, p.y, radius + 5, '#e6a25a', 1);
         if (!detailed || radius > 90) continue;
-        const name = planet.name.toUpperCase(), textWidth = name.length * 5.5;
+        // Short orbital designations keep ten-world systems readable on mobile.
+        const name = (selected || cam.zoom > .38 ? planet.name : planet.name.slice(system.name.length).trim()).toUpperCase();
+        const textWidth = name.length * 5.5;
         const align = p.x + radius + 9 + textWidth > W - 14 ? 'right' : 'left';
         const lx = align === 'left' ? p.x + radius + 9 : p.x - radius - 9;
         let ly = p.y - 5;
@@ -224,7 +229,7 @@
         label(ctx, name, lx, ly, selected ? '#d9c1a1' : '#91aeba', 9, align);
         if (selected || cam.zoom > .38) label(ctx, planet.kind.toUpperCase(), lx, ly + 14, '#5f8195', 7, align);
       }
-      if (detailed) {
+      if (detailed && system.wreck) {
         const wa = system.wreck.phase + state.simulation.time * .002;
         const wreck = project(Math.cos(wa) * system.wreck.orbit, Math.sin(wa) * system.wreck.orbit, cam);
         ctx.save(); ctx.translate(wreck.x, wreck.y); ctx.rotate(-.55);

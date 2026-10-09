@@ -4,7 +4,8 @@
 
 Préparer la simulation industrielle sans ajouter de gameplay. Le générateur
 `src/world.js`, l'aspect visuel et les gestes gardent leur comportement actuel.
-La génération plus variée des systèmes appartient à Agent 01.
+Cette section décrit le lot Agent 00. La génération ajoutée depuis par Agent 01
+est documentée dans [WORLDGEN.md](WORLDGEN.md).
 
 ## Plan minimal
 
@@ -72,8 +73,8 @@ et régénère `dist/nereide-zoom-continu.html` et `dist/nereide-sources.zip`.
 L'architecture conserve un contrôleur de navigation dans `src/app.js` et un
 renderer commun aux trois échelles. Aucun framework ni dépendance n'a été
 ajouté. Ressources, construction, usines et production ne sont pas implémentées.
-La prochaine dépendance est Agent 01, pour la génération procédurale variée ;
-sa mission n'a pas commencé.
+Agent 01 utilise désormais cette base pour la génération procédurale variée.
+La prochaine dépendance est Agent 02 : ressources, inventaires et construction.
 
 Les tests mobiles utilisent Chromium en émulation. Un appareil physique reste
 à vérifier. La politique du navigateur cloud bloque `file://` ; le HTML

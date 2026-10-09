@@ -37,6 +37,9 @@ validation de leur base commune.
 
 Chaque mise à jour doit être testée, puis commitée et poussée sur GitHub dans
 la branche `codex/nereide-prototype`. Fournir le lien du commit à la livraison.
+Utiliser ce lien de lancement pour les tests de l'utilisateur :
+`https://raw.githack.com/Erazer88/Hardgraft/codex/nereide-prototype/dist/nereide-zoom-continu.html`.
+Le paramètre `?v=X.Y.Z` peut être ajouté pour distinguer les versions en cache.
 
 `package.json` est la référence du numéro de version. Incrémenter la version
 pour chaque mise à jour livrée et exécuter `python3 build.py` : il génère
