@@ -1,0 +1,1172 @@
+HARDGRAFT — GAME DESIGN SOURCE
+OF TRUTH
+0. Rôle de ce document
+Ce document décrit la direction actuellement validée de Hardgraft.
+
+Règle absolue :
+
+   ●​ ne pas inventer de mécanique majeure non décrite ici ;
+   ●​ ne pas transformer une idée future en fonctionnalité actuelle ;
+   ●​ en cas d'ambiguïté, privilégier la solution la plus simple, modulaire et adaptée au
+      mobile ;
+   ●​ les paramètres d'équilibrage doivent être configurables et non enfouis dans le code ;
+   ●​ Hardgraft est développé par une personne aidée par des agents IA : la maintenabilité
+      et la simplicité passent avant la sophistication technique.
+
+Le but immédiat n'est PAS de construire le jeu complet.
+
+Le but est d'obtenir progressivement un jeu réellement amusant pendant quelques heures,
+tout en construisant une architecture permettant d'ajouter les systèmes avancés plus tard.
+
+
+
+
+1. IDENTITÉ DU JEU
+Hardgraft est un jeu PC/mobile de :
+
+   ●​   exploration spatiale ;
+   ●​   industrie ;
+   ●​   logistique ;
+   ●​   informatique/data ;
+   ●​   expansion civilisationnelle ;
+   ●​   découverte technologique.
+
+Le plaisir doit provenir d'un mélange équilibré entre :
+
+   ●​   construire et optimiser des chaînes industrielles ;
+   ●​   voir fonctionner un réseau vivant ;
+   ●​   explorer des planètes et systèmes inconnus ;
+   ●​   découvrir ressources, épaves, anomalies et technologies ;
+   ●​   étendre progressivement une civilisation ;
+   ●​   changer d'échelle jusqu'à administrer un réseau galactique.
+
+Il ne doit pas exister une seule façon optimale de jouer.
+
+Un joueur peut privilégier :
+
+   ●​   exploration ;
+   ●​   industrie ;
+   ●​   optimisation ;
+   ●​   logistique ;
+   ●​   technologie ;
+   ●​   data ;
+   ●​   expansion.
+
+
+
+
+2. TON ET NARRATION
+Ton général :
+
+   ●​   science-fiction relativement crédible ;
+   ●​   humour 5–6/10 ;
+   ●​   léger et parfois absurde ;
+   ●​   jamais constamment parodique ;
+   ●​   capacité à devenir ponctuellement réellement émouvant.
+
+Le jeu ne doit pas être moralisateur.
+
+Les conséquences des actions peuvent être graves sans afficher :
+
+   ●​ « bon choix » ;
+   ●​ « mauvais choix » ;
+   ●​ jauge de moralité.
+
+
+L'Arche
+Le jeu commence avec une Arche extrêmement ancienne.
+
+Elle possède :
+
+   ●​   des robots ;
+   ●​   une banque d'embryons humains ;
+   ●​   des archives ;
+   ●​   des systèmes partiellement fonctionnels ;
+   ●​   une réserve énergétique limitée.
+
+Il n'existe plus aucune trace fiable permettant de savoir :
+
+   ●​ pourquoi l'Arche a été lancée ;
+
+    ●​ d'où elle vient ;
+    ●​ qui l'a créée ;
+    ●​ quelle était sa mission réelle.
+
+Les données n'ont pas été mystérieusement effacées.
+
+Pendant une durée immense, elles ont été :
+
+    ●​   réécrites ;
+    ●​   compressées ;
+    ●​   copiées ;
+    ●​   réparées ;
+    ●​   physiquement dégradées.
+
+Les informations pratiques ont mieux survécu que leur contexte.
+
+Le joueur fait donc des suppositions.
+
+Le jeu ne donnera probablement jamais de réponse définitive.
+
+
+Identité du joueur
+Pour l'instant :
+
+le joueur est le Protocole de l'Arche.
+
+Il ne s'agit pas nécessairement d'un individu ou d'une IA classique.
+
+C'est une fonction décisionnelle chargée d'interpréter et de poursuivre une mission dont le
+sens original est perdu.
+
+
+Début du jeu
+L'Arche se réveille dans un système inconnu.
+
+Elle constate principalement :
+
+    ●​   réserve énergétique limitée ;
+    ●​   robots disponibles ;
+    ●​   embryons humains ;
+    ●​   système inconnu.
+
+Elle en déduit pragmatiquement un objectif :
+
+ÉTABLIR UNE PRÉSENCE HUMAINE VIABLE.
+
+Ce n'est pas nécessairement la véritable mission originelle.
+
+3. THÈME CENTRAL
+Hardgraft doit progressivement raconter une civilisation extrêmement compétente pour
+répondre à :
+
+Comment continuer ?
+
+mais qui ne sait plus répondre à :
+
+Pourquoi continuer ?
+
+Le joueur construit toujours plus parce qu'il peut construire toujours plus.
+
+L'expansion peut progressivement devenir exponentielle.
+
+Le jeu doit pouvoir finir ou évoluer vers une réflexion beaucoup plus simple et humaine que
+l'immense chaos industriel construit jusque-là.
+
+Une idée centrale :
+
+les moyens ont survécu, le sens a disparu.
+
+
+
+
+4. CONTEXTE
+À terme, une ressource/progression appelée provisoirement :
+
+Contexte
+
+représente la capacité de la civilisation à réinterpréter les anciens protocoles.
+
+La technologie répond :
+
+Que pouvons-nous faire ?
+
+Le Contexte répond :
+
+Pourquoi le faisons-nous ?
+
+Le Contexte pourra provenir notamment :
+
+   ●​   de la population humaine ;
+   ●​   de son ancienneté ;
+   ●​   de découvertes ;
+   ●​   d'archives ;
+   ●​   d'événements ;
+   ●​   de civilisations rencontrées ;
+
+   ●​ de l'analyse effectuée par l'Arche.
+
+Le Contexte ne révèle pas nécessairement « la vérité ».
+
+Il permet différentes interprétations de vérités déjà connues.
+
+L'Arche reste pendant toute la partie le hub principal de connaissance et de lore.
+
+Certaines découvertes sont transmises ou ramenées vers l'Arche pour être confrontées à
+ses archives.
+
+L'Arche elle-même doit progressivement apparaître comme le premier grand artefact
+mystérieux du jeu.
+
+IMPORTANT : Le système complet de Contexte n'est PAS nécessaire à la première version
+jouable.
+
+Prévoir seulement une architecture permettant de l'ajouter.
+
+
+
+
+5. PHILOSOPHIE DE GAMEPLAY
+Hardgraft n'est pas principalement un jeu de survie.
+
+Le joueur peut prendre son temps.
+
+Il n'existe pas de pression artificielle permanente.
+
+La motivation principale est :
+
+la curiosité.
+
+Le monde produit des accroches :
+
+   ●​   signal inconnu ;
+   ●​   anomalie ;
+   ●​   ressource ;
+   ●​   épave ;
+   ●​   phénomène ;
+   ●​   nouvelle technologie ;
+   ●​   planète intrigante.
+
+Le monde propose.
+
+Le joueur décide si cela devient un objectif.
+
+Éviter les quêtes classiques :
+
+« Explorez X — récompense 500 crédits ».
+
+Préférer :
+
+« Signal radio intermittent détecté à 4,7 années-lumière. Origine inconnue. »
+
+
+
+
+6. ABSENCE DE GAME OVER
+CLASSIQUE
+Les erreurs techniques doivent être facilement réparables.
+
+Exemples :
+
+   ●​   mauvais placement ;
+   ●​   mauvaise route ;
+   ●​   mauvaise chaîne ;
+   ●​   mauvaise usine.
+
+La démolition/revente peut restituer jusqu'à 100 % du coût.
+
+Le joueur doit pouvoir expérimenter.
+
+En revanche :
+
+les décisions historiques, humaines et narratives peuvent être irréversibles.
+
+Exemples :
+
+   ●​   extinction ;
+   ●​   destruction d'un écosystème ;
+   ●​   population exterminée ;
+   ●​   civilisation détruite ;
+   ●​   artefact unique consommé ;
+   ●​   abandon irréversible.
+
+Principe :
+
+Les erreurs techniques sont réparables. Les choix historiques ne le sont pas.
+
+
+
+
+7. GALAXIE
+La galaxie est procédurale et déterministe par seed.
+
+Échelle actuelle du prototype :
+
+   ●​ environ 2 560 systèmes ;
+   ●​ plusieurs bras galactiques ;
+   ●​ noyau central.
+
+La galaxie doit donner une sensation d'immensité.
+
+Le joueur ne doit PAS devoir coloniser chaque système.
+
+Un système peut être :
+
+   ●​   très riche ;
+   ●​   banal ;
+   ●​   étrange ;
+   ●​   presque vide ;
+   ●​   inutile économiquement ;
+   ●​   intéressant uniquement pour sa position ;
+   ●​   intéressant beaucoup plus tard grâce à une technologie.
+
+Explorer ne signifie pas coloniser.
+
+
+
+
+8. DIVERSITÉ DES SYSTÈMES
+Ne plus imposer 4 à 7 planètes dans tous les systèmes.
+
+La génération future doit permettre une grande variation :
+
+   ●​   0–2 planète(s) ;
+   ●​   systèmes riches en planètes ;
+   ●​   plusieurs ceintures d'astéroïdes ;
+   ●​   géantes gazeuses ;
+   ●​   système presque vide ;
+   ●​   systèmes particulièrement riches ;
+   ●​   éventuellement étoiles multiples ;
+   ●​   phénomènes rares.
+
+Ne pas transformer chaque système en attraction spectaculaire.
+
+Les systèmes ordinaires donnent de la crédibilité aux systèmes extraordinaires.
+
+Le système de départ doit cependant respecter certaines contraintes minimales pour
+permettre une partie viable.
+
+9. PLANÈTES
+Les planètes ne doivent pas être uniquement des archétypes extrêmes.
+
+Elles doivent dériver de paramètres continus :
+
+    ●​   distance à l'étoile ;
+    ●​   classe de l'étoile ;
+    ●​   température ;
+    ●​   pression ;
+    ●​   atmosphère ;
+    ●​   eau ;
+    ●​   activité géologique ;
+    ●​   vents ;
+    ●​   rayonnement ;
+    ●​   gravité ;
+    ●​   ressources ;
+    ●​   biosphère ;
+    ●​   relief.
+
+Une planète peut donc être moyenne sur plusieurs critères.
+
+La zone habitable dépend du type d'étoile.
+
+Le terrain influence l'optimisation, mais ne doit généralement pas bloquer le joueur.
+
+Exemples :
+
+    ●​   éoliennes mieux placées dans zones venteuses ;
+    ●​   géothermie meilleure dans zones géologiquement actives ;
+    ●​   exploitation offshore plus productive loin des côtes ;
+    ●​   ressources variant selon géologie.
+
+Le relief doit surtout :
+
+    ●​ enrichir le décor ;
+    ●​ rendre les routes agréables à regarder ;
+    ●​ créer de petites optimisations.
+
+
+
+
+10. HABITABILITÉ ET POPULATION
+Certaines planètes peuvent accueillir beaucoup d'humains.
+
+D'autres sont extrêmement hostiles mais disposent tout de même de petites colonies :
+
+   ●​ sous serre ;
+   ●​ souterraines ;
+   ●​ habitats pressurisés.
+
+C'est principalement narratif et visuel.
+
+Une planète hostile peut devenir :
+
+   ●​   énorme monde industriel ;
+   ●​   monde énergétique ;
+   ●​   planète poubelle ;
+   ●​   zone très polluée.
+
+L'absence de contraintes environnementales fortes peut être un avantage industriel.
+
+La population n'est PAS un city-builder.
+
+Le joueur ne gère pas :
+
+   ●​   chaque logement ;
+   ●​   chaque citoyen ;
+   ●​   chaque emploi ;
+   ●​   la nourriture individuellement.
+
+La population évolue naturellement principalement selon :
+
+   ●​   ancienneté du système ;
+   ●​   habitabilité ;
+   ●​   puissance industrielle ;
+   ●​   développement général.
+
+On suppose que les humains travaillent dans :
+
+   ●​   usines ;
+   ●​   datacenters ;
+   ●​   recherche ;
+   ●​   infrastructures.
+
+La population importante génère davantage de Contexte.
+
+Des villes et infrastructures civiles peuvent apparaître automatiquement comme éléments
+visuels :
+
+   ●​   plaines ;
+   ●​   vallées ;
+   ●​   rivières ;
+   ●​   côtes ;
+   ●​   autour des infrastructures.
+
+11. PREMIÈRE HEURE
+Objectif approximatif :
+
+le joueur doit pouvoir quitter son premier système au bout d'environ 1 heure, sans avoir
+terminé de l'exploiter.
+
+Début envisagé :
+
+   1.​ réveil de l'Arche ;
+   2.​ énergie restante limitée ;
+   3.​ observation du système ;
+   4.​ petit choix de planètes candidates ;
+   5.​ sélection du premier monde ;
+   6.​ débarquement de robots ;
+   7.​ énergie autonome ;
+   8.​ extraction ;
+   9.​ première usine ;
+   10.​composants ;
+   11.​nouveaux robots / infrastructures ;
+   12.​habitat ;
+   13.​apparition progressive d'humains ;
+   14.​recherche/data ;
+   15.​sondes ;
+   16.​exploration plus profonde ;
+   17.​découverte incitant à regarder plus loin ;
+   18.​premier voyage interstellaire.
+
+L'exploration de la galaxie doit apparaître rapidement.
+
+Un système reste cependant assez riche pour y passer longtemps.
+
+
+
+
+12. EXPLORATION PROGRESSIVE
+Une planète ne doit pas révéler immédiatement toute sa fiche.
+
+Niveaux de connaissance :
+
+Télescope
+
+Informations lointaines :
+
+   ●​ étoile ;
+   ●​ masse approximative ;
+   ●​ orbite ;
+
+   ●​ atmosphère probable ;
+   ●​ anomalies majeures.
+
+Sonde
+
+Informations plus précises :
+
+   ●​   habitabilité probable ;
+   ●​   composition ;
+   ●​   relief général ;
+   ●​   présence potentielle de ressources ;
+   ●​   biosphère probable.
+
+Présence physique
+
+Révélation complète :
+
+   ●​   terrain ;
+   ●​   gisements ;
+   ●​   qualité ;
+   ●​   faune ;
+   ●​   ruines ;
+   ●​   anomalies locales.
+
+Principe :
+
+la planète existe avant d'être connue.
+
+
+
+
+13. INDUSTRIE PLANÉTAIRE
+Une usine est physiquement placée sur la planète.
+
+Mais les blocs industriels ne sont PAS placés directement sur le terrain.
+
+Lorsqu'on zoome/ouvre une usine, on accède à un grand espace interne contenant des
+blocs flottants.
+
+Référence de gameplay : Upload Labs.
+
+L'espace interne est physiquement limité.
+
+Une usine Rang II ou supérieur dispose d'un espace interne plus grand.
+
+La contrainte de place sert à :
+
+   ●​ organiser les réseaux ;
+
+    ●​ éviter le spaghetti ;
+    ●​ donner de la valeur aux améliorations d'usine.
+
+Le placement physique des blocs à l'intérieur de l'usine n'a AUCUN effet mécanique.
+
+Il sert uniquement à la lisibilité.
+
+
+
+
+14. BLOCS INDUSTRIELS
+Privilégier les blocs génériques.
+
+Exemples de familles :
+
+    ●​   entrée usine ;
+    ●​   sortie usine ;
+    ●​   transformation ;
+    ●​   assemblage ;
+    ●​   séparation ;
+    ●​   stockage ;
+    ●​   division ;
+    ●​   fusion ;
+    ●​   filtre ;
+    ●​   règle de passage ;
+    ●​   traitement data ;
+    ●​   analyse ;
+    ●​   réception data.
+
+Une machine générique reçoit une recette plutôt que de créer un asset unique pour chaque
+recette.
+
+Objectif :
+
+    ●​ limiter les assets ;
+    ●​ limiter le code ;
+    ●​ permettre beaucoup de contenu data-driven.
+
+Chaque bloc possède :
+
+    ●​   entrée(s) ;
+    ●​   sortie(s) ;
+    ●​   stock interne limité ;
+    ●​   stock améliorable globalement via recherche ;
+    ●​   temps de traitement ;
+    ●​   recette/fonction.
+
+Les ressources transférées entre blocs sont transférées instantanément à la fin du cycle
+si le bloc suivant dispose de place.
+
+Les stocks internes produisent naturellement :
+
+   ●​ saturation ;
+   ●​ famine ;
+   ●​ goulots d'étranglement.
+
+
+
+
+15. ÉNERGIE
+Les blocs ne sont PAS alimentés individuellement.
+
+L'usine possède une consommation énergétique totale.
+
+Exemple :
+
+Besoin : 14,8 MW​
+Disponible : 12,1 MW
+
+La disponibilité énergétique agit sur le fonctionnement de l'usine.
+
+À terme l'énergie pourra être transportée physiquement entre mondes, notamment via
+batteries, mais ce système avancé n'est pas prioritaire.
+
+
+
+
+16. DATA
+La data est l'un des grands piliers du jeu.
+
+Trois grands réseaux :
+
+Matière​
+Énergie​
+Information
+
+Une usine peut recevoir de la data à travers un asset :
+
+Émetteur / Récepteur
+
+relié à un datacenter choisi.
+
+À l'intérieur de l'usine, la data circule entre blocs comme un second réseau.
+
+Exemple :
+
+Récepteur data​
+→ Analyse qualité​
+→ connexion data vers Fabrication de plaques
+
+L'analyse peut permettre :
+
+   ●​   moins de déchets ;
+   ●​   meilleure cadence ;
+   ●​   meilleur rendement ;
+   ●​   meilleure qualité ;
+   ●​   tri plus intelligent ;
+   ●​   comportement automatique.
+
+À terme :
+
+   ●​   vérification de paquets ;
+   ●​   corruption ;
+   ●​   erreurs ;
+   ●​   filtrage ;
+   ●​   compression ;
+   ●​   virus ;
+   ●​   cache ;
+   ●​   analyse prédictive.
+
+Mais ne PAS implémenter toute cette complexité immédiatement.
+
+Pour commencer : un seul usage clair de data suffit.
+
+
+
+
+17. QUALITÉ DES MATÉRIAUX
+Rester simple.
+
+Deux niveaux :
+
+Standard​
+Supérieur / avancé
+
+Une ressource avancée est rétrocompatible.
+
+Exemple :
+
+une recette demandant Fer standard accepte Fer avancé.
+
+Certaines productions complexes exigent explicitement Fer avancé.
+
+Exemple de fonctionnement :
+
+Minerai​
+→ fabrication normale​
+→ Fer standard
+
+Minerai​
+→ fabrication assistée par Analyse qualité/data​
+→ Fer avancé
+
+Pas de pureté à 87,42 %.
+
+
+
+
+18. MATIÈRES PREMIÈRES
+Premières familles fondamentales :
+
+   ●​   fer ;
+   ●​   cuivre ;
+   ●​   silicium ;
+   ●​   carbone / hydrocarbures ;
+   ●​   eau.
+
+L'objectif est une quantité de ressources fondamentales comparable dans l'esprit à Factorio
+:
+
+   ●​ peu de fondamentaux ;
+   ●​ davantage de transformations ;
+   ●​ nombreux composants intermédiaires à terme.
+
+Les recettes doivent être DATA-DRIVEN.
+
+Ne pas hardcoder les recettes au milieu de la simulation.
+
+
+
+
+19. DÉCHETS
+Les déchets sont de vraies ressources.
+
+Une chaîne peut produire :
+
+   ●​ produit principal ;
+   ●​ résidus/déchets.
+
+Les déchets peuvent :
+
+    ●​     être stockés ;
+    ●​     détruits ;
+    ●​     exportés ;
+    ●​     recyclés ;
+    ●​     devenir utiles avec une technologie future.
+
+Certaines matières inconnues peuvent être conservées sans usage immédiat.
+
+Une technologie/artefact futur peut rendre précieuse une ancienne matière considérée
+comme inutile.
+
+
+
+
+20. GISEMENTS
+Éviter :
+
+« le gisement contenait un milliard de tonnes puis disparaît complètement après trente
+minutes ».
+
+Un gisement devient progressivement moins intéressant.
+
+Facteurs possibles :
+
+    ●​     partie facilement accessible ;
+    ●​     richesse ;
+    ●​     profondeur ;
+    ●​     coût énergétique ;
+    ●​     technologie disponible.
+
+Un ancien monde minier ne devient pas nécessairement inutile.
+
+Il peut être reconverti :
+
+    ●​     industrie ;
+    ●​     recyclage ;
+    ●​     hub ;
+    ●​     population ;
+    ●​     data ;
+    ●​     spécialisation.
+
+Les technologies futures peuvent rendre de vieux gisements intéressants à nouveau.
+
+
+
+
+21. CONSTRUCTION
+
+Construire :
+
+   ●​   usines ;
+   ●​   mines ;
+   ●​   centrales ;
+   ●​   hubs ;
+   ●​   routes ;
+   ●​   infrastructures
+
+consomme réellement des matériaux.
+
+Temps de construction : environ 3 à 4 secondes pour les constructions courantes au début.
+
+Éviter les temps morts inutiles.
+
+La construction doit être visible/animée.
+
+Démolition : très permissive, potentiellement 100 % du coût restitué.
+
+
+
+
+22. LOGISTIQUE PLANÉTAIRE
+Rester simple.
+
+Transport :
+
+   ●​   routes terrestres ;
+   ●​   éventuellement maritime ;
+   ●​   circulation visible ;
+   ●​   véhicules visibles mais non microgérés.
+
+Les flux convergent vers un hub planétaire central.
+
+Puis : hub​
+→ fusée/navette​
+→ autres astres.
+
+Le transport entre blocs d'une usine est instantané.
+
+Le transport physique hors usine prend du temps.
+
+
+
+
+23. PLANÈTE VIVANTE VISUELLEMENT
+Même lorsqu'il ne fait rien, le joueur doit prendre plaisir à regarder une planète fonctionner.
+
+Ajouter progressivement :
+
+   ●​   circulation ;
+   ●​   routes ;
+   ●​   petites animations ;
+   ●​   activité industrielle ;
+   ●​   lumières ;
+   ●​   navettes ;
+   ●​   zones habitées ;
+   ●​   assets décoratifs ;
+   ●​   végétation/forêts lorsque cohérent.
+
+Les éléments civils peuvent apparaître automatiquement.
+
+Ils n'ont pas besoin de devenir des mécaniques lourdes.
+
+
+
+
+24. TECHNOLOGIES
+Éviter un arbre technologique entièrement visible dès le début.
+
+L'arbre complet peut être immense, mais reste majoritairement dans le brouillard.
+
+Le joueur perçoit qu'il existe beaucoup de possibilités sans connaître leur contenu.
+
+Les branches apparaissent en fonction :
+
+   ●​   des constructions ;
+   ●​   des usages ;
+   ●​   des découvertes ;
+   ●​   de l'exploration.
+
+Exemple :
+
+construction d'un centre de traitement des déchets​
+ → nouvelles pistes :
+
+   ●​   séparation avancée ;
+   ●​   récupération ;
+   ●​   valorisation ;
+   ●​   traitement chimique.
+
+Le joueur investit ensuite de la puissance de calcul dans une piste.
+
+Technologies humaines principales :
+
+   ●​ crédibles ;
+
+   ●​ identiques entre les seeds ;
+   ●​ nécessaires au fonctionnement général.
+
+Deux parties peuvent toutefois révéler ces technologies dans un ordre différent.
+
+
+
+
+25. RECHERCHE
+Boucle générale :
+
+activité réelle​
+→ apparition de pistes​
+→ allocation de puissance de calcul​
+→ recherche​
+→ technologie.
+
+Éviter de dépendre entièrement du hasard.
+
+Une technologie indispensable ne doit jamais demander trois heures de RNG.
+
+L'exploration peut :
+
+   ●​   révéler une branche ;
+   ●​   accélérer une recherche ;
+   ●​   donner une variante ;
+   ●​   donner une amélioration ;
+   ●​   fournir une technologie étrange.
+
+
+
+
+26. ÉPAVES ET ARTEFACTS
+Les épaves peuvent contenir :
+
+   ●​   matériaux ;
+   ●​   data ;
+   ●​   technologie ;
+   ●​   amélioration ;
+   ●​   artefact ;
+   ●​   machine étrange.
+
+Les artefacts sont beaucoup plus libres que les technologies humaines.
+
+Ils peuvent être :
+
+   ●​ absurdes ;
+
+   ●​ très puissants ;
+   ●​ presque inutiles ;
+   ●​ extrêmement situationnels.
+
+Pour rester codables, privilégier des combinaisons de modificateurs génériques existants :
+
+   ●​   vitesse ;
+   ●​   rendement ;
+   ●​   capacité ;
+   ●​   énergie ;
+   ●​   portée ;
+   ●​   qualité ;
+   ●​   latence ;
+   ●​   conversion ;
+   ●​   sous-produit ;
+   ●​   condition ;
+   ●​   probabilité.
+
+Éviter de coder une mécanique entièrement nouvelle pour chaque artefact procédural.
+
+
+
+
+27. POPULATION ET CONTEXTE
+Population :
+
+   ●​   abstraction ;
+   ●​   pas de microgestion ;
+   ●​   croissance naturelle ;
+   ●​   facteur visuel et narratif ;
+   ●​   source de Contexte.
+
+Vieux système : → généralement plus grande population​
+→ plus de Contexte​
+→ peut rester utile même avec une industrie médiocre.
+
+Cela permet aux premiers systèmes de devenir des sortes de villages/vieux centres
+galactiques plutôt que des territoires obsolètes.
+
+
+
+
+28. SPÉCIALISATION
+Ne PAS ajouter de bonus artificiel du type :
+
+« 10 mines = spécialisation minière +25 %. »
+
+La spécialisation doit émerger naturellement.
+
+Exemples :
+
+   ●​   système minier ;
+   ●​   centre industriel ;
+   ●​   datacenter ;
+   ●​   hub logistique ;
+   ●​   vieille colonie ;
+   ●​   centre de recherche.
+
+Un joueur explorateur doit aussi pouvoir développer de nombreux petits systèmes dispersés.
+
+
+
+
+29. HUBS ET EXPORTS — FUTUR
+IMPORTANT
+À grande échelle, les petits systèmes pourront exporter vers de grands hubs régionaux.
+
+Exemple de politique :
+
+Réserve locale fer : 20 000​
+Exporter surplus → Hub régional
+
+Le hub agrège les productions.
+
+Cela doit progressivement transformer :
+
+logistique système par système
+
+en :
+
+logistique régionale.
+
+Ce système est préférable à une IA devant concevoir librement chaque système.
+
+
+
+
+30. AUTOMATISATION FUTURE
+NE PAS coder une IA générative libre décidant de construire n'importe quoi.
+
+L'automatisation future doit être :
+
+   ●​ déterministe ;
+
+   ●​ basée sur règles ;
+   ●​ testable.
+
+Progression envisagée :
+
+   1.​ décisions manuelles ;
+   2.​ automatisation simple ;
+   3.​ règles d'import/export ;
+   4.​ mémorisation d'un choix ;
+   5.​ politiques ;
+   6.​ exceptions uniquement ;
+   7.​ délégation à une couche supérieure.
+
+Exemple :
+
+Fer > réserve minimale​
+→ exporter surplus.
+
+C'est simple à coder mais peut produire un comportement global complexe.
+
+
+
+
+31. DÉCISIONS
+À terme, des événements peuvent demander une décision.
+
+Deux familles :
+
+Techniques
+
+   ●​   saturation ;
+   ●​   énergie ;
+   ●​   export ;
+   ●​   stockage ;
+   ●​   production ;
+   ●​   réseau.
+
+Humaines
+
+   ●​   désaccord local ;
+   ●​   préservation d'un site ;
+   ●​   déplacement de population ;
+   ●​   autonomie ;
+   ●​   environnement ;
+   ●​   rébellion.
+
+Le jeu ne doit pas devenir un jeu politique ou militaire.
+
+Les décisions humaines produisent surtout des conséquences sur :
+
+   ●​   population ;
+   ●​   production ;
+   ●​   Contexte ;
+   ●​   lore ;
+   ●​   tags historiques ;
+   ●​   fonctionnement local.
+
+
+
+
+32. RÉBELLION — FUTUR
+Une rébellion peut temporairement bloquer complètement une planète.
+
+Conséquences :
+
+   ●​ arrêt production ;
+   ●​ arrêt export ;
+   ●​ effets sur les autres systèmes dépendants.
+
+Différentes résolutions pourront exister.
+
+Option extrême possible : liquider toute la population et gouverner par la terreur.
+
+Conséquence :
+
+   ●​   récupération du contrôle ;
+   ●​   perte massive de population ;
+   ●​   énorme perte de Contexte ;
+   ●​   trace historique irréversible.
+
+Le jeu constate la conséquence sans système de moralité simpliste.
+
+
+
+
+33. EMBALLEMENT FUTUR
+Le jeu doit pouvoir atteindre un stade où la civilisation s'étend extrêmement rapidement.
+
+Le joueur peut avoir créé :
+
+   ●​ un réseau magnifiquement optimisé ;
+   ●​ un chaos gigantesque ;
+   ●​ quelque chose entre les deux.
+
+L'idée intéressante n'est pas « une IA devient méchante ».
+
+L'idée est :
+
+la civilisation suit extrêmement bien les règles accumulées par le joueur.
+
+Elle peut alors prendre des décisions auxquelles le joueur n'avait pas pensé.
+
+Le chaos apparent doit provenir de systèmes déterministes simples empilés les uns sur les
+autres.
+
+
+
+
+34. DIRECTION ARTISTIQUE
+Vue du dessus.
+
+Mobile :
+
+    ●​ portrait ;
+    ●​ interface sobre ;
+    ●​ carte dominante.
+
+PC également supporté.
+
+Références :
+
+    ●​   Upload Labs pour les blocs/UI ;
+    ●​   Factorio pour la profondeur industrielle ;
+    ●​   Universal Paperclips pour le changement d'échelle ;
+    ●​   Spore pour l'immensité ;
+    ●​   Iron Nest pour la carte interactive.
+
+Identité par échelle :
+
+Galaxie
+
+organique, crédible, immense.
+
+Système
+
+blueprint / électronique / tableau de bord.
+
+Planète
+
+carte topographique/stratégique, terrain riche.
+
+Usine
+
+blocs flottants sur interface sobre, terrain non directement utilisé pour les blocs.
+
+Éviter :
+
+    ●​     surcharge d'icônes ;
+    ●​     glow excessif ;
+    ●​     interface de jeu mobile générique ;
+    ●​     esthétique sci-fi flashy gratuite.
+
+
+
+
+35. RÈGLE DE SCOPE
+Lorsqu'une mécanique future risque de compliquer fortement la première version :
+
+ne pas l'implémenter.
+
+Prévoir une interface propre permettant de l'ajouter plus tard.
+
+Les priorités sont :
+
+    1.​ sensation de navigation ;
+    2.​ exploration ;
+    3.​ construction ;
+    4.​ usine ;
+    5.​ flux ;
+    6.​ satisfaction visuelle ;
+    7.​ progression ;
+    8.​ seulement ensuite complexité galactique.
+
+Le joueur doit d'abord s'amuser à faire fonctionner UNE planète.
+

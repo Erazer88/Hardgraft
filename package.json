@@ -6,7 +6,7 @@
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "build": "python3 build.py",
-    "test": "node --test src/world.test.cjs",
+    "test": "node --test src/world.test.cjs tests/architecture.test.cjs",
     "test:browser": "node tests/browser-smoke.cjs"
   }
 }

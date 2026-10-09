@@ -4,6 +4,8 @@ Premier prototype de navigation spatiale en portrait. Une galaxie procédurale, 
 
 Les [captures du prototype sur GitHub](https://github.com/Erazer88/Hardgraft/tree/codex/nereide-prototype/docs/images) présentent les vues mobile et bureau, ainsi que les étapes du zoom continu.
 
+Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Le lot Agent 00 prépare la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). La génération variée des systèmes et le gameplay industriel appartiennent aux missions suivantes.
+
 ## Ouvrir le prototype
 
 Les fichiers prêts à télécharger sont dans le dépôt : [prototype HTML autonome](dist/nereide-zoom-continu.html) et [archive ZIP des sources](dist/nereide-sources.zip). Sur GitHub, ouvrir le fichier puis utiliser **Download raw file** pour le récupérer.
@@ -47,11 +49,13 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 ## Validation
 
 ```sh
-node --test src/world.test.cjs
+npm test
 node tests/browser-smoke.cjs
 ```
 
 Les tests du générateur couvrent la reproductibilité, des graines différentes, la continuité des bras, l'ordre des orbites, les vitesses de Kepler et la présence de terres, d'océans et de ressources.
+
+Les tests d'architecture exécutent les modules de simulation, sauvegarde, exploration et caméra sans DOM ni Canvas. Ils contrôlent notamment la compatibilité avec les anciennes sauvegardes et la stabilité du point visé au zoom.
 
 Le test navigateur utilise Chromium installé et le protocole DevTools natif, sans bibliothèque additionnelle. Il attend le serveur sur le port 8000 et produit des captures dans `artifacts/`. Les résultats d'émulation mobile ne remplacent pas un essai sur appareil physique.
 
