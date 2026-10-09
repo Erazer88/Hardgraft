@@ -2,6 +2,7 @@
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera, Config = root.OrbitConfig;
   const BuildingData = root.OrbitBuildingData, Construction = root.OrbitConstruction;
+  const BlockData = root.OrbitBlockData, FactorySimulation = root.OrbitFactorySimulation, ResourceData = root.OrbitResourceData;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -11,7 +12,7 @@
   function create(canvas) {
     const ctx = canvas.getContext('2d', { alpha: false });
     let W = 1, H = 1, DPR = 1;
-    let state, galaxy, home, contexts, visibleContexts, now;
+    let state, galaxy, home, contexts, visibleContexts, factoryView, now;
     let galaxyTexture, fogCanvas, fogMask;
     const viewport = { width: W, height: H };
     function project(x, y, cam = state.camera) { return Camera.project({ x, y }, cam, viewport); }
@@ -332,6 +333,63 @@
       if (cam.zoom > .55 || selected) label(ctx, `${definition.code} · ${building.status === 'complete' ? 'ACTIF' : Math.round(Construction.progress(state.simulation, building) * 100) + '%'}`,
         p.x + radius + 7, p.y - radius - 2, selected ? '#f0b478' : '#b7c7c2', 8);
     }
+    function factoryPort(block, port, direction, camera) {
+      const count = direction === 'out' ? BlockData.definitions[block.type].outputPorts : BlockData.definitions[block.type].inputPorts;
+      const index = Number(port.split('-')[1]) - 1;
+      const y = block.y + (index - (count - 1) / 2) * 24;
+      return project(block.x + (direction === 'out' ? BlockData.node.width / 2 : -BlockData.node.width / 2), y, camera);
+    }
+    function drawFactoryInterior(camera, factory) {
+      if (!factory) return;
+      const a = project(0, 0, camera), b = project(factory.width, factory.height, camera);
+      const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y);
+      if (x > W || y > H || x + width < 0 || y + height < 0) return;
+      ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, width, height, Math.min(9, Math.max(0, 6 * camera.zoom))); ctx.clip();
+      ctx.fillStyle = '#0a1722'; ctx.fillRect(x, y, width, height);
+      ctx.strokeStyle = '#83c3d014'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let gx = Math.ceil((0 - camera.x) / 48) * 48; gx < factory.width; gx += 48) {
+        const px = project(gx, 0, camera).x; ctx.moveTo(px, y); ctx.lineTo(px, y + height);
+      }
+      for (let gy = Math.ceil((0 - camera.y) / 48) * 48; gy < factory.height; gy += 48) {
+        const py = project(0, gy, camera).y; ctx.moveTo(x, py); ctx.lineTo(x + width, py);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#8fcbd253'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, Math.max(0, width - 1), Math.max(0, height - 1));
+      for (const edge of factory.connections) {
+        const from = factory.blocks[edge.from], to = factory.blocks[edge.to];
+        if (!from || !to) continue;
+        const p1 = factoryPort(from, edge.fromPort, 'out', camera), p2 = factoryPort(to, edge.toPort, 'in', camera);
+        const bend = Math.max(24, Math.abs(p2.x - p1.x) * .42);
+        ctx.strokeStyle = state.connectionSource === from.id ? '#efb67bba' : '#65b7c68a'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.bezierCurveTo(p1.x + bend, p1.y, p2.x - bend, p2.y, p2.x, p2.y); ctx.stroke();
+        const t = (state.simulation.time * .45 + Number(edge.id.replace(/\D/g, '')) * .18) % 1;
+        const u = 1 - t, px = u * u * u * p1.x + 3 * u * u * t * (p1.x + bend) + 3 * u * t * t * (p2.x - bend) + t * t * t * p2.x;
+        const py = u * u * u * p1.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p2.y;
+        dot(ctx, px, py, 2, '#b2e1d9');
+      }
+      for (const id of factory.order) {
+        const block = factory.blocks[id], definition = BlockData.definitions[block.type];
+        const center = project(block.x, block.y, camera), bw = BlockData.node.width * camera.zoom, bh = BlockData.node.height * camera.zoom;
+        if (center.x + bw < 0 || center.x - bw > W || center.y + bh < 0 || center.y - bh > H) continue;
+        const selected = state.selected?.entityType === 'block' && state.selected.id === block.id;
+        const left = center.x - bw / 2, top = center.y - bh / 2;
+        ctx.fillStyle = '#102333ed'; ctx.strokeStyle = selected ? '#efa35a' : definition.color + 'bb'; ctx.lineWidth = selected ? 1.6 : 1;
+        ctx.beginPath(); ctx.roundRect(left, top, bw, bh, 5); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = definition.color + '30'; ctx.fillRect(left + 1, top + 1, Math.max(0, bw - 2), Math.max(8, 26 * camera.zoom));
+        label(ctx, definition.code, left + 9 * camera.zoom, top + 13 * camera.zoom, definition.color, 9);
+        label(ctx, definition.name.toUpperCase(), left + bw / 2, top + 35 * camera.zoom, '#d3e3e8', 8, 'center');
+        const contents = Object.entries(block.stock || {}).filter(([, amount]) => amount > 0).slice(0, 2);
+        contents.forEach(([resource, amount], index) => label(ctx, `${ResourceData.definitions[resource]?.short || resource} ${Math.floor(amount)}/${block.capacity}`,
+          left + 9 * camera.zoom, top + (62 + index * 15) * camera.zoom, ResourceData.definitions[resource]?.color || '#a9c6cf', 8));
+        const status = block.status === 'starved' ? 'FAMINE' : block.status === 'blocked' ? 'BLOQUÉ' : block.status === 'running' ? 'ACTIF' : 'EN ATTENTE';
+        label(ctx, status, left + 9 * camera.zoom, top + bh - 12 * camera.zoom, block.status === 'blocked' ? '#e1a276' : '#7194a2', 7);
+        const portCountIn = definition.inputPorts, portCountOut = definition.outputPorts;
+        for (let port = 1; port <= portCountIn; port++) { const p = factoryPort(block, `in-${port}`, 'in', camera); dot(ctx, p.x, p.y, 3, '#80c6d4'); }
+        for (let port = 1; port <= portCountOut; port++) { const p = factoryPort(block, `out-${port}`, 'out', camera); dot(ctx, p.x, p.y, 3, '#80c6d4'); }
+      }
+      label(ctx, `RANG ${factory.rank}   /   ESPACE ${factory.width} × ${factory.height}`, x + 12, y + height - 13, '#5d8797', 8);
+      ctx.restore();
+    }
     function drawSurface(cam, planet, record) {
       const { texture: terrainTexture, data: terrainData } = record;
       const top = project(0, 0, cam), scale = cam.zoom;
@@ -339,8 +397,7 @@
       if (scale > .06) drawGrid(cam, true);
       const bottom = project(terrainTexture.width, terrainTexture.height, cam);
       ctx.strokeStyle = '#a9b9ad40'; ctx.lineWidth = 1; ctx.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
-      if (scale < .15) return;
-      for (const res of terrainData.resources) {
+      if (scale >= .15) for (const res of terrainData.resources) {
         const p = project(res.x * Config.terrain.textureScale, res.y * Config.terrain.textureScale, cam), r = 8 + 4 * scale;
         if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) continue;
         ctx.save(); ctx.beginPath(); ctx.ellipse(p.x, p.y, r * 1.35, r * .75, -.45, 0, TAU); ctx.clip();
@@ -349,6 +406,11 @@
         if (scale > .55) label(ctx, res.type.toUpperCase(), p.x + r + 6, p.y, '#c7c49b', 8);
       }
       for (const building of Construction.list(state.simulation, planet.id)) drawSurfaceBuilding(cam, building);
+      if (factoryView?.building.planetId === planet.id && state.level !== 'factory') {
+        const nested = Camera.toLocal(factoryView.mapFrame, cam);
+        drawFactoryInterior(nested, factoryView.factory);
+      }
+      if (scale < .15) return;
       if (state.selected?.surfacePoint) {
         const p = project(state.selected.x, state.selected.y, cam);
         circle(ctx, p.x, p.y, 7, '#efb26e', 1);
@@ -373,6 +435,9 @@
     function drawUniverse() {
       ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       const cam = state.camera;
+      if (state.level === 'factory' && factoryView) {
+        drawFactoryInterior(localCamera(factoryView.worldFrame), factoryView.factory); return;
+      }
       if (state.level === 'surface' && state.planet) {
         const p = planetWorldPosition(state.planet), center = project(p.x, p.y), r = state.planet.radius * state.context.frame.scale * cam.zoom;
         if (r > Math.max(W, H) * 1.5) { drawPlanetTerrain(state.planet, state.context, center, r); return; }
@@ -394,7 +459,7 @@
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     }
     function render(scene) {
-      ({ state, galaxy, home, contexts, visibleContexts, now } = scene);
+      ({ state, galaxy, home, contexts, visibleContexts, factoryView, now } = scene);
       drawUniverse();
     }
     return Object.freeze({ resize, render, prepareGalaxy, createTerrainTexture });

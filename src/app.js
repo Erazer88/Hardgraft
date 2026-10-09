@@ -5,6 +5,7 @@
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
   const Construction = globalThis.OrbitConstruction, BuildingData = globalThis.OrbitBuildingData;
   const ResourceData = globalThis.OrbitResourceData;
+  const FactorySimulation = globalThis.OrbitFactorySimulation, BlockData = globalThis.OrbitBlockData;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
@@ -16,6 +17,7 @@
   let galaxy, home, terrainTexture, terrainData;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null, pendingBuildingType = null;
+  let pendingBlockType = null, factoryDrag = null;
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
@@ -30,7 +32,9 @@
   // One camera, one galactic coordinate space, at every level of detail.
   function zoomLimits(anchor = state.camera) {
     let max = Config.camera.maxZoom;
-    if (state.context) {
+    const nestedFactory = factoryView();
+    if (nestedFactory) max = Math.min(max, 3.2 / nestedFactory.worldFrame.scale);
+    else if (state.context) {
       const planet = (state.level === 'surface' && state.tracking?.planet) || state.context.model.planets.find(p =>
         p.kind !== 'gazeuse' && distance(planetWorldPosition(p), anchor) <= p.radius * state.context.frame.scale * 1.4);
       // Stop at useful terrain detail rather than magnifying the raster into an
@@ -74,6 +78,12 @@
     const record = prepareTerrain(planet, context);
     return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
   }
+  function factoryView() {
+    const factory = FactorySimulation.get(state.simulation, state.focusFactory);
+    const building = factory && state.simulation.buildings[factory.buildingId];
+    if (!factory || !building || building.planetId !== state.planet?.id || !state.context) return null;
+    return { factory, building, ...FactorySimulation.createFrame(surfaceFrame(), building, factory) };
+  }
   function cameraMoving() { return Camera.moving(state.camera, state.target); }
   function followPlanet(planet, context = state.context) {
     if (state.tracking?.planet.id === planet.id && state.tracking.context === context) return;
@@ -89,6 +99,11 @@
   function homeCamera() {
     if (state.level === 'galaxy') return { x: home.x - 200, y: home.y - 160, zoom: Math.max(.09, fitZoom(1900)) };
     if (state.level === 'system') return systemCamera();
+    if (state.level === 'factory') {
+      const view = factoryView();
+      if (view) return Camera.toWorld(view.worldFrame, { x: view.factory.width / 2, y: view.factory.height / 2,
+        zoom: Math.max(W / view.factory.width, H / view.factory.height) * 1.12 });
+    }
     return worldCamera(surfaceFrame(), { x: terrainData.width * Config.terrain.textureScale / 2, y: terrainData.height * Config.terrain.textureScale / 2,
       zoom: Math.max(W / (terrainData.width * Config.terrain.textureScale), H / (terrainData.height * Config.terrain.textureScale)) * 1.08 });
   }
@@ -101,7 +116,8 @@
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     Save.restore(state, galaxy, restoring);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
-    state.context = null; state.tracking = null; state.focusPlanet = null; state.tool = 'pan'; pendingBuildingType = null;
+    state.context = null; state.tracking = null; state.focusPlanet = null; state.focusFactory = null;
+    state.connectionSource = null; state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
     state.terrain = null; terrainData = null; terrainTexture = null;
     contexts.clear();
     const natalPlanet = prepareSystem(home).model.planets.find(planet => planet.startingCandidate);
@@ -123,7 +139,7 @@
       const extent = state.context ? state.context.model.extent * state.context.frame.scale : 0;
       if (nearest && (!state.context || contextDistance > extent * 2 + Math.max(W, H) / state.camera.zoom * .7)) state.context = prepareSystem(nearest);
     }
-    if (previousContext !== state.context) { state.focusPlanet = null; clearSelection(); }
+    if (previousContext !== state.context) { state.focusPlanet = null; state.focusFactory = null; clearSelection(); }
     state.level = 'galaxy';
     if (state.context) {
       const context = state.context, frame = context.frame;
@@ -156,12 +172,24 @@
         }
       }
     }
+    const nestedFactory = factoryView();
+    if (nestedFactory) {
+      const frame = nestedFactory.worldFrame, factory = nestedFactory.factory;
+      const boardWidth = factory.width * state.camera.zoom * frame.scale;
+      const boardHeight = factory.height * state.camera.zoom * frame.scale;
+      const worldCenter = Camera.worldPoint(frame, { x: factory.width / 2, y: factory.height / 2 });
+      const screenCenter = project(worldCenter.x, worldCenter.y);
+      const centered = Math.abs(screenCenter.x - W / 2) < W * .48 && Math.abs(screenCenter.y - H / 2) < H * .48;
+      if (centered && boardWidth >= W * 1.02 && boardHeight >= H * 1.02) state.level = 'factory';
+      else if (boardWidth < 95 && boardHeight < 95) { state.focusFactory = null; state.connectionSource = null; }
+    }
     if (state.tracking) {
       const r = state.tracking.planet.radius * state.tracking.context.frame.scale * state.camera.zoom;
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+      state.selected = null; state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
+      state.connectionSource = null; factoryDrag = null;
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -178,11 +206,12 @@
       if (state.context && !visibleStars.some(s => s.id === state.context.star.id)) visibleStars.push(state.context.star);
       visibleContexts = visibleStars.map(prepareSystem);
     }
-    renderer.render({ state, galaxy, home, contexts, visibleContexts, now });
+    renderer.render({ state, galaxy, home, contexts, visibleContexts, factoryView: factoryView(), now });
   }
 
   function clearSelection() {
-    state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+    state.selected = null; state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
+    state.connectionSource = null; factoryDrag = null;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
   }
   function enterSystem() {
@@ -190,7 +219,7 @@
     const star = state.selected || home;
     if (!star.discovered && !state.reveal) return;
     state.context = prepareSystem(star); state.system = state.context.model;
-    state.tracking = null; state.focusPlanet = null; clearSelection();
+    state.tracking = null; state.focusPlanet = null; state.focusFactory = null; clearSelection();
     const camera = systemCamera();
     focusCamera(camera.x, camera.y, camera.zoom); persist();
   }
@@ -199,21 +228,41 @@
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    const record = prepareTerrain(planet); prepareColony(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    const record = prepareTerrain(planet); prepareColony(planet); state.focusPlanet = planet; state.focusFactory = null; state.planet = planet; followPlanet(planet);
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
   }
+  function enterFactory(building = state.selected) {
+    if (state.level !== 'surface' || !building || building.type !== 'factory' || building.status !== 'complete') return;
+    const factory = FactorySimulation.byBuilding(state.simulation, building.id);
+    if (!factory) return;
+    state.focusFactory = factory.id; state.connectionSource = null; state.tool = 'pan'; state.selected = null;
+    $('inspector').hidden = true;
+    const frame = FactorySimulation.createFrame(surfaceFrame(), building, factory).worldFrame;
+    const camera = Camera.toWorld(frame, { x: factory.width / 2, y: factory.height / 2,
+      zoom: Math.max(W / factory.width, H / factory.height) * 1.12 });
+    focusCamera(camera.x, camera.y, camera.zoom); updateUI();
+  }
   function back() {
-    clearSelection(); state.tracking = null;
-    if (state.level === 'surface') {
+    if (state.level === 'factory') {
+      const view = factoryView();
+      clearSelection(); state.tracking = null;
+      if (view) {
+        const mapCamera = { x: view.building.x, y: view.building.y, zoom: 2.3 };
+        const camera = worldCamera(surfaceFrame(), mapCamera);
+        focusCamera(camera.x, camera.y, camera.zoom);
+      }
+    } else if (state.level === 'surface') {
+      clearSelection(); state.tracking = null;
       state.focusPlanet = null;
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
     } else if (state.level === 'system') {
+      clearSelection(); state.tracking = null;
       const star = state.context.star; state.focusPlanet = null;
       focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
-    } else overview();
+    } else { clearSelection(); state.tracking = null; overview(); }
   }
   function overview() {
     clearSelection(); state.tracking = null;
@@ -221,6 +270,8 @@
     else if (state.level === 'system') {
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
+    } else if (state.level === 'factory') {
+      resetCamera();
     } else {
       followPlanet(state.planet);
       const frame = surfaceFrame(), camera = worldCamera(frame, { x: terrainTexture.width / 2, y: terrainTexture.height / 2,
@@ -231,6 +282,7 @@
   function focusHome() {
     if (state.level === 'galaxy') { state.context = prepareSystem(home); state.tracking = null; select(home); resetCamera(); }
     else if (state.level === 'system') { state.tracking = null; state.focusPlanet = null; resetCamera(); }
+    else if (state.level === 'factory') resetCamera();
     else { followPlanet(state.planet); resetCamera(); }
   }
 
@@ -253,8 +305,10 @@
     }
   }
   function updateUI() {
-    const scaleCamera = state.level === 'galaxy' ? state.camera : localCamera(state.level === 'system' ? state.context.frame : surfaceFrame());
-    hud.update({ state, galaxy, terrainData, width: W, scaleCamera });
+    const view = factoryView();
+    const scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) :
+      state.level === 'factory' && view ? localCamera(view.worldFrame) : localCamera(surfaceFrame());
+    hud.update({ state, galaxy, terrainData, width: W, scaleCamera, factoryView: view });
   }
 
   function missingText(missing = {}) {
@@ -285,6 +339,7 @@
       else toast('Le chantier ne peut pas être lancé à cet endroit.');
       return;
     }
+    if (result.building.type === 'factory') FactorySimulation.create(state.simulation, result.building.id);
     state.tool = 'pan'; pendingBuildingType = null; select(result.building);
     toast(`${BuildingData.definitions[result.building.type].name} : chantier lancé.`); persist();
   }
@@ -296,6 +351,43 @@
     if (!result.ok) return;
     state.selected = null; $('inspector').hidden = true; persist(); updateUI();
     toast(`${name} démoli. Tous les matériaux ont été remboursés.`);
+  }
+  function factoryBlockAt(screenX, screenY, view = factoryView()) {
+    if (!view) return null;
+    const camera = localCamera(view.worldFrame);
+    let nearest = null, nearestDistance = Infinity;
+    for (const id of view.factory.order) {
+      const block = view.factory.blocks[id], p = project(block.x, block.y, camera);
+      const dx = Math.abs(p.x - screenX), dy = Math.abs(p.y - screenY);
+      if (dx <= BlockData.node.width * camera.zoom * .55 && dy <= BlockData.node.height * camera.zoom * .58) {
+        const d = dx + dy;
+        if (d < nearestDistance) { nearest = block; nearestDistance = d; }
+      }
+    }
+    return nearest;
+  }
+  function factoryPoint(screenX, screenY, view = factoryView()) {
+    return view ? Camera.unproject({ x: screenX, y: screenY }, localCamera(view.worldFrame), viewport) : null;
+  }
+  function nearestFactoryConnection(screenX, screenY, view = factoryView()) {
+    if (!view) return null;
+    const camera = localCamera(view.worldFrame), width = BlockData.node.width, height = BlockData.node.height;
+    let best = null, bestDistance = 12;
+    for (const edge of view.factory.connections) {
+      const from = view.factory.blocks[edge.from], to = view.factory.blocks[edge.to];
+      if (!from || !to) continue;
+      const a = project(from.x + width / 2, from.y, camera), b = project(to.x - width / 2, to.y, camera);
+      const dx = b.x - a.x, dy = b.y - a.y, t = clamp(((screenX - a.x) * dx + (screenY - a.y) * dy) / Math.max(1, dx * dx + dy * dy), 0, 1);
+      const d = Math.hypot(screenX - (a.x + dx * t), screenY - (a.y + dy * t));
+      if (d < bestDistance) { best = edge; bestDistance = d; }
+    }
+    return best;
+  }
+  function deleteSelectedBlock() {
+    const view = factoryView(), block = state.selected?.entityType === 'block' ? state.selected : null;
+    if (!view || !block) return;
+    FactorySimulation.removeBlock(state.simulation, view.factory.id, block.id);
+    state.selected = null; $('inspector').hidden = true; persist(); updateUI(); toast('Bloc supprimé.');
   }
 
   function clickMap(x, y, doubleClick = false) {
@@ -312,6 +404,35 @@
       let best = null, bestDistance = 24;
       for (const p of state.system.planets) { const pos = planetWorldPosition(p), pp = project(pos.x, pos.y), d = Math.hypot(pp.x - x, pp.y - y); if (d < bestDistance) { best = p; bestDistance = d; } }
       if (best) { select(best); if (doubleClick) enterPlanet(); } else { $('inspector').hidden = true; state.selected = null; }
+    } else if (state.level === 'factory') {
+      const view = factoryView();
+      if (!view) { state.level = 'surface'; updateUI(); return; }
+      if (state.tool === 'factory-delete-link') {
+        const edge = nearestFactoryConnection(x, y, view);
+        if (edge) { FactorySimulation.disconnect(state.simulation, view.factory.id, edge.id); persist(); toast('Connexion supprimée.'); }
+        else toast('Touchez une ligne de connexion.');
+        state.tool = 'pan'; updateUI(); return;
+      }
+      const block = factoryBlockAt(x, y, view);
+      if (state.tool === 'factory-add') {
+        const point = factoryPoint(x, y, view);
+        if (!point) return;
+        const result = FactorySimulation.addBlock(state.simulation, view.factory.id, pendingBlockType, point.x, point.y);
+        if (!result.ok) { toast('Zone occupée ou trop proche du bord.'); return; }
+        state.tool = 'pan'; pendingBlockType = null; select(result.block); persist(); return;
+      }
+      if (state.tool === 'factory-connect') {
+        if (!block) { toast('Touchez un bloc pour choisir la source.'); return; }
+        if (!state.connectionSource) {
+          state.connectionSource = block.id; toast('Source choisie. Touchez un bloc de destination.'); updateUI(); return;
+        }
+        const result = FactorySimulation.connect(state.simulation, view.factory.id, state.connectionSource, block.id);
+        if (result.ok) { toast('Connexion créée. Les ports sont reliés.'); persist(); }
+        else toast(result.reason === 'no-free-port' || result.reason === 'port-occupied' ? 'Un port requis est déjà connecté.' : 'Connexion impossible.');
+        state.connectionSource = null; state.tool = 'pan'; updateUI(); return;
+      }
+      if (block) select(block);
+      else if (!state.tool.startsWith('factory-')) { state.selected = null; $('inspector').hidden = true; }
     } else {
       const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
@@ -339,19 +460,33 @@
     canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointersLast.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointerMoved = false;
     if (pointers.size === 2) {
+      factoryDrag = null;
       const ps = [...pointers.values()]; pinch = { distance: distance(ps[0], ps[1]), midpoint: { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 } }; pointerMoved = true;
+    } else if (state.level === 'factory' && state.tool === 'pan') {
+      const block = factoryBlockAt(e.clientX, e.clientY);
+      if (block) factoryDrag = { pointerId: e.pointerId, blockId: block.id, moved: false, startX: e.clientX, startY: e.clientY };
     }
   });
   canvas.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) return;
     const last = pointers.get(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2 && pinch) {
+      factoryDrag = null;
       const ps = [...pointers.values()], d = distance(ps[0], ps[1]), mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
       const before = unproject(pinch.midpoint.x, pinch.midpoint.y), [min, max] = zoomLimits(before);
       const z = clamp(state.camera.zoom * d / Math.max(1, pinch.distance), min, max);
       state.target = Camera.anchoredZoom(state.camera, viewport, z, mid, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: d, midpoint: mid }; pointerMoved = true;
       updateSceneContext(); updateUI();
+    } else if (factoryDrag?.pointerId === e.pointerId && state.level === 'factory') {
+      const d = Math.hypot(e.clientX - factoryDrag.startX, e.clientY - factoryDrag.startY);
+      if (d > 5) {
+        const view = factoryView(), point = factoryPoint(e.clientX, e.clientY, view);
+        if (view && point) {
+          const result = FactorySimulation.moveBlock(state.simulation, view.factory.id, factoryDrag.blockId, point.x, point.y);
+          if (result.ok) { factoryDrag.moved = true; pointerMoved = true; renderUniverse(performance.now()); }
+        }
+      }
     } else {
       const start = pointersLast.get(e.pointerId);
       if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) pointerMoved = true;
@@ -365,10 +500,13 @@
     if (!pointers.has(e.pointerId)) return;
     const wasPinch = pinch !== null; pointers.delete(e.pointerId); pointersLast.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
+    const finishedDrag = factoryDrag?.pointerId === e.pointerId ? factoryDrag : null;
     if (!cancelled && !pointerMoved && !wasPinch) {
       const now = performance.now(), double = now - lastTap.t < 340 && Math.hypot(lastTap.x - e.clientX, lastTap.y - e.clientY) < 24;
       clickMap(e.clientX, e.clientY, double); lastTap = { t: now, x: e.clientX, y: e.clientY };
     }
+    if (finishedDrag?.moved) { persist(); updateUI(); }
+    if (finishedDrag) factoryDrag = null;
     if (wasPinch) pointerMoved = true;
   }
   canvas.addEventListener('pointerup', e => release(e)); canvas.addEventListener('pointercancel', e => release(e, true));
@@ -376,24 +514,44 @@
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; pendingBuildingType = null; updateUI(); };
+  $('pan-button').onclick = () => {
+    state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
+    state.connectionSource = null; factoryDrag = null; updateUI();
+  };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('build-button').onclick = () => { if (state.level === 'surface') { updateUI(); $('build-dialog').showModal(); } };
   $('close-build-dialog').onclick = () => $('build-dialog').close();
+  $('add-block-button').onclick = () => { updateUI(); $('blocks-dialog').showModal(); };
+  $('close-blocks-dialog').onclick = () => $('blocks-dialog').close();
+  for (const button of document.querySelectorAll('[data-block-type]')) button.onclick = () => {
+    pendingBlockType = button.dataset.blockType; state.tool = 'factory-add'; state.connectionSource = null;
+    $('blocks-dialog').close(); updateUI(); toast(`${BlockData.definitions[pendingBlockType].name} sélectionné. Touchez un espace libre.`);
+  };
+  $('connect-factory-button').onclick = () => {
+    state.connectionSource = null; state.tool = state.tool === 'factory-connect' ? 'pan' : 'factory-connect';
+    updateUI(); if (state.tool === 'factory-connect') toast('Choisissez le bloc source puis le bloc de destination.');
+  };
+  $('delete-link-button').onclick = () => { state.tool = 'factory-delete-link'; state.connectionSource = null; updateUI(); toast('Touchez le lien à supprimer.'); };
+  $('exit-factory-button').onclick = back;
   for (const button of document.querySelectorAll('[data-building-type]')) button.onclick = () => {
     pendingBuildingType = button.dataset.buildingType; state.tool = 'build'; state.selected = null;
     $('inspector').hidden = true; $('build-dialog').close(); updateUI();
     toast(`${BuildingData.definitions[pendingBuildingType].name} sélectionné. Touchez une terre ferme.`);
   };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; };
-  $('enter-button').onclick = () => state.level === 'galaxy' ? enterSystem() : enterPlanet();
+  $('enter-button').onclick = () => {
+    if (state.level === 'galaxy') enterSystem();
+    else if (state.level === 'surface' && state.selected?.type === 'factory') enterFactory();
+    else if (state.level === 'system') enterPlanet();
+  };
+  $('delete-block-button').onclick = deleteSelectedBlock;
   $('demolish-button').onclick = demolishSelected;
   $('breadcrumb-galaxy').onclick = () => {
     if (state.level === 'galaxy') { overview(); return; }
-    const star = state.context.star; state.tracking = null; state.focusPlanet = null; clearSelection();
+    const star = state.context.star; state.tracking = null; state.focusPlanet = null; state.focusFactory = null; clearSelection();
     focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
   };
-  $('breadcrumb-system').onclick = () => { if (state.level === 'surface') back(); };
+  $('breadcrumb-system').onclick = () => { if (state.level === 'surface' || state.level === 'factory') back(); };
   $('menu-button').onclick = () => { $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
   $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
   $('generate-button').onclick = () => { regenerate($('seed-input').value); $('continue-button').firstElementChild.textContent = 'Explorer cet univers'; };
@@ -408,16 +566,20 @@
   document.addEventListener('keydown', e => {
     if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
-      if ($('build-dialog').open) $('build-dialog').close();
+      if ($('blocks-dialog').open) $('blocks-dialog').close();
+      else if ($('build-dialog').open) $('build-dialog').close();
       else if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (state.tool !== 'pan') {
+        state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
+        state.connectionSource = null; factoryDrag = null; updateUI();
+      }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; }
-      else if (state.tool === 'build') { state.tool = 'pan'; pendingBuildingType = null; updateUI(); }
       else back();
     }
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }
-    if (e.key === 'Enter' && state.selected && state.selected.entityType !== 'building' && !$('menu-dialog').open) $('enter-button').click();
+    if (e.key === 'Enter' && state.selected && !$('menu-dialog').open && !$('blocks-dialog').open && !$('build-dialog').open && !$('enter-button').hidden) $('enter-button').click();
     if (!$('menu-dialog').open && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault(); const step = 70 / state.target.zoom;
       state.target.x += e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
@@ -442,6 +604,8 @@
         `${localCompletions.length} installations opérationnelles.`);
       persist(); updateUI();
     }
+    const factoryEvents = FactorySimulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    if (factoryEvents.length) persist();
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;

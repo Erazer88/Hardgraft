@@ -21,7 +21,7 @@ test('planet inventories use stable resources and grant the natal stock once', (
   stock.iron -= 7;
   assert.equal(Construction.initializePlanet(simulation, 'home:p-1', true).iron, Resources.startingStock.iron - 7);
   assert.deepEqual(plain(Construction.initializePlanet(simulation, 'away:p-0')), {
-    iron: 0, copper: 0, silicon: 0, carbon: 0, water: 0
+    iron: 0, copper: 0, silicon: 0, carbon: 0, water: 0, iron_plate: 0
   });
 });
 
@@ -51,7 +51,7 @@ test('failed purchases are atomic and demolition refunds the configured amount',
   const failed = Construction.place(simulation, { planetId: 'empty:p-0', type: 'outpost', x: 20, y: 20 });
   assert.equal(failed.ok, false); assert.equal(failed.reason, 'insufficient');
   assert.deepEqual(plain(Construction.inventory(simulation, 'empty:p-0')), {
-    iron: 0, copper: 0, silicon: 0, carbon: 0, water: 0
+    iron: 0, copper: 0, silicon: 0, carbon: 0, water: 0, iron_plate: 0
   });
 
   const stock = Construction.initializePlanet(simulation, 'home:p-1', true), before = plain(stock);

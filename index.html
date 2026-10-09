@@ -35,7 +35,18 @@
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
+    <button class="primary-button" id="delete-block-button" hidden><span>Supprimer ce bloc</span><span aria-hidden="true">×</span></button>
     <button class="danger-button" id="demolish-button" hidden><span>Démolir · remboursement 100 %</span><span aria-hidden="true">×</span></button>
+  </aside>
+  <aside class="factory-console panel" id="factory-console" hidden>
+    <div class="factory-console-head"><span><i class="signal-light"></i> <span id="factory-console-title">USINE · RANG I</span></span><span id="factory-energy">DEMANDE 0 MW</span></div>
+    <div class="factory-console-status" id="factory-console-status">Chaîne de départ prête</div>
+    <div class="factory-console-actions">
+      <button id="add-block-button" class="console-button">＋ Bloc</button>
+      <button id="connect-factory-button" class="console-button">Relier</button>
+      <button id="delete-link-button" class="console-button">Effacer lien</button>
+      <button id="exit-factory-button" class="console-button">Quitter</button>
+    </div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
@@ -72,15 +83,26 @@
       <p class="build-footnote">Le chantier suit l’horloge de simulation. Une démolition rembourse actuellement tous les matériaux.</p>
     </div>
   </dialog>
+  <dialog id="blocks-dialog" class="build-dialog">
+    <div class="build-card">
+      <div class="build-card-head"><div><p class="eyebrow">USINE / RANG I</p><h2>Ajouter un bloc</h2></div><button id="close-blocks-dialog" class="text-icon" aria-label="Fermer">×</button></div>
+      <p class="build-intro">Les blocs ne consomment pas de matériaux. Leur position sert à organiser les flux.</p>
+      <div class="building-options" id="block-options"></div>
+    </div>
+  </dialog>
   <script src="src/data/version.js"></script>
   <script src="src/data/config.js"></script>
   <script src="src/data/worldgen.js"></script>
   <script src="src/data/resources.js"></script>
   <script src="src/data/buildings.js"></script>
+  <script src="src/data/recipes.js"></script>
+  <script src="src/data/blocks.js"></script>
   <script src="src/world.js"></script>
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
   <script src="src/simulation/construction.js"></script>
+  <script src="src/simulation/factory.js"></script>
+  <script src="src/simulation/factory.js"></script>
   <script src="src/gameplay/exploration.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>

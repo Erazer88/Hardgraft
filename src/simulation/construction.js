@@ -105,6 +105,7 @@
       refund[id] = Math.floor(amount * refundRate);
       stock[id] = (stock[id] || 0) + refund[id];
     }
+    if (building.factoryId) delete simulation.factories?.[building.factoryId];
     delete simulation.buildings[buildingId];
     return { ok: true, building, refund };
   }

@@ -4,7 +4,7 @@ Premier prototype de navigation spatiale en portrait. Une galaxie procédurale, 
 
 Les [captures du prototype sur GitHub](https://github.com/Erazer88/Hardgraft/tree/codex/nereide-prototype/docs/images) présentent les vues mobile et bureau, ainsi que les étapes du zoom continu.
 
-Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Agent 00 a préparé la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). Agent 01 ajoute la [génération variée des systèmes](docs/WORLDGEN.md). La phase 3 introduit l’inventaire planétaire et les premiers chantiers.
+Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Agent 00 a préparé la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). Agent 01 ajoute la [génération variée des systèmes](docs/WORLDGEN.md). Les phases 3 et 4 apportent l’inventaire, la construction et les premières chaînes d’usine.
 
 ## Ouvrir le prototype
 
@@ -34,7 +34,9 @@ Ouvrir le serveur dans un navigateur. Le projet utilise uniquement HTML, CSS et 
 - À proximité d'une planète, la caméra suit son déplacement orbital tout en conservant les déplacements manuels. Dézoomer retrouve les orbites, puis la galaxie.
 - En vue galaxie, activer la sonde puis toucher une zone. Une mission révèle les systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - En vue surface, toucher le terrain pour lire son type, ses coordonnées et son altitude ; les gisements sont hachurés.
-- Sur le monde natal, le bouton de construction ouvre trois installations. Choisir un bâtiment puis toucher une terre ferme lance un chantier de 3 à 4 secondes. Toucher l’installation permet de suivre son avancement ou de la démolir avec remboursement intégral.
+- Sur le monde natal, le bouton de construction ouvre quatre installations. Choisir un bâtiment puis toucher une terre ferme lance un chantier de 3 à 4 secondes. Toucher l’installation permet de suivre son avancement ou de la démolir avec remboursement intégral.
+- Une usine achevée s’ouvre en poursuivant le zoom sur son bâtiment. Son intérieur reste dans le même repère de caméra ; on peut aussi utiliser le bouton « Zoomer dans l’usine ».
+- La chaîne de départ prélève du fer dans le stock planétaire, le transforme en plaques, puis les remet dans le stock. Dans l’usine, ajouter les six types de blocs, déplacer les blocs en les faisant glisser, créer des liens entre leurs ports et supprimer un bloc ou une connexion.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− contrôlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 
 La graine, les zones sondées et les systèmes visités sont sauvegardés localement lorsque le navigateur autorise le stockage. Le prototype continue de fonctionner si le stockage est indisponible. L'horloge ne progresse pas hors ligne.
@@ -48,8 +50,9 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Le transfert et le rendez-vous orbital seront intégrés ultérieurement.
 - Surfaces reproductibles avec continents, océans, côtes, altitude, ombrage de relief, courbes de niveau et gisements. La surface est une carte régionale rectangulaire, pas encore une projection complète du globe.
 - Une seule caméra et un repère galactique commun : chaque système est inclus dans son étoile, chaque carte dans sa planète. Le zoom ne remplace pas la scène et ne réinitialise pas le cadrage. Les tailles relatives sont adaptées à la navigation du prototype ; ce n'est pas une simulation des distances physiques réelles.
-- Le stock de la colonie suit cinq ressources stables : fer, cuivre, silicium, carbone et eau. Les coûts des bâtiments, leurs durées et le taux de remboursement sont déclaratifs. L’extraction et la production restent hors du périmètre de cette version.
-- Le terrain peut être agrandi jusqu'à l'échelle locale prévue pour les futures usines. Le zoom maximal dépend de la résolution de la carte pour préserver un relief lisible. Les usines, la collecte automatisée et les stratégies énergétiques restent hors du périmètre de cette version.
+- Le stock de la colonie suit cinq ressources fondamentales et les plaques de fer produites par l’usine. Les recettes et caractéristiques des blocs sont déclaratives. Les stocks internes sont limités ; les blocages et la famine ralentissent réellement les flux.
+- L’usine possède une surface interne de rang I et une demande énergétique globale affichée en MW. La disponibilité de l’énergie et les améliorations de rang seront ajoutées dans leur phase dédiée.
+- Le zoom maximal du terrain dépend de la résolution de sa carte pour préserver un relief lisible. La collecte automatisée et les usines de rang supérieur restent hors du périmètre de cette version.
 - Quelques connexions et cargos interstellaires servent de repères visuels dans la galaxie.
 
 ## Validation
@@ -61,7 +64,7 @@ node tests/browser-smoke.cjs
 
 Les tests du générateur couvrent la reproductibilité, des graines différentes, la continuité des bras, l'ordre des orbites, les vitesses de Kepler et la présence de terres, d'océans et de ressources.
 
-Les tests d'architecture exécutent les modules de simulation, sauvegarde, exploration et caméra sans DOM ni Canvas. Le test de construction contrôle aussi les inventaires isolés, les coûts, les minuteries, l’espacement et les remboursements.
+Les tests d'architecture exécutent les modules de simulation, sauvegarde, exploration et caméra sans DOM ni Canvas. Les tests de construction et d’usine contrôlent les inventaires, les coûts, les minuteries, les remboursements et une chaîne matière qui tourne jusqu’au stock planétaire.
 
 Le test navigateur utilise Chromium installé et le protocole DevTools natif, sans bibliothèque additionnelle. Il attend le serveur sur le port 8000 et produit des captures dans `artifacts/`. Les résultats d'émulation mobile ne remplacent pas un essai sur appareil physique.
 

@@ -11,7 +11,7 @@
       exploration: root.OrbitExploration.create(), level: 'galaxy', selected: null,
       system: null, planet: null, camera: { x: 0, y: 0, zoom: .1 }, target: { x: 0, y: 0, zoom: .1 },
       paused: false, reveal: false, tool: 'pan', terrain: null, context: null,
-      tracking: null, focusPlanet: null };
+      tracking: null, focusPlanet: null, focusFactory: null, connectionSource: null };
   }
 
   root.OrbitState = Object.freeze({ create, normalizedSeed });

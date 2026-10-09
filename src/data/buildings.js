@@ -1,13 +1,19 @@
 (function (root) {
   'use strict';
 
-  const order = Object.freeze(['outpost', 'extractor', 'depot']);
+  const order = Object.freeze(['outpost', 'factory', 'extractor', 'depot']);
   const definitions = Object.freeze({
     outpost: Object.freeze({
       id: 'outpost', name: 'Avant-poste', code: 'AVP', color: '#efa35a', duration: 4, footprint: 30,
       description: 'Noyau de la colonie et relais de commandement au sol.',
       cost: Object.freeze({ iron: 60, copper: 35, silicon: 20, carbon: 15, water: 25 }),
       production: null, energy: 0
+    }),
+    factory: Object.freeze({
+      id: 'factory', name: 'Usine', code: 'USI', color: '#77c7d9', duration: 4, footprint: 40,
+      description: 'Espace industriel intérieur à rang I, prêt pour une chaîne de production.',
+      cost: Object.freeze({ iron: 85, copper: 60, silicon: 45, carbon: 18, water: 15 }),
+      production: null, energy: 1.2
     }),
     extractor: Object.freeze({
       id: 'extractor', name: 'Extracteur', code: 'EXT', color: '#d6c47b', duration: 3, footprint: 22,
