@@ -25,12 +25,17 @@
   <nav class="breadcrumb" aria-label="Échelle de navigation"><button id="breadcrumb-galaxy">GALAXIE</button><span id="system-crumb-wrap" hidden><span class="slash">/</span><button id="breadcrumb-system"></button></span><span id="surface-crumb-wrap" hidden><span class="slash">/</span><span id="breadcrumb-surface"></span></span></nav>
   <div class="view-heading"><span id="view-subtitle">BRAS DE PERSÉE</span><h1 id="view-title">Secteur Néréide</h1></div>
   <div class="corner-note"><span class="signal-light"></span><span id="live-status">RECONNAISSANCE ACTIVE</span></div>
+  <aside class="resource-panel panel" id="resource-panel" aria-label="Stock de la colonie" hidden>
+    <div class="resource-heading"><span class="signal-light"></span><span>STOCK COLONIE</span></div>
+    <div class="resource-list" id="resource-list"></div>
+  </aside>
   <aside class="inspector panel" id="inspector" hidden>
     <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <h2 id="selection-name">Néréide</h2>
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
+    <button class="danger-button" id="demolish-button" hidden><span>Démolir · remboursement 100 %</span><span aria-hidden="true">×</span></button>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
@@ -38,6 +43,7 @@
       <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
       <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
       <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
+      <button id="build-button" class="tool-button" aria-label="Construire sur la surface" title="Construire" hidden><svg viewBox="0 0 24 24"><path d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6M4 11l8-7 8 7"/></svg></button>
       <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
       <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
     </div>
@@ -58,12 +64,23 @@
       <div class="menu-footnote"><span>GALAXIE</span><span>→</span><span>SYSTÈME</span><span>→</span><span>SURFACE</span></div>
     </div>
   </dialog>
+  <dialog id="build-dialog" class="build-dialog">
+    <div class="build-card">
+      <div class="build-card-head"><div><p class="eyebrow">CONSTRUCTION</p><h2>Déployer au sol</h2></div><button id="close-build-dialog" class="text-icon" aria-label="Fermer">×</button></div>
+      <p class="build-intro">Choisissez une installation, puis touchez une zone terrestre libre.</p>
+      <div class="building-options" id="building-options"></div>
+      <p class="build-footnote">Le chantier suit l’horloge de simulation. Une démolition rembourse actuellement tous les matériaux.</p>
+    </div>
+  </dialog>
   <script src="src/data/version.js"></script>
   <script src="src/data/config.js"></script>
   <script src="src/data/worldgen.js"></script>
+  <script src="src/data/resources.js"></script>
+  <script src="src/data/buildings.js"></script>
   <script src="src/world.js"></script>
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
+  <script src="src/simulation/construction.js"></script>
   <script src="src/gameplay/exploration.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>

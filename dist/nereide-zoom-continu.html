@@ -16,6 +16,8 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
 @media(max-height:640px){.view-heading{display:none}.menu-card{padding:18px 25px}.brand-symbol{display:none}.eyebrow{margin-top:20px}.menu-description{margin-bottom:18px}.seed-controls{margin-top:18px}.inspector{padding:10px 13px}.inspector p{display:none}.selection-meta{margin-bottom:10px}}
 
 .game-version{position:absolute;left:14px;right:14px;bottom:calc(9px + var(--safe-bottom));font-size:9px;line-height:12px;letter-spacing:.4px;color:#a5bdcd;text-align:center;pointer-events:none}
+.resource-panel{position:absolute;right:27px;top:calc(84px + var(--safe-top));width:230px;padding:10px 12px;z-index:2}.resource-heading{display:flex;align-items:center;gap:7px;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--line);font-size:8px;letter-spacing:1.4px;color:var(--muted)}.resource-list{display:grid;grid-template-columns:repeat(3,1fr);gap:7px 10px}.resource-item{display:flex;justify-content:space-between;align-items:baseline;gap:6px;min-width:0}.resource-code{font-size:8px;color:var(--resource-color,#8fa8b8);letter-spacing:.3px}.resource-amount{font-size:10px;color:#c5d6df}.danger-button{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:8px;padding:11px 14px;border:1px solid #b4776557;border-radius:4px;color:#c99786;background:#a34f3210;font-size:10px}.danger-button:hover{background:#a34f3223}.danger-button span:last-child{font-size:17px}.build-card{padding:24px 26px}.build-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.build-card-head .eyebrow{text-align:left;margin:0 0 7px}.build-card h2{font-size:20px;font-weight:400;letter-spacing:.5px;margin:0}.build-intro,.build-footnote{font-size:10px;line-height:1.6;color:#829cab}.build-intro{margin:13px 0 16px}.build-footnote{margin:15px 0 0;padding-top:13px;border-top:1px solid var(--line);font-size:8px}.building-options{display:flex;flex-direction:column;gap:8px}.building-option{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:5px;background:#112231b8;text-align:left}.building-option:hover{border-color:#7397aa6b;background:#172c3c}.building-option:disabled{opacity:.42}.building-option-top{display:flex;justify-content:space-between;gap:15px;align-items:baseline}.building-option-name{font-size:11px;color:#c9d9e1}.building-option-time{font-size:8px;color:#6f8c9e}.building-option-description{display:block;font-size:8px;line-height:1.5;color:#7893a3;margin-top:5px}.building-option-cost{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px;font-size:8px;color:#a8bac4}.building-option-cost .missing{color:#c98e78}.build-dialog{width:min(420px,calc(100% - 28px))}body[data-level="surface"] .corner-note{display:none}
+@media(max-width:600px){.resource-panel{right:15px;top:calc(65px + var(--safe-top));width:174px;padding:8px 10px}.resource-heading{font-size:7px;margin-bottom:6px;padding-bottom:6px}.resource-list{grid-template-columns:repeat(2,1fr);gap:5px 9px}.resource-code{font-size:7px}.resource-amount{font-size:9px}body[data-level="surface"] .breadcrumb{top:calc(166px + var(--safe-top))}body[data-level="surface"] .view-heading{top:calc(202px + var(--safe-top))}.build-card{padding:21px 20px}.build-card h2{font-size:18px}.building-option{padding:10px 11px}}
 </style>
 </head>
 <body>
@@ -35,12 +37,17 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
   <nav class="breadcrumb" aria-label="Échelle de navigation"><button id="breadcrumb-galaxy">GALAXIE</button><span id="system-crumb-wrap" hidden><span class="slash">/</span><button id="breadcrumb-system"></button></span><span id="surface-crumb-wrap" hidden><span class="slash">/</span><span id="breadcrumb-surface"></span></span></nav>
   <div class="view-heading"><span id="view-subtitle">BRAS DE PERSÉE</span><h1 id="view-title">Secteur Néréide</h1></div>
   <div class="corner-note"><span class="signal-light"></span><span id="live-status">RECONNAISSANCE ACTIVE</span></div>
+  <aside class="resource-panel panel" id="resource-panel" aria-label="Stock de la colonie" hidden>
+    <div class="resource-heading"><span class="signal-light"></span><span>STOCK COLONIE</span></div>
+    <div class="resource-list" id="resource-list"></div>
+  </aside>
   <aside class="inspector panel" id="inspector" hidden>
     <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <h2 id="selection-name">Néréide</h2>
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
+    <button class="danger-button" id="demolish-button" hidden><span>Démolir · remboursement 100 %</span><span aria-hidden="true">×</span></button>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
@@ -48,6 +55,7 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
       <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
       <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
       <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
+      <button id="build-button" class="tool-button" aria-label="Construire sur la surface" title="Construire" hidden><svg viewBox="0 0 24 24"><path d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6M4 11l8-7 8 7"/></svg></button>
       <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
       <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
     </div>
@@ -68,9 +76,17 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
       <div class="menu-footnote"><span>GALAXIE</span><span>→</span><span>SYSTÈME</span><span>→</span><span>SURFACE</span></div>
     </div>
   </dialog>
+  <dialog id="build-dialog" class="build-dialog">
+    <div class="build-card">
+      <div class="build-card-head"><div><p class="eyebrow">CONSTRUCTION</p><h2>Déployer au sol</h2></div><button id="close-build-dialog" class="text-icon" aria-label="Fermer">×</button></div>
+      <p class="build-intro">Choisissez une installation, puis touchez une zone terrestre libre.</p>
+      <div class="building-options" id="building-options"></div>
+      <p class="build-footnote">Le chantier suit l’horloge de simulation. Une démolition rembourse actuellement tous les matériaux.</p>
+    </div>
+  </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.2.0";
+globalThis.OrbitVersion = "0.3.0";
 
 </script>
   <script>
@@ -128,6 +144,58 @@ globalThis.OrbitVersion = "0.2.0";
       { id: 'silicon', type: 'silice' }, { id: 'carbon', type: 'carbone' }
     ]
   };
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  const order = Object.freeze(['iron', 'copper', 'silicon', 'carbon', 'water']);
+  const definitions = Object.freeze({
+    iron: Object.freeze({ id: 'iron', name: 'Fer', short: 'Fe', color: '#c2a88f' }),
+    copper: Object.freeze({ id: 'copper', name: 'Cuivre', short: 'Cu', color: '#d18b62' }),
+    silicon: Object.freeze({ id: 'silicon', name: 'Silicium', short: 'Si', color: '#9db8bd' }),
+    carbon: Object.freeze({ id: 'carbon', name: 'Carbone', short: 'C', color: '#8997a0' }),
+    water: Object.freeze({ id: 'water', name: 'Eau', short: 'H₂O', color: '#79abc5' })
+  });
+  const startingStock = Object.freeze({ iron: 220, copper: 150, silicon: 130, carbon: 100, water: 240 });
+
+  function emptyInventory() {
+    return Object.fromEntries(order.map(id => [id, 0]));
+  }
+
+  root.OrbitResourceData = Object.freeze({ order, definitions, startingStock, emptyInventory });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  const order = Object.freeze(['outpost', 'extractor', 'depot']);
+  const definitions = Object.freeze({
+    outpost: Object.freeze({
+      id: 'outpost', name: 'Avant-poste', code: 'AVP', color: '#efa35a', duration: 4, footprint: 30,
+      description: 'Noyau de la colonie et relais de commandement au sol.',
+      cost: Object.freeze({ iron: 60, copper: 35, silicon: 20, carbon: 15, water: 25 }),
+      production: null, energy: 0
+    }),
+    extractor: Object.freeze({
+      id: 'extractor', name: 'Extracteur', code: 'EXT', color: '#d6c47b', duration: 3, footprint: 22,
+      description: 'Prépare un gisement pour la future chaîne d’extraction.',
+      cost: Object.freeze({ iron: 35, copper: 20, silicon: 10, carbon: 6 }),
+      production: null, energy: 0
+    }),
+    depot: Object.freeze({
+      id: 'depot', name: 'Dépôt', code: 'DEP', color: '#8eb8c5', duration: 3.5, footprint: 26,
+      description: 'Réserve sécurisée pour les matériaux de la colonie.',
+      cost: Object.freeze({ iron: 45, copper: 15, silicon: 25, carbon: 10, water: 5 }),
+      production: null, energy: 0
+    })
+  });
+
+  root.OrbitBuildingData = Object.freeze({ order, definitions, refundRate: 1 });
 })(globalThis);
 
 </script>
@@ -500,7 +568,7 @@ globalThis.OrbitVersion = "0.2.0";
 
   // Plain, serializable data. No Canvas, browser clock, or gameplay recipes.
   function create() {
-    return { time: 0, resources: {}, buildings: {}, factories: {} };
+    return { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1 };
   }
 
   function advance(simulation, seconds, running = true) {
@@ -510,6 +578,122 @@ globalThis.OrbitVersion = "0.2.0";
   }
 
   root.OrbitSimulation = Object.freeze({ create, advance });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  const Resources = root.OrbitResourceData;
+  const Buildings = root.OrbitBuildingData;
+  const copyCost = cost => Object.fromEntries(Object.entries(cost).map(([id, amount]) => [id, amount]));
+
+  function inventory(simulation, planetId) {
+    const value = simulation?.resources?.[planetId];
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  }
+
+  function initializePlanet(simulation, planetId, grantStartingStock = false) {
+    if (!simulation || !simulation.resources || typeof planetId !== 'string' || !planetId) {
+      throw new TypeError('A simulation and a planet id are required.');
+    }
+    const existing = inventory(simulation, planetId);
+    const target = existing || Resources.emptyInventory();
+    for (const id of Resources.order) {
+      if (!Number.isFinite(target[id]) || target[id] < 0) target[id] = 0;
+      if (!existing && grantStartingStock) target[id] = Resources.startingStock[id];
+    }
+    if (!existing) simulation.resources[planetId] = target;
+    return target;
+  }
+
+  function missingResources(simulation, planetId, cost) {
+    const stock = inventory(simulation, planetId);
+    return Object.fromEntries(Object.entries(cost).filter(([id, amount]) => !stock || (stock[id] || 0) < amount)
+      .map(([id, amount]) => [id, amount - (stock?.[id] || 0)]));
+  }
+
+  function canAfford(simulation, planetId, type) {
+    const definition = Buildings.definitions[type];
+    if (!definition) return { ok: false, reason: 'unknown-building', missing: {} };
+    const missing = missingResources(simulation, planetId, definition.cost);
+    return { ok: Object.keys(missing).length === 0, reason: Object.keys(missing).length ? 'insufficient' : null, missing };
+  }
+
+  function list(simulation, planetId) {
+    return Object.values(simulation?.buildings || {}).filter(building => building && building.planetId === planetId);
+  }
+
+  function nextId(simulation) {
+    if (!Number.isInteger(simulation.nextBuildingId) || simulation.nextBuildingId < 1) {
+      simulation.nextBuildingId = Object.keys(simulation.buildings || {}).reduce((max, id) => {
+        const match = /^building-(\d+)$/.exec(id);
+        return match ? Math.max(max, Number(match[1]) + 1) : max;
+      }, 1);
+    }
+    let id;
+    do { id = `building-${simulation.nextBuildingId++}`; } while (simulation.buildings[id]);
+    return id;
+  }
+
+  function place(simulation, { planetId, type, x, y }) {
+    const definition = Buildings.definitions[type];
+    if (!definition) return { ok: false, reason: 'unknown-building' };
+    if (typeof planetId !== 'string' || !planetId || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return { ok: false, reason: 'invalid-location' };
+    }
+    const stock = inventory(simulation, planetId);
+    if (!stock) return { ok: false, reason: 'inventory-unavailable' };
+    const affordability = canAfford(simulation, planetId, type);
+    if (!affordability.ok) return affordability;
+    for (const other of list(simulation, planetId)) {
+      const otherDefinition = Buildings.definitions[other.type];
+      const clearance = (definition.footprint + (otherDefinition?.footprint || 20)) * .65;
+      if (Math.hypot(other.x - x, other.y - y) < clearance) return { ok: false, reason: 'occupied' };
+    }
+    const cost = copyCost(definition.cost);
+    for (const [id, amount] of Object.entries(cost)) stock[id] -= amount;
+    const id = nextId(simulation);
+    const building = { id, entityType: 'building', type, planetId, x, y, status: 'constructing',
+      startedAt: simulation.time, completeAt: simulation.time + definition.duration, cost };
+    simulation.buildings[id] = building;
+    return { ok: true, building };
+  }
+
+  function progress(simulation, building) {
+    if (!building || building.status === 'complete') return 1;
+    const duration = building.completeAt - building.startedAt;
+    if (!Number.isFinite(duration) || duration <= 0) return 1;
+    return Math.max(0, Math.min(1, (simulation.time - building.startedAt) / duration));
+  }
+
+  function advance(simulation) {
+    const completed = [];
+    for (const building of Object.values(simulation?.buildings || {})) {
+      if (building?.status === 'constructing' && Number.isFinite(building.completeAt) && simulation.time >= building.completeAt) {
+        building.status = 'complete'; completed.push(building);
+      }
+    }
+    return completed;
+  }
+
+  function demolish(simulation, buildingId, refundRate = Buildings.refundRate) {
+    const building = simulation?.buildings?.[buildingId];
+    if (!building) return { ok: false, reason: 'unknown-building' };
+    if (!Number.isFinite(refundRate) || refundRate < 0 || refundRate > 1) throw new RangeError('Refund rate must be between 0 and 1.');
+    const stock = initializePlanet(simulation, building.planetId, false);
+    const sourceCost = building.cost || Buildings.definitions[building.type]?.cost || {};
+    const refund = {};
+    for (const [id, amount] of Object.entries(sourceCost)) {
+      refund[id] = Math.floor(amount * refundRate);
+      stock[id] = (stock[id] || 0) + refund[id];
+    }
+    delete simulation.buildings[buildingId];
+    return { ok: true, building, refund };
+  }
+
+  root.OrbitConstruction = Object.freeze({ inventory, initializePlanet, canAfford, list, place, progress, advance, demolish });
 })(globalThis);
 
 </script>
@@ -614,6 +798,12 @@ globalThis.OrbitVersion = "0.2.0";
       const value = saved.simulation?.[key];
       if (value && typeof value === 'object' && !Array.isArray(value)) simulation[key] = copy(value);
     }
+    const nextBuildingId = saved.simulation?.nextBuildingId;
+    if (Number.isInteger(nextBuildingId) && nextBuildingId > 0) simulation.nextBuildingId = nextBuildingId;
+    else simulation.nextBuildingId = Object.keys(simulation.buildings).reduce((next, id) => {
+      const match = /^building-(\d+)$/.exec(id);
+      return match ? Math.max(next, Number(match[1]) + 1) : next;
+    }, 1);
     state.simulation = simulation;
     return true;
   }
@@ -680,6 +870,7 @@ globalThis.OrbitVersion = "0.2.0";
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera, Config = root.OrbitConfig;
+  const BuildingData = root.OrbitBuildingData, Construction = root.OrbitConstruction;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -979,6 +1170,37 @@ globalThis.OrbitVersion = "0.2.0";
       }
       return terrainTexture;
     }
+    function drawSurfaceBuilding(cam, building) {
+      const definition = BuildingData.definitions[building.type];
+      if (!definition) return;
+      const p = project(building.x, building.y, cam);
+      const radius = clamp(definition.footprint * cam.zoom * .32, 5.5, 18);
+      if (p.x < -radius * 2 || p.y < -radius * 2 || p.x > W + radius * 2 || p.y > H + radius * 2) return;
+      const selected = state.selected?.entityType === 'building' && state.selected.id === building.id;
+      ctx.save(); ctx.translate(p.x, p.y);
+      if (building.status === 'constructing') {
+        circle(ctx, 0, 0, radius + 3, '#b9c7c06b', .8, [2, 3]);
+        ctx.strokeStyle = definition.color; ctx.lineWidth = 1.7; ctx.beginPath();
+        ctx.arc(0, 0, radius + 3, -Math.PI / 2, -Math.PI / 2 + TAU * Construction.progress(state.simulation, building)); ctx.stroke();
+        line(ctx, [{ x: -radius, y: -radius }, { x: radius, y: radius }], '#d7caaa78', .8);
+        line(ctx, [{ x: radius, y: -radius }, { x: -radius, y: radius }], '#d7caaa78', .8);
+        ctx.strokeStyle = '#aabcb86e'; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+      } else if (building.type === 'extractor') {
+        dot(ctx, 0, 0, radius, '#13252b'); circle(ctx, 0, 0, radius, definition.color, 1.2);
+        circle(ctx, 0, 0, radius * .45, definition.color + 'c8', 1);
+        line(ctx, [{ x: -radius * 1.2, y: 0 }, { x: radius * 1.2, y: 0 }], definition.color + 'b0', .8);
+      } else {
+        ctx.rotate(building.type === 'depot' ? Math.PI / 4 : 0);
+        ctx.fillStyle = definition.color + '25'; ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+        ctx.strokeStyle = definition.color; ctx.lineWidth = 1.2; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+        line(ctx, [{ x: -radius, y: 0 }, { x: radius, y: 0 }], definition.color + 'a8', .8);
+        line(ctx, [{ x: 0, y: -radius }, { x: 0, y: radius }], definition.color + 'a8', .8);
+      }
+      if (selected) circle(ctx, 0, 0, radius + 7, '#efa35a', 1);
+      ctx.restore();
+      if (cam.zoom > .55 || selected) label(ctx, `${definition.code} · ${building.status === 'complete' ? 'ACTIF' : Math.round(Construction.progress(state.simulation, building) * 100) + '%'}`,
+        p.x + radius + 7, p.y - radius - 2, selected ? '#f0b478' : '#b7c7c2', 8);
+    }
     function drawSurface(cam, planet, record) {
       const { texture: terrainTexture, data: terrainData } = record;
       const top = project(0, 0, cam), scale = cam.zoom;
@@ -995,6 +1217,7 @@ globalThis.OrbitVersion = "0.2.0";
         ctx.restore();
         if (scale > .55) label(ctx, res.type.toUpperCase(), p.x + r + 6, p.y, '#c7c49b', 8);
       }
+      for (const building of Construction.list(state.simulation, planet.id)) drawSurfaceBuilding(cam, building);
       if (state.selected?.surfacePoint) {
         const p = project(state.selected.x, state.selected.y, cam);
         circle(ctx, p.x, p.y, 7, '#efb26e', 1);
@@ -1053,20 +1276,56 @@ globalThis.OrbitVersion = "0.2.0";
 (function (root) {
   'use strict';
   const Config = root.OrbitConfig;
+  const Resources = root.OrbitResourceData;
+  const Buildings = root.OrbitBuildingData;
+  const Construction = root.OrbitConstruction;
+
   function create(document) {
     const $ = id => document.getElementById(id);
     $('game-version').textContent = `Version ${root.OrbitVersion}`;
     const TAU = Math.PI * 2;
     const fmt = n => new Intl.NumberFormat('fr-FR').format(n);
+    const resourceNodes = new Map(), buildingNodes = new Map();
     let toastTimer;
+
+    for (const id of Resources.order) {
+      const definition = Resources.definitions[id];
+      const row = document.createElement('div'); row.className = 'resource-item';
+      row.style.setProperty('--resource-color', definition.color); row.title = definition.name;
+      const code = document.createElement('span'); code.className = 'resource-code'; code.textContent = definition.short;
+      const amount = document.createElement('span'); amount.className = 'resource-amount'; amount.textContent = '0';
+      row.append(code, amount); $('resource-list').append(row); resourceNodes.set(id, amount);
+    }
+    for (const id of Buildings.order) {
+      const definition = Buildings.definitions[id];
+      const button = document.createElement('button'); button.className = 'building-option'; button.dataset.buildingType = id;
+      const top = document.createElement('span'); top.className = 'building-option-top';
+      const name = document.createElement('span'); name.className = 'building-option-name'; name.textContent = definition.name;
+      const time = document.createElement('span'); time.className = 'building-option-time'; time.textContent = `${definition.duration.toFixed(1).replace('.0', '')} s`;
+      const description = document.createElement('span'); description.className = 'building-option-description'; description.textContent = definition.description;
+      const cost = document.createElement('span'); cost.className = 'building-option-cost';
+      const costNodes = new Map();
+      for (const [resourceId, amount] of Object.entries(definition.cost)) {
+        const value = document.createElement('span'); value.textContent = `${Resources.definitions[resourceId]?.short || resourceId} ${amount}`;
+        cost.append(value); costNodes.set(resourceId, value);
+      }
+      top.append(name, time); button.append(top, description, cost); $('building-options').append(button);
+      buildingNodes.set(id, { button, costNodes });
+    }
+
     function toast(text) {
       $('toast').textContent = text; $('toast').classList.add('visible'); clearTimeout(toastTimer);
       $('toast').classList.toggle('above-inspector', !$('inspector').hidden);
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 3200);
     }
+    function buildingMeta(state, building) {
+      const percent = Math.round(Construction.progress(state.simulation, building) * 100);
+      const status = building.status === 'complete' ? 'OPÉRATIONNEL' : `CHANTIER ${percent} %`;
+      return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status}`;
+    }
     function showSelection(item, { state, systemModel }) {
       const panel = $('inspector'); panel.hidden = false;
-      $('toast').classList.remove('visible');
+      $('toast').classList.remove('visible'); $('demolish-button').hidden = true;
       if (state.level === 'galaxy') {
         const count = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE'; $('selection-name').textContent = item.name;
@@ -1080,12 +1339,41 @@ globalThis.OrbitVersion = "0.2.0";
         $('selection-meta').textContent = `${item.distanceAU.toFixed(2)} UA   /   PÉRIODE ${Math.round(TAU / item.speed)} s`;
         $('enter-label').textContent = item.kind === 'gazeuse' ? 'Aucune surface solide' : 'Zoomer sur la surface';
         $('enter-button').hidden = false; $('enter-button').disabled = item.kind === 'gazeuse';
+      } else if (item.entityType === 'building') {
+        const definition = Buildings.definitions[item.type];
+        $('selection-type').textContent = item.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
+        $('selection-name').textContent = definition?.name || 'Installation';
+        $('selection-info').textContent = definition?.description || 'Installation de la colonie.';
+        $('selection-meta').textContent = buildingMeta(state, item);
+        $('enter-button').hidden = true; $('demolish-button').hidden = false;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN'; $('selection-name').textContent = item.name;
         $('selection-info').textContent = item.info;
         $('selection-meta').textContent = `X ${Math.round(item.x)} km · Y ${Math.round(item.y)} km   /   ALT. ${item.altitude} m`;
         $('enter-button').hidden = true;
       }
+    }
+    function updateInventory(state) {
+      const stock = state.planet ? Construction.inventory(state.simulation, state.planet.id) : null;
+      for (const id of Resources.order) resourceNodes.get(id).textContent = fmt(stock?.[id] || 0);
+    }
+    function updateBuildingOptions(state) {
+      if (!state.planet) return;
+      const stock = Construction.inventory(state.simulation, state.planet.id);
+      for (const id of Buildings.order) {
+        const definition = Buildings.definitions[id], nodes = buildingNodes.get(id);
+        const affordability = Construction.canAfford(state.simulation, state.planet.id, id);
+        nodes.button.disabled = !affordability.ok;
+        nodes.button.title = affordability.ok ? `Construire ${definition.name}` : 'Matériaux insuffisants';
+        for (const [resourceId, node] of nodes.costNodes) node.classList.toggle('missing', (stock?.[resourceId] || 0) < definition.cost[resourceId]);
+      }
+    }
+    function updateBuildingSelection(state) {
+      if ($('inspector').hidden || state.selected?.entityType !== 'building') return;
+      const building = state.simulation.buildings[state.selected.id];
+      if (!building) { $('inspector').hidden = true; state.selected = null; return; }
+      $('selection-type').textContent = building.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
+      $('selection-meta').textContent = buildingMeta(state, building);
     }
     function update({ state, galaxy, terrainData, width, scaleCamera }) {
       const known = galaxy.systems.filter(s => s.discovered || state.reveal).length;
@@ -1100,10 +1388,15 @@ globalThis.OrbitVersion = "0.2.0";
       $('system-crumb-wrap').hidden = level === 'galaxy'; $('surface-crumb-wrap').hidden = level !== 'surface';
       $('breadcrumb-system').textContent = state.system?.name.toUpperCase() || '';
       $('breadcrumb-surface').textContent = state.planet?.name.replace(state.system?.name || '', '').trim() || '';
+      $('scan-button').hidden = level === 'surface'; $('build-button').hidden = level !== 'surface';
       $('scan-button').disabled = level !== 'galaxy'; $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan'); $('scan-button').classList.toggle('active', state.tool === 'scan');
-      $('live-status').textContent = state.paused ? 'ORBITE EN PAUSE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' : level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : 'TOPOGRAPHIE LOCALE';
-      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : 'Glisser · Pincer · Toucher le terrain pour l’inspecter';
+      $('build-button').classList.toggle('active', state.tool === 'build');
+      $('resource-panel').hidden = level !== 'surface';
+      if (level === 'surface') { updateInventory(state); updateBuildingOptions(state); }
+      updateBuildingSelection(state);
+      $('live-status').textContent = state.paused ? 'ORBITE EN PAUSE' : state.tool === 'build' ? 'IMPLANTATION AU SOL' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' : level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : 'TOPOGRAPHIE LOCALE';
+      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : state.tool === 'build' ? 'Touchez une terre ferme · Échap pour annuler' : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : 'Glisser · Inspecter · Construire · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const camera = scaleCamera;
       const span = (width < 600 ? 50 : 96) / camera.zoom;
@@ -1121,6 +1414,8 @@ globalThis.OrbitVersion = "0.2.0";
   const World = globalThis.OrbitWorld, Config = globalThis.OrbitConfig;
   const Camera = globalThis.OrbitCamera, Simulation = globalThis.OrbitSimulation;
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
+  const Construction = globalThis.OrbitConstruction, BuildingData = globalThis.OrbitBuildingData;
+  const ResourceData = globalThis.OrbitResourceData;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
@@ -1131,7 +1426,7 @@ globalThis.OrbitVersion = "0.2.0";
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
-  let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
+  let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null, pendingBuildingType = null;
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
@@ -1183,6 +1478,9 @@ globalThis.OrbitVersion = "0.2.0";
     }
     return context.terrains.get(planet.id);
   }
+  function prepareColony(planet) {
+    return Construction.initializePlanet(state.simulation, planet.id, Boolean(planet.startingCandidate));
+  }
   function surfaceFrame(planet = state.planet, context = state.context) {
     const record = prepareTerrain(planet, context);
     return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
@@ -1214,9 +1512,12 @@ globalThis.OrbitVersion = "0.2.0";
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     Save.restore(state, galaxy, restoring);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
-    state.context = null; state.tracking = null; state.focusPlanet = null; state.tool = 'pan';
+    state.context = null; state.tracking = null; state.focusPlanet = null; state.tool = 'pan'; pendingBuildingType = null;
     state.terrain = null; terrainData = null; terrainTexture = null;
-    contexts.clear(); renderer.prepareGalaxy(galaxy, state.seed);
+    contexts.clear();
+    const natalPlanet = prepareSystem(home).model.planets.find(planet => planet.startingCandidate);
+    if (natalPlanet) prepareColony(natalPlanet);
+    renderer.prepareGalaxy(galaxy, state.seed);
     focusCamera(home.x * .25, home.y * .3, Math.max(.045, fitZoom(6600)), true);
     $('seed-input').value = state.seed;
     $('inspector').hidden = true; updateUI(); persist();
@@ -1259,6 +1560,7 @@ globalThis.OrbitVersion = "0.2.0";
             if (r > 45) followPlanet(planet, context);
             if (r >= 80) {
               state.level = 'surface'; state.planet = planet;
+              prepareColony(planet);
               const record = context.terrains.get(planet.id); terrainTexture = record.texture; terrainData = record.data; state.terrain = record.data;
             }
           }
@@ -1270,7 +1572,8 @@ globalThis.OrbitVersion = "0.2.0";
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan'; $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
+      state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+      $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
 
@@ -1289,7 +1592,10 @@ globalThis.OrbitVersion = "0.2.0";
     renderer.render({ state, galaxy, home, contexts, visibleContexts, now });
   }
 
-  function clearSelection() { state.selected = null; state.tool = 'pan'; $('inspector').hidden = true; $('toast').classList.remove('visible'); }
+  function clearSelection() {
+    state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+    $('inspector').hidden = true; $('toast').classList.remove('visible');
+  }
   function enterSystem() {
     if (state.level !== 'galaxy') return;
     const star = state.selected || home;
@@ -1304,7 +1610,7 @@ globalThis.OrbitVersion = "0.2.0";
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    const record = prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    const record = prepareTerrain(planet); prepareColony(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
@@ -1362,6 +1668,47 @@ globalThis.OrbitVersion = "0.2.0";
     hud.update({ state, galaxy, terrainData, width: W, scaleCamera });
   }
 
+  function missingText(missing = {}) {
+    return Object.entries(missing).map(([id, amount]) => `${ResourceData.definitions[id]?.short || id} ${amount}`).join(' · ');
+  }
+  function nearestBuildingAt(screenX, screenY, frame) {
+    const cam = localCamera(frame);
+    let nearest = null, nearestDistance = Infinity;
+    for (const building of Construction.list(state.simulation, state.planet.id)) {
+      const point = project(building.x, building.y, cam);
+      const definition = BuildingData.definitions[building.type];
+      const hitRadius = Math.max(17, (definition?.footprint || 20) * cam.zoom * .7);
+      const d = Math.hypot(point.x - screenX, point.y - screenY);
+      if (d <= hitRadius && d < nearestDistance) { nearest = building; nearestDistance = d; }
+    }
+    return nearest;
+  }
+  function placeBuildingAt(terrainPoint, terrainHeight) {
+    if (!pendingBuildingType) { state.tool = 'pan'; updateUI(); return; }
+    if (terrainHeight <= terrainData.seaLevel + 4) {
+      toast('Construction impossible sur l’eau ou le littoral. Choisissez une terre ferme.'); return;
+    }
+    const result = Construction.place(state.simulation, { planetId: state.planet.id, type: pendingBuildingType,
+      x: Math.round(terrainPoint.x), y: Math.round(terrainPoint.y) });
+    if (!result.ok) {
+      if (result.reason === 'occupied') toast('Cette zone est trop proche d’une autre installation.');
+      else if (result.reason === 'insufficient') toast(`Matériaux insuffisants : ${missingText(result.missing)}.`);
+      else toast('Le chantier ne peut pas être lancé à cet endroit.');
+      return;
+    }
+    state.tool = 'pan'; pendingBuildingType = null; select(result.building);
+    toast(`${BuildingData.definitions[result.building.type].name} : chantier lancé.`); persist();
+  }
+  function demolishSelected() {
+    const building = state.selected?.entityType === 'building' ? state.simulation.buildings[state.selected.id] : null;
+    if (!building) return;
+    const name = BuildingData.definitions[building.type]?.name || 'Installation';
+    const result = Construction.demolish(state.simulation, building.id);
+    if (!result.ok) return;
+    state.selected = null; $('inspector').hidden = true; persist(); updateUI();
+    toast(`${name} démoli. Tous les matériaux ont été remboursés.`);
+  }
+
   function clickMap(x, y, doubleClick = false) {
     if ($('menu-dialog').open) return;
     const point = unproject(x, y);
@@ -1381,6 +1728,9 @@ globalThis.OrbitVersion = "0.2.0";
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
+      if (state.tool === 'build') { placeBuildingAt(terrainPoint, height); return; }
+      const building = nearestBuildingAt(x, y, frame);
+      if (building) { select(building); return; }
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
       const nearest = terrainData.resources.find(r => Math.hypot(r.x - tx, r.y - ty) < 10);
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
@@ -1437,10 +1787,18 @@ globalThis.OrbitVersion = "0.2.0";
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; pendingBuildingType = null; updateUI(); };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
+  $('build-button').onclick = () => { if (state.level === 'surface') { updateUI(); $('build-dialog').showModal(); } };
+  $('close-build-dialog').onclick = () => $('build-dialog').close();
+  for (const button of document.querySelectorAll('[data-building-type]')) button.onclick = () => {
+    pendingBuildingType = button.dataset.buildingType; state.tool = 'build'; state.selected = null;
+    $('inspector').hidden = true; $('build-dialog').close(); updateUI();
+    toast(`${BuildingData.definitions[pendingBuildingType].name} sélectionné. Touchez une terre ferme.`);
+  };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; };
   $('enter-button').onclick = () => state.level === 'galaxy' ? enterSystem() : enterPlanet();
+  $('demolish-button').onclick = demolishSelected;
   $('breadcrumb-galaxy').onclick = () => {
     if (state.level === 'galaxy') { overview(); return; }
     const star = state.context.star; state.tracking = null; state.focusPlanet = null; clearSelection();
@@ -1460,11 +1818,17 @@ globalThis.OrbitVersion = "0.2.0";
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (e.target instanceof HTMLInputElement) return;
-    if (e.key === 'Escape') { if ($('menu-dialog').open) $('menu-dialog').close(); else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; } else back(); }
+    if (e.key === 'Escape') {
+      if ($('build-dialog').open) $('build-dialog').close();
+      else if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; }
+      else if (state.tool === 'build') { state.tool = 'pan'; pendingBuildingType = null; updateUI(); }
+      else back();
+    }
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }
-    if (e.key === 'Enter' && state.selected && !$('menu-dialog').open) $('enter-button').click();
+    if (e.key === 'Enter' && state.selected && state.selected.entityType !== 'building' && !$('menu-dialog').open) $('enter-button').click();
     if (!$('menu-dialog').open && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault(); const step = 70 / state.target.zoom;
       state.target.x += e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
@@ -1481,6 +1845,14 @@ globalThis.OrbitVersion = "0.2.0";
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    const completedBuildings = Construction.advance(state.simulation);
+    if (completedBuildings.length) {
+      const localCompletions = completedBuildings.filter(building => building.planetId === state.planet?.id);
+      if (localCompletions.length) toast(localCompletions.length === 1 ?
+        `${BuildingData.definitions[localCompletions[0].type]?.name || 'Installation'} opérationnel.` :
+        `${localCompletions.length} installations opérationnelles.`);
+      persist(); updateUI();
+    }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;
@@ -1500,11 +1872,14 @@ globalThis.OrbitVersion = "0.2.0";
       systemCount: galaxy.systems.length, discoveredCount: galaxy.systems.filter(s => s.discovered || state.reveal).length,
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
-      planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
+      planetKind: state.planet?.kind || null, missions: state.exploration.missions.length,
+      buildingCount: Object.keys(state.simulation.buildings).length }),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),
     getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y), id: p.id, kind: p.kind }; }),
+    getInventory: planetId => ({ ...(Construction.inventory(state.simulation, planetId || state.planet?.id) || {}) }),
+    getBuildings: planetId => Construction.list(state.simulation, planetId || state.planet?.id).map(building => ({ ...building })),
     scanAt, setPause
   });
   resize(); const previous = stored(); regenerate(previous?.seed ?? 'NEREIDE-01', previous);

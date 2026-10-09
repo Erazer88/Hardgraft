@@ -3,7 +3,7 @@
 
   // Plain, serializable data. No Canvas, browser clock, or gameplay recipes.
   function create() {
-    return { time: 0, resources: {}, buildings: {}, factories: {} };
+    return { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1 };
   }
 
   function advance(simulation, seconds, running = true) {

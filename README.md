@@ -4,7 +4,7 @@ Premier prototype de navigation spatiale en portrait. Une galaxie procédurale, 
 
 Les [captures du prototype sur GitHub](https://github.com/Erazer88/Hardgraft/tree/codex/nereide-prototype/docs/images) présentent les vues mobile et bureau, ainsi que les étapes du zoom continu.
 
-Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Agent 00 a préparé la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). Agent 01 ajoute la [génération variée des systèmes](docs/WORLDGEN.md). Le prochain lot concerne les ressources et la construction.
+Les règles actuelles sont les trois documents fournis par l'utilisateur, conservés intégralement dans [docs/reference](docs/reference). Agent 00 a préparé la [séparation entre simulation, rendu et interface](docs/ARCHITECTURE.md). Agent 01 ajoute la [génération variée des systèmes](docs/WORLDGEN.md). La phase 3 introduit l’inventaire planétaire et les premiers chantiers.
 
 ## Ouvrir le prototype
 
@@ -34,6 +34,7 @@ Ouvrir le serveur dans un navigateur. Le projet utilise uniquement HTML, CSS et 
 - À proximité d'une planète, la caméra suit son déplacement orbital tout en conservant les déplacements manuels. Dézoomer retrouve les orbites, puis la galaxie.
 - En vue galaxie, activer la sonde puis toucher une zone. Une mission révèle les systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - En vue surface, toucher le terrain pour lire son type, ses coordonnées et son altitude ; les gisements sont hachurés.
+- Sur le monde natal, le bouton de construction ouvre trois installations. Choisir un bâtiment puis toucher une terre ferme lance un chantier de 3 à 4 secondes. Toucher l’installation permet de suivre son avancement ou de la démolir avec remboursement intégral.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− contrôlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 
 La graine, les zones sondées et les systèmes visités sont sauvegardés localement lorsque le navigateur autorise le stockage. Le prototype continue de fonctionner si le stockage est indisponible. L'horloge ne progresse pas hors ligne.
@@ -47,7 +48,8 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Le transfert et le rendez-vous orbital seront intégrés ultérieurement.
 - Surfaces reproductibles avec continents, océans, côtes, altitude, ombrage de relief, courbes de niveau et gisements. La surface est une carte régionale rectangulaire, pas encore une projection complète du globe.
 - Une seule caméra et un repère galactique commun : chaque système est inclus dans son étoile, chaque carte dans sa planète. Le zoom ne remplace pas la scène et ne réinitialise pas le cadrage. Les tailles relatives sont adaptées à la navigation du prototype ; ce n'est pas une simulation des distances physiques réelles.
-- Le terrain peut être agrandi jusqu'à l'échelle locale prévue pour les futures usines. Le zoom maximal dépend de la résolution de la carte pour préserver un relief lisible. Les usines, la collecte, l'économie et les stratégies énergétiques restent hors du périmètre de cette version.
+- Le stock de la colonie suit cinq ressources stables : fer, cuivre, silicium, carbone et eau. Les coûts des bâtiments, leurs durées et le taux de remboursement sont déclaratifs. L’extraction et la production restent hors du périmètre de cette version.
+- Le terrain peut être agrandi jusqu'à l'échelle locale prévue pour les futures usines. Le zoom maximal dépend de la résolution de la carte pour préserver un relief lisible. Les usines, la collecte automatisée et les stratégies énergétiques restent hors du périmètre de cette version.
 - Quelques connexions et cargos interstellaires servent de repères visuels dans la galaxie.
 
 ## Validation
@@ -59,7 +61,7 @@ node tests/browser-smoke.cjs
 
 Les tests du générateur couvrent la reproductibilité, des graines différentes, la continuité des bras, l'ordre des orbites, les vitesses de Kepler et la présence de terres, d'océans et de ressources.
 
-Les tests d'architecture exécutent les modules de simulation, sauvegarde, exploration et caméra sans DOM ni Canvas. Ils contrôlent notamment la compatibilité avec les anciennes sauvegardes et la stabilité du point visé au zoom.
+Les tests d'architecture exécutent les modules de simulation, sauvegarde, exploration et caméra sans DOM ni Canvas. Le test de construction contrôle aussi les inventaires isolés, les coûts, les minuteries, l’espacement et les remboursements.
 
 Le test navigateur utilise Chromium installé et le protocole DevTools natif, sans bibliothèque additionnelle. Il attend le serveur sur le port 8000 et produit des captures dans `artifacts/`. Les résultats d'émulation mobile ne remplacent pas un essai sur appareil physique.
 

@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera, Config = root.OrbitConfig;
+  const BuildingData = root.OrbitBuildingData, Construction = root.OrbitConstruction;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -300,6 +301,37 @@
       }
       return terrainTexture;
     }
+    function drawSurfaceBuilding(cam, building) {
+      const definition = BuildingData.definitions[building.type];
+      if (!definition) return;
+      const p = project(building.x, building.y, cam);
+      const radius = clamp(definition.footprint * cam.zoom * .32, 5.5, 18);
+      if (p.x < -radius * 2 || p.y < -radius * 2 || p.x > W + radius * 2 || p.y > H + radius * 2) return;
+      const selected = state.selected?.entityType === 'building' && state.selected.id === building.id;
+      ctx.save(); ctx.translate(p.x, p.y);
+      if (building.status === 'constructing') {
+        circle(ctx, 0, 0, radius + 3, '#b9c7c06b', .8, [2, 3]);
+        ctx.strokeStyle = definition.color; ctx.lineWidth = 1.7; ctx.beginPath();
+        ctx.arc(0, 0, radius + 3, -Math.PI / 2, -Math.PI / 2 + TAU * Construction.progress(state.simulation, building)); ctx.stroke();
+        line(ctx, [{ x: -radius, y: -radius }, { x: radius, y: radius }], '#d7caaa78', .8);
+        line(ctx, [{ x: radius, y: -radius }, { x: -radius, y: radius }], '#d7caaa78', .8);
+        ctx.strokeStyle = '#aabcb86e'; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+      } else if (building.type === 'extractor') {
+        dot(ctx, 0, 0, radius, '#13252b'); circle(ctx, 0, 0, radius, definition.color, 1.2);
+        circle(ctx, 0, 0, radius * .45, definition.color + 'c8', 1);
+        line(ctx, [{ x: -radius * 1.2, y: 0 }, { x: radius * 1.2, y: 0 }], definition.color + 'b0', .8);
+      } else {
+        ctx.rotate(building.type === 'depot' ? Math.PI / 4 : 0);
+        ctx.fillStyle = definition.color + '25'; ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+        ctx.strokeStyle = definition.color; ctx.lineWidth = 1.2; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
+        line(ctx, [{ x: -radius, y: 0 }, { x: radius, y: 0 }], definition.color + 'a8', .8);
+        line(ctx, [{ x: 0, y: -radius }, { x: 0, y: radius }], definition.color + 'a8', .8);
+      }
+      if (selected) circle(ctx, 0, 0, radius + 7, '#efa35a', 1);
+      ctx.restore();
+      if (cam.zoom > .55 || selected) label(ctx, `${definition.code} · ${building.status === 'complete' ? 'ACTIF' : Math.round(Construction.progress(state.simulation, building) * 100) + '%'}`,
+        p.x + radius + 7, p.y - radius - 2, selected ? '#f0b478' : '#b7c7c2', 8);
+    }
     function drawSurface(cam, planet, record) {
       const { texture: terrainTexture, data: terrainData } = record;
       const top = project(0, 0, cam), scale = cam.zoom;
@@ -316,6 +348,7 @@
         ctx.restore();
         if (scale > .55) label(ctx, res.type.toUpperCase(), p.x + r + 6, p.y, '#c7c49b', 8);
       }
+      for (const building of Construction.list(state.simulation, planet.id)) drawSurfaceBuilding(cam, building);
       if (state.selected?.surfacePoint) {
         const p = project(state.selected.x, state.selected.y, cam);
         circle(ctx, p.x, p.y, 7, '#efb26e', 1);

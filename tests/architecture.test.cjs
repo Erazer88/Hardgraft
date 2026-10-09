@@ -22,7 +22,7 @@ const galaxy = () => ({ systems: [
 
 test('session and simulation have isolated empty collections without browser APIs', () => {
   const first = State.create(), second = State.create();
-  assert.deepEqual(plain(first.simulation), { time: 0, resources: {}, buildings: {}, factories: {} });
+  assert.deepEqual(plain(first.simulation), { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1 });
   first.simulation.resources.iron = 10; first.simulation.buildings.mine = { status: 'test' };
   first.exploration.visited.add('home');
   assert.deepEqual(plain(second.simulation.resources), {});

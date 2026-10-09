@@ -3,6 +3,8 @@
   const World = globalThis.OrbitWorld, Config = globalThis.OrbitConfig;
   const Camera = globalThis.OrbitCamera, Simulation = globalThis.OrbitSimulation;
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
+  const Construction = globalThis.OrbitConstruction, BuildingData = globalThis.OrbitBuildingData;
+  const ResourceData = globalThis.OrbitResourceData;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
@@ -13,7 +15,7 @@
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
-  let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
+  let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null, pendingBuildingType = null;
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
@@ -65,6 +67,9 @@
     }
     return context.terrains.get(planet.id);
   }
+  function prepareColony(planet) {
+    return Construction.initializePlanet(state.simulation, planet.id, Boolean(planet.startingCandidate));
+  }
   function surfaceFrame(planet = state.planet, context = state.context) {
     const record = prepareTerrain(planet, context);
     return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
@@ -96,9 +101,12 @@
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     Save.restore(state, galaxy, restoring);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
-    state.context = null; state.tracking = null; state.focusPlanet = null; state.tool = 'pan';
+    state.context = null; state.tracking = null; state.focusPlanet = null; state.tool = 'pan'; pendingBuildingType = null;
     state.terrain = null; terrainData = null; terrainTexture = null;
-    contexts.clear(); renderer.prepareGalaxy(galaxy, state.seed);
+    contexts.clear();
+    const natalPlanet = prepareSystem(home).model.planets.find(planet => planet.startingCandidate);
+    if (natalPlanet) prepareColony(natalPlanet);
+    renderer.prepareGalaxy(galaxy, state.seed);
     focusCamera(home.x * .25, home.y * .3, Math.max(.045, fitZoom(6600)), true);
     $('seed-input').value = state.seed;
     $('inspector').hidden = true; updateUI(); persist();
@@ -141,6 +149,7 @@
             if (r > 45) followPlanet(planet, context);
             if (r >= 80) {
               state.level = 'surface'; state.planet = planet;
+              prepareColony(planet);
               const record = context.terrains.get(planet.id); terrainTexture = record.texture; terrainData = record.data; state.terrain = record.data;
             }
           }
@@ -152,7 +161,8 @@
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan'; $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
+      state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+      $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
 
@@ -171,7 +181,10 @@
     renderer.render({ state, galaxy, home, contexts, visibleContexts, now });
   }
 
-  function clearSelection() { state.selected = null; state.tool = 'pan'; $('inspector').hidden = true; $('toast').classList.remove('visible'); }
+  function clearSelection() {
+    state.selected = null; state.tool = 'pan'; pendingBuildingType = null;
+    $('inspector').hidden = true; $('toast').classList.remove('visible');
+  }
   function enterSystem() {
     if (state.level !== 'galaxy') return;
     const star = state.selected || home;
@@ -186,7 +199,7 @@
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    const record = prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    const record = prepareTerrain(planet); prepareColony(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
@@ -244,6 +257,47 @@
     hud.update({ state, galaxy, terrainData, width: W, scaleCamera });
   }
 
+  function missingText(missing = {}) {
+    return Object.entries(missing).map(([id, amount]) => `${ResourceData.definitions[id]?.short || id} ${amount}`).join(' · ');
+  }
+  function nearestBuildingAt(screenX, screenY, frame) {
+    const cam = localCamera(frame);
+    let nearest = null, nearestDistance = Infinity;
+    for (const building of Construction.list(state.simulation, state.planet.id)) {
+      const point = project(building.x, building.y, cam);
+      const definition = BuildingData.definitions[building.type];
+      const hitRadius = Math.max(17, (definition?.footprint || 20) * cam.zoom * .7);
+      const d = Math.hypot(point.x - screenX, point.y - screenY);
+      if (d <= hitRadius && d < nearestDistance) { nearest = building; nearestDistance = d; }
+    }
+    return nearest;
+  }
+  function placeBuildingAt(terrainPoint, terrainHeight) {
+    if (!pendingBuildingType) { state.tool = 'pan'; updateUI(); return; }
+    if (terrainHeight <= terrainData.seaLevel + 4) {
+      toast('Construction impossible sur l’eau ou le littoral. Choisissez une terre ferme.'); return;
+    }
+    const result = Construction.place(state.simulation, { planetId: state.planet.id, type: pendingBuildingType,
+      x: Math.round(terrainPoint.x), y: Math.round(terrainPoint.y) });
+    if (!result.ok) {
+      if (result.reason === 'occupied') toast('Cette zone est trop proche d’une autre installation.');
+      else if (result.reason === 'insufficient') toast(`Matériaux insuffisants : ${missingText(result.missing)}.`);
+      else toast('Le chantier ne peut pas être lancé à cet endroit.');
+      return;
+    }
+    state.tool = 'pan'; pendingBuildingType = null; select(result.building);
+    toast(`${BuildingData.definitions[result.building.type].name} : chantier lancé.`); persist();
+  }
+  function demolishSelected() {
+    const building = state.selected?.entityType === 'building' ? state.simulation.buildings[state.selected.id] : null;
+    if (!building) return;
+    const name = BuildingData.definitions[building.type]?.name || 'Installation';
+    const result = Construction.demolish(state.simulation, building.id);
+    if (!result.ok) return;
+    state.selected = null; $('inspector').hidden = true; persist(); updateUI();
+    toast(`${name} démoli. Tous les matériaux ont été remboursés.`);
+  }
+
   function clickMap(x, y, doubleClick = false) {
     if ($('menu-dialog').open) return;
     const point = unproject(x, y);
@@ -263,6 +317,9 @@
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
+      if (state.tool === 'build') { placeBuildingAt(terrainPoint, height); return; }
+      const building = nearestBuildingAt(x, y, frame);
+      if (building) { select(building); return; }
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
       const nearest = terrainData.resources.find(r => Math.hypot(r.x - tx, r.y - ty) < 10);
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
@@ -319,10 +376,18 @@
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; pendingBuildingType = null; updateUI(); };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
+  $('build-button').onclick = () => { if (state.level === 'surface') { updateUI(); $('build-dialog').showModal(); } };
+  $('close-build-dialog').onclick = () => $('build-dialog').close();
+  for (const button of document.querySelectorAll('[data-building-type]')) button.onclick = () => {
+    pendingBuildingType = button.dataset.buildingType; state.tool = 'build'; state.selected = null;
+    $('inspector').hidden = true; $('build-dialog').close(); updateUI();
+    toast(`${BuildingData.definitions[pendingBuildingType].name} sélectionné. Touchez une terre ferme.`);
+  };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; };
   $('enter-button').onclick = () => state.level === 'galaxy' ? enterSystem() : enterPlanet();
+  $('demolish-button').onclick = demolishSelected;
   $('breadcrumb-galaxy').onclick = () => {
     if (state.level === 'galaxy') { overview(); return; }
     const star = state.context.star; state.tracking = null; state.focusPlanet = null; clearSelection();
@@ -342,11 +407,17 @@
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (e.target instanceof HTMLInputElement) return;
-    if (e.key === 'Escape') { if ($('menu-dialog').open) $('menu-dialog').close(); else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; } else back(); }
+    if (e.key === 'Escape') {
+      if ($('build-dialog').open) $('build-dialog').close();
+      else if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; }
+      else if (state.tool === 'build') { state.tool = 'pan'; pendingBuildingType = null; updateUI(); }
+      else back();
+    }
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }
-    if (e.key === 'Enter' && state.selected && !$('menu-dialog').open) $('enter-button').click();
+    if (e.key === 'Enter' && state.selected && state.selected.entityType !== 'building' && !$('menu-dialog').open) $('enter-button').click();
     if (!$('menu-dialog').open && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault(); const step = 70 / state.target.zoom;
       state.target.x += e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
@@ -363,6 +434,14 @@
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    const completedBuildings = Construction.advance(state.simulation);
+    if (completedBuildings.length) {
+      const localCompletions = completedBuildings.filter(building => building.planetId === state.planet?.id);
+      if (localCompletions.length) toast(localCompletions.length === 1 ?
+        `${BuildingData.definitions[localCompletions[0].type]?.name || 'Installation'} opérationnel.` :
+        `${localCompletions.length} installations opérationnelles.`);
+      persist(); updateUI();
+    }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;
@@ -382,11 +461,14 @@
       systemCount: galaxy.systems.length, discoveredCount: galaxy.systems.filter(s => s.discovered || state.reveal).length,
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
-      planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
+      planetKind: state.planet?.kind || null, missions: state.exploration.missions.length,
+      buildingCount: Object.keys(state.simulation.buildings).length }),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),
     getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y), id: p.id, kind: p.kind }; }),
+    getInventory: planetId => ({ ...(Construction.inventory(state.simulation, planetId || state.planet?.id) || {}) }),
+    getBuildings: planetId => Construction.list(state.simulation, planetId || state.planet?.id).map(building => ({ ...building })),
     scanAt, setPause
   });
   resize(); const previous = stored(); regenerate(previous?.seed ?? 'NEREIDE-01', previous);
