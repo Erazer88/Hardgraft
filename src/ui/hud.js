@@ -3,6 +3,7 @@
   const Config = root.OrbitConfig;
   function create(document) {
     const $ = id => document.getElementById(id);
+    $('game-version').textContent = `Version ${root.OrbitVersion}`;
     const TAU = Math.PI * 2;
     const fmt = n => new Intl.NumberFormat('fr-FR').format(n);
     let toastTimer;

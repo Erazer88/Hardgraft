@@ -32,3 +32,16 @@ mécaniques galactiques, monétaires, orbitales avancées ou au Contexte complet
 Agent 00 travaille seul sur la structure commune. Les tâches suivantes peuvent
 être parallélisées uniquement sur des fichiers distincts, après intégration et
 validation de leur base commune.
+
+## Livraison et version
+
+Chaque mise à jour doit être testée, puis commitée et poussée sur GitHub dans
+la branche `codex/nereide-prototype`. Fournir le lien du commit à la livraison.
+
+`package.json` est la référence du numéro de version. Incrémenter la version
+pour chaque mise à jour livrée et exécuter `python3 build.py` : il génère
+`src/data/version.js` et les exports. Le HUD affiche cette version en bas du jeu.
+Ne pas modifier directement le fichier de version généré.
+
+Terminer chaque réponse à l'utilisateur dans ce chat, y compris les points
+d'avancement, par `Version actuelle : X.Y.Z`, avec la version courante du projet.
