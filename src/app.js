@@ -3,6 +3,9 @@
   const World = globalThis.OrbitWorld, Config = globalThis.OrbitConfig;
   const Camera = globalThis.OrbitCamera, Simulation = globalThis.OrbitSimulation;
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
+  const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
+  const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
+  const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
@@ -11,6 +14,7 @@
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
+  let nextFactoryId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
   const viewport = { width: W, height: H };
@@ -97,6 +101,7 @@
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = [];
+    state.placement = null; nextFactoryId = 1;
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
@@ -154,7 +159,7 @@
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan';
+      state.selected = null; state.tool = 'pan'; state.placement = null;
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -175,8 +180,51 @@
   }
 
   function clearSelection() {
-    state.selected = null; state.tool = 'pan';
+    state.selected = null; state.tool = 'pan'; state.placement = null;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
+  }
+  function updateFactoryPreview(screenX, screenY) {
+    if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
+    const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
+    const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
+    const definition = BuildingData.get('factory');
+    const validation = BuildingPlacement.validate({ terrain: terrainData,
+      textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
+      buildings: state.surfaceBuildings });
+    state.placement = { type: 'factory', ...position, rotation: 0, ...validation };
+  }
+  function placeFactory() {
+    const preview = state.placement;
+    if (!preview?.valid) {
+      toast(preview?.reason || 'Choisissez un emplacement valide sur la planète.');
+      return;
+    }
+    const building = BuildingModel.create({ id: `factory-${state.planet.id}-${nextFactoryId++}`,
+      type: 'factory', planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
+      constructionState: 'constructing', constructionProgress: 0, status: 'building' });
+    state.surfaceBuildings.push(building);
+    state.placement = null; state.tool = 'pan';
+    toast('Usine posée. Assemblage en cours.'); updateUI();
+  }
+  function selectSurfaceBuilding(building) {
+    state.tool = 'pan'; state.placement = null;
+    state.selected = { kind: 'building', ...building };
+    hud.showSelection(state.selected, { state }); updateUI();
+  }
+  function buildingHit(frame, building, definition, x, y) {
+    const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
+    const localZoom = state.camera.zoom * frame.scale;
+    const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
+    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
+
+    const style = SurfaceStyle.buildings;
+    const width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
+    const edge = definition.footprint.width * localZoom / 2 + 12;
+    let cardX = anchor.x + edge, cardY = anchor.y - style.cardHeightPx / 2;
+    if (cardX + width > W - 8) cardX = anchor.x - edge - width;
+    cardX = Math.max(8, Math.min(W - width - 8, cardX));
+    cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
+    return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
   }
   function enterSystem() {
     if (state.level !== 'galaxy') return;
@@ -270,8 +318,18 @@
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
       const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
+      if (state.tool === 'build-factory') {
+        updateFactoryPreview(x, y); placeFactory(); return;
+      }
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
+      const building = [...state.surfaceBuildings].reverse().find(candidate => {
+        if (candidate.planetId !== state.planet.id) return false;
+        const definition = BuildingData.get(candidate.type);
+        if (!definition) return false;
+        return buildingHit(frame, candidate, definition, x, y);
+      });
+      if (building) { selectSurfaceBuilding(building); return; }
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
       const nearest = terrainData.resources.find(resource => Math.hypot(resource.x - tx, resource.y - ty) < 10);
@@ -292,6 +350,7 @@
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
+    if (state.tool === 'build-factory' && pointers.size === 1) updateFactoryPreview(e.clientX, e.clientY);
     if (pointers.size === 2) {
       const points = [...pointers.values()];
       pinch = { distance: distance(points[0], points[1]), midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
@@ -299,7 +358,10 @@
     }
   });
   canvas.addEventListener('pointermove', e => {
-    if (!pointers.has(e.pointerId)) return;
+    if (!pointers.has(e.pointerId)) {
+      if (state.tool === 'build-factory') updateFactoryPreview(e.clientX, e.clientY);
+      return;
+    }
     const previous = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2 && pinch) {
@@ -310,6 +372,9 @@
       state.target = Camera.anchoredZoom(state.camera, viewport, zoom, midpoint, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: nextDistance, midpoint }; pointerMoved = true;
       updateSceneContext(); updateUI();
+    } else if (pointers.size === 1 && state.tool === 'build-factory') {
+      if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
+      updateFactoryPreview(e.clientX, e.clientY);
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       if (pointerMoved) {
@@ -336,7 +401,17 @@
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; updateUI(); };
+  $('build-button').onclick = () => {
+    if (state.level !== 'surface') return;
+    if (state.tool === 'build-factory') { state.tool = 'pan'; state.placement = null; }
+    else {
+      state.selected = null; $('inspector').hidden = true;
+      state.tool = 'build-factory'; updateFactoryPreview(W / 2, H / 2);
+      toast('Déplacez l’aperçu sur la terre ferme, puis touchez pour poser l’usine.');
+    }
+    updateUI();
+  };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
@@ -370,7 +445,7 @@
     if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
       if ($('menu-dialog').open) $('menu-dialog').close();
-      else if (state.tool !== 'pan') { state.tool = 'pan'; updateUI(); }
+      else if (state.tool !== 'pan') { state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();
     }
@@ -394,6 +469,7 @@
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    if (!state.paused && !document.hidden) Construction.advance(state.surfaceBuildings, dt);
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;

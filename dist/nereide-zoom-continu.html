@@ -8,6 +8,7 @@
   <title>Néréide — Atlas orbital</title>
   <style>:root{color-scheme:dark;--bg:#101b28;--panel:rgba(9,20,31,.86);--line:rgba(139,177,201,.19);--ink:#d1e2ed;--muted:#7e9bad;--accent:#efa35a;--cyan:#90c3d6;--mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--mono);color:var(--ink);overscroll-behavior:none}button,input{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button{border:0;background:none;-webkit-tap-highlight-color:transparent}button:disabled{opacity:.3;cursor:default}svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}#universe{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(3,10,18,.22) 100%)}.panel{border:1px solid var(--line);border-radius:7px;background:var(--panel);backdrop-filter:blur(12px);box-shadow:0 8px 35px #00000014}.hud{position:absolute;top:calc(22px + var(--safe-top));left:26px;right:26px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}.hud>*{pointer-events:auto}.telemetry{width:236px;padding:15px 17px}.telemetry-heading{display:flex;gap:9px;align-items:center;letter-spacing:2px;font-size:9px;color:var(--muted);padding-bottom:13px;border-bottom:1px solid var(--line)}.version{margin-left:auto;color:#47697c}.signal-light{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px #efa35a40;flex-shrink:0}.telemetry-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;gap:10px;font-size:16px;font-weight:400}.telemetry-row .label,.telemetry-row.secondary{font-size:10px;letter-spacing:1px;color:var(--muted)}.telemetry-row.secondary{margin-top:9px;font-size:9px}.header-actions{display:flex;gap:8px}.icon-button{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:#a5c2d4;font-size:24px;transition:background .15s,border-color .15s}.icon-button:hover,.tool-button:hover{background:#203545;border-color:#7995a66b}.breadcrumb{position:absolute;top:calc(164px + var(--safe-top));left:27px;display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1.3px;color:var(--muted);max-width:calc(100% - 54px)}.breadcrumb button{padding:8px 0;letter-spacing:inherit;font-size:inherit;color:inherit}.breadcrumb button:hover{color:var(--ink)}.slash{color:#426174;margin:0 10px}.view-heading{position:absolute;left:27px;top:calc(205px + var(--safe-top));pointer-events:none}.view-heading span{font-size:9px;letter-spacing:2.7px;color:var(--muted)}.view-heading h1{font-size:21px;font-weight:400;letter-spacing:.5px;margin:8px 0 0;color:#c5d6df}.corner-note{position:absolute;top:calc(85px + var(--safe-top));right:27px;display:flex;align-items:center;gap:9px;color:#67869b;font-size:9px;letter-spacing:1.5px;pointer-events:none}.corner-note .signal-light{background:#7294a3;box-shadow:none}.controls{position:absolute;left:26px;right:26px;bottom:calc(55px + var(--safe-bottom));display:flex;align-items:center;justify-content:space-between;pointer-events:none;gap:14px}.controls>*{pointer-events:auto}.toolbox{display:flex;padding:5px;gap:3px}.tool-button{width:43px;height:42px;display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:4px;color:#92afc1;position:relative}.tool-button.active{color:var(--accent);background:#d0925010}.tool-button.active:after{content:"";position:absolute;bottom:2px;left:13px;right:13px;height:2px;background:var(--accent);border-radius:2px}.scale-controls{display:flex;align-items:center;gap:12px}.scale-legend{width:96px;display:flex;flex-direction:column;gap:7px;align-items:center;white-space:nowrap}.scale-line{height:6px;width:100%;border:1px solid #7e9aaf;border-top:none;position:relative}.scale-line:before{content:"";position:absolute;left:50%;height:6px;border-left:1px solid #7e9aaf}.scale-legend span{font-size:9px;letter-spacing:1px;color:#829db0}.gesture-hint{position:absolute;bottom:calc(30px + var(--safe-bottom));left:27px;right:27px;pointer-events:none;font-size:9px;letter-spacing:.4px;color:#628193;text-align:center}.gesture-hint span{margin:0 8px;color:#48687b}.inspector{position:absolute;bottom:calc(132px + var(--safe-bottom));left:26px;width:320px;padding:16px 18px 18px}.inspector-top{display:flex;align-items:center;justify-content:space-between;color:#839cab;font-size:9px;letter-spacing:1.8px}.text-icon{font-size:21px;color:var(--muted);height:25px;width:27px;line-height:1;padding:0}.inspector h2{font-size:21px;font-weight:400;letter-spacing:.5px;margin:6px 0 8px}.inspector p{font-size:11px;line-height:1.65;color:#a6bac7;margin:0 0 12px}.selection-meta{display:flex;gap:17px;font-size:9px;color:var(--muted);letter-spacing:.3px;margin-bottom:17px;flex-wrap:wrap}.primary-button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;gap:15px;border:1px solid #d49a576b;border-radius:4px;color:#eab179;background:#ba7d2712;font-size:11px;letter-spacing:.3px;transition:background .2s}.primary-button:hover{background:#be822c25}.primary-button span:last-child{font-size:19px;line-height:15px}.toast{position:absolute;left:50%;bottom:calc(125px + var(--safe-bottom));transform:translate(-50%,10px);background:#0b1928e8;border:1px solid #7fabc03b;border-radius:5px;padding:12px 16px;max-width:calc(100% - 36px);font-size:11px;line-height:1.5;color:#b3cbd8;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s}.toast.visible{opacity:1;transform:translate(-50%,0)}dialog{margin:auto;padding:0;border:1px solid #829eaf35;border-radius:12px;background:#0b1724ee;color:var(--ink);width:min(430px,calc(100% - 36px));max-height:calc(100dvh - 48px);box-shadow:0 25px 120px #0008;overflow:auto}dialog::backdrop{background:#05101a68;backdrop-filter:blur(5px)}.menu-card{padding:28px 34px 26px}.menu-kicker{display:flex;align-items:center;gap:9px;color:#83a1b4;font-size:9px;letter-spacing:1.1px}.menu-build{margin-left:auto;font-size:8px;color:#637e92}.brand-symbol{width:94px;height:94px;position:relative;margin:29px auto 23px}.brand-symbol span{position:absolute;inset:0;border:1px solid #799bad40;border-radius:50%}.brand-symbol span:nth-child(2){inset:16px}.brand-symbol span:nth-child(3){inset:33px;border-color:#d79d5a91}.brand-symbol:before,.brand-symbol:after{content:"";position:absolute;background:#799bad40}.brand-symbol:before{height:1px;left:-11px;right:-11px;top:47px}.brand-symbol:after{width:1px;top:-11px;bottom:-11px;left:47px}.brand-symbol i{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--accent);top:10px;right:19px;box-shadow:0 0 8px #dca56866}.eyebrow{font-size:9px;letter-spacing:4px;text-align:center;color:#6f93a8;margin:0 0 12px}.menu-card h2{font-family:var(--mono);font-size:36px;font-weight:300;letter-spacing:7px;text-align:center;margin:0 0 15px;color:#d0e0e9}.menu-description{text-align:center;font-size:12px;color:#8ca6b7;line-height:1.9;margin:0 0 26px}.menu-card>.primary-button{padding:16px;font-size:12px}.seed-controls{margin-top:25px}.seed-controls label{font-size:8px;letter-spacing:1.8px;color:#6d8ba0}.seed-row{display:flex;margin-top:9px;border:1px solid #829eaf27;border-radius:4px;overflow:hidden}.seed-row input{background:#101e2b;color:#b4ccd9;min-width:0;width:100%;padding:12px;font-size:11px;letter-spacing:1px;border:0}.seed-row button{width:45px;flex-shrink:0;color:#a1c0d1;background:#101e2b;border-left:1px solid #829eaf27;font-size:23px}.seed-row button:hover{background:#1c3244}.seed-controls p{font-size:9px;color:#607f94;margin:7px 0 0}.menu-options{margin:21px 0;display:flex;flex-direction:column;gap:15px}.menu-options label{font-size:10px;color:#9ab2c1;display:flex;gap:9px;align-items:center;cursor:pointer}.menu-options input{accent-color:#d8a36b;width:14px;height:14px;margin:0}.menu-footnote{display:flex;justify-content:space-between;border-top:1px solid #829eaf22;padding-top:18px;font-size:8px;letter-spacing:1px;color:#617e90}.menu-footnote span:nth-child(even){color:#9e846c}[hidden]{display:none!important}
+body[data-tool="build-factory"] #universe{cursor:crosshair}
 .toast.above-inspector{bottom:calc(358px + var(--safe-bottom))}
 body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
 @media(min-width:900px){.view-heading{top:calc(50% - 100px);left:29px}.view-heading h1{font-size:24px}.breadcrumb{top:calc(168px + var(--safe-top))}.gesture-hint{text-align:left}.inspector{width:330px}.menu-card{padding:30px 39px}}
@@ -51,6 +52,7 @@ body[data-level="surface"] .corner-note{display:none}
       <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
       <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
       <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
+      <button id="build-button" class="tool-button" aria-label="Poser une usine sur la planète" title="Poser une usine" hidden><svg viewBox="0 0 24 24"><path d="M3 20V9l5 3V8l5 4V5h5l3 4v11H3Z"/><path d="M7 16v4m5-4v4m5-4v4M15 8h3"/></svg></button>
       <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
       <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
     </div>
@@ -75,7 +77,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.18.0";
+globalThis.OrbitVersion = "0.19.0";
 
 </script>
   <script>
@@ -768,6 +770,29 @@ globalThis.OrbitVersion = "0.18.0";
   <script>
 (function (root) {
   'use strict';
+
+  const durationSeconds = 3.5;
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+  function advance(buildings, deltaSeconds) {
+    if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) throw new RangeError('Construction time must be non-negative');
+    for (const building of buildings) {
+      if (building.constructionState !== 'constructing') continue;
+      building.constructionProgress = clamp(building.constructionProgress + deltaSeconds / durationSeconds, 0, 1);
+      if (building.constructionProgress >= 1) {
+        building.constructionState = 'complete';
+        building.status = 'idle';
+      }
+    }
+  }
+
+  root.OrbitConstruction = Object.freeze({ advance, durationSeconds });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
   const config = root.OrbitConfig.exploration;
 
   function create(home) {
@@ -809,6 +834,83 @@ globalThis.OrbitVersion = "0.18.0";
 (function (root) {
   'use strict';
 
+  const BuildingModel = root.OrbitSurfaceBuilding;
+  const point = (x, y, origin, angle) => {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    return { x: origin.x + x * cos - y * sin, y: origin.y + x * sin + y * cos };
+  };
+
+  function footprint(building, definition) {
+    const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+    return [point(-halfWidth, -halfHeight, building, building.rotation || 0),
+      point(halfWidth, -halfHeight, building, building.rotation || 0),
+      point(halfWidth, halfHeight, building, building.rotation || 0),
+      point(-halfWidth, halfHeight, building, building.rotation || 0)];
+  }
+
+  function overlaps(first, firstDefinition, second, secondDefinition) {
+    const a = footprint(first, firstDefinition), b = footprint(second, secondDefinition);
+    for (const polygon of [a, b]) for (let i = 0; i < polygon.length; i++) {
+      const start = polygon[i], end = polygon[(i + 1) % polygon.length];
+      const axis = { x: -(end.y - start.y), y: end.x - start.x };
+      const projectionA = a.map(p => p.x * axis.x + p.y * axis.y);
+      const projectionB = b.map(p => p.x * axis.x + p.y * axis.y);
+      if (Math.max(...projectionA) <= Math.min(...projectionB) || Math.max(...projectionB) <= Math.min(...projectionA)) return false;
+    }
+    return true;
+  }
+
+  function sampleAxis(halfExtent, step) {
+    const values = [-halfExtent];
+    for (let value = -halfExtent + step; value < halfExtent; value += step) values.push(value);
+    values.push(halfExtent);
+    return values;
+  }
+
+  function validate(options) {
+    const { terrain, textureScale, definition, position, rotation = 0, planetId, buildings = [] } = options;
+    if (!terrain || !definition || !position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      return { valid: false, reason: 'Position de construction indisponible.' };
+    }
+
+    const candidate = { ...position, rotation };
+    const corners = footprint(candidate, definition);
+    const worldWidth = terrain.width * textureScale, worldHeight = terrain.height * textureScale;
+    if (corners.some(p => p.x < 0 || p.y < 0 || p.x > worldWidth || p.y > worldHeight)) {
+      return { valid: false, reason: 'Le bâtiment dépasse la surface cartographiée.' };
+    }
+
+    if (definition.placementRules.landOnly) {
+      const step = Math.max(textureScale, 8);
+      const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+      for (const localY of sampleAxis(halfHeight, step)) for (const localX of sampleAxis(halfWidth, step)) {
+        const p = point(localX, localY, candidate, rotation);
+        const x = Math.floor(p.x / textureScale), y = Math.floor(p.y / textureScale);
+        if (x < 0 || y < 0 || x >= terrain.width || y >= terrain.height ||
+            terrain.elevation[y * terrain.width + x] <= terrain.seaLevel) {
+          return { valid: false, reason: 'Le bâtiment doit tenir entièrement sur la terre ferme.' };
+        }
+      }
+    }
+
+    for (const existing of buildings) {
+      if (existing.planetId !== planetId) continue;
+      const existingDefinition = BuildingModel.getDefinition(existing.type);
+      if (existingDefinition && overlaps(candidate, definition, existing, existingDefinition)) {
+        return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.' };
+      }
+    }
+    return { valid: true, reason: '' };
+  }
+
+  root.OrbitBuildingPlacement = Object.freeze({ validate });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   function normalizedSeed(value) {
     const text = String(value).trim() || root.OrbitConfig.defaultSeed;
     return /^\d{1,9}$/.test(text) ? Number(text) : text.slice(0, 64);
@@ -819,7 +921,7 @@ globalThis.OrbitVersion = "0.18.0";
       exploration: root.OrbitExploration.create(), level: 'galaxy', selected: null,
       system: null, planet: null, camera: { x: 0, y: 0, zoom: .1 }, target: { x: 0, y: 0, zoom: .1 },
       paused: false, reveal: false, tool: 'pan', context: null,
-      tracking: null, focusPlanet: null, surfaceBuildings: [] };
+      tracking: null, focusPlanet: null, surfaceBuildings: [], placement: null };
   }
 
   root.OrbitState = Object.freeze({ create, normalizedSeed });
@@ -928,11 +1030,126 @@ globalThis.OrbitVersion = "0.18.0";
 (function (root) {
   'use strict';
 
-  // Rendering passes are reserved for the later planetary building blocks.
-  // They receive a read-only surface frame and own no simulation state.
-  function renderPhysical() {}
-  function renderAnchors() {}
-  function renderCards() {}
+  const Data = root.OrbitBuildingData, Style = root.OrbitSurfaceStyle;
+
+  function visibleBuildings(frame) {
+    return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
+  }
+
+  function drawGlyph(ctx, x, y, size, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+    ctx.moveTo(x - size * .55, y + size * .42); ctx.lineTo(x - size * .55, y - size * .14);
+    ctx.lineTo(x - size * .08, y + size * .12); ctx.lineTo(x - size * .08, y - size * .14);
+    ctx.lineTo(x + size * .35, y + size * .12); ctx.lineTo(x + size * .35, y - size * .52);
+    ctx.lineTo(x + size * .62, y - size * .52); ctx.lineTo(x + size * .62, y + size * .42); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - size * .7, y + size * .48); ctx.lineTo(x + size * .75, y + size * .48); ctx.stroke();
+  }
+
+  function portPoint(building, definition) {
+    if (building.roadPort) return building.roadPort;
+    const offset = definition.roadPortOffset;
+    if (!offset) return null;
+    const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
+  }
+
+  function drawFootprint(frame, building, definition, ghost = false) {
+    const ctx = frame.context, center = frame.project(building.x, building.y), scale = frame.zoom;
+    const width = definition.footprint.width * scale, height = definition.footprint.height * scale;
+    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') :
+      selected ? Style.buildings.selectedOutlineColor : '#aebfba';
+    ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
+    ctx.fillStyle = ghost ? (frame.state.placement?.valid ? '#76bdb522' : '#e5787022') : '#0b1a24b8';
+    ctx.strokeStyle = color; ctx.lineWidth = ghost ? 1.4 : 1.1; ctx.setLineDash(ghost ? [5, 4] : []);
+    ctx.fillRect(-width / 2, -height / 2, width, height);
+    ctx.strokeRect(-width / 2, -height / 2, width, height);
+    ctx.setLineDash([]);
+    const glyphSize = Math.max(7, Math.min(13, Math.min(width, height) * .45));
+    drawGlyph(ctx, 0, 0, glyphSize, color);
+    ctx.restore();
+
+    const port = portPoint(building, definition);
+    if (port) {
+      const screenPort = frame.project(port.x, port.y);
+      ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = '#0b1826'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y);
+      if (ghost) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+    }
+    if (ghost) {
+      ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
+      ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(frame.state.placement?.valid ? 'USINE · EMPLACEMENT VALIDE' : 'USINE · EMPLACEMENT INVALIDE', center.x + 12, center.y - height / 2 - 9);
+      ctx.restore();
+    }
+  }
+
+  function cardPosition(frame, building, definition) {
+    const style = Style.buildings, width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
+    const anchor = frame.project(building.x, building.y), edge = definition.footprint.width * frame.zoom / 2 + 12;
+    let x = anchor.x + edge, y = anchor.y - style.cardHeightPx / 2;
+    if (x + width > frame.viewport.width - 8) x = anchor.x - edge - width;
+    x = Math.max(8, Math.min(frame.viewport.width - width - 8, x));
+    y = Math.max(8, Math.min(frame.viewport.height - style.cardHeightPx - 8, y));
+    return { anchor, x, y, width, height: style.cardHeightPx };
+  }
+
+  function renderPhysical(frame) {
+    for (const building of visibleBuildings(frame)) {
+      const definition = Data.get(building.type);
+      if (definition) drawFootprint(frame, building, definition);
+    }
+    const preview = frame.state.placement;
+    if (frame.state.tool === 'build-factory' && preview) {
+      const definition = Data.get(preview.type);
+      if (definition) drawFootprint(frame, preview, definition, true);
+    }
+  }
+
+  function renderAnchors(frame) {
+    const ctx = frame.context, style = Style.buildings;
+    for (const building of visibleBuildings(frame)) {
+      const definition = Data.get(building.type);
+      if (!definition) continue;
+      const card = cardPosition(frame, building, definition), side = card.x > card.anchor.x ? card.x : card.x + card.width;
+      const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+      ctx.strokeStyle = selected ? '#efa35a99' : '#b3c3c344'; ctx.lineWidth = .8; ctx.beginPath();
+      ctx.moveTo(card.anchor.x, card.anchor.y); ctx.lineTo(side, card.y + card.height / 2); ctx.stroke();
+      ctx.fillStyle = style.cardOutlineColor; ctx.beginPath(); ctx.arc(card.anchor.x, card.anchor.y, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function renderCards(frame) {
+    const ctx = frame.context, style = Style.buildings;
+    for (const building of visibleBuildings(frame)) {
+      const definition = Data.get(building.type);
+      if (!definition) continue;
+      const card = cardPosition(frame, building, definition);
+      ctx.save(); ctx.globalAlpha = style.cardOpacity;
+      const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+      ctx.fillStyle = style.cardFill; ctx.strokeStyle = selected ? style.selectedOutlineColor : style.cardOutlineColor;
+      ctx.lineWidth = selected ? style.selectedOutlineWidthPx : style.cardOutlineWidthPx;
+      ctx.beginPath(); ctx.roundRect(card.x, card.y, card.width, card.height, style.cardRadiusPx); ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = 1;
+      const iconX = card.x + style.cardPaddingPx + style.iconRadiusPx, iconY = card.y + card.height / 2 - 3;
+      ctx.fillStyle = '#102232'; ctx.strokeStyle = style.cardOutlineColor; ctx.lineWidth = .9;
+      ctx.beginPath(); ctx.arc(iconX, iconY, style.iconRadiusPx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc');
+      ctx.font = `${style.titleSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
+      ctx.font = `${style.valueSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
+      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
+      const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
+      const barWidth = Math.max(10, card.width - (barX - card.x) - style.cardPaddingPx);
+      ctx.fillStyle = '#52687866'; ctx.fillRect(barX, barY, barWidth, style.activityBarHeightPx);
+      ctx.fillStyle = building.constructionState === 'complete' ? '#8bb1b8' : '#d7a66f';
+      ctx.fillRect(barX, barY, barWidth * Math.max(0, Math.min(1, building.constructionProgress)), style.activityBarHeightPx);
+      ctx.restore();
+    }
+  }
 
   root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards });
 })(globalThis);
@@ -1509,6 +1726,16 @@ globalThis.OrbitVersion = "0.18.0";
         $('enter-label').textContent = item.kind === 'gazeuse' ? 'Aucune surface solide' : 'Zoomer sur la surface';
         $('enter-button').hidden = false;
         $('enter-button').disabled = item.kind === 'gazeuse';
+      } else if (item.kind === 'building') {
+        const progress = Math.round((item.constructionProgress || 0) * 100);
+        $('selection-type').textContent = 'USINE PLANÉTAIRE';
+        $('selection-name').textContent = item.customName || 'USINE';
+        $('selection-info').textContent = item.constructionState === 'complete' ?
+          'Structure assemblée. Son espace intérieur accueillera les blocs industriels.' :
+          `Assemblage de la structure en cours : ${progress} %.`;
+        const count = state.surfaceBuildings.filter(building => building.planetId === state.planet?.id).length;
+        $('selection-meta').textContent = `RANG I   /   ${count} USINE${count > 1 ? 'S' : ''} SUR CE MONDE`;
+        $('enter-button').hidden = true;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
         $('selection-name').textContent = item.name;
@@ -1522,6 +1749,7 @@ globalThis.OrbitVersion = "0.18.0";
       const known = galaxy.systems.filter(system => system.discovered || state.reveal).length;
       const level = state.level;
       document.body.dataset.level = level;
+      document.body.dataset.tool = state.tool;
       $('stat-label').textContent = level === 'galaxy' ? 'SYSTÈMES' : level === 'system' ? 'PLANÈTES' : 'SURFACE';
       $('stat-value').textContent = level === 'galaxy' ? `${fmt(known)} / ${fmt(galaxy.systems.length)}` :
         level === 'system' ? String(state.system.planets.length).padStart(2, '0') :
@@ -1538,15 +1766,24 @@ globalThis.OrbitVersion = "0.18.0";
       $('breadcrumb-surface').textContent = state.planet?.name.replace(state.system?.name || '', '').trim() || '';
       $('scan-button').hidden = level !== 'galaxy';
       $('scan-button').disabled = level !== 'galaxy';
+      $('build-button').hidden = level !== 'surface';
+      $('build-button').disabled = level !== 'surface';
       $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan');
       $('scan-button').classList.toggle('active', state.tool === 'scan');
+      $('build-button').classList.toggle('active', state.tool === 'build-factory');
+      const constructing = (state.surfaceBuildings || []).filter(building =>
+        building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
         state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : 'TOPOGRAPHIE LOCALE';
+          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build-factory' ?
+            (state.placement?.valid ? 'USINE · POSITION VALIDE' : 'USINE · POSITION INVALIDE') :
+              constructing ? `ASSEMBLAGE · ${constructing} USINE${constructing > 1 ? 'S' : ''}` : 'TOPOGRAPHIE LOCALE';
       $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
         level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : 'Glisser · Inspecter le relief · Pincer pour zoomer';
+          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build-factory' ?
+            'Déplacer l’aperçu · Toucher la terre ferme pour poser l’usine · Échap pour annuler' :
+              'Glisser · Inspecter le relief · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
@@ -1565,6 +1802,9 @@ globalThis.OrbitVersion = "0.18.0";
   const World = globalThis.OrbitWorld, Config = globalThis.OrbitConfig;
   const Camera = globalThis.OrbitCamera, Simulation = globalThis.OrbitSimulation;
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
+  const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
+  const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
+  const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
@@ -1573,6 +1813,7 @@ globalThis.OrbitVersion = "0.18.0";
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
+  let nextFactoryId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
   const viewport = { width: W, height: H };
@@ -1659,6 +1900,7 @@ globalThis.OrbitVersion = "0.18.0";
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = [];
+    state.placement = null; nextFactoryId = 1;
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
@@ -1716,7 +1958,7 @@ globalThis.OrbitVersion = "0.18.0";
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan';
+      state.selected = null; state.tool = 'pan'; state.placement = null;
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -1737,8 +1979,51 @@ globalThis.OrbitVersion = "0.18.0";
   }
 
   function clearSelection() {
-    state.selected = null; state.tool = 'pan';
+    state.selected = null; state.tool = 'pan'; state.placement = null;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
+  }
+  function updateFactoryPreview(screenX, screenY) {
+    if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
+    const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
+    const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
+    const definition = BuildingData.get('factory');
+    const validation = BuildingPlacement.validate({ terrain: terrainData,
+      textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
+      buildings: state.surfaceBuildings });
+    state.placement = { type: 'factory', ...position, rotation: 0, ...validation };
+  }
+  function placeFactory() {
+    const preview = state.placement;
+    if (!preview?.valid) {
+      toast(preview?.reason || 'Choisissez un emplacement valide sur la planète.');
+      return;
+    }
+    const building = BuildingModel.create({ id: `factory-${state.planet.id}-${nextFactoryId++}`,
+      type: 'factory', planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
+      constructionState: 'constructing', constructionProgress: 0, status: 'building' });
+    state.surfaceBuildings.push(building);
+    state.placement = null; state.tool = 'pan';
+    toast('Usine posée. Assemblage en cours.'); updateUI();
+  }
+  function selectSurfaceBuilding(building) {
+    state.tool = 'pan'; state.placement = null;
+    state.selected = { kind: 'building', ...building };
+    hud.showSelection(state.selected, { state }); updateUI();
+  }
+  function buildingHit(frame, building, definition, x, y) {
+    const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
+    const localZoom = state.camera.zoom * frame.scale;
+    const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
+    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
+
+    const style = SurfaceStyle.buildings;
+    const width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
+    const edge = definition.footprint.width * localZoom / 2 + 12;
+    let cardX = anchor.x + edge, cardY = anchor.y - style.cardHeightPx / 2;
+    if (cardX + width > W - 8) cardX = anchor.x - edge - width;
+    cardX = Math.max(8, Math.min(W - width - 8, cardX));
+    cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
+    return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
   }
   function enterSystem() {
     if (state.level !== 'galaxy') return;
@@ -1832,8 +2117,18 @@ globalThis.OrbitVersion = "0.18.0";
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
       const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
+      if (state.tool === 'build-factory') {
+        updateFactoryPreview(x, y); placeFactory(); return;
+      }
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
+      const building = [...state.surfaceBuildings].reverse().find(candidate => {
+        if (candidate.planetId !== state.planet.id) return false;
+        const definition = BuildingData.get(candidate.type);
+        if (!definition) return false;
+        return buildingHit(frame, candidate, definition, x, y);
+      });
+      if (building) { selectSurfaceBuilding(building); return; }
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
       const nearest = terrainData.resources.find(resource => Math.hypot(resource.x - tx, resource.y - ty) < 10);
@@ -1854,6 +2149,7 @@ globalThis.OrbitVersion = "0.18.0";
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
+    if (state.tool === 'build-factory' && pointers.size === 1) updateFactoryPreview(e.clientX, e.clientY);
     if (pointers.size === 2) {
       const points = [...pointers.values()];
       pinch = { distance: distance(points[0], points[1]), midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
@@ -1861,7 +2157,10 @@ globalThis.OrbitVersion = "0.18.0";
     }
   });
   canvas.addEventListener('pointermove', e => {
-    if (!pointers.has(e.pointerId)) return;
+    if (!pointers.has(e.pointerId)) {
+      if (state.tool === 'build-factory') updateFactoryPreview(e.clientX, e.clientY);
+      return;
+    }
     const previous = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2 && pinch) {
@@ -1872,6 +2171,9 @@ globalThis.OrbitVersion = "0.18.0";
       state.target = Camera.anchoredZoom(state.camera, viewport, zoom, midpoint, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: nextDistance, midpoint }; pointerMoved = true;
       updateSceneContext(); updateUI();
+    } else if (pointers.size === 1 && state.tool === 'build-factory') {
+      if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
+      updateFactoryPreview(e.clientX, e.clientY);
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       if (pointerMoved) {
@@ -1898,7 +2200,17 @@ globalThis.OrbitVersion = "0.18.0";
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; updateUI(); };
+  $('build-button').onclick = () => {
+    if (state.level !== 'surface') return;
+    if (state.tool === 'build-factory') { state.tool = 'pan'; state.placement = null; }
+    else {
+      state.selected = null; $('inspector').hidden = true;
+      state.tool = 'build-factory'; updateFactoryPreview(W / 2, H / 2);
+      toast('Déplacez l’aperçu sur la terre ferme, puis touchez pour poser l’usine.');
+    }
+    updateUI();
+  };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
@@ -1932,7 +2244,7 @@ globalThis.OrbitVersion = "0.18.0";
     if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
       if ($('menu-dialog').open) $('menu-dialog').close();
-      else if (state.tool !== 'pan') { state.tool = 'pan'; updateUI(); }
+      else if (state.tool !== 'pan') { state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();
     }
@@ -1956,6 +2268,7 @@ globalThis.OrbitVersion = "0.18.0";
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    if (!state.paused && !document.hidden) Construction.advance(state.surfaceBuildings, dt);
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;

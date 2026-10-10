@@ -12,6 +12,8 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |
 | `src/simulation/buildings.js` | Modèle terrain des bâtiments planétaires |
+| `src/simulation/construction.js` | Avancement temporel des constructions planétaires |
+| `src/gameplay/buildingPlacement.js` | Validation spatiale du placement sur la surface |
 | `src/gameplay/exploration.js` | Missions de sonde et découverte des systèmes |
 | `src/state.js` | État de navigation et de session |
 | `src/storage/save.js` | Sauvegarde des découvertes, missions et temps orbital |
@@ -19,16 +21,16 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/rendering/renderer.js` | Orchestration du rendu de galaxie, des systèmes et des couches planétaires |
 | `src/rendering/surfaceRenderer.js` | Textures et couches de terrain, relief, sélection et labels planétaires |
 | `src/rendering/roadRenderer.js` | Couche de routes planétaires, en attente du modèle réseau |
-| `src/rendering/buildingRenderer.js` | Couches de bâtiments, ancres et cartes, en attente du modèle bâtiment |
+| `src/rendering/buildingRenderer.js` | Empreintes, aperçus, ancres et cartes des bâtiments |
 | `src/rendering/vehicleRenderer.js` | Couche visuelle des véhicules, en attente du réseau routier |
 | `src/ui/hud.js` | Sélection, télémétrie, menus et échelle |
 | `src/app.js` | Gestes, navigation, boucle de rendu et raccord entre modules |
 
 `index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`.
 
-Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Les passes des bâtiments, routes et véhicules sont des points d'extension vides à ce stade ; elles ne créent ni état ni logique de simulation.
+Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Le placement interactif actuel concerne uniquement les usines ; les routes et véhicules restent des couches sans simulation.
 
-Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`, destinée au tableau `state.surfaceBuildings`; le port routier est un point monde calculé depuis l'ancre, la rotation et le décalage local de la définition. Les règles de placement sont déclaratives et ne sont pas encore évaluées. La sauvegarde des bâtiments viendra au bloc 20.
+Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`, destinée au tableau `state.surfaceBuildings`; le port routier est un point monde calculé depuis l'ancre, la rotation et le décalage local de la définition. `OrbitBuildingPlacement.validate()` vérifie les limites de la carte, la terre ferme et les chevauchements. L'usine est construite en 3,5 secondes et son état reste en mémoire de session ; la sauvegarde des bâtiments viendra au bloc 20.
 
 ## État conservé
 

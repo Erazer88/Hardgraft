@@ -1,6 +1,6 @@
 # Néréide — Atlas orbital
 
-Prototype mobile de navigation spatiale. Explorez une galaxie procédurale, zoomez dans ses systèmes, observez les orbites et examinez les cartes topographiques des planètes. La couche bâtiments et routes planétaires a été retirée pour repartir sur une base propre.
+Prototype mobile de navigation spatiale. Explorez une galaxie procédurale, zoomez dans ses systèmes, observez les orbites et examinez les cartes topographiques des planètes. La première étape de construction planétaire permet de poser une usine test sur le terrain.
 
 Les références de direction artistique sont dans [docs/images](docs/images). Les règles complètes du jeu fournies par l'utilisateur sont conservées dans [docs/reference](docs/reference) pour guider les prochaines étapes.
 
@@ -28,6 +28,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Jav
 - Le retour et le fil d'Ariane remontent d'un niveau. Le bouton de cadrage montre la carte entière ; la cible recentre la vue.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de relief, les coordonnées et l'altitude. Les gisements restent des éléments naturels générés, sans extraction active.
+- En surface, le bouton usine active un aperçu de placement. Déplacez-le sur la terre ferme et touchez pour lancer l'assemblage ; Échap annule le mode. Les usines se sélectionnent en touchant leur empreinte. L'éditeur intérieur des blocs viendra dans une étape suivante.
 - Le menu permet de reprendre l'exploration, de réinitialiser la progression avec la même graine, de saisir une autre graine ou d'afficher tous les systèmes.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 
@@ -41,7 +42,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Des cartes planétaires reproductibles avec continents, océans, côtes, ombrage, courbes de niveau et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
-Les bâtiments, l'industrie, les flux de ressources et les routes au sol ne font pas partie du prototype actuel. Ils pourront être redessinés depuis une base séparée lorsque la navigation procédurale sera validée.
+La pose d'usines est un premier outil de test ; les blocs internes, routes, flux de ressources et sauvegarde des bâtiments ne sont pas encore implémentés.
 
 ## Vérification manuelle
 
