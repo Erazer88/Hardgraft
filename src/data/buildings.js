@@ -6,6 +6,7 @@
   const definitions = {
     factory: {
       id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
+      sprite: 'assets/buildings/factory.webp', spriteAspectRatio: 4 / 3,
       description: 'Transforme les minerais en matériaux.',
       functions: { transformsMinerals: true },
       footprint: { width: 34, height: 28 }, roadRequired: true,
@@ -14,6 +15,7 @@
     },
     extractor: {
       id: 'extractor', label: 'EXTRACTEUR', shortLabel: 'EX', category: 'resource', icon: 'extractor',
+      sprite: 'assets/buildings/extractor.webp',
       description: 'Extrait les minerais des gisements compatibles.',
       functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
       footprint: { width: 28, height: 24 }, roadRequired: true,
@@ -23,6 +25,7 @@
     },
     surface_port: {
       id: 'surface_port', label: 'PORT', shortLabel: 'PO', category: 'logistics', icon: 'surface-port',
+      sprite: 'assets/buildings/surface-port.webp', spriteRotationOffset: Math.PI / 2,
       description: 'Relie les quais maritimes au réseau de camions.',
       functions: { transfersShipTruck: true },
       footprint: { width: 36, height: 28 }, roadRequired: true,
@@ -32,6 +35,7 @@
     },
     oil_platform: {
       id: 'oil_platform', label: 'PLATEFORME PÉTROLIÈRE', shortLabel: 'PP', category: 'resource', icon: 'oil-platform',
+      sprite: 'assets/buildings/oil-platform.webp',
       description: 'Extrait les ressources des grands fonds marins.',
       functions: { extractsOffshoreResources: true },
       footprint: { width: 46, height: 38 }, roadRequired: false,
@@ -41,6 +45,7 @@
     },
     storage: {
       id: 'storage', label: 'DÉPÔT', shortLabel: 'DÉ', category: 'logistics', icon: 'storage',
+      sprite: 'assets/buildings/depot.webp',
       description: 'Stocke tous types de matériaux acheminés vers le site.',
       functions: { storesAllMaterials: true },
       footprint: { width: 28, height: 24 }, roadRequired: true,
@@ -49,6 +54,7 @@
     },
     hub: {
       id: 'hub', label: 'HUB ORBITAL', shortLabel: 'HO', category: 'logistics', icon: 'hub',
+      sprite: 'assets/buildings/orbital-hub.webp',
       description: 'Prépare les matériaux pour leur lancement en orbite.',
       functions: { exportsToOrbit: true },
       footprint: { width: 42, height: 36 }, roadRequired: true,
@@ -57,6 +63,7 @@
     },
     wind_turbine: {
       id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
+      sprite: 'assets/buildings/wind-turbine.webp',
       description: 'Produit de l’énergie sur la terre ferme.',
       functions: { generatesEnergy: true },
       footprint: { width: 22, height: 30 }, roadRequired: true,

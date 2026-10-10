@@ -2,4 +2,5 @@ artifacts/
 dist/*
 !dist/nereide-zoom-continu.html
 !dist/nereide-sources.zip
+!dist/manifest.webmanifest
 __pycache__/

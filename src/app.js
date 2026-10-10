@@ -226,12 +226,16 @@
     const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
-    if (definition.id === 'factory') {
+    if (definition.sprite) {
       const style = SurfaceStyle.buildings;
-      const siteWidth = Math.max(style.siteImageMinWidthPx,
-        definition.footprint.width * style.siteImageFootprintScale * localZoom);
-      const siteHeight = siteWidth * 3 / 4;
-      if (Math.abs(anchor.x - x) <= siteWidth / 2 + 4 && Math.abs(anchor.y - y) <= siteHeight / 2 + 4) return true;
+      const spriteWidth = Math.max(style.spriteMinWidthPx,
+        Math.max(definition.footprint.width, definition.footprint.height) * style.spriteFootprintScale * localZoom);
+      const spriteHeight = spriteWidth / (definition.spriteAspectRatio || 1);
+      const rotation = (building.rotation || 0) + (definition.spriteRotationOffset || 0);
+      const dx = x - anchor.x, dy = y - anchor.y;
+      const localX = dx * Math.cos(rotation) + dy * Math.sin(rotation);
+      const localY = -dx * Math.sin(rotation) + dy * Math.cos(rotation);
+      if (Math.abs(localX) <= spriteWidth / 2 + 4 && Math.abs(localY) <= spriteHeight / 2 + 4) return true;
     }
     if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
     if (building.constructionState === 'complete') return false;
@@ -447,6 +451,54 @@
   };
   $('breadcrumb-system').onclick = () => { if (state.level === 'surface') back(); };
   $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
+  const fullscreenButton = $('fullscreen-button');
+  const fullscreenMedia = typeof matchMedia === 'function' ? matchMedia('(display-mode: fullscreen), (display-mode: standalone)') : null;
+  function standaloneDisplay() { return Boolean(navigator.standalone || fullscreenMedia?.matches); }
+  function currentFullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function updateFullscreenButton() {
+    const standalone = standaloneDisplay(), nativeFullscreen = Boolean(currentFullscreenElement());
+    fullscreenButton.hidden = standalone && !nativeFullscreen;
+    const active = standalone || nativeFullscreen;
+    fullscreenButton.setAttribute('aria-pressed', String(active));
+    fullscreenButton.setAttribute('aria-label', active ? 'Quitter le plein écran' : 'Passer en plein écran');
+    fullscreenButton.title = active ? 'Quitter le plein écran' : 'Plein écran';
+    fullscreenButton.innerHTML = active
+      ? '<svg viewBox="0 0 24 24"><path d="M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5"/></svg>'
+      : '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
+  }
+  fullscreenButton.onclick = async () => {
+    const active = currentFullscreenElement();
+    if (active) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) {
+        try { await exit.call(document); } catch (_) { toast('La sortie du plein écran a échoué.'); }
+      }
+      return;
+    }
+    if (standaloneDisplay()) {
+      toast('Le jeu est déjà lancé sans barre de navigateur.');
+      return;
+    }
+    const request = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+    if (!request) {
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      toast(isIOS
+        ? 'Dans Safari, choisissez Partager → Sur l’écran d’accueil, puis lancez le jeu depuis son icône pour masquer la barre.'
+        : 'Le plein écran n’est pas disponible dans ce navigateur.');
+      return;
+    }
+    try {
+      await request.call(document.documentElement, { navigationUI: 'hide' });
+    } catch (_) {
+      try { await request.call(document.documentElement); }
+      catch (_) { toast('Le navigateur a refusé le mode plein écran.'); }
+    }
+  };
+  document.addEventListener('fullscreenchange', updateFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+  fullscreenMedia?.addEventListener?.('change', updateFullscreenButton);
+  updateFullscreenButton();
   $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
   $('reset-system-button').onclick = () => {
     regenerate(state.seed);

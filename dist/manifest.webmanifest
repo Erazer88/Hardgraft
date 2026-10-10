@@ -1,0 +1,10 @@
+{
+  "name": "Néréide — Atlas orbital",
+  "short_name": "Néréide",
+  "lang": "fr",
+  "start_url": "./nereide-zoom-continu.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#101b28",
+  "theme_color": "#101b28"
+}

@@ -2,7 +2,7 @@
   'use strict';
 
   const Data = root.OrbitBuildingData, Style = root.OrbitSurfaceStyle;
-  let factorySiteSprite = null;
+  const spriteCache = new Map();
 
   function visibleBuildings(frame) {
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
@@ -62,30 +62,44 @@
     return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
   }
 
-  function drawFactorySite(frame, building, ghost = false) {
-    const ctx = frame.context, marker = Style.buildings;
-    const center = frame.project(building.x, building.y);
-    const image = factorySprite();
-    if (!image || !image.complete || !image.naturalWidth) return;
-    const imageWidth = Math.max(marker.siteImageMinWidthPx,
-      Data.get(building.type).footprint.width * marker.siteImageFootprintScale * frame.zoom);
-    const imageHeight = imageWidth * image.naturalHeight / image.naturalWidth;
-    ctx.save(); ctx.globalAlpha = ghost ? marker.siteImageOpacity * .58 : marker.siteImageOpacity;
-    ctx.drawImage(image, center.x - imageWidth / 2, center.y - imageHeight / 2, imageWidth, imageHeight);
-    if (!ghost && frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id) {
-      ctx.strokeStyle = marker.selectedOutlineColor; ctx.lineWidth = marker.selectedOutlineWidthPx;
-      const padding = marker.siteImageSelectedPaddingPx;
-      ctx.strokeRect(center.x - imageWidth / 2 - padding, center.y - imageHeight / 2 - padding,
-        imageWidth + padding * 2, imageHeight + padding * 2);
+  function spriteFor(definition) {
+    if (!definition.sprite || typeof root.Image !== 'function') return null;
+    if (!spriteCache.has(definition.sprite)) {
+      const image = new root.Image();
+      image.src = definition.sprite;
+      spriteCache.set(definition.sprite, image);
     }
-    ctx.restore();
+    return spriteCache.get(definition.sprite);
   }
 
-  function factorySprite() {
-    if (factorySiteSprite || typeof root.Image !== 'function') return factorySiteSprite;
-    factorySiteSprite = new root.Image();
-    factorySiteSprite.src = 'assets/buildings/planetary-factory-site.png';
-    return factorySiteSprite;
+  function spriteDimensions(frame, definition, image) {
+    const style = Style.buildings;
+    const width = Math.max(style.spriteMinWidthPx,
+      Math.max(definition.footprint.width, definition.footprint.height) * style.spriteFootprintScale * frame.zoom);
+    const aspect = image?.naturalWidth && image?.naturalHeight ? image.naturalWidth / image.naturalHeight :
+      (definition.spriteAspectRatio || 1);
+    return { width, height: width / aspect };
+  }
+
+  function drawSprite(frame, building, definition, ghost = false) {
+    const image = spriteFor(definition);
+    if (!image || !image.complete || !image.naturalWidth) return;
+    const ctx = frame.context, style = Style.buildings, center = frame.project(building.x, building.y);
+    const { width, height } = spriteDimensions(frame, definition, image);
+    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    ctx.save();
+    ctx.globalAlpha = ghost ? style.spriteGhostOpacity : style.spriteOpacity;
+    ctx.translate(center.x, center.y);
+    ctx.rotate((building.rotation || 0) + (definition.spriteRotationOffset || 0));
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    if (ghost || selected) {
+      const padding = ghost ? 0 : style.spriteSelectedPaddingPx;
+      ctx.strokeStyle = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') : style.selectedOutlineColor;
+      ctx.lineWidth = ghost ? 1.4 : style.selectedOutlineWidthPx;
+      ctx.setLineDash(ghost ? [5, 4] : []);
+      ctx.strokeRect(-width / 2 - padding, -height / 2 - padding, width + padding * 2, height + padding * 2);
+    }
+    ctx.restore();
   }
 
   function drawFootprint(frame, building, definition, ghost = false) {
@@ -94,19 +108,23 @@
     const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
     const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') :
       selected ? Style.buildings.selectedOutlineColor : '#aebfba';
-    if (!ghost && definition.id === 'factory') { drawFactorySite(frame, building); return; }
-    if (ghost && definition.id === 'factory') drawFactorySite(frame, building, true);
-    ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
-    ctx.fillStyle = ghost ? (frame.state.placement?.valid ? '#76bdb522' : '#e5787022') : '#0b1a24b8';
-    ctx.strokeStyle = color; ctx.lineWidth = ghost ? 1.4 : 1.1; ctx.setLineDash(ghost ? [5, 4] : []);
-    if (!(ghost && definition.id === 'factory')) ctx.fillRect(-width / 2, -height / 2, width, height);
-    ctx.strokeRect(-width / 2, -height / 2, width, height);
-    ctx.setLineDash([]);
-    if (definition.id !== 'factory') {
+    if (definition.sprite) {
+      drawSprite(frame, building, definition, ghost);
+      if (ghost) {
+        ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
+        ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.strokeRect(-width / 2, -height / 2, width, height); ctx.restore();
+      }
+    } else {
+      ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
+      ctx.fillStyle = ghost ? (frame.state.placement?.valid ? '#76bdb522' : '#e5787022') : '#0b1a24b8';
+      ctx.strokeStyle = color; ctx.lineWidth = ghost ? 1.4 : 1.1; ctx.setLineDash(ghost ? [5, 4] : []);
+      ctx.fillRect(-width / 2, -height / 2, width, height); ctx.strokeRect(-width / 2, -height / 2, width, height);
+      ctx.setLineDash([]);
       const glyphSize = Math.max(7, Math.min(13, Math.min(width, height) * .45));
       drawGlyph(ctx, 0, 0, glyphSize, color, definition.icon);
+      ctx.restore();
     }
-    ctx.restore();
 
     const port = portPoint(building, definition);
     if (port) {

@@ -37,9 +37,11 @@ for asset in sorted((ROOT / 'assets').rglob('*')):
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)
+manifest = (ROOT / 'manifest.webmanifest').read_text().replace('"./index.html"', '"./nereide-zoom-continu.html"')
+(OUT / 'manifest.webmanifest').write_text(manifest)
 print(f'Export autonome : {destination} ({destination.stat().st_size:,} octets)')
 with zipfile.ZipFile(OUT / 'nereide-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-    sources = ['index.html', 'styles.css', 'build.py', 'README.md', 'package.json', '.gitignore', 'AGENTS.md', 'docs/ARCHITECTURE.md', 'docs/WORLDGEN.md']
+    sources = ['index.html', 'styles.css', 'manifest.webmanifest', 'build.py', 'README.md', 'package.json', '.gitignore', 'AGENTS.md', 'docs/ARCHITECTURE.md', 'docs/WORLDGEN.md']
     sources += [str(path.relative_to(ROOT)) for folder in ('src', 'tests', 'docs/reference')
                 for path in sorted((ROOT / folder).rglob('*'))
                 if path.is_file() and path.suffix in ('.js', '.cjs', '.txt', '.pdf')]

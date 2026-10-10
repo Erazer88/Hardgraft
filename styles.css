@@ -8,6 +8,11 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
 @media(max-width:360px){.tool-button{width:31px}.scale-legend{width:36px}.telemetry{width:174px}.menu-card{padding:22px}.gesture-hint{font-size:7px}}
 @media(max-height:640px){.view-heading{display:none}.menu-card{padding:18px 25px}.brand-symbol{display:none}.eyebrow{margin-top:20px}.menu-description{margin-bottom:18px}.seed-controls{margin-top:18px}.inspector{padding:10px 13px}.inspector p{display:none}.selection-meta{margin-bottom:10px}}
 
+#fullscreen-button{flex:0 0 auto}
+body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
+@media(max-width:600px){#fullscreen-button{min-width:38px;height:40px}}
+@media(max-width:360px){.telemetry{width:154px;padding-left:9px;padding-right:9px}.header-actions{gap:4px}.header-actions .icon-button{min-width:38px}}
+
 .game-version{position:absolute;left:14px;right:14px;bottom:calc(9px + var(--safe-bottom));font-size:9px;line-height:12px;letter-spacing:.4px;color:#a5bdcd;text-align:center;pointer-events:none}
 body[data-level="surface"] .corner-note{display:none}
 @media(max-width:600px){body[data-level="surface"] .breadcrumb{top:calc(166px + var(--safe-top))}body[data-level="surface"] .view-heading{top:calc(202px + var(--safe-top))}}

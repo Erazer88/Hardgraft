@@ -65,10 +65,11 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      siteImageFootprintScale: 1.5,
-      siteImageMinWidthPx: 7.5,
-      siteImageSelectedPaddingPx: 1.5,
-      siteImageOpacity: .96
+      spriteFootprintScale: 1.5,
+      spriteMinWidthPx: 7.5,
+      spriteSelectedPaddingPx: 1.5,
+      spriteOpacity: .96,
+      spriteGhostOpacity: .62
     }),
     roads: Object.freeze({
       normalColor: '#b9c5c7',
