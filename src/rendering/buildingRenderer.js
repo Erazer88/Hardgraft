@@ -2,6 +2,7 @@
   'use strict';
 
   const Data = root.OrbitBuildingData, Style = root.OrbitSurfaceStyle;
+  let factorySiteSprite = null;
 
   function visibleBuildings(frame) {
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
@@ -26,35 +27,25 @@
 
   function drawFactorySite(frame, building, ghost = false) {
     const ctx = frame.context, marker = Style.buildings;
-    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
-    const valid = frame.state.placement?.valid;
-    const ringColor = ghost ? (valid ? '#8dbbb1' : '#e57870') :
-      selected ? marker.siteSelectedRingColor : marker.siteRingColor;
-    const coreColor = ghost ? ringColor : marker.siteCoreColor;
     const center = frame.project(building.x, building.y);
-    ctx.save();
-    if (ghost) ctx.globalAlpha = .7;
-
-    for (const module of marker.siteModuleLayout) {
-      ctx.fillStyle = marker.siteModuleOutlineColor;
-      ctx.fillRect(center.x + module.x - 1, center.y + module.y - 1, module.width + 2, module.height + 2);
-      ctx.fillStyle = marker.siteModuleFillColor;
-      ctx.fillRect(center.x + module.x, center.y + module.y, module.width, module.height);
-      ctx.fillStyle = marker.siteModuleHighlightColor;
-      ctx.fillRect(center.x + module.x + 1, center.y + module.y + 1, Math.max(1, module.width - 2), 1);
+    const image = factorySprite();
+    if (!image || !image.complete || !image.naturalWidth) return;
+    ctx.save(); ctx.globalAlpha = ghost ? marker.siteImageOpacity * .58 : marker.siteImageOpacity;
+    ctx.drawImage(image, center.x - marker.siteImageWidthPx / 2, center.y - marker.siteImageHeightPx / 2,
+      marker.siteImageWidthPx, marker.siteImageHeightPx);
+    if (!ghost && frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id) {
+      ctx.strokeStyle = marker.selectedOutlineColor; ctx.lineWidth = marker.selectedOutlineWidthPx;
+      ctx.strokeRect(center.x - marker.siteImageWidthPx / 2 - 3, center.y - marker.siteImageHeightPx / 2 - 3,
+        marker.siteImageWidthPx + 6, marker.siteImageHeightPx + 6);
     }
-
-    ctx.lineWidth = marker.siteRingWidthPx + 2;
-    ctx.strokeStyle = '#101a1bde'; ctx.beginPath();
-    ctx.arc(center.x, center.y, marker.siteRingRadiusPx, 0, Math.PI * 2); ctx.stroke();
-    ctx.lineWidth = marker.siteRingWidthPx;
-    ctx.strokeStyle = ringColor; ctx.beginPath();
-    ctx.arc(center.x, center.y, marker.siteRingRadiusPx, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#18211f'; ctx.beginPath();
-    ctx.arc(center.x, center.y, marker.siteCoreRadiusPx + 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = coreColor; ctx.beginPath();
-    ctx.arc(center.x, center.y, marker.siteCoreRadiusPx, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+  }
+
+  function factorySprite() {
+    if (factorySiteSprite || typeof root.Image !== 'function') return factorySiteSprite;
+    factorySiteSprite = new root.Image();
+    factorySiteSprite.src = 'assets/buildings/planetary-factory-site.png';
+    return factorySiteSprite;
   }
 
   function drawFootprint(frame, building, definition, ghost = false) {
@@ -63,14 +54,12 @@
     const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
     const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') :
       selected ? Style.buildings.selectedOutlineColor : '#aebfba';
-    if (!ghost && definition.id === 'factory') {
-      drawFactorySite(frame, building);
-      return;
-    }
+    if (!ghost && definition.id === 'factory') { drawFactorySite(frame, building); return; }
+    if (ghost && definition.id === 'factory') drawFactorySite(frame, building, true);
     ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
     ctx.fillStyle = ghost ? (frame.state.placement?.valid ? '#76bdb522' : '#e5787022') : '#0b1a24b8';
     ctx.strokeStyle = color; ctx.lineWidth = ghost ? 1.4 : 1.1; ctx.setLineDash(ghost ? [5, 4] : []);
-    ctx.fillRect(-width / 2, -height / 2, width, height);
+    if (!(ghost && definition.id === 'factory')) ctx.fillRect(-width / 2, -height / 2, width, height);
     ctx.strokeRect(-width / 2, -height / 2, width, height);
     ctx.setLineDash([]);
     if (definition.id !== 'factory') {
@@ -78,7 +67,6 @@
       drawGlyph(ctx, 0, 0, glyphSize, color);
     }
     ctx.restore();
-    if (ghost && definition.id === 'factory') drawFactorySite(frame, building, true);
 
     const port = portPoint(building, definition);
     if (port) {

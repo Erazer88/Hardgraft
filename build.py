@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Export the prototype into one HTML file, with no network dependencies."""
 from pathlib import Path
+import base64
 import json
+import mimetypes
 import re
 import zipfile
 
@@ -25,6 +27,13 @@ def embed_script(match):
     return '<script>\n' + js + '\n</script>'
 
 html = re.sub(r'<script src="([^"]+)"></script>', embed_script, html)
+for asset in sorted((ROOT / 'assets').rglob('*')):
+    if not asset.is_file():
+        continue
+    relative = asset.relative_to(ROOT).as_posix()
+    mime = mimetypes.guess_type(relative)[0] or 'application/octet-stream'
+    encoded = base64.b64encode(asset.read_bytes()).decode('ascii')
+    html = html.replace(relative, f'data:{mime};base64,{encoded}')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)
@@ -34,6 +43,7 @@ with zipfile.ZipFile(OUT / 'nereide-sources.zip', 'w', zipfile.ZIP_DEFLATED) as 
     sources += [str(path.relative_to(ROOT)) for folder in ('src', 'tests', 'docs/reference')
                 for path in sorted((ROOT / folder).rglob('*'))
                 if path.is_file() and path.suffix in ('.js', '.cjs', '.txt', '.pdf')]
+    sources += [str(path.relative_to(ROOT)) for path in sorted((ROOT / 'assets').rglob('*')) if path.is_file()]
     for relative in sources:
         path = ROOT / relative
         if path.exists():

@@ -8,6 +8,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/data/worldgen.js` | Paramètres des étoiles, systèmes, planètes et gisements naturels |
 | `src/data/buildings.js` | Définitions déclaratives des bâtiments planétaires |
 | `src/data/surfaceStyle.js` | Contrat visuel de la carte planétaire et niveaux de détail |
+| `assets/buildings/planetary-factory-site.png` | Sprite transparent du site industriel planétaire |
 | `src/world.js` | Galaxies, positions orbitales et terrains procéduraux |
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |

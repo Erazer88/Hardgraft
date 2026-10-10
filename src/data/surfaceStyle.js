@@ -65,27 +65,9 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      siteRingRadiusPx: 16,
-      siteRingWidthPx: 1.5,
-      siteCoreRadiusPx: 5,
-      siteRingColor: '#d69a5d',
-      siteSelectedRingColor: '#ffad58',
-      siteCoreColor: '#ef9a36',
-      siteModuleFillColor: '#c5cbc3',
-      siteModuleHighlightColor: '#eef0e4',
-      siteModuleOutlineColor: '#46514b',
-      siteModuleLayout: Object.freeze([
-        Object.freeze({ x: -31, y: -9, width: 10, height: 7 }),
-        Object.freeze({ x: -25, y: -22, width: 8, height: 6 }),
-        Object.freeze({ x: -12, y: -28, width: 12, height: 7 }),
-        Object.freeze({ x: 9, y: -26, width: 8, height: 6 }),
-        Object.freeze({ x: 23, y: -16, width: 11, height: 7 }),
-        Object.freeze({ x: 27, y: 4, width: 10, height: 7 }),
-        Object.freeze({ x: 16, y: 21, width: 12, height: 7 }),
-        Object.freeze({ x: -3, y: 25, width: 9, height: 6 }),
-        Object.freeze({ x: -23, y: 17, width: 11, height: 7 }),
-        Object.freeze({ x: -34, y: 2, width: 8, height: 6 })
-      ])
+      siteImageWidthPx: 116,
+      siteImageHeightPx: 87,
+      siteImageOpacity: .96
     }),
     roads: Object.freeze({
       normalColor: '#b9c5c7',
