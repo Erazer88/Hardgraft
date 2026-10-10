@@ -646,6 +646,12 @@
     state.simulation.infiniteMaterials = !state.simulation.infiniteMaterials;
     persist(); updateUI();
   };
+  $('reset-system-button').onclick = () => {
+    regenerate(state.seed);
+    $('continue-button').firstElementChild.textContent = 'Explorer cet univers';
+    $('menu-dialog').close();
+    toast(`Système réinitialisé avec la graine ${state.seed}.`);
+  };
   $('generate-button').onclick = () => { regenerate($('seed-input').value); $('continue-button').firstElementChild.textContent = 'Explorer cet univers'; };
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
