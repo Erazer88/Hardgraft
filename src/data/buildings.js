@@ -10,7 +10,7 @@
       production: null, energy: 0
     }),
     factory: Object.freeze({
-      id: 'factory', name: 'Usine', code: 'USI', color: '#77c7d9', duration: 4, footprint: 40,
+      id: 'factory', name: 'Usine', code: 'USI', color: '#77c7d9', duration: 4, footprint: 140,
       description: 'Espace industriel intérieur à rang I, prêt pour une chaîne de production.',
       cost: Object.freeze({ iron: 85, copper: 60, silicon: 45, carbon: 18, water: 15 }),
       production: null, energy: 1.2
