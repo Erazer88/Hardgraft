@@ -65,8 +65,8 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      siteImageFootprintScale: .3,
-      siteImageMinWidthPx: 1.5,
+      siteImageFootprintScale: 1.5,
+      siteImageMinWidthPx: 7.5,
       siteImageSelectedPaddingPx: 1.5,
       siteImageOpacity: .96
     }),
