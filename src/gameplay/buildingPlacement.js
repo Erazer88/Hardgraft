@@ -79,18 +79,19 @@
     return null;
   }
 
-  function hasCompatibleDeposit(terrain, textureScale, position, definition, rules) {
+  function compatibleDeposit(terrain, textureScale, position, definition, rules) {
     const allowed = new Set(definition.extracts || []), margin = rules.depositMargin || 0;
     const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
     const cos = Math.cos(position.rotation || 0), sin = Math.sin(position.rotation || 0);
-    return (terrain.resources || []).some(resource => {
+    return (terrain.resources || []).map(resource => {
       if (!allowed.has(resource.id)) return false;
       const dx = resource.x * textureScale - position.x, dy = resource.y * textureScale - position.y;
       const localX = dx * cos + dy * sin, localY = -dx * sin + dy * cos;
       const outsideX = Math.max(0, Math.abs(localX) - halfWidth);
       const outsideY = Math.max(0, Math.abs(localY) - halfHeight);
-      return Math.hypot(outsideX, outsideY) <= margin;
-    });
+      const distance = Math.hypot(outsideX, outsideY);
+      return distance <= margin ? { resource, distance } : null;
+    }).filter(Boolean).sort((a, b) => a.distance - b.distance)[0]?.resource || null;
   }
 
   function validate(options) {
@@ -115,7 +116,8 @@
     if (rules.deepWaterOnly && !footprintFits(terrain, textureScale, candidate, definition, 'deep-water', rules.deepWaterMargin || 10)) {
       return { valid: false, reason: 'La plateforme doit tenir entièrement en mer profonde.', rotation: resolvedRotation };
     }
-    if (rules.requiresDeposit && !hasCompatibleDeposit(terrain, textureScale, candidate, definition, rules)) {
+    const deposit = rules.requiresDeposit ? compatibleDeposit(terrain, textureScale, candidate, definition, rules) : null;
+    if (rules.requiresDeposit && !deposit) {
       return { valid: false, reason: 'Placez l’extracteur sur un gisement de minerai compatible.', rotation: resolvedRotation };
     }
 
@@ -126,7 +128,7 @@
         return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.', rotation: resolvedRotation };
       }
     }
-    return { valid: true, reason: '', rotation: resolvedRotation };
+    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: deposit?.id || null };
   }
 
   root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation });

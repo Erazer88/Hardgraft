@@ -8,6 +8,11 @@
     $('game-version').textContent = `Version ${root.OrbitVersion}`;
     const TAU = Math.PI * 2;
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
+    const fmtDecimal = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
+    const resourceLabels = Object.freeze({ iron: 'Fer', copper: 'Cuivre', silicon: 'Silice', carbon: 'Carbone',
+      petroleum: 'Hydrocarbures', oil: 'Hydrocarbures', iron_ore: 'Minerai de fer', copper_ore: 'Minerai de cuivre',
+      silicon_ore: 'Silice', ingot_iron: 'Lingot de fer', ingot_copper: 'Lingot de cuivre' });
+    const mineralLabels = ['Fer', 'Cuivre', 'Silice', 'Carbone'];
     let toastTimer;
 
     const buildOptions = $('build-options');
@@ -29,10 +34,84 @@
       toastTimer = setTimeout(() => $('toast').classList.remove('visible'), 3200);
     }
 
+    function formatPower(watts) {
+      const value = Number.isFinite(watts) && watts >= 0 ? watts : 0;
+      if (value >= 1e12) return `${fmtDecimal(value / 1e12)} TW`;
+      if (value >= 1e9) return `${fmtDecimal(value / 1e9)} GW`;
+      if (value >= 1e6) return `${fmtDecimal(value / 1e6)} MW`;
+      if (value >= 1e3) return `${fmtDecimal(value / 1e3)} kW`;
+      return `${fmt(value)} W`;
+    }
+
+    function resourceName(id) {
+      return resourceLabels[id] || String(id).replace(/[_-]+/g, ' ').replace(/^./, first => first.toUpperCase());
+    }
+
+    function inventoryEntries(building) {
+      return Object.entries(building.inventory || {})
+        .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, amount]) => ({ name: resourceName(id), amount }));
+    }
+
+    function buildingStats(building) {
+      const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
+      const inventory = inventoryEntries(building), total = inventory.reduce((sum, item) => sum + item.amount, 0);
+      const stockText = inventory.length
+        ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
+        : 'Aucune ressource en stock';
+      const byType = {
+        factory: [
+          ['DÉBIT DE TRANSFORMATION', `${fmtDecimal(flow)} / min`],
+          ['RESSOURCES TRAITÉES', mineralLabels.join(' · ')]
+        ],
+        extractor: [
+          ['DÉBIT D’EXTRACTION', `${fmtDecimal(flow)} / min`],
+          ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible']
+        ],
+        oil_platform: [
+          ['DÉBIT D’EXTRACTION', `${fmtDecimal(flow)} / min`],
+          ['RESSOURCE', 'Hydrocarbures']
+        ],
+        wind_turbine: [['ÉNERGIE FOURNIE', formatPower(building.energyOutputWatts)]],
+        hub: [
+          ['DÉBIT D’ENVOI', `${fmtDecimal(flow)} / min`],
+          ['RESSOURCES', inventory.length ? stockText : 'En attente de matériaux']
+        ],
+        storage: [
+          ['RESSOURCES', stockText],
+          ['QUANTITÉ TOTALE', fmtDecimal(total)]
+        ],
+        surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']]
+      };
+      const rows = byType[building.type] || [];
+      if (building.constructionState === 'constructing') {
+        rows.unshift(['ASSEMBLAGE', `${Math.round((building.constructionProgress || 0) * 100)} %`]);
+      }
+      return rows;
+    }
+
+    function renderBuildingReadout(building) {
+      $('building-level').textContent = `NIVEAU D’AMÉLIORATION ${fmt(building.upgradeLevel || 1)}`;
+      const stats = $('building-stats');
+      stats.replaceChildren();
+      for (const [label, value] of buildingStats(building)) {
+        const row = document.createElement('div'); row.className = 'building-stat';
+        const name = document.createElement('span'); name.className = 'building-stat-label'; name.textContent = label;
+        const reading = document.createElement('span'); reading.className = 'building-stat-value'; reading.textContent = value;
+        row.append(name, reading); stats.append(row);
+      }
+    }
+
     function showSelection(item, { state, systemModel }) {
       const panel = $('inspector');
       panel.hidden = false;
       $('toast').classList.remove('visible');
+      const isBuilding = item.kind === 'building';
+      panel.classList.toggle('building-panel', isBuilding);
+      $('building-readout').hidden = !isBuilding;
+      $('selection-info').hidden = isBuilding;
+      $('selection-meta').hidden = isBuilding;
       if (state.level === 'galaxy') {
         const planets = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE';
@@ -53,13 +132,11 @@
         $('enter-button').disabled = item.kind === 'gazeuse';
       } else if (item.kind === 'building') {
         const definition = BuildingData.get(item.type);
-        const progress = Math.round((item.constructionProgress || 0) * 100);
         $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
         $('selection-name').textContent = item.customName || definition?.label || 'BÂTIMENT';
-        $('selection-info').textContent = item.constructionState === 'complete' ?
-          definition?.description || 'Structure assemblée.' : `Assemblage de la structure en cours : ${progress} %.`;
-        const count = state.surfaceBuildings.filter(building => building.planetId === state.planet?.id).length;
-        $('selection-meta').textContent = `RANG I   /   ${count} INFRASTRUCTURE${count > 1 ? 'S' : ''} SUR CE MONDE`;
+        $('selection-info').textContent = '';
+        $('selection-meta').textContent = '';
+        renderBuildingReadout(item);
         $('enter-button').hidden = true;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
@@ -71,6 +148,9 @@
     }
 
     function update({ state, galaxy, terrainData, width, scaleCamera }) {
+      const selectedBuilding = state.selected?.kind === 'building'
+        ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
+      if (selectedBuilding && !$('building-readout').hidden) renderBuildingReadout(selectedBuilding);
       const known = galaxy.systems.filter(system => system.discovered || state.reveal).length;
       const level = state.level;
       document.body.dataset.level = level;

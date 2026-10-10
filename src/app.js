@@ -238,6 +238,7 @@
     const definition = BuildingData.get(preview.type);
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
+      resourceId: preview.resourceId,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;

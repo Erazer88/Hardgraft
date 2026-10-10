@@ -29,9 +29,9 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 
 `index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`.
 
-Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Le placement interactif actuel concerne uniquement les usines ; les routes et véhicules restent des couches sans simulation.
+Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Le catalogue permet de placer les bâtiments définis ; les routes, véhicules et flux de ressources restent sans simulation.
 
-Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`, destinée au tableau `state.surfaceBuildings`; le port routier est un point monde calculé depuis l'ancre, la rotation et le décalage local de la définition. `OrbitBuildingPlacement.validate()` vérifie les limites de la carte, la terre ferme et les chevauchements. L'usine est construite en 3,5 secondes. Les bâtiments, leur progression, les sondes en cours et la vue courante sont conservés dans la sauvegarde locale.
+Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`; les extracteurs conservent aussi l'identifiant du gisement compatible choisi. `OrbitBuildingPlacement.validate()` vérifie les limites, le terrain et les chevauchements. La fiche d'un bâtiment sélectionné affiche son niveau d'amélioration, ses informations propres à son type, son stock ou son débit courant. Les débits et la puissance sont initialisés à zéro jusqu'à l'ajout de leur simulation. Les bâtiments, leur progression, les sondes en cours et la vue courante sont conservés dans la sauvegarde locale.
 
 ## État conservé
 

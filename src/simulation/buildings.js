@@ -47,6 +47,14 @@
     if (customName !== null && typeof customName !== 'string') throw new TypeError('Custom name must be a string or null');
     const status = properties.status ?? 'offline';
     if (typeof status !== 'string') throw new TypeError('Building status must be a string');
+    const resourceId = properties.resourceId ?? null;
+    if (resourceId !== null && typeof resourceId !== 'string') throw new TypeError('Resource id must be a string or null');
+    const upgradeLevel = properties.upgradeLevel ?? 1;
+    if (!Number.isInteger(upgradeLevel) || upgradeLevel < 1) throw new RangeError('Upgrade level must be a positive integer');
+    const flowPerMinute = properties.flowPerMinute ?? 0;
+    if (!isFiniteNumber(flowPerMinute) || flowPerMinute < 0) throw new RangeError('Flow rate must be a non-negative number');
+    const energyOutputWatts = properties.energyOutputWatts ?? 0;
+    if (!isFiniteNumber(energyOutputWatts) || energyOutputWatts < 0) throw new RangeError('Power output must be a non-negative number');
 
     return {
       id: properties.id.trim(),
@@ -62,6 +70,10 @@
       logisticsNodeId,
       inventory: { ...inventory },
       energyUse,
+      energyOutputWatts,
+      flowPerMinute,
+      resourceId,
+      upgradeLevel,
       status,
       customName,
       createdAt
