@@ -65,8 +65,9 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      siteImageWidthPx: 64,
-      siteImageHeightPx: 48,
+      siteImageFootprintScale: .3,
+      siteImageMinWidthPx: 1.5,
+      siteImageSelectedPaddingPx: 1.5,
       siteImageOpacity: .96
     }),
     roads: Object.freeze({

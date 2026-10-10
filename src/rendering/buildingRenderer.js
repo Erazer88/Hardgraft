@@ -30,13 +30,16 @@
     const center = frame.project(building.x, building.y);
     const image = factorySprite();
     if (!image || !image.complete || !image.naturalWidth) return;
+    const imageWidth = Math.max(marker.siteImageMinWidthPx,
+      Data.get(building.type).footprint.width * marker.siteImageFootprintScale * frame.zoom);
+    const imageHeight = imageWidth * image.naturalHeight / image.naturalWidth;
     ctx.save(); ctx.globalAlpha = ghost ? marker.siteImageOpacity * .58 : marker.siteImageOpacity;
-    ctx.drawImage(image, center.x - marker.siteImageWidthPx / 2, center.y - marker.siteImageHeightPx / 2,
-      marker.siteImageWidthPx, marker.siteImageHeightPx);
+    ctx.drawImage(image, center.x - imageWidth / 2, center.y - imageHeight / 2, imageWidth, imageHeight);
     if (!ghost && frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id) {
       ctx.strokeStyle = marker.selectedOutlineColor; ctx.lineWidth = marker.selectedOutlineWidthPx;
-      ctx.strokeRect(center.x - marker.siteImageWidthPx / 2 - 3, center.y - marker.siteImageHeightPx / 2 - 3,
-        marker.siteImageWidthPx + 6, marker.siteImageHeightPx + 6);
+      const padding = marker.siteImageSelectedPaddingPx;
+      ctx.strokeRect(center.x - imageWidth / 2 - padding, center.y - imageHeight / 2 - padding,
+        imageWidth + padding * 2, imageHeight + padding * 2);
     }
     ctx.restore();
   }

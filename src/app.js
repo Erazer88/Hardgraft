@@ -215,9 +215,13 @@
     const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
-    if (definition.id === 'factory' &&
-        Math.abs(anchor.x - x) <= SurfaceStyle.buildings.siteImageWidthPx / 2 + 4 &&
-        Math.abs(anchor.y - y) <= SurfaceStyle.buildings.siteImageHeightPx / 2 + 4) return true;
+    if (definition.id === 'factory') {
+      const style = SurfaceStyle.buildings;
+      const siteWidth = Math.max(style.siteImageMinWidthPx,
+        definition.footprint.width * style.siteImageFootprintScale * localZoom);
+      const siteHeight = siteWidth * 3 / 4;
+      if (Math.abs(anchor.x - x) <= siteWidth / 2 + 4 && Math.abs(anchor.y - y) <= siteHeight / 2 + 4) return true;
+    }
     if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
     if (building.constructionState === 'complete') return false;
 
