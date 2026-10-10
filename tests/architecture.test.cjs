@@ -22,7 +22,7 @@ const galaxy = () => ({ systems: [
 
 test('session and simulation have isolated empty collections without browser APIs', () => {
   const first = State.create(), second = State.create();
-  assert.deepEqual(plain(first.simulation), { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1 });
+  assert.deepEqual(plain(first.simulation), { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1, infiniteMaterials: false });
   first.simulation.resources.iron = 10; first.simulation.buildings.mine = { status: 'test' };
   first.exploration.visited.add('home');
   assert.deepEqual(plain(second.simulation.resources), {});
@@ -124,6 +124,7 @@ test('versioned saves round-trip future state without serializing view or Canvas
   state.simulation.resources.iron = 15;
   state.simulation.buildings.mine = { id: 'mine', progress: .2 };
   state.simulation.factories.alpha = { id: 'alpha', blocks: [] };
+  state.simulation.infiniteMaterials = true;
   state.context = { deliberatelyCircularView: state };
   let stored;
   const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };

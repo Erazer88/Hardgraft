@@ -46,6 +46,18 @@ test('the starter line consumes iron and produces plates in the planetary invent
   assert.ok(['running', 'waiting', 'starved', 'blocked'].includes(transform.status));
 });
 
+test('infinite-material mode feeds the factory without draining planetary iron', () => {
+  const { simulation } = colony();
+  const stock = simulation.resources['home:p-1'], initialIron = stock.iron;
+  simulation.infiniteMaterials = true;
+  for (let i = 0; i < 500; i++) {
+    Simulation.advance(simulation, .05);
+    FactorySimulation.advance(simulation, .05);
+  }
+  assert.equal(stock.iron, initialIron);
+  assert.ok(stock.iron_plate > 0);
+});
+
 test('a full storage block holds the upstream product instead of losing it', () => {
   const { simulation, factory } = colony();
   const storage = factory.blocks[factory.order[2]], transform = factory.blocks[factory.order[1]];

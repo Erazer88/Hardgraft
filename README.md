@@ -35,6 +35,7 @@ Ouvrir le serveur dans un navigateur. Le projet utilise uniquement HTML, CSS et 
 - En vue galaxie, activer la sonde puis toucher une zone. Une mission révèle les systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - En vue surface, toucher le terrain pour lire son type, ses coordonnées et son altitude ; les gisements sont hachurés.
 - Sur le monde natal, le bouton de construction ouvre quatre installations. Choisir un bâtiment puis toucher une terre ferme lance un chantier de 3 à 4 secondes. Toucher l’installation permet de suivre son avancement ou de la démolir avec remboursement intégral.
+- Dans le menu de démarrage, « Matériaux infinis » active un mode de test : les bâtiments et usines ne consomment pas les stocks planétaires. Le réglage est sauvegardé et les stocks affichent ∞.
 - Une usine achevée s’ouvre en poursuivant le zoom sur son bâtiment. Son intérieur reste dans le même repère de caméra ; on peut aussi utiliser le bouton « Zoomer dans l’usine ».
 - La chaîne de départ prélève du fer dans le stock planétaire, le transforme en plaques, puis les remet dans le stock. Dans l’usine, ajouter les six types de blocs, déplacer les blocs en les faisant glisser, créer des liens entre leurs ports et supprimer un bloc ou une connexion.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− contrôlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.

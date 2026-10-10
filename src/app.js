@@ -111,10 +111,12 @@
 
 
   function regenerate(seed, restoring = null) {
+    const keepInfiniteMaterials = state.simulation.infiniteMaterials === true;
     state.seed = normalizedSeed(seed); galaxy = World.createGalaxy(state.seed);
     home = galaxy.systems.find(s => s.id === galaxy.homeId);
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     Save.restore(state, galaxy, restoring);
+    if (!restoring) state.simulation.infiniteMaterials = keepInfiniteMaterials;
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null; state.focusFactory = null;
     state.connectionSource = null; state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
@@ -306,6 +308,9 @@
   }
   function updateUI() {
     const view = factoryView();
+    const infiniteMaterials = state.simulation.infiniteMaterials === true;
+    $('infinite-materials-button').setAttribute('aria-pressed', String(infiniteMaterials));
+    $('infinite-materials-status').textContent = infiniteMaterials ? 'ACTIVÉS' : 'DÉSACTIVÉS';
     const scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) :
       state.level === 'factory' && view ? localCamera(view.worldFrame) : localCamera(surfaceFrame());
     hud.update({ state, galaxy, terrainData, width: W, scaleCamera, factoryView: view });
@@ -554,6 +559,10 @@
   $('breadcrumb-system').onclick = () => { if (state.level === 'surface' || state.level === 'factory') back(); };
   $('menu-button').onclick = () => { $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
   $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
+  $('infinite-materials-button').onclick = () => {
+    state.simulation.infiniteMaterials = !state.simulation.infiniteMaterials;
+    persist(); updateUI();
+  };
   $('generate-button').onclick = () => { regenerate($('seed-input').value); $('continue-button').firstElementChild.textContent = 'Explorer cet univers'; };
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
@@ -625,6 +634,7 @@
       systemCount: galaxy.systems.length, discoveredCount: galaxy.systems.filter(s => s.discovered || state.reveal).length,
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
+      infiniteMaterials: state.simulation.infiniteMaterials,
       planetKind: state.planet?.kind || null, missions: state.exploration.missions.length,
       buildingCount: Object.keys(state.simulation.buildings).length }),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,

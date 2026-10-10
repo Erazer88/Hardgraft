@@ -33,6 +33,7 @@
   function canAfford(simulation, planetId, type) {
     const definition = Buildings.definitions[type];
     if (!definition) return { ok: false, reason: 'unknown-building', missing: {} };
+    if (simulation?.infiniteMaterials === true) return { ok: true, reason: null, missing: {} };
     const missing = missingResources(simulation, planetId, definition.cost);
     return { ok: Object.keys(missing).length === 0, reason: Object.keys(missing).length ? 'insufficient' : null, missing };
   }
@@ -68,8 +69,10 @@
       const clearance = (definition.footprint + (otherDefinition?.footprint || 20)) * .65;
       if (Math.hypot(other.x - x, other.y - y) < clearance) return { ok: false, reason: 'occupied' };
     }
-    const cost = copyCost(definition.cost);
-    for (const [id, amount] of Object.entries(cost)) stock[id] -= amount;
+    const cost = simulation.infiniteMaterials ? {} : copyCost(definition.cost);
+    if (!simulation.infiniteMaterials) {
+      for (const [id, amount] of Object.entries(cost)) stock[id] -= amount;
+    }
     const id = nextId(simulation);
     const building = { id, entityType: 'building', type, planetId, x, y, status: 'constructing',
       startedAt: simulation.time, completeAt: simulation.time + definition.duration, cost };

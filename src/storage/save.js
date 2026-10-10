@@ -37,6 +37,7 @@
       const value = saved.simulation?.[key];
       if (value && typeof value === 'object' && !Array.isArray(value)) simulation[key] = copy(value);
     }
+    simulation.infiniteMaterials = saved.simulation?.infiniteMaterials === true;
     const nextBuildingId = saved.simulation?.nextBuildingId;
     if (Number.isInteger(nextBuildingId) && nextBuildingId > 0) simulation.nextBuildingId = nextBuildingId;
     else simulation.nextBuildingId = Object.keys(simulation.buildings).reduce((next, id) => {

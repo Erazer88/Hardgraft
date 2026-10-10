@@ -102,7 +102,7 @@
     }
     function updateInventory(state) {
       const stock = state.planet ? Construction.inventory(state.simulation, state.planet.id) : null;
-      for (const id of Resources.order) resourceNodes.get(id).textContent = fmt(stock?.[id] || 0);
+      for (const id of Resources.order) resourceNodes.get(id).textContent = state.simulation.infiniteMaterials ? '∞' : fmt(stock?.[id] || 0);
     }
     function updateBuildingOptions(state) {
       if (!state.planet) return;

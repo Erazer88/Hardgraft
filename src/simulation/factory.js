@@ -147,16 +147,17 @@
       y: surfaceFrame.y + mapFrame.y * surfaceFrame.scale, scale: mapFrame.scale * surfaceFrame.scale } };
   }
 
-  function processInput(factory, block, planetStock, seconds) {
+  function processInput(factory, block, planetStock, seconds, infiniteMaterials = false) {
     const definition = Blocks.definitions.input;
-    if (stockSize(block.stock) >= block.capacity || (planetStock[block.resource] || 0) <= 0) {
+    if (stockSize(block.stock) >= block.capacity || (!infiniteMaterials && (planetStock[block.resource] || 0) <= 0)) {
       block.status = stockSize(block.stock) >= block.capacity ? 'blocked' : 'starved';
       block.cycle = Math.min(block.cycle, definition.cycle); return;
     }
     block.cycle += seconds;
-    while (block.cycle >= definition.cycle && stockSize(block.stock) < block.capacity && (planetStock[block.resource] || 0) > 0) {
+    while (block.cycle >= definition.cycle && stockSize(block.stock) < block.capacity &&
+      (infiniteMaterials || (planetStock[block.resource] || 0) > 0)) {
       block.cycle -= definition.cycle;
-      planetStock[block.resource] -= 1;
+      if (!infiniteMaterials) planetStock[block.resource] -= 1;
       block.stock[block.resource] = (block.stock[block.resource] || 0) + 1;
       block.ready[block.resource] = (block.ready[block.resource] || 0) + 1;
     }
@@ -253,7 +254,7 @@
       factory.elapsed += seconds;
       for (const id of factory.order) {
         const block = factory.blocks[id];
-        if (block.type === 'input') processInput(factory, block, planetStock, seconds);
+        if (block.type === 'input') processInput(factory, block, planetStock, seconds, simulation.infiniteMaterials === true);
         else if (block.type === 'transform') processTransform(block, seconds);
       }
       for (const id of factory.order) routeBlock(factory, factory.blocks[id], planetStock);

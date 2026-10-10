@@ -63,3 +63,16 @@ test('failed purchases are atomic and demolition refunds the configured amount',
   const replacement = Construction.place(simulation, { planetId: 'home:p-1', type: 'depot', x: 300, y: 300 });
   assert.equal(replacement.building.id, 'building-2');
 });
+
+test('infinite-material test mode allows construction without changing stored resources', () => {
+  const simulation = Simulation.create();
+  const stock = Construction.initializePlanet(simulation, 'empty:p-0');
+  assert.equal(Construction.canAfford(simulation, 'empty:p-0', 'factory').ok, false);
+  simulation.infiniteMaterials = true;
+  const before = plain(stock);
+  const result = Construction.place(simulation, { planetId: 'empty:p-0', type: 'factory', x: 200, y: 200 });
+  assert.equal(result.ok, true);
+  assert.deepEqual(plain(result.building.cost), {});
+  assert.deepEqual(plain(Construction.demolish(simulation, result.building.id).refund), {});
+  assert.deepEqual(plain(stock), before);
+});
