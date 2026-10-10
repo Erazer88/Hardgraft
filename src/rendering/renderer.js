@@ -317,18 +317,28 @@
         if (factory.outputDestinationId) destinationIds.add(factory.outputDestinationId);
         for (const destinationId of destinationIds) {
           const shipment = (factory.shipments || []).find(item => item.destinationId === destinationId);
-          const route = destinationId === factory.outputDestinationId ? FactorySimulation.routeGeometry(state.simulation, factory.id) :
+          const route = destinationId === factory.outputDestinationId ? (factory.outputRoute || FactorySimulation.routeGeometry(state.simulation, factory.id)) :
             shipment?.route || FactorySimulation.routeGeometry(state.simulation, factory.id, destinationId);
           if (!route) continue;
           const start = project(route.start.x, route.start.y, cam), end = project(route.end.x, route.end.y, cam);
           if (Math.max(start.x, end.x) < -W || Math.min(start.x, end.x) > W * 2 ||
             Math.max(start.y, end.y) < -H || Math.min(start.y, end.y) > H * 2) continue;
-          ctx.save(); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(start.x, start.y);
-          const c1 = project(route.control1.x, route.control1.y, cam), c2 = project(route.control2.x, route.control2.y, cam);
-          ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+          ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          const trace = () => {
+            ctx.beginPath(); ctx.moveTo(start.x, start.y);
+            if (route.points?.length > 1) {
+              for (const point of route.points.slice(1)) {
+                const p = project(point.x, point.y, cam); ctx.lineTo(p.x, p.y);
+              }
+            } else {
+              const c1 = project(route.control1.x, route.control1.y, cam), c2 = project(route.control2.x, route.control2.y, cam);
+              ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+            }
+          };
+          trace();
           ctx.strokeStyle = '#14231fce'; ctx.lineWidth = clamp(cam.zoom * 8, 2.5, 9); ctx.stroke();
           ctx.strokeStyle = '#d3a06ba6'; ctx.lineWidth = clamp(cam.zoom * 1.5, .8, 2.2);
-          ctx.setLineDash([Math.max(2, cam.zoom * 8), Math.max(2, cam.zoom * 5)]); ctx.stroke(); ctx.setLineDash([]);
+          ctx.setLineDash([Math.max(2, cam.zoom * 8), Math.max(2, cam.zoom * 5)]); trace(); ctx.stroke(); ctx.setLineDash([]);
           for (const shipment of factory.shipments || []) {
             if (shipment.destinationId !== destinationId) continue;
             const shipmentRoute = shipment.route || route;

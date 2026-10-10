@@ -9,6 +9,7 @@
   const nodeSize = Blocks.node;
   const stockSize = stock => Object.values(stock || {}).reduce((sum, amount) => sum + amount, 0);
   const copyRecord = value => JSON.parse(JSON.stringify(value));
+  const terrainByPlanet = new Map();
 
   function ensureLogistics(factory) {
     if (!factory) return null;
@@ -156,15 +157,149 @@
       y: surfaceFrame.y + mapFrame.y * surfaceFrame.scale, scale: mapFrame.scale * surfaceFrame.scale } };
   }
 
+  function setTerrain(simulation, planetId, terrain, textureScale = 3) {
+    if (!planetId || !terrain?.elevation || !terrain.width || !terrain.height) return false;
+    terrainByPlanet.delete(planetId);
+    terrainByPlanet.set(planetId, { ...terrain, textureScale: Math.max(1, textureScale) });
+    while (terrainByPlanet.size > 4) terrainByPlanet.delete(terrainByPlanet.keys().next().value);
+    for (const factory of Object.values(simulation?.factories || {})) {
+      if (factory.planetId !== planetId || !factory.outputDestinationId || factory.outputRoute?.points?.length) continue;
+      factory.outputRoute = null;
+      routeGeometry(simulation, factory.id);
+    }
+    return true;
+  }
+
   function routePoint(route, t) {
+    if (route?.points?.length > 1) {
+      const cumulative = route.cumulative || route.points.reduce((values, point, index) => {
+        values.push(index ? values[index - 1] + Math.hypot(point.x - route.points[index - 1].x, point.y - route.points[index - 1].y) : 0);
+        return values;
+      }, []);
+      const total = cumulative[cumulative.length - 1] || 0, distance = Math.max(0, Math.min(1, t)) * total;
+      let index = 1;
+      while (index < cumulative.length - 1 && cumulative[index] < distance) index++;
+      const span = cumulative[index] - cumulative[index - 1], part = span > 0 ? (distance - cumulative[index - 1]) / span : 0;
+      const a = route.points[index - 1], b = route.points[index];
+      return { x: a.x + (b.x - a.x) * part, y: a.y + (b.y - a.y) * part };
+    }
     const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
     return { x: a * route.start.x + b * route.control1.x + c * route.control2.x + d * route.end.x,
       y: a * route.start.y + b * route.control1.y + c * route.control2.y + d * route.end.y };
   }
 
+  function pushOpen(heap, id, score) {
+    let index = heap.length;
+    heap.push({ id, score });
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (heap[parent].score <= score) break;
+      heap[index] = heap[parent]; index = parent;
+    }
+    heap[index] = { id, score };
+  }
+
+  function popOpen(heap) {
+    const first = heap[0], last = heap.pop();
+    if (heap.length) {
+      let index = 0;
+      while (true) {
+        const left = index * 2 + 1, right = left + 1;
+        if (left >= heap.length) break;
+        const child = right < heap.length && heap[right].score < heap[left].score ? right : left;
+        if (heap[child].score >= last.score) break;
+        heap[index] = heap[child]; index = child;
+      }
+      heap[index] = last;
+    }
+    return first;
+  }
+
+  function makeTerrainPath(simulation, planetId, start, end, terrain, sourceBuildingId, destinationId) {
+    const { width, height, elevation, seaLevel, textureScale } = terrain;
+    const sx = Math.max(0, Math.min(width - 1, Math.floor(start.x / textureScale)));
+    const sy = Math.max(0, Math.min(height - 1, Math.floor(start.y / textureScale)));
+    const ex = Math.max(0, Math.min(width - 1, Math.floor(end.x / textureScale)));
+    const ey = Math.max(0, Math.min(height - 1, Math.floor(end.y / textureScale)));
+    const startId = sy * width + sx, endId = ey * width + ex, total = width * height;
+    const gScore = new Float64Array(total); gScore.fill(Infinity); gScore[startId] = 0;
+    const parent = new Int32Array(total); parent.fill(-1);
+    const closed = new Uint8Array(total), heap = [];
+    const heuristic = id => Math.hypot(id % width - ex, Math.floor(id / width) - ey);
+    pushOpen(heap, startId, heuristic(startId));
+    const directions = [[-1, -1, 1.4142], [0, -1, 1], [1, -1, 1.4142], [-1, 0, 1], [1, 0, 1],
+      [-1, 1, 1.4142], [0, 1, 1], [1, 1, 1.4142]];
+    const obstacles = Object.values(simulation?.buildings || {}).filter(building => building.planetId === planetId &&
+      building.id !== sourceBuildingId && building.id !== destinationId && building.status === 'complete');
+    const isBlocked = (x, y) => {
+      const px = (x + .5) * textureScale, py = (y + .5) * textureScale;
+      return obstacles.some(building => {
+        const radius = (Buildings.definitions[building.type]?.footprint || 24) * .62;
+        return Math.hypot(px - building.x, py - building.y) < radius;
+      });
+    };
+    let found = false;
+    while (heap.length) {
+      const current = popOpen(heap), id = current.id;
+      if (closed[id]) continue;
+      if (id === endId) { found = true; break; }
+      closed[id] = 1;
+      const x = id % width, y = Math.floor(id / width), here = elevation[id];
+      for (const [dx, dy, step] of directions) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const next = ny * width + nx;
+        if (closed[next] || (next !== endId && next !== startId && isBlocked(nx, ny))) continue;
+        const there = elevation[next], water = there <= seaLevel + 2;
+        const rise = there - here, slope = Math.abs(rise);
+        const terrainFactor = water ? 12 : 1 + slope * .1 + Math.max(0, rise) * .03 + Math.pow(Math.max(0, slope - 12), 1.5) * .025;
+        const candidate = gScore[id] + step * terrainFactor;
+        if (candidate >= gScore[next]) continue;
+        parent[next] = id; gScore[next] = candidate;
+        pushOpen(heap, next, candidate + heuristic(next));
+      }
+    }
+    if (!found) return null;
+    const cells = [];
+    for (let id = endId; id !== -1; id = parent[id]) {
+      cells.push({ x: (id % width + .5) * textureScale, y: (Math.floor(id / width) + .5) * textureScale });
+      if (id === startId) break;
+    }
+    cells.reverse();
+    const points = [start, ...cells.slice(1, -1), end];
+    const compact = [points[0]];
+    for (let i = 1; i < points.length - 1; i++) {
+      const a = compact[compact.length - 1], b = points[i], c = points[i + 1];
+      const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+      if (Math.abs(cross) > textureScale * textureScale * .08) compact.push(b);
+    }
+    compact.push(points[points.length - 1]);
+    const cumulative = [0]; let length = 0, distance = 0;
+    for (let i = 1; i < compact.length; i++) {
+      const a = compact[i - 1], b = compact[i];
+      const horizontal = Math.hypot(b.x - a.x, b.y - a.y), steps = Math.max(1, Math.ceil(horizontal / textureScale));
+      distance += horizontal;
+      let segmentLength = 0, previousHeight = elevation[Math.floor(a.y / textureScale) * width + Math.floor(a.x / textureScale)];
+      for (let sample = 1; sample <= steps; sample++) {
+        const t = sample / steps, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+        const gx = Math.max(0, Math.min(width - 1, Math.floor(x / textureScale)));
+        const gy = Math.max(0, Math.min(height - 1, Math.floor(y / textureScale)));
+        const currentHeight = elevation[gy * width + gx], rise = currentHeight - previousHeight;
+        const slope = Math.abs(rise);
+        const factor = currentHeight <= seaLevel + 2 ? 12 :
+          1 + slope * .07 + Math.max(0, rise) * .03 + Math.pow(Math.max(0, slope - 12), 1.5) * .015;
+        segmentLength += horizontal / steps * factor; previousHeight = currentHeight;
+      }
+      length += segmentLength; cumulative.push(length);
+    }
+    return { start, end, points: compact, cumulative, distance, length };
+  }
+
   function routeGeometry(simulation, factoryId, destinationId = null) {
     const factory = get(simulation, factoryId), building = simulation?.buildings?.[factory?.buildingId];
-    const target = simulation?.buildings?.[destinationId || factory?.outputDestinationId];
+    const selectedId = destinationId || factory?.outputDestinationId;
+    if (factory?.outputRoute?.destinationId === selectedId && selectedId) return factory.outputRoute;
+    const target = simulation?.buildings?.[selectedId];
     if (!factory || !building || !target || target.planetId !== factory.planetId ||
       !['depot', 'port'].includes(target.type)) return null;
     const output = factory.order.map(id => factory.blocks[id]).find(block => block?.type === 'output');
@@ -173,8 +308,15 @@
       x: building.x - factory.width * scale / 2 + output.x * scale,
       y: building.y - physicalHeight / 2 + output.y * scale
     } : { x: building.x, y: building.y };
+    if (!Math.hypot(target.x - start.x, target.y - start.y)) return null;
+    const terrain = terrainByPlanet.get(factory.planetId);
+    const traced = terrain && makeTerrainPath(simulation, factory.planetId, start, { x: target.x, y: target.y }, terrain, building.id, target.id);
+    if (traced) {
+      traced.destinationId = target.id;
+      if (factory.outputDestinationId === target.id) factory.outputRoute = traced;
+      return traced;
+    }
     const dx = target.x - start.x, dy = target.y - start.y, direct = Math.hypot(dx, dy);
-    if (!direct) return null;
     const bend = Math.min(90, direct * .2) * (factory.id.charCodeAt(factory.id.length - 1) % 2 ? 1 : -1);
     const normal = { x: -dy / direct, y: dx / direct };
     const end = { x: target.x, y: target.y };
@@ -187,6 +329,8 @@
       route.length += Math.hypot(point.x - previous.x, point.y - previous.y);
       previous = point;
     }
+    route.destinationId = target.id;
+    if (factory.outputDestinationId === target.id) factory.outputRoute = route;
     return route;
   }
 
@@ -195,6 +339,7 @@
     if (!factory) return { ok: false, reason: 'invalid-factory' };
     if (!buildingId) {
       factory.outputDestinationId = null;
+      factory.outputRoute = null;
       return { ok: true, destination: null, route: null };
     }
     const destination = simulation.buildings?.[buildingId];
@@ -203,7 +348,8 @@
     }
     if (destination.status !== 'complete') return { ok: false, reason: 'destination-under-construction' };
     factory.outputDestinationId = destination.id;
-    return { ok: true, destination, route: routeGeometry(simulation, factoryId) };
+    factory.outputRoute = routeGeometry(simulation, factoryId);
+    return { ok: true, destination, route: factory.outputRoute };
   }
 
   function reservedCapacity(simulation, buildingId) {
@@ -319,10 +465,10 @@
     let movedAny = false;
     let destination = factory.outputDestinationId && simulation.buildings?.[factory.outputDestinationId];
     if (factory.outputDestinationId && (!destination || destination.planetId !== factory.planetId || !['depot', 'port'].includes(destination.type))) {
-      factory.outputDestinationId = null; destination = null;
+      factory.outputDestinationId = null; factory.outputRoute = null; destination = null;
     }
     if (destination && destination.status !== 'complete') return false;
-    const route = destination && routeGeometry(simulation, factory.id);
+    const route = destination && (factory.outputRoute || routeGeometry(simulation, factory.id));
     if (destination && !route) return false;
     let room = destination ? destinationRoom(simulation, destination) : Infinity;
     for (const [item, amount] of Object.entries(block.ready)) {
@@ -330,7 +476,7 @@
       const moved = Math.min(amount, room);
       if (destination) {
         factory.shipments.push({ id: `shipment-${factory.nextShipmentId++}`, item, amount: moved,
-          destinationId: destination.id, route, elapsed: 0, duration: Math.max(1.5, route.length / 48) });
+          destinationId: destination.id, route, elapsed: 0, duration: Math.max(45, route.length / 2.5) });
         room -= moved;
       } else {
         planetStock[item] = (planetStock[item] || 0) + moved;
@@ -397,6 +543,6 @@
   }
 
   root.OrbitFactorySimulation = Object.freeze({ get, byBuilding, create, addBlock, moveBlock,
-    removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, routeGeometry, routePoint,
+    removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, routeGeometry, routePoint, setTerrain,
     refreshEnergy, advance, copy: copyRecord });
 })(globalThis);

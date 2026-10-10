@@ -69,7 +69,10 @@
       terrainTexture = renderer.createTerrainTexture(planet, terrainData);
       context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture });
     }
-    return context.terrains.get(planet.id);
+    const record = context.terrains.get(planet.id);
+    terrainData = record.data; state.terrain = record.data;
+    FactorySimulation.setTerrain(state.simulation, planet.id, record.data, Config.terrain.textureScale);
+    return record;
   }
   function prepareColony(planet) {
     return Construction.initializePlanet(state.simulation, planet.id, Boolean(planet.startingCandidate));

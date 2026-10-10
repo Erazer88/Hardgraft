@@ -96,13 +96,14 @@ test('the output automatically routes arriving products to a selected depot', ()
   const result = FactorySimulation.setOutputDestination(simulation, factory.id, depot.id);
   assert.equal(result.ok, true);
   assert.ok(result.route.length > 0);
-  for (let i = 0; i < 800; i++) {
+  for (let i = 0; i < 4000; i++) {
     Simulation.advance(simulation, .05);
     FactorySimulation.advance(simulation, .05);
   }
   assert.ok(depot.logisticsStock.iron_plate > 0);
   assert.equal(simulation.resources[factory.planetId].iron_plate, depot.logisticsStock.iron_plate);
   assert.ok(factory.shipments.every(shipment => Number.isFinite(shipment.amount) && shipment.destinationId === depot.id));
+  assert.ok(factory.shipments.every(shipment => shipment.duration >= 45));
 });
 
 test('the shipping port receives cargo without returning it to colony inventory', () => {
@@ -110,10 +111,24 @@ test('the shipping port receives cargo without returning it to colony inventory'
   const port = { id: 'port-1', type: 'port', planetId: factory.planetId, status: 'complete', x: 470, y: 370, logisticsStock: {} };
   simulation.buildings[port.id] = port;
   assert.equal(FactorySimulation.setOutputDestination(simulation, factory.id, port.id).ok, true);
-  for (let i = 0; i < 800; i++) {
+  for (let i = 0; i < 4000; i++) {
     Simulation.advance(simulation, .05);
     FactorySimulation.advance(simulation, .05);
   }
   assert.ok(port.logisticsStock.iron_plate > 0);
   assert.equal(simulation.resources[factory.planetId].iron_plate, 0);
+});
+
+test('surface freight routes bend around steep terrain and retain a slow travel time', () => {
+  const { simulation, factory } = colony();
+  const depot = { id: 'depot-ridge', type: 'depot', planetId: factory.planetId, status: 'complete', x: 440, y: 340, logisticsStock: {} };
+  simulation.buildings[depot.id] = depot;
+  const width = 160, height = 120, elevation = new Uint8Array(width * height).fill(140);
+  for (let y = 50; y < height; y++) for (let x = 96; x <= 110; x++) elevation[y * width + x] = 240;
+  FactorySimulation.setTerrain(simulation, factory.planetId, { width, height, elevation, seaLevel: 102 }, 3);
+  const result = FactorySimulation.setOutputDestination(simulation, factory.id, depot.id);
+  assert.equal(result.ok, true);
+  assert.ok(result.route.points.length > 3);
+  assert.ok(result.route.distance > Math.hypot(result.route.end.x - result.route.start.x, result.route.end.y - result.route.start.y) * 1.1);
+  assert.ok(result.route.length / 2.5 > 45);
 });
