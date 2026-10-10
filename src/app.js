@@ -215,7 +215,9 @@
     const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
-    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
+    const moduleRadius = definition.id === 'factory' ? Math.max(...SurfaceStyle.buildings.siteModuleLayout.map(module =>
+      Math.hypot(module.x + module.width / 2, module.y + module.height / 2))) + 4 : 0;
+    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius, moduleRadius)) return true;
     if (building.constructionState === 'complete') return false;
 
     const style = SurfaceStyle.buildings;
