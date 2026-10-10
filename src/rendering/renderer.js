@@ -1,12 +1,11 @@
 (function (root) {
   'use strict';
-  const World = root.OrbitWorld, Camera = root.OrbitCamera, Config = root.OrbitConfig;
+  const World = root.OrbitWorld, Camera = root.OrbitCamera;
   const SurfaceStyle = root.OrbitSurfaceStyle;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
   const ease = t => t * t * (3 - 2 * t);
-  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
   function create(canvas) {
     const ctx = canvas.getContext('2d', { alpha: false });
@@ -36,6 +35,17 @@
       c.font = `${size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       c.fillStyle = color; c.textAlign = align; c.textBaseline = 'middle'; c.fillText(text, x, y);
     }
+    const surfaceRenderer = root.OrbitSurfaceRenderer.create(ctx, {
+      project, localCamera, surfaceFrame,
+      getState: () => state,
+      getViewport: () => viewport,
+      drawLine: line, drawCircle: circle, drawLabel: label,
+      layers: {
+        roads: root.OrbitRoadRenderer,
+        buildings: root.OrbitBuildingRenderer,
+        vehicles: root.OrbitVehicleRenderer
+      }
+    });
     function prepareGalaxy(model, seed) {
       const resolution = 1500, extent = 5900;
       galaxyTexture = makeCanvas(resolution, resolution);
@@ -60,15 +70,14 @@
       c.fillStyle = glow; c.fillRect(635, 635, 230, 230);
       galaxyTexture.extent = extent;
     }
-    function drawGrid(cam, surface = false, blueprint = false) {
-      const style = surface ? SurfaceStyle.grid : null;
-      const worldStep = surface ? style.worldStep : blueprint ? 200 : 500;
+    function drawGrid(cam, blueprint = false) {
+      const worldStep = blueprint ? 200 : 500;
       let step = worldStep * cam.zoom;
       let scaleStep = worldStep;
-      while (step < (style?.minSpacingPx || 45)) { step *= 2; scaleStep *= 2; }
-      while (step > (style?.maxSpacingPx || 180)) { step /= 2; scaleStep /= 2; }
+      while (step < 45) { step *= 2; scaleStep *= 2; }
+      while (step > 180) { step /= 2; scaleStep /= 2; }
       const origin = project(0, 0, cam);
-      ctx.lineWidth = style?.lineWidthPx || 1; ctx.strokeStyle = style?.lineColor || (blueprint ? '#87bace15' : '#87bace0d');
+      ctx.lineWidth = 1; ctx.strokeStyle = blueprint ? '#87bace15' : '#87bace0d';
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
       ctx.beginPath();
       for (let x = x0; x < W; x += step) { ctx.moveTo(Math.round(x) + .5, 0); ctx.lineTo(Math.round(x) + .5, H); }
@@ -80,15 +89,13 @@
         for (let y = y0 % (step / 4); y < H; y += step / 4) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
         ctx.stroke();
       }
-      if (step > (style?.tickSpacingThresholdPx || 65)) {
-        const half = style?.tickHalfLengthPx || 2.5, color = style?.tickColor || '#9ebacd25';
+      if (step > 65) {
         for (let x = x0; x < W; x += step) for (let y = y0; y < H; y += step) {
-          line(ctx, [{ x: x - half, y }, { x: x + half, y }], color);
-          line(ctx, [{ x, y: y - half }, { x, y: y + half }], color);
+          line(ctx, [{ x: x - 2.5, y }, { x: x + 2.5, y }], '#9ebacd25');
+          line(ctx, [{ x, y: y - 2.5 }, { x, y: y + 2.5 }], '#9ebacd25');
         }
       }
-      for (let x = x0; x < W; x += step) label(ctx, String(Math.round((x - origin.x) / cam.zoom / scaleStep)),
-        x + (style?.labelOffsetXPx || 6), H - (style?.labelOffsetBottomPx || 97), style?.labelColor || '#557184', style?.labelSizePx || 8);
+      for (let x = x0; x < W; x += step) label(ctx, String(Math.round((x - origin.x) / cam.zoom / scaleStep)), x + 6, H - 97, '#557184', 8);
     }
 
     function drawGalaxy(cam) {
@@ -203,7 +210,7 @@
           ctx.beginPath(); ctx.ellipse(p.x, p.y, radius * .45, radius, 0, 0, TAU); ctx.stroke();
           line(ctx, [{ x: p.x - radius, y: p.y }, { x: p.x + radius, y: p.y }], planet.color + '99', .6); ctx.restore();
         }
-        if (planet.kind !== 'gazeuse' && radius > 18 && context.terrains.has(planet.id)) drawPlanetTerrain(planet, context, p, radius);
+        if (planet.kind !== 'gazeuse' && radius > 18 && context.terrains.has(planet.id)) surfaceRenderer.drawPlanetTerrain(planet, context, p, radius);
         const selected = state.selected?.id === planet.id;
         if (selected && radius < 90) circle(ctx, p.x, p.y, radius + 5, '#e6a25a', 1);
         if (!detailed || radius > 90) continue;
@@ -232,129 +239,16 @@
       }
     }
 
-    const PALETTE = [
-      [0, '#101f2c'], [68, '#182d37'], [88, '#2a3c3f'], [98, '#505b52'],
-      [103, '#aaa58d'], [109, '#7b826d'], [125, '#68745f'], [143, '#586851'],
-      [159, '#47594a'], [177, '#505a4e'], [192, '#666a5b'], [209, '#7c7d6a'],
-      [230, '#9d967e'], [246, '#b9ad91']
-    ];
-    function hexRGB(hex) { return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]; }
-    function createTerrainTexture(planet, terrainData) {
-      const { width, height, elevation, moisture } = terrainData;
-      const textureScale = Config.terrain.textureScale;
-      const rawCanvas = makeCanvas(width, height), rc = rawCanvas.getContext('2d'), image = rc.createImageData(width, height);
-      const palette = PALETTE.map(([threshold, hex]) => [threshold, hexRGB(hex)]);
-      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-        const i = y * width + x, value = elevation[i];
-        let rgb = palette[0][1]; for (const entry of palette) if (value >= entry[0]) rgb = entry[1];
-        const dx = elevation[y * width + Math.min(width - 1, x + 1)] - elevation[y * width + Math.max(0, x - 1)];
-        const dy = elevation[Math.min(height - 1, y + 1) * width + x] - elevation[Math.max(0, y - 1) * width + x];
-        let shade = clamp((-dx * 1.5 - dy * 1.8), -30, 25);
-        if (value > 109 && value < 209) {
-          const humidity = (moisture[i] - 128) / 255;
-          rgb = [rgb[0] - humidity * 7, rgb[1] + humidity * 10, rgb[2] + humidity * 5];
-        }
-        if (planet.kind === 'aride') rgb = [rgb[0] + 14, rgb[1] - 4, rgb[2] - 10];
-        if (planet.kind === 'glacée' && value > 105) rgb = [rgb[0] + 26, rgb[1] + 31, rgb[2] + 32];
-        if (planet.kind === 'volcanique' && value > 109) rgb = [rgb[0] + 8, rgb[1] - 13, rgb[2] - 14];
-        for (let k = 0; k < 3; k++) image.data[i * 4 + k] = clamp(rgb[k] + shade, 0, 255);
-        image.data[i * 4 + 3] = 255;
-      }
-      rc.putImageData(image, 0, 0);
-      const terrainTexture = makeCanvas(width * textureScale, height * textureScale);
-      const c = terrainTexture.getContext('2d'); c.imageSmoothingEnabled = true; c.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
-      // Interpolated contour lines retain the topographic map at every zoom.
-      const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
-      let edgeX = 0, edgeY = 0, pairing = false;
-      function contourEdge(x, y) {
-        if (pairing) { c.moveTo(edgeX * textureScale, edgeY * textureScale); c.lineTo(x * textureScale, y * textureScale); }
-        else { edgeX = x; edgeY = y; }
-        pairing = !pairing;
-      }
-      for (const level of contourLevels) {
-        const coastline = level === 103;
-        const indexContour = !coastline && (level - 48) % 20 === 0;
-        c.beginPath();
-        c.strokeStyle = coastline ? '#d3c9a878' : level < 102 ? '#9db3b02c' : indexContour ? '#d0cbb04f' : '#c6cbb13c';
-        c.lineWidth = coastline ? 1.15 : indexContour ? .85 : .56;
-        for (let y = 0; y < height - 1; y++) for (let x = 0; x < width - 1; x++) {
-          const a = elevation[y * width + x], b = elevation[y * width + x + 1];
-          const d = elevation[(y + 1) * width + x], e = elevation[(y + 1) * width + x + 1];
-          const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
-          if (mask === 0 || mask === 15) continue;
-          pairing = false;
-          if ((a < level) !== (b < level)) contourEdge(x + (level - a) / (b - a), y);
-          if ((b < level) !== (e < level)) contourEdge(x + 1, y + (level - b) / (e - b));
-          if ((e < level) !== (d < level)) contourEdge(x + 1 - (level - e) / (d - e), y + 1);
-          if ((d < level) !== (a < level)) contourEdge(x, y + 1 - (level - d) / (a - d));
-        }
-        c.stroke();
-      }
-      const random = World.rng(planet.seed + 113);
-      for (let i = 0; i < 800; i++) {
-        const x = Math.floor(random() * width), y = Math.floor(random() * height), index = y * width + x;
-        if (elevation[index] > 113 && elevation[index] < 165 && moisture[index] > 139) {
-          dot(c, x * textureScale, y * textureScale, 1 + random() * 3.5, '#243e3327');
-        }
-      }
-      return terrainTexture;
-    }
-    function drawSurface(cam, planet, record) {
-      const { texture: terrainTexture, data: terrainData } = record;
-      const top = project(0, 0, cam), scale = cam.zoom;
-      ctx.imageSmoothingEnabled = true; ctx.drawImage(terrainTexture, top.x, top.y, terrainTexture.width * scale, terrainTexture.height * scale);
-      if (scale > SurfaceStyle.lod.surfaceGridZoom) drawGrid(cam, true);
-      const bottom = project(terrainTexture.width, terrainTexture.height, cam);
-      ctx.strokeStyle = SurfaceStyle.terrain.edgeColor; ctx.lineWidth = SurfaceStyle.terrain.edgeWidthPx;
-      ctx.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
-      if (scale >= SurfaceStyle.lod.terrainDetailsZoom) for (const res of terrainData.resources) {
-        const marker = SurfaceStyle.resources;
-        const p = project(res.x * Config.terrain.textureScale, res.y * Config.terrain.textureScale, cam);
-        const r = marker.markerRadiusBasePx + marker.markerRadiusPerZoom * scale;
-        if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) continue;
-        ctx.save(); ctx.beginPath();
-        ctx.ellipse(p.x, p.y, r * marker.ellipseXRatio, r * marker.ellipseYRatio, marker.ellipseAngleRadians, 0, TAU); ctx.clip();
-        for (let i = -r * 2; i < r * 2; i += marker.hatchSpacingPx) {
-          line(ctx, [{ x: p.x + i - r, y: p.y + r }, { x: p.x + i + r, y: p.y - r }], marker.hatchColor, marker.hatchWidthPx);
-        }
-        ctx.restore();
-        if (scale > SurfaceStyle.lod.resourceLabelZoom) label(ctx, res.type.toUpperCase(),
-          p.x + r + marker.labelOffsetXPx, p.y, marker.labelColor, marker.labelSizePx);
-      }
-      if (scale < SurfaceStyle.lod.terrainDetailsZoom) return;
-      if (state.selected?.surfacePoint) {
-        const p = project(state.selected.x, state.selected.y, cam), mark = SurfaceStyle.selection;
-        circle(ctx, p.x, p.y, mark.radiusPx, mark.color, mark.outlineWidthPx);
-        line(ctx, [{ x: p.x - mark.tickOuterRadiusPx, y: p.y }, { x: p.x - mark.tickInnerRadiusPx, y: p.y }], mark.color, mark.tickWidthPx);
-        line(ctx, [{ x: p.x + mark.tickInnerRadiusPx, y: p.y }, { x: p.x + mark.tickOuterRadiusPx, y: p.y }], mark.color, mark.tickWidthPx);
-        line(ctx, [{ x: p.x, y: p.y - mark.tickOuterRadiusPx }, { x: p.x, y: p.y - mark.tickInnerRadiusPx }], mark.color, mark.tickWidthPx);
-        line(ctx, [{ x: p.x, y: p.y + mark.tickInnerRadiusPx }, { x: p.x, y: p.y + mark.tickOuterRadiusPx }], mark.color, mark.tickWidthPx);
-      }
-      label(ctx, planet.name.toUpperCase() + ' / RELEVÉ TOPOGRAPHIQUE', top.x + 15, bottom.y - 16, '#c3c9b1', SurfaceStyle.labels.siteDetailSizePx);
-    }
-    function drawPlanetTerrain(planet, context, center, radius) {
-      const record = context.terrains.get(planet.id);
-      if (!record) return;
-      const frame = surfaceFrame(planet, context), style = SurfaceStyle.terrain;
-      const open = ease(clamp((radius - style.globeRevealStartRadiusPx) /
-        (style.globeRevealEndRadiusPx - style.globeRevealStartRadiusPx), 0, 1));
-      const width = radius * 2 * (1 + open * style.mapExpansionRatio), height = radius * 2;
-      // The texture's world position never changes. Only the globe's clipping
-      // outline opens into the rectangular map as more terrain becomes visible.
-      ctx.save(); ctx.beginPath(); ctx.roundRect(center.x - width / 2, center.y - height / 2, width, height, Math.max(0, radius * (1 - open))); ctx.clip();
-      drawSurface(localCamera(frame), planet, record);
-      ctx.restore();
-    }
     function drawUniverse() {
       ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       const cam = state.camera;
       if (state.level === 'surface' && state.planet) {
         const p = planetWorldPosition(state.planet), center = project(p.x, p.y), r = state.planet.radius * state.context.frame.scale * cam.zoom;
-        if (r > Math.max(W, H) * 1.5) { drawPlanetTerrain(state.planet, state.context, center, r); return; }
+        if (r > Math.max(W, H) * 1.5) { surfaceRenderer.drawPlanetTerrain(state.planet, state.context, center, r); return; }
       }
       drawGalaxy(cam);
       if (cam.zoom < .7) return;
-      if (state.context && state.level === 'system') drawGrid(localCamera(state.context.frame), false, true);
+      if (state.context && state.level === 'system') drawGrid(localCamera(state.context.frame), true);
       for (const context of visibleContexts) {
         const local = localCamera(context.frame);
         if (local.zoom < .025) continue;
@@ -372,7 +266,7 @@
       ({ state, galaxy, home, contexts, visibleContexts, now } = scene);
       drawUniverse();
     }
-    return Object.freeze({ resize, render, prepareGalaxy, createTerrainTexture });
+    return Object.freeze({ resize, render, prepareGalaxy, createTerrainTexture: surfaceRenderer.createTerrainTexture });
   }
   root.OrbitRenderer = Object.freeze({ create });
 })(globalThis);

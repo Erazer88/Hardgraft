@@ -14,11 +14,17 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/state.js` | État de navigation et de session |
 | `src/storage/save.js` | Sauvegarde des découvertes, missions et temps orbital |
 | `src/navigation/camera.js` | Projections, repères locaux, zoom et caméra de surface |
-| `src/rendering/renderer.js` | Galaxie, systèmes, planètes et textures de relief |
+| `src/rendering/renderer.js` | Orchestration du rendu de galaxie, des systèmes et des couches planétaires |
+| `src/rendering/surfaceRenderer.js` | Textures et couches de terrain, relief, sélection et labels planétaires |
+| `src/rendering/roadRenderer.js` | Couche de routes planétaires, en attente du modèle réseau |
+| `src/rendering/buildingRenderer.js` | Couches de bâtiments, ancres et cartes, en attente du modèle bâtiment |
+| `src/rendering/vehicleRenderer.js` | Couche visuelle des véhicules, en attente du réseau routier |
 | `src/ui/hud.js` | Sélection, télémétrie, menus et échelle |
 | `src/app.js` | Gestes, navigation, boucle de rendu et raccord entre modules |
 
 `index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`.
+
+Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Les passes des bâtiments, routes et véhicules sont des points d'extension vides à ce stade ; elles ne créent ni état ni logique de simulation.
 
 ## État conservé
 
