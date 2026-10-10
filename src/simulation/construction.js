@@ -133,6 +133,9 @@
     if (building.factoryId) {
       const factory = simulation.factories?.[building.factoryId];
       for (const shipment of factory?.shipments || []) stock[shipment.item] = (stock[shipment.item] || 0) + shipment.amount;
+      for (const truck of factory?.trucks || []) {
+        for (const [id, amount] of Object.entries(truck.cargo || {})) stock[id] = (stock[id] || 0) + amount;
+      }
       delete simulation.factories?.[building.factoryId];
     }
     delete simulation.buildings[buildingId];

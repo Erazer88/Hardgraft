@@ -6,6 +6,7 @@
   const Recipes = root.OrbitRecipeData.recipes;
   const Buildings = root.OrbitBuildingData;
   const Construction = root.OrbitConstruction;
+  const LogisticsData = root.OrbitLogisticsData;
   const nodeSize = Blocks.node;
   const stockSize = stock => Object.values(stock || {}).reduce((sum, amount) => sum + amount, 0);
   const copyRecord = value => JSON.parse(JSON.stringify(value));
@@ -16,8 +17,46 @@
     if (!Array.isArray(factory.shipments)) factory.shipments = [];
     if (!Number.isInteger(factory.nextShipmentId) || factory.nextShipmentId < 1) factory.nextShipmentId = 1;
     if (typeof factory.outputDestinationId !== 'string') factory.outputDestinationId = null;
+    if (!Number.isInteger(factory.logisticsLevel)) factory.logisticsLevel = 1;
+    if (!Array.isArray(factory.trucks)) factory.trucks = [];
+    factory.logisticsLevel = LogisticsData.get(factory.logisticsLevel).level;
+    if (!Number.isInteger(factory.nextTruckId) || factory.nextTruckId < 1) {
+      factory.nextTruckId = factory.trucks.reduce((next, truck) => {
+        const match = /^truck-(\d+)$/.exec(truck.id || '');
+        return match ? Math.max(next, Number(match[1]) + 1) : next;
+      }, 1);
+    }
+    for (const truck of factory.trucks) {
+      if (!['idle', 'loading', 'outbound', 'returning'].includes(truck.status)) truck.status = 'idle';
+      if (!truck.cargo || typeof truck.cargo !== 'object') truck.cargo = {};
+      if (!Number.isFinite(truck.elapsed)) truck.elapsed = 0;
+      if (!Number.isFinite(truck.loadElapsed)) truck.loadElapsed = 0;
+      if (!Number.isFinite(truck.tripsCompleted)) truck.tripsCompleted = 0;
+    }
+    syncFleet(factory);
     return factory;
   }
+
+  function makeTruck(factory) {
+    return { id: `truck-${factory.nextTruckId++}`, status: 'idle', destinationId: null,
+      route: null, elapsed: 0, duration: 0, loadElapsed: 0, cargo: {}, tripsCompleted: 0,
+      lastCargoSize: 0, resourceColor: '#d8c79e' };
+  }
+
+  function syncFleet(factory) {
+    const profile = LogisticsData.get(factory.logisticsLevel);
+    const active = factory.trucks.filter(truck => truck.status !== 'idle');
+    const idle = factory.trucks.filter(truck => truck.status === 'idle');
+    const idleTarget = Math.max(0, profile.trucks - active.length);
+    const remove = Math.max(0, idle.length - idleTarget);
+    if (remove) {
+      const removeIds = new Set(idle.slice(-remove).map(truck => truck.id));
+      factory.trucks = factory.trucks.filter(truck => !removeIds.has(truck.id));
+    }
+    while (factory.trucks.filter(truck => truck.status === 'idle').length < idleTarget) factory.trucks.push(makeTruck(factory));
+  }
+
+  function cargoSize(cargo) { return stockSize(cargo); }
   function get(simulation, factoryId) { return ensureLogistics(simulation?.factories?.[factoryId] || null); }
   function byBuilding(simulation, buildingId) {
     const building = simulation?.buildings?.[buildingId];
@@ -78,7 +117,9 @@
     const factory = { id, buildingId, planetId: building.planetId, rank: 1, width: 780, height: 1300,
       baseEnergyDemand: Buildings.definitions.factory.energy, energyDemand: Buildings.definitions.factory.energy,
       blocks: {}, order: [], connections: [], nextBlockId: 1, nextConnectionId: 1,
-      outputDestinationId: null, shipments: [], nextShipmentId: 1, production: {}, elapsed: 0 };
+      outputDestinationId: null, shipments: [], nextShipmentId: 1, trucks: [], nextTruckId: 1,
+      logisticsLevel: 1, production: {}, elapsed: 0 };
+    ensureLogistics(factory);
     simulation.factories[id] = factory; building.factoryId = id;
     const input = makeBlock(factory, 'input', 140, 650);
     const transform = makeBlock(factory, 'transform', 390, 650);
@@ -352,11 +393,23 @@
     return { ok: true, destination, route: factory.outputRoute };
   }
 
+  function setLogisticsLevel(simulation, factoryId, level) {
+    const factory = get(simulation, factoryId);
+    if (!factory) return { ok: false, reason: 'invalid-factory' };
+    if (!LogisticsData.profiles.some(profile => profile.level === level)) return { ok: false, reason: 'invalid-level' };
+    factory.logisticsLevel = level;
+    ensureLogistics(factory);
+    return { ok: true, profile: LogisticsData.get(level), trucks: factory.trucks };
+  }
+
   function reservedCapacity(simulation, buildingId) {
     let reserved = 0;
     for (const factory of Object.values(simulation?.factories || {})) {
       for (const shipment of ensureLogistics(factory).shipments) {
         if (shipment.destinationId === buildingId) reserved += shipment.amount;
+      }
+      for (const truck of factory.trucks) {
+        if (truck.destinationId === buildingId && ['loading', 'outbound'].includes(truck.status)) reserved += cargoSize(truck.cargo);
       }
     }
     return reserved;
@@ -396,6 +449,56 @@
       else active.push(shipment);
     }
     factory.shipments = active;
+  }
+
+  function resetTruck(truck) {
+    truck.status = 'idle'; truck.destinationId = null; truck.route = null;
+    truck.elapsed = 0; truck.duration = 0; truck.loadElapsed = 0; truck.cargo = {};
+  }
+
+  function dispatchTruck(factory, truck) {
+    const profile = LogisticsData.get(factory.logisticsLevel);
+    if (!cargoSize(truck.cargo) || !truck.route) { resetTruck(truck); return false; }
+    const firstItem = Object.keys(truck.cargo).find(item => truck.cargo[item] > 0);
+    truck.resourceColor = Resources.definitions[firstItem]?.color || '#d8c79e';
+    truck.lastCargoSize = cargoSize(truck.cargo);
+    truck.status = 'outbound'; truck.elapsed = 0;
+    truck.duration = Math.max(profile.minimumLegSeconds, truck.route.length / profile.speed);
+    truck.loadElapsed = 0;
+    return true;
+  }
+
+  function deliverTruck(simulation, factory, truck) {
+    const total = cargoSize(truck.cargo);
+    for (const [item, amount] of Object.entries(truck.cargo)) {
+      if (amount > 0) deliverShipment(simulation, factory, {
+        item, amount, destinationId: truck.destinationId
+      });
+    }
+    if (total > 0) truck.tripsCompleted++;
+    truck.cargo = {};
+    truck.status = 'returning'; truck.elapsed = 0;
+    const profile = LogisticsData.get(factory.logisticsLevel);
+    truck.duration = Math.max(profile.minimumLegSeconds, truck.route?.length / profile.speed || profile.minimumLegSeconds);
+  }
+
+  function advanceTrucks(simulation, factory, seconds) {
+    const profile = LogisticsData.get(factory.logisticsLevel);
+    for (const truck of factory.trucks) {
+      if (truck.status === 'loading') {
+        if (cargoSize(truck.cargo) > 0) {
+          truck.loadElapsed += seconds;
+          if (truck.loadElapsed >= profile.loadWindow || cargoSize(truck.cargo) >= profile.cargoCapacity) dispatchTruck(factory, truck);
+        }
+      } else if (truck.status === 'outbound') {
+        truck.elapsed = Math.min(truck.duration, truck.elapsed + seconds);
+        if (truck.elapsed >= truck.duration) deliverTruck(simulation, factory, truck);
+      } else if (truck.status === 'returning') {
+        truck.elapsed = Math.min(truck.duration, truck.elapsed + seconds);
+        if (truck.elapsed >= truck.duration) resetTruck(truck);
+      }
+    }
+    syncFleet(factory);
   }
 
   function processInput(simulation, factory, block, planetStock, seconds, infiniteMaterials = false) {
@@ -462,7 +565,6 @@
   }
 
   function routeOutput(simulation, factory, block, planetStock) {
-    let movedAny = false;
     let destination = factory.outputDestinationId && simulation.buildings?.[factory.outputDestinationId];
     if (factory.outputDestinationId && (!destination || destination.planetId !== factory.planetId || !['depot', 'port'].includes(destination.type))) {
       factory.outputDestinationId = null; factory.outputRoute = null; destination = null;
@@ -470,21 +572,60 @@
     if (destination && destination.status !== 'complete') return false;
     const route = destination && (factory.outputRoute || routeGeometry(simulation, factory.id));
     if (destination && !route) return false;
-    let room = destination ? destinationRoom(simulation, destination) : Infinity;
+
+    let loader = factory.trucks.find(truck => truck.status === 'loading');
+    if (loader) {
+      const assigned = simulation.buildings?.[loader.destinationId];
+      if (!assigned || assigned.status !== 'complete' || assigned.planetId !== factory.planetId ||
+        !['depot', 'port'].includes(assigned.type)) {
+        for (const [item, amount] of Object.entries(loader.cargo)) {
+          block.stock[item] = (block.stock[item] || 0) + amount;
+          block.ready[item] = (block.ready[item] || 0) + amount;
+        }
+        resetTruck(loader);
+        loader = null;
+      }
+    }
+
+    if (!destination && !loader) {
+      let movedAny = false;
+      for (const [item, amount] of Object.entries(block.ready)) {
+        if (amount <= 0) continue;
+        planetStock[item] = (planetStock[item] || 0) + amount;
+        factory.production[item] = (factory.production[item] || 0) + amount;
+        block.ready[item] = 0;
+        block.stock[item] = Math.max(0, (block.stock[item] || 0) - amount);
+        movedAny = true;
+      }
+      return movedAny;
+    }
+
+    if (!loader) {
+      const hasReady = Object.values(block.ready).some(amount => amount > 0);
+      if (!hasReady) return false;
+      loader = factory.trucks.find(truck => truck.status === 'idle');
+      if (!loader) return false;
+      loader.status = 'loading'; loader.destinationId = destination.id; loader.route = route;
+      loader.elapsed = 0; loader.duration = 0; loader.loadElapsed = 0; loader.cargo = {};
+    }
+
+    const assignedDestination = simulation.buildings?.[loader.destinationId];
+    if (!assignedDestination) return false;
+    const profile = LogisticsData.get(factory.logisticsLevel);
+    let room = destinationRoom(simulation, assignedDestination);
+    let movedAny = false;
     for (const [item, amount] of Object.entries(block.ready)) {
       if (amount <= 0 || room <= 0) continue;
-      const moved = Math.min(amount, room);
-      if (destination) {
-        factory.shipments.push({ id: `shipment-${factory.nextShipmentId++}`, item, amount: moved,
-          destinationId: destination.id, route, elapsed: 0, duration: Math.max(45, route.length / 2.5) });
-        room -= moved;
-      } else {
-        planetStock[item] = (planetStock[item] || 0) + moved;
-        factory.production[item] = (factory.production[item] || 0) + moved;
-      }
-      block.ready[item] -= moved; block.stock[item] = Math.max(0, (block.stock[item] || 0) - moved);
+      const truckRoom = Math.max(0, profile.cargoCapacity - cargoSize(loader.cargo));
+      const moved = Math.min(amount, room, truckRoom);
+      if (!moved) continue;
+      loader.cargo[item] = (loader.cargo[item] || 0) + moved;
+      block.ready[item] -= moved;
+      block.stock[item] = Math.max(0, (block.stock[item] || 0) - moved);
+      room -= moved;
       movedAny = true;
     }
+    if (cargoSize(loader.cargo) >= profile.cargoCapacity) dispatchTruck(factory, loader);
     return movedAny;
   }
 
@@ -519,11 +660,13 @@
       const planetStock = simulation.resources[factory.planetId];
       if (!building || building.status !== 'complete' || !planetStock) continue;
       const before = { ...factory.production }, shipmentCount = factory.shipments.length;
+      const fleetBefore = factory.trucks.map(truck => `${truck.id}:${truck.status}:${truck.destinationId || ''}:${cargoSize(truck.cargo)}`).join('|');
       let remaining = seconds;
       while (remaining > 0) {
         const step = Math.min(.1, remaining);
         factory.elapsed += step;
         advanceShipments(simulation, factory, step);
+        advanceTrucks(simulation, factory, step);
         for (const id of factory.order) {
           const block = factory.blocks[id];
           if (block.type === 'input') processInput(simulation, factory, block, planetStock, step, simulation.infiniteMaterials === true);
@@ -534,8 +677,10 @@
       }
       const products = Object.fromEntries(Object.entries(factory.production).filter(([id, count]) => count > (before[id] || 0))
         .map(([id, count]) => [id, count - (before[id] || 0)]));
-      if (Object.keys(products).length || factory.shipments.length !== shipmentCount) {
-        events.push({ factoryId: factory.id, products, shipmentsInTransit: factory.shipments.length });
+      const trucksInTransit = factory.trucks.filter(truck => ['outbound', 'returning'].includes(truck.status)).length;
+      const fleetAfter = factory.trucks.map(truck => `${truck.id}:${truck.status}:${truck.destinationId || ''}:${cargoSize(truck.cargo)}`).join('|');
+      if (Object.keys(products).length || factory.shipments.length !== shipmentCount || fleetBefore !== fleetAfter) {
+        events.push({ factoryId: factory.id, products, shipmentsInTransit: factory.shipments.length, trucksInTransit });
       }
       refreshEnergy(factory);
     }
@@ -543,6 +688,7 @@
   }
 
   root.OrbitFactorySimulation = Object.freeze({ get, byBuilding, create, addBlock, moveBlock,
-    removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, routeGeometry, routePoint, setTerrain,
+    removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, setLogisticsLevel,
+    routeGeometry, routePoint, setTerrain,
     refreshEnergy, advance, copy: copyRecord });
 })(globalThis);

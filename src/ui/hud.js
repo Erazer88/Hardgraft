@@ -4,6 +4,7 @@
   const Resources = root.OrbitResourceData;
   const Buildings = root.OrbitBuildingData;
   const Blocks = root.OrbitBlockData;
+  const LogisticsData = root.OrbitLogisticsData;
   const Construction = root.OrbitConstruction;
   const FactorySimulation = root.OrbitFactorySimulation;
 
@@ -197,7 +198,10 @@
           .map(([id, count]) => `${Resources.definitions[id]?.short || id} ${fmt(count)}`).join(' · ');
         const blocked = factoryView.factory.order.filter(id => ['blocked', 'starved'].includes(factoryView.factory.blocks[id]?.status)).length;
         const target = state.simulation.buildings[factoryView.factory.outputDestinationId];
-        const route = target ? `${factoryView.factory.shipments.length} fret${factoryView.factory.shipments.length > 1 ? 's' : ''} en route vers ${Buildings.definitions[target.type]?.name || 'destination'}` : 'sortie directe vers le stock de la colonie';
+        const profile = LogisticsData.get(factoryView.factory.logisticsLevel);
+        const activeTrucks = factoryView.factory.trucks.filter(truck => ['outbound', 'returning'].includes(truck.status)).length;
+        const loading = factoryView.factory.trucks.some(truck => truck.status === 'loading');
+        const route = target ? `Flux → ${Buildings.definitions[target.type]?.name || 'destination'} · flotte ${profile.trucks} · ${profile.cargoCapacity} u/camion · ${activeTrucks} en trajet${loading ? ' · chargement' : ''}` : 'Sortie directe vers le stock de la colonie';
         const chain = products ? `Flux livrés : ${products}` : 'Chaîne : minerai → transformation → stockage → sortie';
         $('factory-console-status').textContent = `${chain} · ${route}${blocked ? ` · ${blocked} bloc${blocked > 1 ? 's' : ''} en attente` : ''}`;
       }

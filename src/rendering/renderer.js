@@ -314,11 +314,13 @@
         if (building.type !== 'factory') continue;
         const factory = FactorySimulation.byBuilding(state.simulation, building.id);
         const destinationIds = new Set((factory.shipments || []).map(shipment => shipment.destinationId));
+        for (const truck of factory.trucks || []) if (truck.destinationId) destinationIds.add(truck.destinationId);
         if (factory.outputDestinationId) destinationIds.add(factory.outputDestinationId);
         for (const destinationId of destinationIds) {
           const shipment = (factory.shipments || []).find(item => item.destinationId === destinationId);
+          const truck = (factory.trucks || []).find(item => item.destinationId === destinationId && item.route);
           const route = destinationId === factory.outputDestinationId ? (factory.outputRoute || FactorySimulation.routeGeometry(state.simulation, factory.id)) :
-            shipment?.route || FactorySimulation.routeGeometry(state.simulation, factory.id, destinationId);
+            truck?.route || shipment?.route || FactorySimulation.routeGeometry(state.simulation, factory.id, destinationId);
           if (!route) continue;
           const start = project(route.start.x, route.start.y, cam), end = project(route.end.x, route.end.y, cam);
           if (Math.max(start.x, end.x) < -W || Math.min(start.x, end.x) > W * 2 ||
@@ -336,9 +338,9 @@
             }
           };
           trace();
-          ctx.strokeStyle = '#14231fce'; ctx.lineWidth = clamp(cam.zoom * 8, 2.5, 9); ctx.stroke();
-          ctx.strokeStyle = '#d3a06ba6'; ctx.lineWidth = clamp(cam.zoom * 1.5, .8, 2.2);
-          ctx.setLineDash([Math.max(2, cam.zoom * 8), Math.max(2, cam.zoom * 5)]); trace(); ctx.stroke(); ctx.setLineDash([]);
+          ctx.strokeStyle = '#14231fce'; ctx.lineWidth = clamp(cam.zoom * 5.5, 1.8, 6); ctx.stroke();
+          ctx.strokeStyle = '#d5ceb099'; ctx.lineWidth = clamp(cam.zoom * 1.1, .75, 1.5);
+          ctx.setLineDash([Math.max(2, cam.zoom * 7), Math.max(2, cam.zoom * 6)]); trace(); ctx.stroke(); ctx.setLineDash([]);
           for (const shipment of factory.shipments || []) {
             if (shipment.destinationId !== destinationId) continue;
             const shipmentRoute = shipment.route || route;
@@ -347,6 +349,27 @@
               const at = Math.max(0, t - trail * .045), point = FactorySimulation.routePoint(shipmentRoute, at), p = project(point.x, point.y, cam);
               dot(ctx, p.x, p.y, Math.max(1.7, Math.min(4.2, 1.8 + cam.zoom * 1.5)) * (trail ? .68 : 1), resource?.color || '#d8c79e');
             }
+          }
+          for (const vehicle of factory.trucks || []) {
+            if (vehicle.destinationId !== destinationId || !vehicle.route || !['loading', 'outbound', 'returning'].includes(vehicle.status)) continue;
+            const progress = vehicle.status === 'loading' ? 0 : clamp(vehicle.elapsed / vehicle.duration, 0, 1);
+            const t = vehicle.status === 'returning' ? 1 - progress : progress;
+            const point = FactorySimulation.routePoint(vehicle.route, t), p = project(point.x, point.y, cam);
+            const before = FactorySimulation.routePoint(vehicle.route, Math.max(0, t - .015));
+            const after = FactorySimulation.routePoint(vehicle.route, Math.min(1, t + .015));
+            const direction = vehicle.status === 'returning' ? -1 : 1;
+            const angle = Math.atan2((after.y - before.y) * direction, (after.x - before.x) * direction);
+            const item = Object.keys(vehicle.cargo || {}).find(id => vehicle.cargo[id] > 0);
+            const color = vehicle.status === 'returning' ? '#273b40' :
+              ResourceData.definitions[item]?.color || vehicle.resourceColor || '#d8c79e';
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(angle); ctx.scale(clamp(.8 + cam.zoom * .15, .8, 1.2), clamp(.8 + cam.zoom * .15, .8, 1.2));
+            ctx.fillStyle = '#111b20'; ctx.strokeStyle = '#e3dfc8'; ctx.lineWidth = .9;
+            ctx.beginPath(); ctx.roundRect(-6.5, -4, 13, 8, 1.8); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = color; ctx.fillRect(-4.7, -2.5, 5.7, 5);
+            ctx.fillStyle = '#c7d0cc'; ctx.fillRect(1.7, -2.5, 3.1, 5);
+            ctx.fillStyle = '#091114'; ctx.fillRect(-4.4, -4.7, 2.7, 1.3); ctx.fillRect(2.8, -4.7, 2.7, 1.3);
+            ctx.fillRect(-4.4, 3.4, 2.7, 1.3); ctx.fillRect(2.8, 3.4, 2.7, 1.3);
+            ctx.restore();
           }
           ctx.restore();
         }

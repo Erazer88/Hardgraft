@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/resources.js', 'data/buildings.js', 'data/recipes.js', 'data/blocks.js',
+for (const relative of ['data/resources.js', 'data/buildings.js', 'data/recipes.js', 'data/blocks.js', 'data/logistics.js',
   'simulation/simulation.js', 'simulation/construction.js', 'simulation/factory.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
@@ -29,6 +29,17 @@ test('factory starts with a data-driven input, transform, storage and output cha
   assert.equal(factory.rank, 1);
   assert.ok(factory.width * factory.height > 0);
   assert.ok(factory.energyDemand > 0);
+  assert.equal(factory.trucks.length, 6);
+});
+
+test('logistics fleet size, cargo capacity and speed follow the selected data level', () => {
+  const { simulation, factory } = colony();
+  const upgraded = FactorySimulation.setLogisticsLevel(simulation, factory.id, 2);
+  assert.equal(upgraded.ok, true);
+  assert.equal(factory.trucks.length, 8);
+  assert.equal(upgraded.profile.cargoCapacity, 32);
+  assert.ok(upgraded.profile.speed > 42);
+  assert.equal(FactorySimulation.setLogisticsLevel(simulation, factory.id, 99).ok, false);
 });
 
 test('the starter line consumes iron and produces plates in the planetary inventory', () => {
@@ -89,21 +100,25 @@ test('block placement, linking, movement, deletion and paused factory time are d
   assert.equal(factory.elapsed, elapsed);
 });
 
-test('the output automatically routes arriving products to a selected depot', () => {
+test('freight trucks batch products, deliver them and make return trips to a selected depot', () => {
   const { simulation, factory } = colony();
   const depot = { id: 'depot-1', type: 'depot', planetId: factory.planetId, status: 'complete', x: 440, y: 340, logisticsStock: {} };
   simulation.buildings[depot.id] = depot;
   const result = FactorySimulation.setOutputDestination(simulation, factory.id, depot.id);
   assert.equal(result.ok, true);
   assert.ok(result.route.length > 0);
+  let sawReturningTruck = false;
   for (let i = 0; i < 4000; i++) {
     Simulation.advance(simulation, .05);
     FactorySimulation.advance(simulation, .05);
+    if (factory.trucks.some(truck => truck.status === 'returning')) sawReturningTruck = true;
   }
   assert.ok(depot.logisticsStock.iron_plate > 0);
   assert.equal(simulation.resources[factory.planetId].iron_plate, depot.logisticsStock.iron_plate);
-  assert.ok(factory.shipments.every(shipment => Number.isFinite(shipment.amount) && shipment.destinationId === depot.id));
-  assert.ok(factory.shipments.every(shipment => shipment.duration >= 45));
+  assert.ok(factory.trucks.some(truck => truck.tripsCompleted > 0));
+  assert.ok(factory.trucks.some(truck => truck.lastCargoSize > 1));
+  assert.equal(sawReturningTruck, true);
+  assert.equal(factory.shipments.length, 0);
 });
 
 test('the shipping port receives cargo without returning it to colony inventory', () => {
@@ -119,7 +134,16 @@ test('the shipping port receives cargo without returning it to colony inventory'
   assert.equal(simulation.resources[factory.planetId].iron_plate, 0);
 });
 
-test('surface freight routes bend around steep terrain and retain a slow travel time', () => {
+test('demolishing a factory returns cargo currently carried by its trucks', () => {
+  const { simulation, factory } = colony();
+  const stock = simulation.resources[factory.planetId];
+  const truck = factory.trucks[0];
+  truck.status = 'outbound'; truck.destinationId = 'depot-1'; truck.cargo = { iron_plate: 7 };
+  Construction.demolish(simulation, factory.buildingId);
+  assert.equal(stock.iron_plate, 7);
+});
+
+test('surface freight routes bend around steep terrain and use the fleet speed data', () => {
   const { simulation, factory } = colony();
   const depot = { id: 'depot-ridge', type: 'depot', planetId: factory.planetId, status: 'complete', x: 440, y: 340, logisticsStock: {} };
   simulation.buildings[depot.id] = depot;
@@ -130,5 +154,5 @@ test('surface freight routes bend around steep terrain and retain a slow travel 
   assert.equal(result.ok, true);
   assert.ok(result.route.points.length > 3);
   assert.ok(result.route.distance > Math.hypot(result.route.end.x - result.route.start.x, result.route.end.y - result.route.start.y) * 1.1);
-  assert.ok(result.route.length / 2.5 > 45);
+  assert.ok(result.route.length / 42 < result.route.length / 2.5);
 });
