@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
 
-  const order = Object.freeze(['outpost', 'factory', 'extractor', 'depot']);
+  const order = Object.freeze(['outpost', 'factory', 'extractor', 'depot', 'port']);
   const definitions = Object.freeze({
     outpost: Object.freeze({
       id: 'outpost', name: 'Avant-poste', code: 'AVP', color: '#efa35a', duration: 4, footprint: 30,
@@ -25,7 +25,13 @@
       id: 'depot', name: 'Dépôt', code: 'DEP', color: '#8eb8c5', duration: 3.5, footprint: 26,
       description: 'Réserve sécurisée pour les matériaux de la colonie.',
       cost: Object.freeze({ iron: 45, copper: 15, silicon: 25, carbon: 10, water: 5 }),
-      production: null, energy: 0
+      production: null, energy: 0, logisticsCapacity: 1200
+    }),
+    port: Object.freeze({
+      id: 'port', name: 'Port d’envoi', code: 'POR', color: '#82c5de', duration: 5, footprint: 38,
+      description: 'Terminal de fret pour recevoir les flux des usines et préparer leur expédition.',
+      cost: Object.freeze({ iron: 110, copper: 70, silicon: 50, carbon: 35, water: 20 }),
+      production: null, energy: 1.8, logisticsCapacity: 800
     })
   });
 

@@ -29,7 +29,8 @@
       const top = document.createElement('span'); top.className = 'building-option-top';
       const name = document.createElement('span'); name.className = 'building-option-name'; name.textContent = definition.name;
       const time = document.createElement('span'); time.className = 'building-option-time'; time.textContent = `${definition.duration.toFixed(1).replace('.0', '')} s`;
-      const description = document.createElement('span'); description.className = 'building-option-description'; description.textContent = definition.description;
+      const description = document.createElement('span'); description.className = 'building-option-description';
+      description.textContent = definition.logisticsCapacity ? `${definition.description} Capacité : ${fmt(definition.logisticsCapacity)}.` : definition.description;
       const cost = document.createElement('span'); cost.className = 'building-option-cost';
       const costNodes = new Map();
       for (const [resourceId, amount] of Object.entries(definition.cost)) {
@@ -59,12 +60,41 @@
     function buildingMeta(state, building) {
       const percent = Math.round(Construction.progress(state.simulation, building) * 100);
       const status = building.status === 'complete' ? 'OPÉRATIONNEL' : `CHANTIER ${percent} %`;
-      return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status}`;
+      const capacity = Buildings.definitions[building.type]?.logisticsCapacity;
+      if (!capacity) return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status}`;
+      const cargo = building.logisticsStock || {};
+      const contents = Object.entries(cargo).filter(([, amount]) => amount > 0)
+        .map(([id, amount]) => `${Resources.definitions[id]?.short || id} ${fmt(amount)}`).join(' · ') || 'vide';
+      const amount = Object.values(cargo).reduce((sum, count) => sum + count, 0);
+      return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status} · ${building.type === 'port' ? 'CARGO' : 'STOCK'} ${contents} · ${fmt(amount)} / ${fmt(capacity)}`;
     }
-    function showSelection(item, { state, systemModel }) {
+    function updateOutputDestination(state, factory, block, force = false) {
+      const field = $('output-destination-field'), select = $('output-destination');
+      const active = block?.type === 'output' && factory;
+      field.hidden = !active;
+      if (!active) return;
+      const destinations = Construction.list(state.simulation, factory.planetId)
+        .filter(building => ['depot', 'port'].includes(building.type) && building.status === 'complete')
+        .sort((a, b) => a.type.localeCompare(b.type) || a.id.localeCompare(b.id));
+      const optionKey = destinations.map(building => `${building.id}:${building.type}`).join('|');
+      if (select.dataset.optionKey !== optionKey) {
+        select.replaceChildren();
+        const local = document.createElement('option'); local.value = ''; local.textContent = 'Stock de la colonie · direct';
+        select.append(local);
+        for (const building of destinations) {
+          const option = document.createElement('option'); option.value = building.id;
+          option.textContent = `${Buildings.definitions[building.type].name} · ${Math.round(building.x)}, ${Math.round(building.y)}`;
+          select.append(option);
+        }
+        select.dataset.optionKey = optionKey;
+      }
+      if (force || document.activeElement !== select) select.value = factory.outputDestinationId || '';
+    }
+    function showSelection(item, { state, systemModel, factoryView }) {
       const panel = $('inspector'); panel.hidden = false;
       $('toast').classList.remove('visible'); $('demolish-button').hidden = true;
       $('delete-block-button').hidden = true; $('connect-selected-block-button').hidden = true;
+      $('output-destination-field').hidden = true;
       if (state.level === 'galaxy') {
         const count = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE'; $('selection-name').textContent = item.name;
@@ -82,11 +112,13 @@
         const definition = Blocks.definitions[item.type], stock = Object.entries(item.stock || {}).filter(([, amount]) => amount > 0)
           .map(([id, amount]) => `${Resources.definitions[id]?.short || id} ${fmt(amount)}`).join(' · ') || 'Stock vide';
         $('selection-type').textContent = 'BLOC INDUSTRIEL'; $('selection-name').textContent = definition?.name || 'Bloc';
-        $('selection-info').textContent = definition?.recipeId ? `Recette active : ${root.OrbitRecipeData.recipes[definition.recipeId].name}. Le stock interne reste bloqué si la sortie est saturée.` : `Stock interne limité à ${item.capacity}. Les transferts vers le bloc suivant sont instantanés si sa capacité le permet.`;
+        $('selection-info').textContent = item.type === 'output' ? 'Choisissez le stock de la colonie, un dépôt ou un port d’envoi. La route et les transferts se calculent automatiquement.' : definition?.recipeId ? `Recette active : ${root.OrbitRecipeData.recipes[definition.recipeId].name}. Le stock interne reste bloqué si la sortie est saturée.` : `Stock interne limité à ${item.capacity}. Les flux suivent les liaisons jusqu’au bloc suivant.`;
         $('selection-meta').textContent = `${stock}   /   ${String(item.status || 'waiting').toUpperCase()} · ${Math.round(item.x)}, ${Math.round(item.y)}`;
         $('enter-button').hidden = true; $('delete-block-button').hidden = false;
-        $('connect-selected-block-button').hidden = false;
+        $('connect-selected-block-button').hidden = !definition?.outputPorts;
+        $('connect-selected-block-button').hidden = !Blocks.definitions[block.type]?.outputPorts;
         $('connect-selected-block-button').classList.toggle('active', state.tool === 'factory-connect');
+        updateOutputDestination(state, factoryView?.factory, item, true);
       } else if (item.entityType === 'building') {
         const definition = Buildings.definitions[item.type];
         $('selection-type').textContent = item.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
@@ -132,6 +164,7 @@
           .map(([id, amount]) => `${Resources.definitions[id]?.short || id} ${fmt(amount)}`).join(' · ') || 'Stock vide';
         $('selection-meta').textContent = `${stock}   /   ${String(block.status || 'waiting').toUpperCase()} · ${Math.round(block.x)}, ${Math.round(block.y)}`;
         $('connect-selected-block-button').classList.toggle('active', state.tool === 'factory-connect');
+        updateOutputDestination(state, factory?.id === state.focusFactory ? factory : state.factoryView?.factory, block);
       }
     }
     function update({ state, galaxy, terrainData, width, scaleCamera, factoryView }) {
@@ -163,7 +196,10 @@
         const products = Object.entries(factoryView.factory.production || {}).filter(([, count]) => count > 0)
           .map(([id, count]) => `${Resources.definitions[id]?.short || id} ${fmt(count)}`).join(' · ');
         const blocked = factoryView.factory.order.filter(id => ['blocked', 'starved'].includes(factoryView.factory.blocks[id]?.status)).length;
-        $('factory-console-status').textContent = products ? `Flux produits : ${products}${blocked ? `   /   ${blocked} bloc${blocked > 1 ? 's' : ''} en attente` : ''}` : 'Chaîne de départ : minerai → transformation → stockage → sortie';
+        const target = state.simulation.buildings[factoryView.factory.outputDestinationId];
+        const route = target ? `${factoryView.factory.shipments.length} fret${factoryView.factory.shipments.length > 1 ? 's' : ''} en route vers ${Buildings.definitions[target.type]?.name || 'destination'}` : 'sortie directe vers le stock de la colonie';
+        const chain = products ? `Flux livrés : ${products}` : 'Chaîne : minerai → transformation → stockage → sortie';
+        $('factory-console-status').textContent = `${chain} · ${route}${blocked ? ` · ${blocked} bloc${blocked > 1 ? 's' : ''} en attente` : ''}`;
       }
       updateSelection({ ...state, factoryView });
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' : state.tool === 'build' ? 'IMPLANTATION AU SOL' : state.tool === 'factory-add' ? 'AJOUT DE BLOC' : state.tool === 'factory-connect' ? 'CONNEXION DE BLOCS' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' : level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : level === 'factory' ? 'PRODUCTION ACTIVE' : 'TOPOGRAPHIE LOCALE';

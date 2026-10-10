@@ -5,15 +5,23 @@
   const Blocks = root.OrbitBlockData;
   const Recipes = root.OrbitRecipeData.recipes;
   const Buildings = root.OrbitBuildingData;
+  const Construction = root.OrbitConstruction;
   const nodeSize = Blocks.node;
   const stockSize = stock => Object.values(stock || {}).reduce((sum, amount) => sum + amount, 0);
   const copyRecord = value => JSON.parse(JSON.stringify(value));
 
-  function get(simulation, factoryId) { return simulation?.factories?.[factoryId] || null; }
+  function ensureLogistics(factory) {
+    if (!factory) return null;
+    if (!Array.isArray(factory.shipments)) factory.shipments = [];
+    if (!Number.isInteger(factory.nextShipmentId) || factory.nextShipmentId < 1) factory.nextShipmentId = 1;
+    if (typeof factory.outputDestinationId !== 'string') factory.outputDestinationId = null;
+    return factory;
+  }
+  function get(simulation, factoryId) { return ensureLogistics(simulation?.factories?.[factoryId] || null); }
   function byBuilding(simulation, buildingId) {
     const building = simulation?.buildings?.[buildingId];
     if (!building || building.type !== 'factory') return null;
-    if (building.factoryId && simulation.factories[building.factoryId]) return simulation.factories[building.factoryId];
+    if (building.factoryId && simulation.factories[building.factoryId]) return get(simulation, building.factoryId);
     return create(simulation, buildingId);
   }
 
@@ -64,11 +72,12 @@
   function create(simulation, buildingId) {
     const building = simulation?.buildings?.[buildingId];
     if (!building || building.type !== 'factory') return null;
-    if (building.factoryId && simulation.factories[building.factoryId]) return simulation.factories[building.factoryId];
+    if (building.factoryId && simulation.factories[building.factoryId]) return get(simulation, building.factoryId);
     const id = building.factoryId || `factory-${buildingId}`;
     const factory = { id, buildingId, planetId: building.planetId, rank: 1, width: 780, height: 1300,
       baseEnergyDemand: Buildings.definitions.factory.energy, energyDemand: Buildings.definitions.factory.energy,
-      blocks: {}, order: [], connections: [], nextBlockId: 1, nextConnectionId: 1, production: {}, elapsed: 0 };
+      blocks: {}, order: [], connections: [], nextBlockId: 1, nextConnectionId: 1,
+      outputDestinationId: null, shipments: [], nextShipmentId: 1, production: {}, elapsed: 0 };
     simulation.factories[id] = factory; building.factoryId = id;
     const input = makeBlock(factory, 'input', 140, 650);
     const transform = makeBlock(factory, 'transform', 390, 650);
@@ -147,7 +156,103 @@
       y: surfaceFrame.y + mapFrame.y * surfaceFrame.scale, scale: mapFrame.scale * surfaceFrame.scale } };
   }
 
-  function processInput(factory, block, planetStock, seconds, infiniteMaterials = false) {
+  function routePoint(route, t) {
+    const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    return { x: a * route.start.x + b * route.control1.x + c * route.control2.x + d * route.end.x,
+      y: a * route.start.y + b * route.control1.y + c * route.control2.y + d * route.end.y };
+  }
+
+  function routeGeometry(simulation, factoryId, destinationId = null) {
+    const factory = get(simulation, factoryId), building = simulation?.buildings?.[factory?.buildingId];
+    const target = simulation?.buildings?.[destinationId || factory?.outputDestinationId];
+    if (!factory || !building || !target || target.planetId !== factory.planetId ||
+      !['depot', 'port'].includes(target.type)) return null;
+    const output = factory.order.map(id => factory.blocks[id]).find(block => block?.type === 'output');
+    const physicalHeight = Buildings.definitions.factory.footprint, scale = physicalHeight / factory.height;
+    const start = output && building ? {
+      x: building.x - factory.width * scale / 2 + output.x * scale,
+      y: building.y - physicalHeight / 2 + output.y * scale
+    } : { x: building.x, y: building.y };
+    const dx = target.x - start.x, dy = target.y - start.y, direct = Math.hypot(dx, dy);
+    if (!direct) return null;
+    const bend = Math.min(90, direct * .2) * (factory.id.charCodeAt(factory.id.length - 1) % 2 ? 1 : -1);
+    const normal = { x: -dy / direct, y: dx / direct };
+    const end = { x: target.x, y: target.y };
+    const control1 = { x: start.x + dx * .34 + normal.x * bend, y: start.y + dy * .34 + normal.y * bend };
+    const control2 = { x: start.x + dx * .66 + normal.x * bend, y: start.y + dy * .66 + normal.y * bend };
+    const route = { start, control1, control2, end, length: 0 };
+    let previous = start;
+    for (let i = 1; i <= 20; i++) {
+      const point = routePoint(route, i / 20);
+      route.length += Math.hypot(point.x - previous.x, point.y - previous.y);
+      previous = point;
+    }
+    return route;
+  }
+
+  function setOutputDestination(simulation, factoryId, buildingId) {
+    const factory = get(simulation, factoryId);
+    if (!factory) return { ok: false, reason: 'invalid-factory' };
+    if (!buildingId) {
+      factory.outputDestinationId = null;
+      return { ok: true, destination: null, route: null };
+    }
+    const destination = simulation.buildings?.[buildingId];
+    if (!destination || destination.planetId !== factory.planetId || !['depot', 'port'].includes(destination.type)) {
+      return { ok: false, reason: 'invalid-destination' };
+    }
+    if (destination.status !== 'complete') return { ok: false, reason: 'destination-under-construction' };
+    factory.outputDestinationId = destination.id;
+    return { ok: true, destination, route: routeGeometry(simulation, factoryId) };
+  }
+
+  function reservedCapacity(simulation, buildingId) {
+    let reserved = 0;
+    for (const factory of Object.values(simulation?.factories || {})) {
+      for (const shipment of ensureLogistics(factory).shipments) {
+        if (shipment.destinationId === buildingId) reserved += shipment.amount;
+      }
+    }
+    return reserved;
+  }
+
+  function destinationRoom(simulation, destination) {
+    const definition = Buildings.definitions[destination.type];
+    if (!definition?.logisticsCapacity) return 0;
+    if (!destination.logisticsStock) destination.logisticsStock = {};
+    return Math.max(0, definition.logisticsCapacity - stockSize(destination.logisticsStock) - reservedCapacity(simulation, destination.id));
+  }
+
+  function deliverShipment(simulation, factory, shipment) {
+    const stock = Construction.inventory(simulation, factory.planetId);
+    const destination = simulation.buildings?.[shipment.destinationId];
+    if (!stock) return;
+    if (!destination || destination.status !== 'complete' || destination.planetId !== factory.planetId) {
+      stock[shipment.item] = (stock[shipment.item] || 0) + shipment.amount;
+      factory.production[shipment.item] = (factory.production[shipment.item] || 0) + shipment.amount;
+      return;
+    }
+    const capacity = Buildings.definitions[destination.type]?.logisticsCapacity || 0;
+    const stored = destination.logisticsStock || (destination.logisticsStock = {});
+    const room = Math.max(0, capacity - stockSize(stored));
+    const amount = Math.min(shipment.amount, room);
+    if (destination.type === 'depot') stock[shipment.item] = (stock[shipment.item] || 0) + amount;
+    stored[shipment.item] = (stored[shipment.item] || 0) + amount;
+    if (amount < shipment.amount) stock[shipment.item] = (stock[shipment.item] || 0) + shipment.amount - amount;
+    factory.production[shipment.item] = (factory.production[shipment.item] || 0) + shipment.amount;
+  }
+
+  function advanceShipments(simulation, factory, seconds) {
+    const active = [];
+    for (const shipment of ensureLogistics(factory).shipments) {
+      shipment.elapsed = Math.min(shipment.duration, shipment.elapsed + seconds);
+      if (shipment.elapsed >= shipment.duration) deliverShipment(simulation, factory, shipment);
+      else active.push(shipment);
+    }
+    factory.shipments = active;
+  }
+
+  function processInput(simulation, factory, block, planetStock, seconds, infiniteMaterials = false) {
     const definition = Blocks.definitions.input;
     if (stockSize(block.stock) >= block.capacity || (!infiniteMaterials && (planetStock[block.resource] || 0) <= 0)) {
       block.status = stockSize(block.stock) >= block.capacity ? 'blocked' : 'starved';
@@ -157,7 +262,7 @@
     while (block.cycle >= definition.cycle && stockSize(block.stock) < block.capacity &&
       (infiniteMaterials || (planetStock[block.resource] || 0) > 0)) {
       block.cycle -= definition.cycle;
-      if (!infiniteMaterials) planetStock[block.resource] -= 1;
+      if (!infiniteMaterials) Construction.consume(simulation, factory.planetId, block.resource, 1);
       block.stock[block.resource] = (block.stock[block.resource] || 0) + 1;
       block.ready[block.resource] = (block.ready[block.resource] || 0) + 1;
     }
@@ -210,20 +315,36 @@
     return movedAny;
   }
 
-  function routeOutput(factory, block, planetStock) {
+  function routeOutput(simulation, factory, block, planetStock) {
     let movedAny = false;
+    let destination = factory.outputDestinationId && simulation.buildings?.[factory.outputDestinationId];
+    if (factory.outputDestinationId && (!destination || destination.planetId !== factory.planetId || !['depot', 'port'].includes(destination.type))) {
+      factory.outputDestinationId = null; destination = null;
+    }
+    if (destination && destination.status !== 'complete') return false;
+    const route = destination && routeGeometry(simulation, factory.id);
+    if (destination && !route) return false;
+    let room = destination ? destinationRoom(simulation, destination) : Infinity;
     for (const [item, amount] of Object.entries(block.ready)) {
-      if (amount <= 0) continue;
-      planetStock[item] = (planetStock[item] || 0) + amount;
-      block.ready[item] = 0; block.stock[item] -= amount;
-      factory.production[item] = (factory.production[item] || 0) + amount; movedAny = true;
+      if (amount <= 0 || room <= 0) continue;
+      const moved = Math.min(amount, room);
+      if (destination) {
+        factory.shipments.push({ id: `shipment-${factory.nextShipmentId++}`, item, amount: moved,
+          destinationId: destination.id, route, elapsed: 0, duration: Math.max(1.5, route.length / 48) });
+        room -= moved;
+      } else {
+        planetStock[item] = (planetStock[item] || 0) + moved;
+        factory.production[item] = (factory.production[item] || 0) + moved;
+      }
+      block.ready[item] -= moved; block.stock[item] = Math.max(0, (block.stock[item] || 0) - moved);
+      movedAny = true;
     }
     return movedAny;
   }
 
-  function routeBlock(factory, block, planetStock) {
+  function routeBlock(simulation, factory, block, planetStock) {
     let moved = false;
-    if (block.type === 'output') moved = routeOutput(factory, block, planetStock);
+    if (block.type === 'output') moved = routeOutput(simulation, factory, block, planetStock);
     else {
       const edges = factory.connections.filter(edge => edge.from === block.id)
         .sort((a, b) => Number(a.fromPort.split('-')[1]) - Number(b.fromPort.split('-')[1]));
@@ -247,25 +368,35 @@
     if (!running || seconds === 0) return [];
     const events = [];
     for (const factory of Object.values(simulation?.factories || {})) {
+      ensureLogistics(factory);
       const building = simulation.buildings[factory.buildingId];
       const planetStock = simulation.resources[factory.planetId];
       if (!building || building.status !== 'complete' || !planetStock) continue;
-      const before = { ...factory.production };
-      factory.elapsed += seconds;
-      for (const id of factory.order) {
-        const block = factory.blocks[id];
-        if (block.type === 'input') processInput(factory, block, planetStock, seconds, simulation.infiniteMaterials === true);
-        else if (block.type === 'transform') processTransform(block, seconds);
+      const before = { ...factory.production }, shipmentCount = factory.shipments.length;
+      let remaining = seconds;
+      while (remaining > 0) {
+        const step = Math.min(.1, remaining);
+        factory.elapsed += step;
+        advanceShipments(simulation, factory, step);
+        for (const id of factory.order) {
+          const block = factory.blocks[id];
+          if (block.type === 'input') processInput(simulation, factory, block, planetStock, step, simulation.infiniteMaterials === true);
+          else if (block.type === 'transform') processTransform(block, step);
+        }
+        for (const id of factory.order) routeBlock(simulation, factory, factory.blocks[id], planetStock);
+        remaining = Math.max(0, remaining - step);
       }
-      for (const id of factory.order) routeBlock(factory, factory.blocks[id], planetStock);
       const products = Object.fromEntries(Object.entries(factory.production).filter(([id, count]) => count > (before[id] || 0))
         .map(([id, count]) => [id, count - (before[id] || 0)]));
-      if (Object.keys(products).length) events.push({ factoryId: factory.id, products });
+      if (Object.keys(products).length || factory.shipments.length !== shipmentCount) {
+        events.push({ factoryId: factory.id, products, shipmentsInTransit: factory.shipments.length });
+      }
       refreshEnergy(factory);
     }
     return events;
   }
 
   root.OrbitFactorySimulation = Object.freeze({ get, byBuilding, create, addBlock, moveBlock,
-    removeBlock, connect: connectBlocks, disconnect, createFrame, refreshEnergy, advance, copy: copyRecord });
+    removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, routeGeometry, routePoint,
+    refreshEnergy, advance, copy: copyRecord });
 })(globalThis);

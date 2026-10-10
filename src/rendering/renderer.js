@@ -308,11 +308,81 @@
       }
       return terrainTexture;
     }
+    function drawLogisticsRoutes(cam, planet) {
+      const buildings = Construction.list(state.simulation, planet.id);
+      for (const building of buildings) {
+        if (building.type !== 'factory') continue;
+        const factory = FactorySimulation.byBuilding(state.simulation, building.id);
+        const destinationIds = new Set((factory.shipments || []).map(shipment => shipment.destinationId));
+        if (factory.outputDestinationId) destinationIds.add(factory.outputDestinationId);
+        for (const destinationId of destinationIds) {
+          const shipment = (factory.shipments || []).find(item => item.destinationId === destinationId);
+          const route = destinationId === factory.outputDestinationId ? FactorySimulation.routeGeometry(state.simulation, factory.id) :
+            shipment?.route || FactorySimulation.routeGeometry(state.simulation, factory.id, destinationId);
+          if (!route) continue;
+          const start = project(route.start.x, route.start.y, cam), end = project(route.end.x, route.end.y, cam);
+          if (Math.max(start.x, end.x) < -W || Math.min(start.x, end.x) > W * 2 ||
+            Math.max(start.y, end.y) < -H || Math.min(start.y, end.y) > H * 2) continue;
+          ctx.save(); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(start.x, start.y);
+          const c1 = project(route.control1.x, route.control1.y, cam), c2 = project(route.control2.x, route.control2.y, cam);
+          ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+          ctx.strokeStyle = '#14231fce'; ctx.lineWidth = clamp(cam.zoom * 8, 2.5, 9); ctx.stroke();
+          ctx.strokeStyle = '#d3a06ba6'; ctx.lineWidth = clamp(cam.zoom * 1.5, .8, 2.2);
+          ctx.setLineDash([Math.max(2, cam.zoom * 8), Math.max(2, cam.zoom * 5)]); ctx.stroke(); ctx.setLineDash([]);
+          for (const shipment of factory.shipments || []) {
+            if (shipment.destinationId !== destinationId) continue;
+            const shipmentRoute = shipment.route || route;
+            const t = clamp(shipment.elapsed / shipment.duration, 0, 1), resource = ResourceData.definitions[shipment.item];
+            for (let trail = 2; trail >= 0; trail--) {
+              const at = Math.max(0, t - trail * .045), point = FactorySimulation.routePoint(shipmentRoute, at), p = project(point.x, point.y, cam);
+              dot(ctx, p.x, p.y, Math.max(1.7, Math.min(4.2, 1.8 + cam.zoom * 1.5)) * (trail ? .68 : 1), resource?.color || '#d8c79e');
+            }
+          }
+          ctx.restore();
+        }
+      }
+    }
+    function drawBuildingPlan(type, radius, color) {
+      ctx.save(); ctx.fillStyle = '#101d22e8'; ctx.strokeStyle = color; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.roundRect(-radius, -radius * .76, radius * 2, radius * 1.52, Math.max(2, radius * .16)); ctx.fill(); ctx.stroke();
+      const scale = radius / 24; ctx.scale(scale, scale); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = color; ctx.fillStyle = color + '55'; ctx.lineWidth = 1.4;
+      if (type === 'outpost') {
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.stroke();
+        for (const [x, y] of [[-15, -10], [15, -10], [-15, 10], [15, 10]]) {
+          ctx.strokeRect(x - 4, y - 3, 8, 6); line(ctx, [{ x: x < 0 ? -9 : 9, y: y < 0 ? -3 : 3 }, { x: x < 0 ? -12 : 12, y }], color, 1);
+        }
+      } else if (type === 'factory') {
+        ctx.fillRect(-17, -10, 34, 20); ctx.strokeRect(-17, -10, 34, 20);
+        for (let x = -9; x <= 9; x += 9) line(ctx, [{ x, y: -9 }, { x, y: 9 }], color, 1);
+        ctx.fillRect(-14, -14, 5, 5); ctx.fillRect(8, -14, 5, 5);
+        line(ctx, [{ x: -14, y: 11 }, { x: 14, y: 11 }], '#d4a56e', 1);
+      } else if (type === 'extractor') {
+        for (let i = 0; i < 4; i++) {
+          const angle = i * Math.PI / 2;
+          line(ctx, [{ x: Math.cos(angle) * 5, y: Math.sin(angle) * 5 }, { x: Math.cos(angle) * 17, y: Math.sin(angle) * 17 }], color, 1.5);
+          circle(ctx, Math.cos(angle) * 17, Math.sin(angle) * 17, 2, color, 1);
+        }
+        circle(ctx, 0, 0, 7, color, 1.5); dot(ctx, 0, 0, 3, color);
+      } else if (type === 'depot') {
+        for (let x = -11; x <= 11; x += 11) {
+          ctx.beginPath(); ctx.roundRect(x - 4, -12, 8, 24, 3); ctx.fill(); ctx.stroke();
+          line(ctx, [{ x: x - 3, y: -5 }, { x: x + 3, y: -5 }], color, .8);
+          line(ctx, [{ x: x - 3, y: 3 }, { x: x + 3, y: 3 }], color, .8);
+        }
+      } else if (type === 'port') {
+        ctx.setLineDash([3, 3]); ctx.strokeRect(-19, -9, 38, 18); ctx.setLineDash([]);
+        line(ctx, [{ x: -15, y: 0 }, { x: 15, y: 0 }], color + 'bb', 1);
+        ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(4, -4); ctx.lineTo(9, 0); ctx.lineTo(4, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+        line(ctx, [{ x: 12, y: -13 }, { x: 18, y: -13 }, { x: 18, y: 13 }], '#d4a56e', 1);
+      }
+      ctx.restore();
+    }
     function drawSurfaceBuilding(cam, building) {
       const definition = BuildingData.definitions[building.type];
       if (!definition) return;
       const p = project(building.x, building.y, cam);
-      const radius = clamp(definition.footprint * cam.zoom * .32, 5.5, 18);
+      const radius = clamp(definition.footprint * cam.zoom * .32, 5.5, 22);
       if (p.x < -radius * 2 || p.y < -radius * 2 || p.x > W + radius * 2 || p.y > H + radius * 2) return;
       const selected = state.selected?.entityType === 'building' && state.selected.id === building.id;
       ctx.save(); ctx.translate(p.x, p.y);
@@ -323,21 +393,44 @@
         line(ctx, [{ x: -radius, y: -radius }, { x: radius, y: radius }], '#d7caaa78', .8);
         line(ctx, [{ x: radius, y: -radius }, { x: -radius, y: radius }], '#d7caaa78', .8);
         ctx.strokeStyle = '#aabcb86e'; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
-      } else if (building.type === 'extractor') {
-        dot(ctx, 0, 0, radius, '#13252b'); circle(ctx, 0, 0, radius, definition.color, 1.2);
-        circle(ctx, 0, 0, radius * .45, definition.color + 'c8', 1);
-        line(ctx, [{ x: -radius * 1.2, y: 0 }, { x: radius * 1.2, y: 0 }], definition.color + 'b0', .8);
       } else {
-        ctx.rotate(building.type === 'depot' ? Math.PI / 4 : 0);
-        ctx.fillStyle = definition.color + '25'; ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
-        ctx.strokeStyle = definition.color; ctx.lineWidth = 1.2; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
-        line(ctx, [{ x: -radius, y: 0 }, { x: radius, y: 0 }], definition.color + 'a8', .8);
-        line(ctx, [{ x: 0, y: -radius }, { x: 0, y: radius }], definition.color + 'a8', .8);
+        drawBuildingPlan(building.type, radius, definition.color);
       }
       if (selected) circle(ctx, 0, 0, radius + 7, '#efa35a', 1);
       ctx.restore();
       if (cam.zoom > .55 || selected) label(ctx, `${definition.code} · ${building.status === 'complete' ? 'ACTIF' : Math.round(Construction.progress(state.simulation, building) * 100) + '%'}`,
         p.x + radius + 7, p.y - radius - 2, selected ? '#f0b478' : '#b7c7c2', 8);
+    }
+    function drawBlockPlan(type, x, y, size, color) {
+      if (size < 2) return;
+      ctx.save(); ctx.translate(x, y); ctx.scale(size / 24, size / 24);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 1.7; ctx.strokeStyle = color; ctx.fillStyle = color + '42';
+      if (type === 'input') {
+        ctx.beginPath(); ctx.moveTo(-17, -7); ctx.lineTo(5, -7); ctx.lineTo(5, -13); ctx.lineTo(17, 0); ctx.lineTo(5, 13); ctx.lineTo(5, 7); ctx.lineTo(-17, 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+        for (const [cx, cy, r] of [[-11, -3, 2], [-4, 2, 2.5], [-12, 4, 1.5]]) dot(ctx, cx, cy, r, color);
+      } else if (type === 'transform') {
+        circle(ctx, 0, 0, 10, color, 2); circle(ctx, 0, 0, 4, color, 1.5);
+        for (let i = 0; i < 8; i++) {
+          const a = i * TAU / 8, inner = 10, outer = 15;
+          line(ctx, [{ x: Math.cos(a) * inner, y: Math.sin(a) * inner }, { x: Math.cos(a) * outer, y: Math.sin(a) * outer }], color, 2);
+        }
+      } else if (type === 'storage') {
+        for (let cx = -9; cx <= 9; cx += 9) {
+          ctx.beginPath(); ctx.roundRect(cx - 4, -11, 8, 22, 3); ctx.fill(); ctx.stroke();
+          line(ctx, [{ x: cx - 2, y: -4 }, { x: cx + 2, y: -4 }], color, 1);
+          line(ctx, [{ x: cx - 2, y: 3 }, { x: cx + 2, y: 3 }], color, 1);
+        }
+      } else if (type === 'output') {
+        ctx.strokeRect(-15, -10, 22, 20); line(ctx, [{ x: -10, y: 0 }, { x: 17, y: 0 }], color, 2);
+        line(ctx, [{ x: 10, y: -7 }, { x: 17, y: 0 }, { x: 10, y: 7 }], color, 2);
+      } else if (type === 'splitter') {
+        line(ctx, [{ x: -16, y: 0 }, { x: -4, y: 0 }, { x: 7, y: -10 }, { x: 16, y: -10 }], color, 2);
+        line(ctx, [{ x: -4, y: 0 }, { x: 7, y: 10 }, { x: 16, y: 10 }], color, 2); dot(ctx, -4, 0, 3, color);
+      } else if (type === 'merger') {
+        line(ctx, [{ x: -16, y: -10 }, { x: -7, y: -10 }, { x: 4, y: 0 }, { x: 16, y: 0 }], color, 2);
+        line(ctx, [{ x: -16, y: 10 }, { x: -7, y: 10 }, { x: 4, y: 0 }], color, 2); dot(ctx, 4, 0, 3, color);
+      }
+      ctx.restore();
     }
     function factoryPort(block, port, direction, camera) {
       const count = direction === 'out' ? BlockData.definitions[block.type].outputPorts : BlockData.definitions[block.type].inputPorts;
@@ -387,6 +480,7 @@
         ctx.fillStyle = definition.color + '30'; ctx.fillRect(left + 1, top + 1, Math.max(0, bw - 2), Math.max(8, 26 * camera.zoom));
         label(ctx, definition.code, left + 9 * camera.zoom, top + 13 * camera.zoom, definition.color, 9);
         label(ctx, definition.name.toUpperCase(), left + bw / 2, top + 35 * camera.zoom, '#d3e3e8', 8, 'center');
+        drawBlockPlan(block.type, left + bw - 18 * camera.zoom, top + 14 * camera.zoom, 10 * camera.zoom, definition.color);
         const contents = Object.entries(block.stock || {}).filter(([, amount]) => amount > 0).slice(0, 2);
         contents.forEach(([resource, amount], index) => label(ctx, `${ResourceData.definitions[resource]?.short || resource} ${Math.floor(amount)}/${block.capacity}`,
           left + 9 * camera.zoom, top + (62 + index * 15) * camera.zoom, ResourceData.definitions[resource]?.color || '#a9c6cf', 8));
@@ -404,6 +498,7 @@
       const top = project(0, 0, cam), scale = cam.zoom;
       ctx.imageSmoothingEnabled = true; ctx.drawImage(terrainTexture, top.x, top.y, terrainTexture.width * scale, terrainTexture.height * scale);
       if (scale > .06) drawGrid(cam, true);
+      drawLogisticsRoutes(cam, planet);
       const bottom = project(terrainTexture.width, terrainTexture.height, cam);
       ctx.strokeStyle = '#a9b9ad40'; ctx.lineWidth = 1; ctx.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
       if (scale >= .15) for (const res of terrainData.resources) {

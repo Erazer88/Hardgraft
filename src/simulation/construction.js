@@ -71,13 +71,32 @@
     }
     const cost = simulation.infiniteMaterials ? {} : copyCost(definition.cost);
     if (!simulation.infiniteMaterials) {
-      for (const [id, amount] of Object.entries(cost)) stock[id] -= amount;
+      for (const [id, amount] of Object.entries(cost)) consume(simulation, planetId, id, amount);
     }
     const id = nextId(simulation);
     const building = { id, entityType: 'building', type, planetId, x, y, status: 'constructing',
       startedAt: simulation.time, completeAt: simulation.time + definition.duration, cost };
+    if (definition.logisticsCapacity) building.logisticsStock = {};
     simulation.buildings[id] = building;
     return { ok: true, building };
+  }
+
+  function consume(simulation, planetId, resourceId, amount) {
+    const stock = inventory(simulation, planetId);
+    if (!stock || !Number.isFinite(amount) || amount <= 0) return 0;
+    const consumed = Math.min(stock[resourceId] || 0, amount);
+    stock[resourceId] = (stock[resourceId] || 0) - consumed;
+    let remaining = consumed;
+    for (const building of list(simulation, planetId)) {
+      if (building.type !== 'depot' || !building.logisticsStock) continue;
+      const stored = Math.min(building.logisticsStock[resourceId] || 0, remaining);
+      if (stored > 0) {
+        building.logisticsStock[resourceId] -= stored;
+        remaining -= stored;
+      }
+      if (!remaining) break;
+    }
+    return consumed;
   }
 
   function progress(simulation, building) {
@@ -108,10 +127,17 @@
       refund[id] = Math.floor(amount * refundRate);
       stock[id] = (stock[id] || 0) + refund[id];
     }
-    if (building.factoryId) delete simulation.factories?.[building.factoryId];
+    if (building.type === 'port') {
+      for (const [id, amount] of Object.entries(building.logisticsStock || {})) stock[id] = (stock[id] || 0) + amount;
+    }
+    if (building.factoryId) {
+      const factory = simulation.factories?.[building.factoryId];
+      for (const shipment of factory?.shipments || []) stock[shipment.item] = (stock[shipment.item] || 0) + shipment.amount;
+      delete simulation.factories?.[building.factoryId];
+    }
     delete simulation.buildings[buildingId];
     return { ok: true, building, refund };
   }
 
-  root.OrbitConstruction = Object.freeze({ inventory, initializePlanet, canAfford, list, place, progress, advance, demolish });
+  root.OrbitConstruction = Object.freeze({ inventory, initializePlanet, consume, canAfford, list, place, progress, advance, demolish });
 })(globalThis);

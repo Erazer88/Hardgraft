@@ -299,7 +299,7 @@
     state.selected = item;
     if (state.level === 'system') state.focusPlanet = item;
     const systemModel = state.level === 'galaxy' ? prepareSystem(item).model : state.system;
-    hud.showSelection(item, { state, systemModel }); updateUI();
+    hud.showSelection(item, { state, systemModel, factoryView: factoryView() }); updateUI();
   }
   function scanAt(point) {
     const from = state.selected && !state.selected.surfacePoint ? state.selected : home;
@@ -565,6 +565,14 @@
     else if (state.level === 'system') enterPlanet();
   };
   $('delete-block-button').onclick = deleteSelectedBlock;
+  $('output-destination').onchange = e => {
+    const view = factoryView(), block = state.selected?.entityType === 'block' ? state.selected : null;
+    if (!view || block?.type !== 'output') return;
+    const result = FactorySimulation.setOutputDestination(state.simulation, view.factory.id, e.target.value || null);
+    if (!result.ok) { toast('Cette destination ne peut pas recevoir les flux.'); updateUI(); return; }
+    persist(); updateUI();
+    toast(result.destination ? `Route automatique vers ${BuildingData.definitions[result.destination.type].name}.` : 'Sortie reliée au stock de la colonie.');
+  };
   $('demolish-button').onclick = demolishSelected;
   $('breadcrumb-galaxy').onclick = () => {
     if (state.level === 'galaxy') { overview(); return; }

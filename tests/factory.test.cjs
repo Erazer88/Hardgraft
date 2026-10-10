@@ -17,7 +17,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 function colony() {
   const simulation = Simulation.create();
   Construction.initializePlanet(simulation, 'home:p-1', true);
-  simulation.buildings['building-1'] = { id: 'building-1', type: 'factory', planetId: 'home:p-1', status: 'complete', cost: {} };
+  simulation.buildings['building-1'] = { id: 'building-1', type: 'factory', planetId: 'home:p-1', status: 'complete', x: 180, y: 180, cost: {} };
   const factory = FactorySimulation.create(simulation, 'building-1');
   return { simulation, factory };
 }
@@ -87,4 +87,33 @@ test('block placement, linking, movement, deletion and paused factory time are d
   const elapsed = factory.elapsed;
   FactorySimulation.advance(simulation, 10, false);
   assert.equal(factory.elapsed, elapsed);
+});
+
+test('the output automatically routes arriving products to a selected depot', () => {
+  const { simulation, factory } = colony();
+  const depot = { id: 'depot-1', type: 'depot', planetId: factory.planetId, status: 'complete', x: 440, y: 340, logisticsStock: {} };
+  simulation.buildings[depot.id] = depot;
+  const result = FactorySimulation.setOutputDestination(simulation, factory.id, depot.id);
+  assert.equal(result.ok, true);
+  assert.ok(result.route.length > 0);
+  for (let i = 0; i < 800; i++) {
+    Simulation.advance(simulation, .05);
+    FactorySimulation.advance(simulation, .05);
+  }
+  assert.ok(depot.logisticsStock.iron_plate > 0);
+  assert.equal(simulation.resources[factory.planetId].iron_plate, depot.logisticsStock.iron_plate);
+  assert.ok(factory.shipments.every(shipment => Number.isFinite(shipment.amount) && shipment.destinationId === depot.id));
+});
+
+test('the shipping port receives cargo without returning it to colony inventory', () => {
+  const { simulation, factory } = colony();
+  const port = { id: 'port-1', type: 'port', planetId: factory.planetId, status: 'complete', x: 470, y: 370, logisticsStock: {} };
+  simulation.buildings[port.id] = port;
+  assert.equal(FactorySimulation.setOutputDestination(simulation, factory.id, port.id).ok, true);
+  for (let i = 0; i < 800; i++) {
+    Simulation.advance(simulation, .05);
+    FactorySimulation.advance(simulation, .05);
+  }
+  assert.ok(port.logisticsStock.iron_plate > 0);
+  assert.equal(simulation.resources[factory.planetId].iron_plate, 0);
 });
