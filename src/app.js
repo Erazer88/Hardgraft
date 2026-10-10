@@ -5,6 +5,8 @@
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
   const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
   const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
+  const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
+  const RoadPlacement = globalThis.OrbitRoadPlacement;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
@@ -72,7 +74,7 @@
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
       terrainTexture = renderer.createTerrainTexture(planet, terrainData);
-      context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture });
+      context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture, roadCostField: null });
     }
     const record = context.terrains.get(planet.id);
     terrainData = record.data;
@@ -109,7 +111,7 @@
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
-    state.surfaceBuildings = [];
+    state.surfaceBuildings = []; state.roadNetworks = {};
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
@@ -241,8 +243,19 @@
       resourceId: preview.resourceId,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
+    let routeMessage = '';
+    if (definition.roadRequired) {
+      const planetId = state.planet.id;
+      const network = state.roadNetworks[planetId] || (state.roadNetworks[planetId] = RoadNetwork.create(planetId));
+      const record = prepareTerrain(state.planet);
+      record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
+      const route = RoadPlacement.connectBuilding({ network, building, definition, terrain: record.data,
+        baseField: record.roadCostField, buildings: state.surfaceBuildings });
+      routeMessage = route.connected ? ' Route raccordée au réseau.' : route.root ? ' Point de départ du réseau routier.' :
+        route.reason === 'no-valid-route' ? ' Aucune route valide vers le réseau n’a été trouvée.' : '';
+    }
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
-    toast(`${definition.label} posé. Assemblage en cours.`); updateUI(); persist();
+    toast(`${definition.label} posé. Assemblage en cours.${routeMessage}`); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);

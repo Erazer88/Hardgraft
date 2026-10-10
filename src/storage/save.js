@@ -2,7 +2,7 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, config.saveVersion];
+  const supportedSaveVersions = [2, 3, 4, config.saveVersion];
 
   function load(storage) {
     try {
@@ -27,7 +27,7 @@
         elapsedMs: Math.max(0, Math.min(mission.duration, now - mission.start))
       })),
       time: state.simulation.time, reveal: Boolean(state.reveal),
-      surfaceBuildings: copy(state.surfaceBuildings || []),
+      surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -48,6 +48,7 @@
     state.exploration.visited = new Set(Array.isArray(saved.visited) ? saved.visited : []);
     state.reveal = Boolean(saved.reveal);
     state.surfaceBuildings = restoreBuildings(saved.surfaceBuildings);
+    state.roadNetworks = restoreRoadNetworks(saved.roadNetworks);
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
@@ -78,6 +79,16 @@
       try { return [Building ? Building.create(saved) : copy(saved)]; }
       catch (_) { return []; }
     });
+  }
+
+  function restoreRoadNetworks(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !root.OrbitRoadNetwork) return {};
+    const result = {};
+    for (const [planetId, saved] of Object.entries(value)) {
+      const network = root.OrbitRoadNetwork.restore(saved, planetId);
+      if (network) result[planetId] = network;
+    }
+    return result;
   }
 
   root.OrbitSave = Object.freeze({ load, save, snapshot, restore });
