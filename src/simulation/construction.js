@@ -142,6 +142,7 @@
     for (const other of Object.values(simulation.buildings || {})) {
       if (other.id !== buildingId && other.outputDestinationId === buildingId) {
         other.outputDestinationId = null; other.outputRoute = null;
+        other.outputRouteTargetId = null; other.outputRouteRevision = -1;
       }
     }
     if (building.factoryId) {

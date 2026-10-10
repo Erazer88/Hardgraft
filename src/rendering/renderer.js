@@ -325,7 +325,7 @@
       if (!route) return [];
       const buildings = Construction.list(state.simulation, planet.id)
         .filter(item => item.status === 'complete' && item.id !== factory.buildingId && item.id !== route.destinationId);
-      const signature = `${factory.outputDestinationId}:${route.length.toFixed(2)}:${route.points?.length || 0}:` +
+      const signature = `${state.simulation.routeRevisions?.[planet.id] || 0}:${factory.outputDestinationId}:${route.length.toFixed(2)}:${route.points?.length || 0}:` +
         buildings.map(item => `${item.id}:${item.type}:${item.x.toFixed(1)}:${item.y.toFixed(1)}`).join('|');
       const cached = surfaceBranchCache.get(factory.id);
       if (cached?.signature === signature) return cached.branches;
@@ -352,7 +352,7 @@
         for (const destinationId of destinationIds) {
           const shipment = (factory.shipments || []).find(item => item.destinationId === destinationId);
           const truck = (factory.trucks || []).find(item => item.destinationId === destinationId && item.route);
-          const route = destinationId === factory.outputDestinationId ? (factory.outputRoute || FactorySimulation.routeGeometry(state.simulation, factory.id)) :
+          const route = destinationId === factory.outputDestinationId ? FactorySimulation.routeGeometry(state.simulation, factory.id) :
             truck?.route || shipment?.route || FactorySimulation.routeGeometry(state.simulation, factory.id, destinationId);
           if (!route) continue;
           const start = project(route.start.x, route.start.y, cam), end = project(route.end.x, route.end.y, cam);
@@ -363,14 +363,7 @@
               Array.from({ length: 33 }, (_, index) => FactorySimulation.routePoint(path, index / 32));
             const screen = samples.map(point => project(point.x, point.y, cam));
             ctx.beginPath(); ctx.moveTo(screen[0].x, screen[0].y);
-            if (screen.length < 3) ctx.lineTo(screen[screen.length - 1].x, screen[screen.length - 1].y);
-            else {
-              for (let i = 1; i < screen.length - 1; i++) {
-                const midpoint = { x: (screen[i].x + screen[i + 1].x) / 2, y: (screen[i].y + screen[i + 1].y) / 2 };
-                ctx.quadraticCurveTo(screen[i].x, screen[i].y, midpoint.x, midpoint.y);
-              }
-              ctx.lineTo(screen[screen.length - 1].x, screen[screen.length - 1].y);
-            }
+            for (let i = 1; i < screen.length; i++) ctx.lineTo(screen[i].x, screen[i].y);
           };
           const strokeRoute = (path, branch = false) => {
             ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -426,18 +419,14 @@
     function drawExtractorRoutes(cam, planet) {
       for (const source of Construction.list(state.simulation, planet.id)) {
         if (source.type !== 'extractor' || !source.outputDestinationId) continue;
-        const route = source.outputRoute || FactorySimulation.extractorRouteGeometry(state.simulation, source.id);
+        const route = FactorySimulation.extractorRouteGeometry(state.simulation, source.id);
         if (!route) continue;
         const samples = route.points?.length > 1 ? route.points :
           Array.from({ length: 33 }, (_, index) => FactorySimulation.routePoint(route, index / 32));
         const points = samples.map(point => project(point.x, point.y, cam));
         ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length - 1; i++) {
-          const mid = { x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2 };
-          ctx.quadraticCurveTo(points[i].x, points[i].y, mid.x, mid.y);
-        }
-        ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
         ctx.strokeStyle = '#17221fcf'; ctx.lineWidth = clamp(cam.zoom * 4, 1.2, 4); ctx.stroke();
         ctx.setLineDash([Math.max(2, cam.zoom * 2.5), Math.max(3, cam.zoom * 5.5)]);
         ctx.strokeStyle = '#d6c77fa8'; ctx.lineWidth = clamp(cam.zoom * .85, .65, 1.1); ctx.stroke(); ctx.setLineDash([]);
@@ -502,7 +491,7 @@
       const definition = BuildingData.definitions[building.type];
       if (!definition) return;
       const p = project(building.x, building.y, cam);
-      const radius = clamp(definition.footprint * cam.zoom * .32, 5.5, 22);
+      const radius = Math.max(5.5, definition.footprint * cam.zoom * .32);
       if (p.x < -radius * 2 || p.y < -radius * 2 || p.x > W + radius * 2 || p.y > H + radius * 2) return;
       const selected = state.selected?.entityType === 'building' && state.selected.id === building.id;
       ctx.save(); ctx.translate(p.x, p.y);

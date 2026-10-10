@@ -13,11 +13,13 @@ for (const relative of ['data/resources.js', 'data/buildings.js', 'data/recipes.
 const { OrbitSimulation: Simulation, OrbitConstruction: Construction,
   OrbitFactorySimulation: FactorySimulation } = context;
 const plain = value => JSON.parse(JSON.stringify(value));
+let nextPlanet = 1;
 
 function colony() {
   const simulation = Simulation.create();
-  Construction.initializePlanet(simulation, 'home:p-1', true);
-  simulation.buildings['building-1'] = { id: 'building-1', type: 'factory', planetId: 'home:p-1', status: 'complete', x: 180, y: 180, cost: {} };
+  const planetId = `home:p-${nextPlanet++}`;
+  Construction.initializePlanet(simulation, planetId, true);
+  simulation.buildings['building-1'] = { id: 'building-1', type: 'factory', planetId, status: 'complete', x: 180, y: 180, cost: {} };
   const factory = FactorySimulation.create(simulation, 'building-1');
   return { simulation, factory };
 }
@@ -48,7 +50,7 @@ test('logistics fleet size, cargo capacity and speed follow the selected data le
 
 test('an empty factory does not create iron or plates from planetary inventory', () => {
   const { simulation, factory } = colony();
-  const stock = simulation.resources['home:p-1'], initialIron = stock.iron;
+  const stock = simulation.resources[factory.planetId], initialIron = stock.iron;
   for (let i = 0; i < 500; i++) {
     Simulation.advance(simulation, .05);
     FactorySimulation.advance(simulation, .05);
@@ -63,7 +65,7 @@ test('an empty factory does not create iron or plates from planetary inventory',
 
 test('infinite-material mode does not bypass the external factory input', () => {
   const { simulation } = colony();
-  const stock = simulation.resources['home:p-1'], initialIron = stock.iron;
+  const stock = simulation.resources[Object.keys(simulation.resources)[0]], initialIron = stock.iron;
   simulation.infiniteMaterials = true;
   for (let i = 0; i < 500; i++) {
     Simulation.advance(simulation, .05);
@@ -76,9 +78,10 @@ test('infinite-material mode does not bypass the external factory input', () => 
 test('a linked extractor mines its finite deposit and supplies the receiving factory', () => {
   const { simulation, factory: first } = colony();
   const planetId = first.planetId;
-  const terrain = { width: 100, height: 100, elevation: new Uint8Array(10000).fill(140), seaLevel: 102,
+  const terrain = { width: 240, height: 160, elevation: new Uint8Array(240 * 160).fill(140), seaLevel: 102,
     resources: [{ id: 'iron', type: 'fer', x: 18, y: 18, abundance: .8 }] };
   FactorySimulation.setTerrain(simulation, planetId, terrain, 3);
+  simulation.buildings[first.buildingId].status = 'constructing';
   const deposit = simulation.deposits[planetId][0], remaining = deposit.remaining;
   const extractor = { id: 'extractor-1', type: 'extractor', planetId, status: 'complete', x: 120, y: 120,
     depositId: deposit.id, resourceId: 'iron', logisticsStock: {} };

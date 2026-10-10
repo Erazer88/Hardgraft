@@ -350,7 +350,7 @@
       const valid = direction === 'out' ? ['factory', 'extractor'].includes(building.type) : building.type === 'factory';
       if (!valid) continue;
       const p = project(building.x, building.y, cam);
-      const radius = clamp((BuildingData.definitions[building.type].footprint || 20) * cam.zoom * .32, 5.5, 22);
+      const radius = Math.max(5.5, (BuildingData.definitions[building.type].footprint || 20) * cam.zoom * .32);
       const offset = radius * 1.08 * (direction === 'out' ? 1 : -1);
       const d = Math.hypot(screenX - (p.x + offset), screenY - p.y);
       if (d < best) { nearest = { building, direction }; best = d; }
@@ -392,6 +392,7 @@
     const name = BuildingData.definitions[building.type]?.name || 'Installation';
     const result = Construction.demolish(state.simulation, building.id);
     if (!result.ok) return;
+    FactorySimulation.refreshRoutes(state.simulation, building.planetId);
     state.selected = null; $('inspector').hidden = true; persist(); updateUI();
     toast(`${name} démoli. Tous les matériaux ont été remboursés.`);
   }
@@ -696,6 +697,9 @@
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
     const completedBuildings = Construction.advance(state.simulation);
     if (completedBuildings.length) {
+      for (const planetId of new Set(completedBuildings.map(building => building.planetId))) {
+        FactorySimulation.refreshRoutes(state.simulation, planetId);
+      }
       const localCompletions = completedBuildings.filter(building => building.planetId === state.planet?.id);
       if (localCompletions.length) toast(localCompletions.length === 1 ?
         `${BuildingData.definitions[localCompletions[0].type]?.name || 'Installation'} opérationnel.` :
