@@ -96,6 +96,7 @@
     Save.restore(state, galaxy, restoring);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
+    state.surfaceBuildings = [];
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
