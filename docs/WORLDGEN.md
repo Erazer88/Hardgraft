@@ -62,7 +62,7 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 profil. L'appel historique sans profil reste accepté. Les gisements possèdent
 un identifiant stable (`iron`, `copper`, `silicon`, `carbon`), leur libellé, leur
 position et leur abondance. L'eau est représentée par les étendues liquides et
-la propriété de la planète ; son exploitation viendra avec les bâtiments.
+la propriété de la planète ; l’exploitation des ressources n’est pas présente dans le prototype actuel.
 
 ## Départ viable et sauvegardes
 
@@ -73,9 +73,9 @@ matières de base. Le générateur place au moins un gisement de chaque solide
 fondamental sur sa carte. `startingPlanetId` identifie ce candidat.
 
 La galaxie garde ses 2 560 identifiants et positions. Les graines, scans et
-visites des sauvegardes précédentes sont donc réutilisés. Les systèmes et les
-surfaces sont recalculés avec les nouveaux paramètres : leur ancien contenu
-n'est pas figé. Il n'existait pas encore de constructions à migrer.
+visites des sauvegardes précédentes sont donc réutilisés. Les systèmes et les surfaces sont recalculés avec les nouveaux paramètres : leur ancien contenu
+n'est pas figé. Les données de navigation des anciennes sauvegardes restent compatibles ;
+les données industrielles éventuelles sont écartées.
 
 ## Validation et limites
 
@@ -98,4 +98,4 @@ sur quatre graines : identifiants, positions et découvertes initiales identique
 Les atmosphères et températures sont des estimations simplifiées. La carte
 reste régionale. Les étoiles multiples, anomalies nouvelles, découverte
 progressive des fiches et exploitation industrielle appartiennent à d'autres
-lots. Prochaine mission : Agent 02, ressources et construction.
+lots. Les ressources naturelles restent visibles dans les cartes. Leur exploitation appartient à une phase de jeu séparée qui repartira d’une base neuve.

@@ -20,23 +20,19 @@ const galaxy = () => ({ systems: [
   { id: 'far', x: 3000, y: 0, discovered: false }
 ] });
 
-test('session and simulation have isolated empty collections without browser APIs', () => {
+test('sessions keep their navigation and orbital state separate', () => {
   const first = State.create(), second = State.create();
-  assert.deepEqual(plain(first.simulation), { time: 0, resources: {}, buildings: {}, factories: {}, nextBuildingId: 1, infiniteMaterials: false });
-  first.simulation.resources.iron = 10; first.simulation.buildings.mine = { status: 'test' };
+  assert.deepEqual(plain(first.simulation), { time: 0 });
+  first.simulation.time = 10;
   first.exploration.visited.add('home');
-  assert.deepEqual(plain(second.simulation.resources), {});
-  assert.deepEqual(plain(second.simulation.buildings), {});
+  assert.equal(second.simulation.time, 0);
   assert.equal(second.exploration.visited.size, 0);
 });
 
-test('simulation time advances explicitly, pauses, and preserves future entity data', () => {
+test('simulation clock advances explicitly and pauses cleanly', () => {
   const simulation = Simulation.create();
-  simulation.resources.iron = 12; simulation.factories.alpha = { rank: 1 };
   Simulation.advance(simulation, .5); Simulation.advance(simulation, 2, false);
   close(simulation.time, .5);
-  assert.equal(simulation.resources.iron, 12);
-  assert.deepEqual(plain(simulation.factories), { alpha: { rank: 1 } });
   for (const invalid of [-1, NaN, Infinity]) assert.throws(() => Simulation.advance(simulation, invalid));
   close(simulation.time, .5);
 });
@@ -118,13 +114,10 @@ test('legacy saves restore exploration and orbital time without losing initial d
   assert.deepEqual([...state.exploration.visited], ['home']);
 });
 
-test('versioned saves round-trip future state without serializing view or Canvas caches', () => {
+test('versioned saves round-trip exploration and clock state without serializing view caches', () => {
   const state = State.create(), world = galaxy();
   state.exploration = Exploration.create(world.systems[0]);
-  state.simulation.resources.iron = 15;
-  state.simulation.buildings.mine = { id: 'mine', progress: .2 };
-  state.simulation.factories.alpha = { id: 'alpha', blocks: [] };
-  state.simulation.infiniteMaterials = true;
+  state.simulation.time = 15;
   state.context = { deliberatelyCircularView: state };
   let stored;
   const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
@@ -132,8 +125,10 @@ test('versioned saves round-trip future state without serializing view or Canvas
   const saved = Save.load(storage), restored = State.create();
   assert.equal(Save.restore(restored, galaxy(), saved), true);
   assert.deepEqual(plain(restored.simulation), plain(state.simulation));
-  state.simulation.resources.iron = 2;
-  assert.equal(restored.simulation.resources.iron, 15);
+  state.simulation.time = 2;
+  assert.equal(restored.simulation.time, 15);
+  assert.equal('simulation' in saved, false);
+  assert.equal('buildings' in saved, false);
   assert.equal('context' in saved, false); assert.equal('camera' in saved, false);
 });
 
