@@ -216,6 +216,7 @@
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
     if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
+    if (building.constructionState === 'complete') return false;
 
     const style = SurfaceStyle.buildings;
     const width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));

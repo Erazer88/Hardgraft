@@ -81,6 +81,7 @@
   function renderAnchors(frame) {
     const ctx = frame.context, style = Style.buildings;
     for (const building of visibleBuildings(frame)) {
+      if (building.constructionState === 'complete') continue;
       const definition = Data.get(building.type);
       if (!definition) continue;
       const card = cardPosition(frame, building, definition), side = card.x > card.anchor.x ? card.x : card.x + card.width;
@@ -94,6 +95,7 @@
   function renderCards(frame) {
     const ctx = frame.context, style = Style.buildings;
     for (const building of visibleBuildings(frame)) {
+      if (building.constructionState === 'complete') continue;
       const definition = Data.get(building.type);
       if (!definition) continue;
       const card = cardPosition(frame, building, definition);
