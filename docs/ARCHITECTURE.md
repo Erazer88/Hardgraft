@@ -6,6 +6,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | --- | --- |
 | `src/data/config.js` | Graine par défaut, caméra, génération de terrain, sauvegardes |
 | `src/data/worldgen.js` | Paramètres des étoiles, systèmes, planètes et gisements naturels |
+| `src/data/surfaceStyle.js` | Contrat visuel de la carte planétaire et niveaux de détail |
 | `src/world.js` | Galaxies, positions orbitales et terrains procéduraux |
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |
