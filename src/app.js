@@ -16,13 +16,23 @@
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
-  let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
+  let lastHUD = 0, lastAutosave = 0, pointerMoved = false, menuStarted = false, storageWarningShown = false, pinch = null;
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
 
   function stored() { try { return Save.load(localStorage); } catch (_) { return null; } }
-  function persist() { try { Save.save(localStorage, state, galaxy); } catch (_) { /* Storage is optional. */ } }
+  function persist() {
+    try {
+      if (!Save.save(localStorage, state, galaxy, performance.now())) {
+        if (!storageWarningShown) toast('Le navigateur bloque la sauvegarde locale de cette page.');
+        storageWarningShown = true;
+      } else storageWarningShown = false;
+    } catch (_) {
+      if (!storageWarningShown) toast('Le navigateur bloque la sauvegarde locale de cette page.');
+      storageWarningShown = true;
+    }
+  }
   const normalizedSeed = globalThis.OrbitState.normalizedSeed;
   function project(x, y, cam = state.camera) { return Camera.project({ x, y }, cam, viewport); }
   function unproject(x, y, cam = state.camera) { return Camera.unproject({ x, y }, cam, viewport); }
@@ -97,7 +107,6 @@
     state.seed = normalizedSeed(seed); galaxy = World.createGalaxy(state.seed);
     home = galaxy.systems.find(s => s.id === galaxy.homeId);
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
-    Save.restore(state, galaxy, restoring);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = [];
@@ -105,8 +114,34 @@
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
+    const restored = Save.restore(state, galaxy, restoring, performance.now());
+    nextBuildingId = state.surfaceBuildings.reduce((next, building) => {
+      const suffix = Number(building.id.match(/-(\d+)$/)?.[1]);
+      return Number.isFinite(suffix) ? Math.max(next, suffix + 1) : next;
+    }, 1);
     renderer.prepareGalaxy(galaxy, state.seed);
-    focusCamera(home.x * .25, home.y * .3, Math.max(.045, fitZoom(6600)), true);
+    const view = restored ? restoring?.view : null;
+    const validCamera = camera => camera && Number.isFinite(camera.x) && Number.isFinite(camera.y) &&
+      Number.isFinite(camera.zoom) && camera.zoom >= Config.camera.minZoom && camera.zoom <= Config.camera.maxZoom;
+    let cameraRestored = false;
+    if (validCamera(view?.camera)) {
+      state.camera = { ...view.camera };
+      state.target = validCamera(view.target) ? { ...view.target } : { ...state.camera };
+      cameraRestored = true;
+      const star = galaxy.systems.find(system => system.id === view.contextStarId && (system.discovered || state.reveal));
+      if (star) {
+        state.context = prepareSystem(star); state.system = state.context.model;
+        const planet = state.context.model.planets.find(item => item.id === view.planetId);
+        if (planet) state.focusPlanet = planet;
+        const trackingPlanet = state.context.model.planets.find(item => item.id === view.trackingPlanetId && item.kind !== 'gazeuse');
+        if (trackingPlanet) {
+          state.focusPlanet = trackingPlanet;
+          state.tracking = { planet: trackingPlanet, context: state.context,
+            position: planetWorldPosition(trackingPlanet, state.context) };
+        }
+      }
+    }
+    if (!cameraRestored) focusCamera(home.x * .25, home.y * .3, Math.max(.045, fitZoom(6600)), true);
     $('seed-input').value = state.seed;
     $('inspector').hidden = true; updateUI(); persist();
   }
@@ -206,7 +241,7 @@
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
-    toast(`${definition.label} posé. Assemblage en cours.`); updateUI();
+    toast(`${definition.label} posé. Assemblage en cours.`); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
@@ -267,6 +302,7 @@
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
+    persist();
   }
   function back() {
     if (state.level === 'surface') {
@@ -278,6 +314,7 @@
       const star = state.context.star; state.focusPlanet = null;
       focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
     } else { clearSelection(); state.tracking = null; overview(); }
+    persist();
   }
   function overview() {
     clearSelection(); state.tracking = null;
@@ -291,11 +328,13 @@
         zoom: Math.min((W - 30) / terrainTexture.width, (H - 200) / terrainTexture.height) });
       focusCamera(camera.x, camera.y, camera.zoom);
     }
+    persist();
   }
   function focusHome() {
     if (state.level === 'galaxy') { state.context = prepareSystem(home); state.tracking = null; select(home); resetCamera(); }
     else if (state.level === 'system') { state.tracking = null; state.focusPlanet = null; resetCamera(); }
     else { followPlanet(state.planet); resetCamera(); }
+    persist();
   }
 
   function select(item) {
@@ -307,7 +346,7 @@
   function scanAt(point) {
     const from = state.selected && !state.selected.surfacePoint ? state.selected : home;
     Exploration.launch(state.exploration, from, point, performance.now());
-    toast('Sonde en route. Relevé du secteur en cours.'); state.tool = 'pan'; updateUI();
+    toast('Sonde en route. Relevé du secteur en cours.'); state.tool = 'pan'; updateUI(); persist();
   }
   function completeMissions(now) {
     for (const result of Exploration.advance(state.exploration, galaxy, now)) {
@@ -366,7 +405,7 @@
     const z = clamp(state.camera.zoom * factor, min, max);
     state.target = Camera.anchoredZoom(state.camera, viewport, z, { x, y });
     state.camera = { ...state.target };
-    updateSceneContext(); updateUI();
+    updateSceneContext(); updateUI(); persist();
   }
   let lastTap = { t: 0, x: 0, y: 0 };
   canvas.addEventListener('pointerdown', e => {
@@ -418,6 +457,7 @@
       clickMap(e.clientX, e.clientY, double); lastTap = { t: now, x: e.clientX, y: e.clientY };
     }
     if (wasPinch) pointerMoved = true;
+    if (pointerMoved) persist();
   }
   canvas.addEventListener('pointerup', e => release(e));
   canvas.addEventListener('pointercancel', e => release(e, true));
@@ -499,7 +539,11 @@
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
   fullscreenMedia?.addEventListener?.('change', updateFullscreenButton);
   updateFullscreenButton();
-  $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
+  $('continue-button').onclick = () => {
+    $('menu-dialog').close();
+    if (storageWarningShown) toast('La sauvegarde locale est indisponible. Vérifiez les réglages de stockage du navigateur.');
+    else if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); }
+  };
   $('reset-system-button').onclick = () => {
     regenerate(state.seed);
     $('continue-button').firstElementChild.textContent = 'Explorer cet univers';
@@ -539,7 +583,9 @@
     viewport.width = W; viewport.height = H; renderer.resize(W, H, DPR);
     if (galaxy) updateUI();
   }
-  addEventListener('resize', resize); document.addEventListener('visibilitychange', () => { persist(); lastTime = 0; });
+  addEventListener('resize', resize);
+  addEventListener('pagehide', persist);
+  document.addEventListener('visibilitychange', () => { persist(); lastTime = 0; });
 
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
@@ -554,6 +600,7 @@
     completeMissions(now);
     state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
     updateSceneContext(); renderUniverse(now);
+    if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     if (now - lastHUD > 350) { updateUI(); lastHUD = now; }
     requestAnimationFrame(frame);
   }
@@ -571,6 +618,8 @@
     getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y), id: p.id, kind: p.kind }; }),
     scanAt, setPause
   });
-  resize(); const previous = stored(); regenerate(previous?.seed ?? 'NEREIDE-01', previous);
-  $('menu-dialog').showModal(); requestAnimationFrame(frame);
+  resize(); const previous = stored(); menuStarted = Boolean(previous);
+  regenerate(previous?.seed ?? 'NEREIDE-01', previous);
+  if (!previous) $('menu-dialog').showModal();
+  requestAnimationFrame(frame);
 })();

@@ -8,7 +8,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/data/worldgen.js` | Paramètres des étoiles, systèmes, planètes et gisements naturels |
 | `src/data/buildings.js` | Définitions déclaratives des bâtiments planétaires |
 | `src/data/surfaceStyle.js` | Contrat visuel de la carte planétaire et niveaux de détail |
-| `assets/buildings/planetary-factory-site.png` | Sprite transparent du site industriel planétaire |
+| `assets/buildings/*.webp` | Sprites transparents des bâtiments planétaires |
 | `src/world.js` | Galaxies, positions orbitales et terrains procéduraux |
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |
@@ -17,7 +17,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/gameplay/buildingPlacement.js` | Validation spatiale du placement sur la surface |
 | `src/gameplay/exploration.js` | Missions de sonde et découverte des systèmes |
 | `src/state.js` | État de navigation et de session |
-| `src/storage/save.js` | Sauvegarde des découvertes, missions et temps orbital |
+| `src/storage/save.js` | Sauvegarde locale de l'exploration, des bâtiments et de la vue |
 | `src/navigation/camera.js` | Projections, repères locaux, zoom et caméra de surface |
 | `src/rendering/renderer.js` | Orchestration du rendu de galaxie, des systèmes et des couches planétaires |
 | `src/rendering/surfaceRenderer.js` | Textures et couches de terrain, relief, sélection et labels planétaires |
@@ -31,10 +31,10 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 
 Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Le placement interactif actuel concerne uniquement les usines ; les routes et véhicules restent des couches sans simulation.
 
-Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`, destinée au tableau `state.surfaceBuildings`; le port routier est un point monde calculé depuis l'ancre, la rotation et le décalage local de la définition. `OrbitBuildingPlacement.validate()` vérifie les limites de la carte, la terre ferme et les chevauchements. L'usine est construite en 3,5 secondes et son état reste en mémoire de session ; la sauvegarde des bâtiments viendra au bloc 20.
+Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`, destinée au tableau `state.surfaceBuildings`; le port routier est un point monde calculé depuis l'ancre, la rotation et le décalage local de la définition. `OrbitBuildingPlacement.validate()` vérifie les limites de la carte, la terre ferme et les chevauchements. L'usine est construite en 3,5 secondes. Les bâtiments, leur progression, les sondes en cours et la vue courante sont conservés dans la sauvegarde locale.
 
 ## État conservé
 
-La sauvegarde contient la graine, les systèmes découverts, les zones sondées, les systèmes visités et l'horloge orbitale. Les anciennes sauvegardes de construction sont invalidées par la version du format afin qu'aucune donnée d'usine ou de route ne réapparaisse dans le nouvel état.
+La sauvegarde contient la graine, les systèmes découverts, les zones sondées, les systèmes visités, les sondes en cours, l'horloge orbitale, les bâtiments et la position de navigation. Elle conserve uniquement des données simples et des identifiants ; les systèmes et terrains sont régénérés depuis la graine.
 
 Les gisements visibles sur les cartes sont des détails du monde généré. Ils n'alimentent aucun inventaire ni aucune chaîne de production.
