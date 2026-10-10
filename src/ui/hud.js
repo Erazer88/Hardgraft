@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const Config = root.OrbitConfig;
+  const BuildingData = root.OrbitBuildingData;
 
   function create(document) {
     const $ = id => document.getElementById(id);
@@ -8,6 +9,17 @@
     const TAU = Math.PI * 2;
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
     let toastTimer;
+
+    const buildOptions = $('build-options');
+    for (const definition of BuildingData.catalog()) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'build-option'; button.dataset.buildingType = definition.id;
+      const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition.shortLabel;
+      const copy = document.createElement('span'); copy.className = 'build-option-copy';
+      const title = document.createElement('strong'); title.textContent = definition.label;
+      const description = document.createElement('small'); description.textContent = definition.description;
+      copy.append(title, description); button.append(icon, copy); buildOptions.append(button);
+    }
 
     function toast(text) {
       $('toast').textContent = text;
@@ -40,14 +52,14 @@
         $('enter-button').hidden = false;
         $('enter-button').disabled = item.kind === 'gazeuse';
       } else if (item.kind === 'building') {
+        const definition = BuildingData.get(item.type);
         const progress = Math.round((item.constructionProgress || 0) * 100);
-        $('selection-type').textContent = 'USINE PLANÉTAIRE';
-        $('selection-name').textContent = item.customName || 'USINE';
+        $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
+        $('selection-name').textContent = item.customName || definition?.label || 'BÂTIMENT';
         $('selection-info').textContent = item.constructionState === 'complete' ?
-          'Structure assemblée. Son espace intérieur accueillera les blocs industriels.' :
-          `Assemblage de la structure en cours : ${progress} %.`;
+          definition?.description || 'Structure assemblée.' : `Assemblage de la structure en cours : ${progress} %.`;
         const count = state.surfaceBuildings.filter(building => building.planetId === state.planet?.id).length;
-        $('selection-meta').textContent = `RANG I   /   ${count} USINE${count > 1 ? 'S' : ''} SUR CE MONDE`;
+        $('selection-meta').textContent = `RANG I   /   ${count} INFRASTRUCTURE${count > 1 ? 'S' : ''} SUR CE MONDE`;
         $('enter-button').hidden = true;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
@@ -81,21 +93,27 @@
       $('scan-button').disabled = level !== 'galaxy';
       $('build-button').hidden = level !== 'surface';
       $('build-button').disabled = level !== 'surface';
+      $('build-button').setAttribute('aria-expanded', String(state.buildMenuOpen));
+      $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
+      $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       $('back-button').disabled = level === 'galaxy';
-      $('pan-button').classList.toggle('active', state.tool === 'pan');
+      $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');
-      $('build-button').classList.toggle('active', state.tool === 'build-factory');
+      $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
       const constructing = (state.surfaceBuildings || []).filter(building =>
         building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
+      const placementLabel = BuildingData.get(state.placement?.type)?.label || 'BÂTIMENT';
+      const buildingWord = constructing > 1 ? 'INFRASTRUCTURES' : 'INFRASTRUCTURE';
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
         state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build-factory' ?
-            (state.placement?.valid ? 'USINE · POSITION VALIDE' : 'USINE · POSITION INVALIDE') :
-              constructing ? `ASSEMBLAGE · ${constructing} USINE${constructing > 1 ? 'S' : ''}` : 'TOPOGRAPHIE LOCALE';
+          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build' ?
+            `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
+              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
       $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
         level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build-factory' ?
-            'Déplacer l’aperçu · Toucher la terre ferme pour poser l’usine · Échap pour annuler' :
+          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build' ?
+            `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
+              'Choisir une infrastructure à poser' :
               'Glisser · Inspecter le relief · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;

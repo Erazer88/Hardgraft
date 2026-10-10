@@ -14,7 +14,7 @@
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
-  let nextFactoryId = 1;
+  let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
   const viewport = { width: W, height: H };
@@ -101,7 +101,7 @@
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = [];
-    state.placement = null; nextFactoryId = 1;
+    state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
@@ -159,7 +159,7 @@
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan'; state.placement = null;
+      state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -180,34 +180,45 @@
   }
 
   function clearSelection() {
-    state.selected = null; state.tool = 'pan'; state.placement = null;
+    state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
   }
-  function updateFactoryPreview(screenX, screenY) {
+  function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
+    const definition = BuildingData.get(type);
+    if (!definition) return;
     const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
     const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
-    const definition = BuildingData.get('factory');
     const validation = BuildingPlacement.validate({ terrain: terrainData,
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
-    state.placement = { type: 'factory', ...position, rotation: 0, ...validation };
+    state.placement = { type, ...position, rotation: 0, ...validation };
   }
-  function placeFactory() {
+  function placeSurfaceBuilding() {
     const preview = state.placement;
     if (!preview?.valid) {
       toast(preview?.reason || 'Choisissez un emplacement valide sur la planète.');
       return;
     }
-    const building = BuildingModel.create({ id: `factory-${state.planet.id}-${nextFactoryId++}`,
-      type: 'factory', planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
+    const definition = BuildingData.get(preview.type);
+    const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
+      type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
-    state.placement = null; state.tool = 'pan';
-    toast('Usine posée. Assemblage en cours.'); updateUI();
+    state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
+    toast(`${definition.label} posé. Assemblage en cours.`); updateUI();
+  }
+  function chooseBuilding(type) {
+    const definition = BuildingData.get(type);
+    if (!definition || state.level !== 'surface') return;
+    state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
+    $('inspector').hidden = true;
+    updateBuildingPreview(W / 2, H / 2, type);
+    toast(`Déplacez l’aperçu de ${definition.label} et touchez pour le poser.`);
+    updateUI();
   }
   function selectSurfaceBuilding(building) {
-    state.tool = 'pan'; state.placement = null;
+    state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     state.selected = { kind: 'building', ...building };
     hud.showSelection(state.selected, { state }); updateUI();
   }
@@ -325,9 +336,10 @@
       if (best) { select(best); if (doubleClick) enterPlanet(); }
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
+      if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
-      if (state.tool === 'build-factory') {
-        updateFactoryPreview(x, y); placeFactory(); return;
+      if (state.tool === 'build') {
+        updateBuildingPreview(x, y); placeSurfaceBuilding(); return;
       }
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
@@ -358,7 +370,7 @@
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
-    if (state.tool === 'build-factory' && pointers.size === 1) updateFactoryPreview(e.clientX, e.clientY);
+    if (state.tool === 'build' && pointers.size === 1) updateBuildingPreview(e.clientX, e.clientY);
     if (pointers.size === 2) {
       const points = [...pointers.values()];
       pinch = { distance: distance(points[0], points[1]), midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
@@ -367,7 +379,7 @@
   });
   canvas.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) {
-      if (state.tool === 'build-factory') updateFactoryPreview(e.clientX, e.clientY);
+      if (state.tool === 'build') updateBuildingPreview(e.clientX, e.clientY);
       return;
     }
     const previous = pointers.get(e.pointerId);
@@ -380,9 +392,9 @@
       state.target = Camera.anchoredZoom(state.camera, viewport, zoom, midpoint, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: nextDistance, midpoint }; pointerMoved = true;
       updateSceneContext(); updateUI();
-    } else if (pointers.size === 1 && state.tool === 'build-factory') {
+    } else if (pointers.size === 1 && state.tool === 'build') {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
-      updateFactoryPreview(e.clientX, e.clientY);
+      updateBuildingPreview(e.clientX, e.clientY);
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       if (pointerMoved) {
@@ -409,18 +421,20 @@
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
   $('build-button').onclick = () => {
     if (state.level !== 'surface') return;
-    if (state.tool === 'build-factory') { state.tool = 'pan'; state.placement = null; }
-    else {
-      state.selected = null; $('inspector').hidden = true;
-      state.tool = 'build-factory'; updateFactoryPreview(W / 2, H / 2);
-      toast('Déplacez l’aperçu sur la terre ferme, puis touchez pour poser l’usine.');
-    }
+    if (state.tool === 'build') { state.tool = 'pan'; state.placement = null; }
+    else state.buildMenuOpen = !state.buildMenuOpen;
+    if (state.buildMenuOpen) { state.tool = 'pan'; state.placement = null; state.selected = null; $('inspector').hidden = true; }
     updateUI();
   };
-  $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
+  $('build-menu-close').onclick = () => { state.buildMenuOpen = false; updateUI(); };
+  $('build-options').addEventListener('click', event => {
+    const option = event.target.closest('[data-building-type]');
+    if (option) chooseBuilding(option.dataset.buildingType);
+  });
+  $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
@@ -432,7 +446,7 @@
     focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
   };
   $('breadcrumb-system').onclick = () => { if (state.level === 'surface') back(); };
-  $('menu-button').onclick = () => { $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
+  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
   $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
   $('reset-system-button').onclick = () => {
     regenerate(state.seed);
@@ -453,6 +467,7 @@
     if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
       if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();

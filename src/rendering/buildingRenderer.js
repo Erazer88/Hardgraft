@@ -8,8 +8,45 @@
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
   }
 
-  function drawGlyph(ctx, x, y, size, color) {
+  function drawGlyph(ctx, x, y, size, color, icon = 'factory') {
     ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+    if (icon === 'extractor') {
+      ctx.moveTo(x - size * .6, y + size * .45); ctx.lineTo(x + size * .45, y - size * .6);
+      ctx.moveTo(x - size * .45, y - size * .45); ctx.lineTo(x + size * .6, y + size * .45);
+      ctx.moveTo(x - size * .72, y + size * .62); ctx.lineTo(x + size * .72, y + size * .62); ctx.stroke(); return;
+    }
+    if (icon === 'surface-port') {
+      ctx.moveTo(x, y + size * .58); ctx.lineTo(x, y - size * .12); ctx.lineTo(x + size * .66, y - size * .12);
+      ctx.moveTo(x - size * .12, y + size * .15); ctx.lineTo(x + size * .72, y + size * .15);
+      ctx.moveTo(x - size * .65, y - size * .48); ctx.quadraticCurveTo(x - size * .42, y - size * .22, x - size * .18, y - size * .48);
+      ctx.moveTo(x + size * .02, y - size * .48); ctx.quadraticCurveTo(x + size * .25, y - size * .22, x + size * .5, y - size * .48);
+      ctx.stroke(); return;
+    }
+    if (icon === 'oil-platform') {
+      ctx.moveTo(x - size * .65, y - size * .12); ctx.lineTo(x + size * .65, y - size * .12);
+      ctx.moveTo(x - size * .5, y - size * .12); ctx.lineTo(x - size * .35, y + size * .62);
+      ctx.moveTo(x + size * .5, y - size * .12); ctx.lineTo(x + size * .35, y + size * .62);
+      ctx.moveTo(x - size * .78, y + size * .62); ctx.lineTo(x + size * .78, y + size * .62);
+      ctx.moveTo(x - size * .22, y - size * .12); ctx.lineTo(x - size * .22, y - size * .55);
+      ctx.moveTo(x - size * .38, y - size * .55); ctx.lineTo(x - size * .06, y - size * .55); ctx.stroke(); return;
+    }
+    if (icon === 'storage') {
+      ctx.ellipse(x, y - size * .38, size * .5, size * .2, 0, 0, Math.PI * 2);
+      ctx.moveTo(x - size * .5, y - size * .38); ctx.lineTo(x - size * .5, y + size * .42);
+      ctx.ellipse(x, y + size * .42, size * .5, size * .2, 0, 0, Math.PI);
+      ctx.moveTo(x + size * .5, y - size * .38); ctx.lineTo(x + size * .5, y + size * .42); ctx.stroke(); return;
+    }
+    if (icon === 'hub') {
+      ctx.arc(x, y + size * .12, size * .48, Math.PI, 0);
+      ctx.moveTo(x, y + size * .12); ctx.lineTo(x, y - size * .62);
+      ctx.moveTo(x - size * .28, y - size * .35); ctx.lineTo(x, y - size * .63); ctx.lineTo(x + size * .28, y - size * .35);
+      ctx.moveTo(x - size * .64, y + size * .4); ctx.lineTo(x + size * .64, y + size * .4); ctx.stroke(); return;
+    }
+    if (icon === 'wind-turbine') {
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y + size * .66); ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y - size * .68);
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x - size * .52, y + size * .12);
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x + size * .52, y + size * .12); ctx.stroke(); return;
+    }
     ctx.moveTo(x - size * .55, y + size * .42); ctx.lineTo(x - size * .55, y - size * .14);
     ctx.lineTo(x - size * .08, y + size * .12); ctx.lineTo(x - size * .08, y - size * .14);
     ctx.lineTo(x + size * .35, y + size * .12); ctx.lineTo(x + size * .35, y - size * .52);
@@ -67,7 +104,7 @@
     ctx.setLineDash([]);
     if (definition.id !== 'factory') {
       const glyphSize = Math.max(7, Math.min(13, Math.min(width, height) * .45));
-      drawGlyph(ctx, 0, 0, glyphSize, color);
+      drawGlyph(ctx, 0, 0, glyphSize, color, definition.icon);
     }
     ctx.restore();
 
@@ -79,12 +116,26 @@
       if (ghost) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
+    const marineOffset = definition.marinePortOffset || definition.seaFacingOffset;
+    const waterPort = building.waterPort || (marineOffset && pointOnBuilding(building, marineOffset));
+    if (waterPort) {
+      const screenPort = frame.project(waterPort.x, waterPort.y);
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(ghost ? [3, 3] : []);
+      ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
     if (ghost) {
       ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
       ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(frame.state.placement?.valid ? 'USINE · EMPLACEMENT VALIDE' : 'USINE · EMPLACEMENT INVALIDE', center.x + 12, center.y - height / 2 - 9);
+      ctx.fillText(`${definition.label} · EMPLACEMENT ${frame.state.placement?.valid ? 'VALIDE' : 'INVALIDE'}`,
+        center.x + 12, center.y - height / 2 - 9);
       ctx.restore();
     }
+  }
+
+  function pointOnBuilding(building, offset) {
+    const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
   }
 
   function cardPosition(frame, building, definition) {
@@ -103,7 +154,7 @@
       if (definition) drawFootprint(frame, building, definition);
     }
     const preview = frame.state.placement;
-    if (frame.state.tool === 'build-factory' && preview) {
+    if (frame.state.tool === 'build' && preview) {
       const definition = Data.get(preview.type);
       if (definition) drawFootprint(frame, preview, definition, true);
     }
@@ -139,7 +190,7 @@
       const iconX = card.x + style.cardPaddingPx + style.iconRadiusPx, iconY = card.y + card.height / 2 - 3;
       ctx.fillStyle = '#102232'; ctx.strokeStyle = style.cardOutlineColor; ctx.lineWidth = .9;
       ctx.beginPath(); ctx.arc(iconX, iconY, style.iconRadiusPx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc');
+      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc', definition.icon);
       ctx.font = `${style.titleSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);

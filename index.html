@@ -32,13 +32,17 @@
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
+  <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
+    <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong>INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
+    <div class="build-options" id="build-options"></div>
+  </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
     <div class="toolbox panel">
       <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
       <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
       <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
-      <button id="build-button" class="tool-button" aria-label="Poser une usine sur la planète" title="Poser une usine" hidden><svg viewBox="0 0 24 24"><path d="M3 20V9l5 3V8l5 4V5h5l3 4v11H3Z"/><path d="M7 16v4m5-4v4m5-4v4M15 8h3"/></svg></button>
+      <button id="build-button" class="tool-button" aria-label="Ouvrir le catalogue des bâtiments" title="Construire" hidden><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button>
       <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
       <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
     </div>

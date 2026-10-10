@@ -8,7 +8,7 @@
   <title>Néréide — Atlas orbital</title>
   <style>:root{color-scheme:dark;--bg:#101b28;--panel:rgba(9,20,31,.86);--line:rgba(139,177,201,.19);--ink:#d1e2ed;--muted:#7e9bad;--accent:#efa35a;--cyan:#90c3d6;--mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--mono);color:var(--ink);overscroll-behavior:none}button,input{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:4px}button{border:0;background:none;-webkit-tap-highlight-color:transparent}button:disabled{opacity:.3;cursor:default}svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}#universe{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block}.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(3,10,18,.22) 100%)}.panel{border:1px solid var(--line);border-radius:7px;background:var(--panel);backdrop-filter:blur(12px);box-shadow:0 8px 35px #00000014}.hud{position:absolute;top:calc(22px + var(--safe-top));left:26px;right:26px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}.hud>*{pointer-events:auto}.telemetry{width:236px;padding:15px 17px}.telemetry-heading{display:flex;gap:9px;align-items:center;letter-spacing:2px;font-size:9px;color:var(--muted);padding-bottom:13px;border-bottom:1px solid var(--line)}.version{margin-left:auto;color:#47697c}.signal-light{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px #efa35a40;flex-shrink:0}.telemetry-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;gap:10px;font-size:16px;font-weight:400}.telemetry-row .label,.telemetry-row.secondary{font-size:10px;letter-spacing:1px;color:var(--muted)}.telemetry-row.secondary{margin-top:9px;font-size:9px}.header-actions{display:flex;gap:8px}.icon-button{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:44px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:#a5c2d4;font-size:24px;transition:background .15s,border-color .15s}.icon-button:hover,.tool-button:hover{background:#203545;border-color:#7995a66b}.breadcrumb{position:absolute;top:calc(164px + var(--safe-top));left:27px;display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1.3px;color:var(--muted);max-width:calc(100% - 54px)}.breadcrumb button{padding:8px 0;letter-spacing:inherit;font-size:inherit;color:inherit}.breadcrumb button:hover{color:var(--ink)}.slash{color:#426174;margin:0 10px}.view-heading{position:absolute;left:27px;top:calc(205px + var(--safe-top));pointer-events:none}.view-heading span{font-size:9px;letter-spacing:2.7px;color:var(--muted)}.view-heading h1{font-size:21px;font-weight:400;letter-spacing:.5px;margin:8px 0 0;color:#c5d6df}.corner-note{position:absolute;top:calc(85px + var(--safe-top));right:27px;display:flex;align-items:center;gap:9px;color:#67869b;font-size:9px;letter-spacing:1.5px;pointer-events:none}.corner-note .signal-light{background:#7294a3;box-shadow:none}.controls{position:absolute;left:26px;right:26px;bottom:calc(55px + var(--safe-bottom));display:flex;align-items:center;justify-content:space-between;pointer-events:none;gap:14px}.controls>*{pointer-events:auto}.toolbox{display:flex;padding:5px;gap:3px}.tool-button{width:43px;height:42px;display:flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:4px;color:#92afc1;position:relative}.tool-button.active{color:var(--accent);background:#d0925010}.tool-button.active:after{content:"";position:absolute;bottom:2px;left:13px;right:13px;height:2px;background:var(--accent);border-radius:2px}.scale-controls{display:flex;align-items:center;gap:12px}.scale-legend{width:96px;display:flex;flex-direction:column;gap:7px;align-items:center;white-space:nowrap}.scale-line{height:6px;width:100%;border:1px solid #7e9aaf;border-top:none;position:relative}.scale-line:before{content:"";position:absolute;left:50%;height:6px;border-left:1px solid #7e9aaf}.scale-legend span{font-size:9px;letter-spacing:1px;color:#829db0}.gesture-hint{position:absolute;bottom:calc(30px + var(--safe-bottom));left:27px;right:27px;pointer-events:none;font-size:9px;letter-spacing:.4px;color:#628193;text-align:center}.gesture-hint span{margin:0 8px;color:#48687b}.inspector{position:absolute;bottom:calc(132px + var(--safe-bottom));left:26px;width:320px;padding:16px 18px 18px}.inspector-top{display:flex;align-items:center;justify-content:space-between;color:#839cab;font-size:9px;letter-spacing:1.8px}.text-icon{font-size:21px;color:var(--muted);height:25px;width:27px;line-height:1;padding:0}.inspector h2{font-size:21px;font-weight:400;letter-spacing:.5px;margin:6px 0 8px}.inspector p{font-size:11px;line-height:1.65;color:#a6bac7;margin:0 0 12px}.selection-meta{display:flex;gap:17px;font-size:9px;color:var(--muted);letter-spacing:.3px;margin-bottom:17px;flex-wrap:wrap}.primary-button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;gap:15px;border:1px solid #d49a576b;border-radius:4px;color:#eab179;background:#ba7d2712;font-size:11px;letter-spacing:.3px;transition:background .2s}.primary-button:hover{background:#be822c25}.primary-button span:last-child{font-size:19px;line-height:15px}.toast{position:absolute;left:50%;bottom:calc(125px + var(--safe-bottom));transform:translate(-50%,10px);background:#0b1928e8;border:1px solid #7fabc03b;border-radius:5px;padding:12px 16px;max-width:calc(100% - 36px);font-size:11px;line-height:1.5;color:#b3cbd8;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s}.toast.visible{opacity:1;transform:translate(-50%,0)}dialog{margin:auto;padding:0;border:1px solid #829eaf35;border-radius:12px;background:#0b1724ee;color:var(--ink);width:min(430px,calc(100% - 36px));max-height:calc(100dvh - 48px);box-shadow:0 25px 120px #0008;overflow:auto}dialog::backdrop{background:#05101a68;backdrop-filter:blur(5px)}.menu-card{padding:28px 34px 26px}.menu-kicker{display:flex;align-items:center;gap:9px;color:#83a1b4;font-size:9px;letter-spacing:1.1px}.menu-build{margin-left:auto;font-size:8px;color:#637e92}.brand-symbol{width:94px;height:94px;position:relative;margin:29px auto 23px}.brand-symbol span{position:absolute;inset:0;border:1px solid #799bad40;border-radius:50%}.brand-symbol span:nth-child(2){inset:16px}.brand-symbol span:nth-child(3){inset:33px;border-color:#d79d5a91}.brand-symbol:before,.brand-symbol:after{content:"";position:absolute;background:#799bad40}.brand-symbol:before{height:1px;left:-11px;right:-11px;top:47px}.brand-symbol:after{width:1px;top:-11px;bottom:-11px;left:47px}.brand-symbol i{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--accent);top:10px;right:19px;box-shadow:0 0 8px #dca56866}.eyebrow{font-size:9px;letter-spacing:4px;text-align:center;color:#6f93a8;margin:0 0 12px}.menu-card h2{font-family:var(--mono);font-size:36px;font-weight:300;letter-spacing:7px;text-align:center;margin:0 0 15px;color:#d0e0e9}.menu-description{text-align:center;font-size:12px;color:#8ca6b7;line-height:1.9;margin:0 0 26px}.menu-card>.primary-button{padding:16px;font-size:12px}.seed-controls{margin-top:25px}.seed-controls label{font-size:8px;letter-spacing:1.8px;color:#6d8ba0}.seed-row{display:flex;margin-top:9px;border:1px solid #829eaf27;border-radius:4px;overflow:hidden}.seed-row input{background:#101e2b;color:#b4ccd9;min-width:0;width:100%;padding:12px;font-size:11px;letter-spacing:1px;border:0}.seed-row button{width:45px;flex-shrink:0;color:#a1c0d1;background:#101e2b;border-left:1px solid #829eaf27;font-size:23px}.seed-row button:hover{background:#1c3244}.seed-controls p{font-size:9px;color:#607f94;margin:7px 0 0}.menu-options{margin:21px 0;display:flex;flex-direction:column;gap:15px}.menu-options label{font-size:10px;color:#9ab2c1;display:flex;gap:9px;align-items:center;cursor:pointer}.menu-options input{accent-color:#d8a36b;width:14px;height:14px;margin:0}.menu-footnote{display:flex;justify-content:space-between;border-top:1px solid #829eaf22;padding-top:18px;font-size:8px;letter-spacing:1px;color:#617e90}.menu-footnote span:nth-child(even){color:#9e846c}[hidden]{display:none!important}
-body[data-tool="build-factory"] #universe{cursor:crosshair}
+body[data-tool="build"] #universe{cursor:crosshair}
 .toast.above-inspector{bottom:calc(358px + var(--safe-bottom))}
 body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
 @media(min-width:900px){.view-heading{top:calc(50% - 100px);left:29px}.view-heading h1{font-size:24px}.breadcrumb{top:calc(168px + var(--safe-top))}.gesture-hint{text-align:left}.inspector{width:330px}.menu-card{padding:30px 39px}}
@@ -19,6 +19,14 @@ body[data-level="surface"] #stat-value{font-size:11px;white-space:nowrap}
 .game-version{position:absolute;left:14px;right:14px;bottom:calc(9px + var(--safe-bottom));font-size:9px;line-height:12px;letter-spacing:.4px;color:#a5bdcd;text-align:center;pointer-events:none}
 body[data-level="surface"] .corner-note{display:none}
 @media(max-width:600px){body[data-level="surface"] .breadcrumb{top:calc(166px + var(--safe-top))}body[data-level="surface"] .view-heading{top:calc(202px + var(--safe-top))}}
+.build-menu{position:fixed;z-index:18;left:16px;bottom:calc(112px + var(--safe-bottom));width:min(380px,calc(100% - 32px));max-height:min(55vh,440px);overflow:auto;padding:10px;background:#0a1724ed;border:1px solid #819eae38;border-radius:7px;box-shadow:0 12px 36px #0008;backdrop-filter:blur(12px)}
+.build-menu-header{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 9px 5px;border-bottom:1px solid #819eae25;margin-bottom:8px}
+.build-menu-header div{display:flex;flex-direction:column;gap:3px}.build-menu-header span{font-size:7px;letter-spacing:1.6px;color:#718ea0}.build-menu-header strong{font-size:10px;letter-spacing:1.3px;color:#c5d5dd;font-weight:500}
+.build-menu-header .text-icon{font-size:19px}.build-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.build-option{display:flex;min-width:0;align-items:center;gap:8px;padding:8px 7px;border:1px solid #829eaf22;border-radius:4px;background:#101e2b8a;color:#b7cbd4;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
+.build-option:hover,.build-option:focus-visible{border-color:#d39a5d9c;background:#d39a5d12;outline:none}.build-option-icon{display:grid;place-items:center;flex:0 0 27px;height:27px;border:1px solid #8ba4b240;border-radius:50%;color:#a9c1ce;font:8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:-.4px}
+.build-option-copy{display:flex;min-width:0;flex-direction:column;gap:3px}.build-option-copy strong{overflow:hidden;color:#c7d5dc;font-size:8px;font-weight:500;letter-spacing:.55px;text-overflow:ellipsis;white-space:nowrap}.build-option-copy small{color:#718999;font-size:7px;line-height:1.35}
+@media(max-width:600px){.build-menu{left:12px;bottom:calc(108px + var(--safe-bottom));width:calc(100% - 24px);max-width:440px;max-height:min(48vh,400px);padding:9px}.build-options{gap:5px}.build-option{padding:7px 6px;gap:6px}.build-option-icon{flex-basis:25px;height:25px}.build-option-copy strong{font-size:7.5px}.build-option-copy small{font-size:6.5px}}
 .menu-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:11px 13px;border:1px solid #829eaf27;border-radius:4px;color:#819cad;background:#0b17244d;font-size:9px;letter-spacing:.7px;text-align:left}.menu-toggle:hover{background:#101e2b}.menu-toggle[aria-pressed="true"]{color:#eab179;border-color:#d49a576b;background:#ba7d2712}.menu-toggle-state{font-size:8px;letter-spacing:1px}.menu-reset-note{margin:6px 0 0;font-size:8px;line-height:1.5;color:#607f94}
 </style>
 </head>
@@ -46,13 +54,17 @@ body[data-level="surface"] .corner-note{display:none}
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
+  <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
+    <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong>INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
+    <div class="build-options" id="build-options"></div>
+  </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
     <div class="toolbox panel">
       <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
       <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
       <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
-      <button id="build-button" class="tool-button" aria-label="Poser une usine sur la planète" title="Poser une usine" hidden><svg viewBox="0 0 24 24"><path d="M3 20V9l5 3V8l5 4V5h5l3 4v11H3Z"/><path d="M7 16v4m5-4v4m5-4v4M15 8h3"/></svg></button>
+      <button id="build-button" class="tool-button" aria-label="Ouvrir le catalogue des bâtiments" title="Construire" hidden><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button>
       <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
       <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
     </div>
@@ -77,7 +89,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.19.6";
+globalThis.OrbitVersion = "0.19.7";
 
 </script>
   <script>
@@ -142,64 +154,99 @@ globalThis.OrbitVersion = "0.19.6";
 (function (root) {
   'use strict';
 
-  // Footprints and port offsets use the planet surface's world coordinates:
-  // the same map space as terrainTexture.width/height, never screen pixels.
+  // Footprints, points of connection, and offsets use planetary world units.
+  // Simulation behavior is declared here but implemented in later blocks.
   const definitions = {
+    factory: {
+      id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
+      description: 'Transforme les minerais en matériaux.',
+      functions: { transformsMinerals: true },
+      footprint: { width: 34, height: 28 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 14 },
+      placementRules: { landOnly: true }, preferredTerrain: ['flat']
+    },
     extractor: {
-      id: 'extractor', label: 'EXTRACTEUR', category: 'resource', icon: 'extractor',
+      id: 'extractor', label: 'EXTRACTEUR', shortLabel: 'EX', category: 'resource', icon: 'extractor',
+      description: 'Extrait les minerais des gisements compatibles.',
+      functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
-      placementRules: { landOnly: true, requiresDeposit: true },
+      placementRules: { landOnly: true, requiresDeposit: true, depositMargin: 12 },
       preferredTerrain: ['deposit', 'flat']
     },
+    surface_port: {
+      id: 'surface_port', label: 'PORT', shortLabel: 'PO', category: 'logistics', icon: 'surface-port',
+      description: 'Relie les quais maritimes au réseau de camions.',
+      functions: { transfersShipTruck: true },
+      footprint: { width: 36, height: 28 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 16 }, seaFacingOffset: { x: 0, y: -14 },
+      placementRules: { landOnly: true, coastRequired: true },
+      preferredTerrain: ['coast', 'flat']
+    },
+    oil_platform: {
+      id: 'oil_platform', label: 'PLATEFORME PÉTROLIÈRE', shortLabel: 'PP', category: 'resource', icon: 'oil-platform',
+      description: 'Extrait les ressources des grands fonds marins.',
+      functions: { extractsOffshoreResources: true },
+      footprint: { width: 46, height: 38 }, roadRequired: false,
+      marinePortOffset: { x: 0, y: -18 },
+      placementRules: { deepWaterOnly: true, deepWaterMargin: 10 },
+      preferredTerrain: ['deep-water']
+    },
+    storage: {
+      id: 'storage', label: 'DÉPÔT', shortLabel: 'DÉ', category: 'logistics', icon: 'storage',
+      description: 'Stocke tous types de matériaux acheminés vers le site.',
+      functions: { storesAllMaterials: true },
+      footprint: { width: 28, height: 24 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 12 },
+      placementRules: { landOnly: true }, preferredTerrain: ['flat']
+    },
+    hub: {
+      id: 'hub', label: 'HUB ORBITAL', shortLabel: 'HO', category: 'logistics', icon: 'hub',
+      description: 'Prépare les matériaux pour leur lancement en orbite.',
+      functions: { exportsToOrbit: true },
+      footprint: { width: 42, height: 36 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 18 },
+      placementRules: { landOnly: true }, preferredTerrain: ['flat']
+    },
+    wind_turbine: {
+      id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
+      description: 'Produit de l’énergie sur la terre ferme.',
+      functions: { generatesEnergy: true },
+      footprint: { width: 22, height: 30 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 15 },
+      placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
+    },
+    // Retained for existing building data; it is not part of the current build menu.
     geothermal: {
-      id: 'geothermal', label: 'GÉOTHERMIE', category: 'energy', icon: 'geothermal',
+      id: 'geothermal', label: 'GÉOTHERMIE', shortLabel: 'GT', category: 'energy', icon: 'geothermal',
+      description: 'Centrale géothermique.', functions: { generatesEnergy: true },
       footprint: { width: 30, height: 28 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 14 },
       placementRules: { landOnly: true, prefersElevatedTerrain: true },
       preferredTerrain: ['geothermal', 'elevated']
-    },
-    factory: {
-      id: 'factory', label: 'USINE', category: 'industry', icon: 'factory',
-      footprint: { width: 34, height: 28 }, roadRequired: true,
-      roadPortOffset: { x: 0, y: 14 },
-      placementRules: { landOnly: true },
-      preferredTerrain: ['flat']
-    },
-    storage: {
-      id: 'storage', label: 'STOCKAGE', category: 'logistics', icon: 'storage',
-      footprint: { width: 28, height: 24 }, roadRequired: true,
-      roadPortOffset: { x: 0, y: 12 },
-      placementRules: { landOnly: true },
-      preferredTerrain: ['flat']
-    },
-    hub: {
-      id: 'hub', label: 'HUB', category: 'logistics', icon: 'hub',
-      footprint: { width: 42, height: 36 }, roadRequired: false,
-      roadPortOffset: { x: 0, y: 18 },
-      placementRules: { landOnly: true },
-      preferredTerrain: ['flat']
-    },
-    surface_port: {
-      id: 'surface_port', label: 'PORT DE SURFACE', category: 'logistics', icon: 'surface-port',
-      footprint: { width: 36, height: 28 }, roadRequired: true,
-      roadPortOffset: { x: 0, y: 14 },
-      placementRules: { coastRequired: true },
-      preferredTerrain: ['coast', 'flat']
     }
   };
+  const catalogOrder = Object.freeze([
+    'factory', 'extractor', 'surface_port', 'oil_platform', 'storage', 'hub', 'wind_turbine'
+  ]);
 
   for (const definition of Object.values(definitions)) {
     Object.freeze(definition.footprint);
     if (definition.roadPortOffset) Object.freeze(definition.roadPortOffset);
+    if (definition.seaFacingOffset) Object.freeze(definition.seaFacingOffset);
+    if (definition.marinePortOffset) Object.freeze(definition.marinePortOffset);
     Object.freeze(definition.placementRules);
     Object.freeze(definition.preferredTerrain);
+    Object.freeze(definition.functions);
+    if (definition.extracts) Object.freeze(definition.extracts);
     Object.freeze(definition);
   }
   Object.freeze(definitions);
 
   root.OrbitBuildingData = Object.freeze({
     definitions,
+    catalogOrder,
+    catalog() { return catalogOrder.map(type => definitions[type]); },
     get(type) { return Object.prototype.hasOwnProperty.call(definitions, type) ? definitions[type] : null; }
   });
 })(globalThis);
@@ -729,15 +776,16 @@ globalThis.OrbitVersion = "0.19.6";
     const createdAt = properties.createdAt ?? Date.now();
     if (!isFiniteNumber(createdAt)) throw new TypeError('Creation time must be a finite timestamp');
 
-    const offset = definition.roadPortOffset;
-    let roadPort = null;
-    if (offset) {
+    const transformOffset = offset => {
+      if (!offset) return null;
       const cos = Math.cos(rotation), sin = Math.sin(rotation);
-      roadPort = {
+      return {
         x: properties.x + offset.x * cos - offset.y * sin,
         y: properties.y + offset.x * sin + offset.y * cos
       };
-    }
+    };
+    const roadPort = transformOffset(definition.roadPortOffset);
+    const waterPort = transformOffset(definition.marinePortOffset || definition.seaFacingOffset);
 
     const inventory = properties.inventory ?? {};
     if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) throw new TypeError('Building inventory must be a resource map');
@@ -758,6 +806,7 @@ globalThis.OrbitVersion = "0.19.6";
       constructionState,
       constructionProgress: clamp(progress, 0, 1),
       roadPort,
+      waterPort,
       logisticsNodeId,
       inventory: { ...inventory },
       energyUse,
@@ -839,6 +888,7 @@ globalThis.OrbitVersion = "0.19.6";
   'use strict';
 
   const BuildingModel = root.OrbitSurfaceBuilding;
+  const TAU = Math.PI * 2;
   const point = (x, y, origin, angle) => {
     const cos = Math.cos(angle), sin = Math.sin(angle);
     return { x: origin.x + x * cos - y * sin, y: origin.y + x * sin + y * cos };
@@ -871,43 +921,101 @@ globalThis.OrbitVersion = "0.19.6";
     return values;
   }
 
+  function elevationAt(terrain, textureScale, x, y) {
+    const cellX = Math.floor(x / textureScale), cellY = Math.floor(y / textureScale);
+    if (cellX < 0 || cellY < 0 || cellX >= terrain.width || cellY >= terrain.height) return null;
+    return terrain.elevation[cellY * terrain.width + cellX];
+  }
+
+  function footprintFits(terrain, textureScale, building, definition, mode = 'land', deepWaterMargin = 10) {
+    const corners = footprint(building, definition);
+    const worldWidth = terrain.width * textureScale, worldHeight = terrain.height * textureScale;
+    if (corners.some(p => p.x < 0 || p.y < 0 || p.x > worldWidth || p.y > worldHeight)) return false;
+
+    const step = Math.max(textureScale, 8);
+    const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+    for (const localY of sampleAxis(halfHeight, step)) for (const localX of sampleAxis(halfWidth, step)) {
+      const p = point(localX, localY, building, building.rotation || 0), height = elevationAt(terrain, textureScale, p.x, p.y);
+      if (height === null) return false;
+      if (mode === 'land' && height <= terrain.seaLevel) return false;
+      if (mode === 'deep-water' && height > terrain.seaLevel - deepWaterMargin) return false;
+    }
+    return true;
+  }
+
+  function coastFacingRotation(terrain, textureScale, position, definition) {
+    const shoreClearance = Math.max(8, textureScale * 2);
+    const facing = definition.seaFacingOffset || { x: 0, y: -definition.footprint.height / 2 };
+    const facingLength = Math.hypot(facing.x, facing.y) || 1;
+    const facingNormal = { x: facing.x / facingLength, y: facing.y / facingLength };
+    const tries = 72;
+    for (let i = 0; i < tries; i++) {
+      const rotation = TAU * i / tries, candidate = { ...position, rotation };
+      if (!footprintFits(terrain, textureScale, candidate, definition, 'land')) continue;
+      const seaPoint = point(facing.x + facingNormal.x * shoreClearance,
+        facing.y + facingNormal.y * shoreClearance, candidate, rotation);
+      const roadPoint = point(-facing.x - facingNormal.x * shoreClearance,
+        -facing.y - facingNormal.y * shoreClearance, candidate, rotation);
+      const seaHeight = elevationAt(terrain, textureScale, seaPoint.x, seaPoint.y);
+      const landHeight = elevationAt(terrain, textureScale, roadPoint.x, roadPoint.y);
+      if (seaHeight !== null && seaHeight <= terrain.seaLevel && landHeight !== null && landHeight > terrain.seaLevel) {
+        return rotation;
+      }
+    }
+    return null;
+  }
+
+  function hasCompatibleDeposit(terrain, textureScale, position, definition, rules) {
+    const allowed = new Set(definition.extracts || []), margin = rules.depositMargin || 0;
+    const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+    const cos = Math.cos(position.rotation || 0), sin = Math.sin(position.rotation || 0);
+    return (terrain.resources || []).some(resource => {
+      if (!allowed.has(resource.id)) return false;
+      const dx = resource.x * textureScale - position.x, dy = resource.y * textureScale - position.y;
+      const localX = dx * cos + dy * sin, localY = -dx * sin + dy * cos;
+      const outsideX = Math.max(0, Math.abs(localX) - halfWidth);
+      const outsideY = Math.max(0, Math.abs(localY) - halfHeight);
+      return Math.hypot(outsideX, outsideY) <= margin;
+    });
+  }
+
   function validate(options) {
     const { terrain, textureScale, definition, position, rotation = 0, planetId, buildings = [] } = options;
     if (!terrain || !definition || !position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-      return { valid: false, reason: 'Position de construction indisponible.' };
+      return { valid: false, reason: 'Position de construction indisponible.', rotation };
     }
 
-    const candidate = { ...position, rotation };
-    const corners = footprint(candidate, definition);
-    const worldWidth = terrain.width * textureScale, worldHeight = terrain.height * textureScale;
-    if (corners.some(p => p.x < 0 || p.y < 0 || p.x > worldWidth || p.y > worldHeight)) {
-      return { valid: false, reason: 'Le bâtiment dépasse la surface cartographiée.' };
-    }
-
-    if (definition.placementRules.landOnly) {
-      const step = Math.max(textureScale, 8);
-      const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
-      for (const localY of sampleAxis(halfHeight, step)) for (const localX of sampleAxis(halfWidth, step)) {
-        const p = point(localX, localY, candidate, rotation);
-        const x = Math.floor(p.x / textureScale), y = Math.floor(p.y / textureScale);
-        if (x < 0 || y < 0 || x >= terrain.width || y >= terrain.height ||
-            terrain.elevation[y * terrain.width + x] <= terrain.seaLevel) {
-          return { valid: false, reason: 'Le bâtiment doit tenir entièrement sur la terre ferme.' };
-        }
+    const rules = definition.placementRules || {};
+    let resolvedRotation = rotation;
+    if (rules.coastRequired) {
+      resolvedRotation = coastFacingRotation(terrain, textureScale, position, definition);
+      if (resolvedRotation === null) {
+        return { valid: false, reason: 'Le port doit être placé au bord de l’eau, tourné vers la mer.', rotation };
       }
+    }
+
+    const candidate = { ...position, rotation: resolvedRotation };
+    if (rules.landOnly && !footprintFits(terrain, textureScale, candidate, definition, 'land')) {
+      return { valid: false, reason: 'Le bâtiment doit tenir entièrement sur la terre ferme.', rotation: resolvedRotation };
+    }
+    if (rules.deepWaterOnly && !footprintFits(terrain, textureScale, candidate, definition, 'deep-water', rules.deepWaterMargin || 10)) {
+      return { valid: false, reason: 'La plateforme doit tenir entièrement en mer profonde.', rotation: resolvedRotation };
+    }
+    if (rules.requiresDeposit && !hasCompatibleDeposit(terrain, textureScale, candidate, definition, rules)) {
+      return { valid: false, reason: 'Placez l’extracteur sur un gisement de minerai compatible.', rotation: resolvedRotation };
     }
 
     for (const existing of buildings) {
       if (existing.planetId !== planetId) continue;
       const existingDefinition = BuildingModel.getDefinition(existing.type);
       if (existingDefinition && overlaps(candidate, definition, existing, existingDefinition)) {
-        return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.' };
+        return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.', rotation: resolvedRotation };
       }
     }
-    return { valid: true, reason: '' };
+    return { valid: true, reason: '', rotation: resolvedRotation };
   }
 
-  root.OrbitBuildingPlacement = Object.freeze({ validate });
+  root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation });
 })(globalThis);
 
 </script>
@@ -925,7 +1033,7 @@ globalThis.OrbitVersion = "0.19.6";
       exploration: root.OrbitExploration.create(), level: 'galaxy', selected: null,
       system: null, planet: null, camera: { x: 0, y: 0, zoom: .1 }, target: { x: 0, y: 0, zoom: .1 },
       paused: false, reveal: false, tool: 'pan', context: null,
-      tracking: null, focusPlanet: null, surfaceBuildings: [], placement: null };
+      tracking: null, focusPlanet: null, surfaceBuildings: [], placement: null, buildMenuOpen: false };
   }
 
   root.OrbitState = Object.freeze({ create, normalizedSeed });
@@ -1041,8 +1149,45 @@ globalThis.OrbitVersion = "0.19.6";
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
   }
 
-  function drawGlyph(ctx, x, y, size, color) {
+  function drawGlyph(ctx, x, y, size, color, icon = 'factory') {
     ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+    if (icon === 'extractor') {
+      ctx.moveTo(x - size * .6, y + size * .45); ctx.lineTo(x + size * .45, y - size * .6);
+      ctx.moveTo(x - size * .45, y - size * .45); ctx.lineTo(x + size * .6, y + size * .45);
+      ctx.moveTo(x - size * .72, y + size * .62); ctx.lineTo(x + size * .72, y + size * .62); ctx.stroke(); return;
+    }
+    if (icon === 'surface-port') {
+      ctx.moveTo(x, y + size * .58); ctx.lineTo(x, y - size * .12); ctx.lineTo(x + size * .66, y - size * .12);
+      ctx.moveTo(x - size * .12, y + size * .15); ctx.lineTo(x + size * .72, y + size * .15);
+      ctx.moveTo(x - size * .65, y - size * .48); ctx.quadraticCurveTo(x - size * .42, y - size * .22, x - size * .18, y - size * .48);
+      ctx.moveTo(x + size * .02, y - size * .48); ctx.quadraticCurveTo(x + size * .25, y - size * .22, x + size * .5, y - size * .48);
+      ctx.stroke(); return;
+    }
+    if (icon === 'oil-platform') {
+      ctx.moveTo(x - size * .65, y - size * .12); ctx.lineTo(x + size * .65, y - size * .12);
+      ctx.moveTo(x - size * .5, y - size * .12); ctx.lineTo(x - size * .35, y + size * .62);
+      ctx.moveTo(x + size * .5, y - size * .12); ctx.lineTo(x + size * .35, y + size * .62);
+      ctx.moveTo(x - size * .78, y + size * .62); ctx.lineTo(x + size * .78, y + size * .62);
+      ctx.moveTo(x - size * .22, y - size * .12); ctx.lineTo(x - size * .22, y - size * .55);
+      ctx.moveTo(x - size * .38, y - size * .55); ctx.lineTo(x - size * .06, y - size * .55); ctx.stroke(); return;
+    }
+    if (icon === 'storage') {
+      ctx.ellipse(x, y - size * .38, size * .5, size * .2, 0, 0, Math.PI * 2);
+      ctx.moveTo(x - size * .5, y - size * .38); ctx.lineTo(x - size * .5, y + size * .42);
+      ctx.ellipse(x, y + size * .42, size * .5, size * .2, 0, 0, Math.PI);
+      ctx.moveTo(x + size * .5, y - size * .38); ctx.lineTo(x + size * .5, y + size * .42); ctx.stroke(); return;
+    }
+    if (icon === 'hub') {
+      ctx.arc(x, y + size * .12, size * .48, Math.PI, 0);
+      ctx.moveTo(x, y + size * .12); ctx.lineTo(x, y - size * .62);
+      ctx.moveTo(x - size * .28, y - size * .35); ctx.lineTo(x, y - size * .63); ctx.lineTo(x + size * .28, y - size * .35);
+      ctx.moveTo(x - size * .64, y + size * .4); ctx.lineTo(x + size * .64, y + size * .4); ctx.stroke(); return;
+    }
+    if (icon === 'wind-turbine') {
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y + size * .66); ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y - size * .68);
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x - size * .52, y + size * .12);
+      ctx.moveTo(x, y - size * .1); ctx.lineTo(x + size * .52, y + size * .12); ctx.stroke(); return;
+    }
     ctx.moveTo(x - size * .55, y + size * .42); ctx.lineTo(x - size * .55, y - size * .14);
     ctx.lineTo(x - size * .08, y + size * .12); ctx.lineTo(x - size * .08, y - size * .14);
     ctx.lineTo(x + size * .35, y + size * .12); ctx.lineTo(x + size * .35, y - size * .52);
@@ -1100,7 +1245,7 @@ globalThis.OrbitVersion = "0.19.6";
     ctx.setLineDash([]);
     if (definition.id !== 'factory') {
       const glyphSize = Math.max(7, Math.min(13, Math.min(width, height) * .45));
-      drawGlyph(ctx, 0, 0, glyphSize, color);
+      drawGlyph(ctx, 0, 0, glyphSize, color, definition.icon);
     }
     ctx.restore();
 
@@ -1112,12 +1257,26 @@ globalThis.OrbitVersion = "0.19.6";
       if (ghost) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
+    const marineOffset = definition.marinePortOffset || definition.seaFacingOffset;
+    const waterPort = building.waterPort || (marineOffset && pointOnBuilding(building, marineOffset));
+    if (waterPort) {
+      const screenPort = frame.project(waterPort.x, waterPort.y);
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(ghost ? [3, 3] : []);
+      ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
     if (ghost) {
       ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
       ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(frame.state.placement?.valid ? 'USINE · EMPLACEMENT VALIDE' : 'USINE · EMPLACEMENT INVALIDE', center.x + 12, center.y - height / 2 - 9);
+      ctx.fillText(`${definition.label} · EMPLACEMENT ${frame.state.placement?.valid ? 'VALIDE' : 'INVALIDE'}`,
+        center.x + 12, center.y - height / 2 - 9);
       ctx.restore();
     }
+  }
+
+  function pointOnBuilding(building, offset) {
+    const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
   }
 
   function cardPosition(frame, building, definition) {
@@ -1136,7 +1295,7 @@ globalThis.OrbitVersion = "0.19.6";
       if (definition) drawFootprint(frame, building, definition);
     }
     const preview = frame.state.placement;
-    if (frame.state.tool === 'build-factory' && preview) {
+    if (frame.state.tool === 'build' && preview) {
       const definition = Data.get(preview.type);
       if (definition) drawFootprint(frame, preview, definition, true);
     }
@@ -1172,7 +1331,7 @@ globalThis.OrbitVersion = "0.19.6";
       const iconX = card.x + style.cardPaddingPx + style.iconRadiusPx, iconY = card.y + card.height / 2 - 3;
       ctx.fillStyle = '#102232'; ctx.strokeStyle = style.cardOutlineColor; ctx.lineWidth = .9;
       ctx.beginPath(); ctx.arc(iconX, iconY, style.iconRadiusPx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc');
+      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc', definition.icon);
       ctx.font = `${style.titleSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
@@ -1725,6 +1884,7 @@ globalThis.OrbitVersion = "0.19.6";
 (function (root) {
   'use strict';
   const Config = root.OrbitConfig;
+  const BuildingData = root.OrbitBuildingData;
 
   function create(document) {
     const $ = id => document.getElementById(id);
@@ -1732,6 +1892,17 @@ globalThis.OrbitVersion = "0.19.6";
     const TAU = Math.PI * 2;
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
     let toastTimer;
+
+    const buildOptions = $('build-options');
+    for (const definition of BuildingData.catalog()) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'build-option'; button.dataset.buildingType = definition.id;
+      const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition.shortLabel;
+      const copy = document.createElement('span'); copy.className = 'build-option-copy';
+      const title = document.createElement('strong'); title.textContent = definition.label;
+      const description = document.createElement('small'); description.textContent = definition.description;
+      copy.append(title, description); button.append(icon, copy); buildOptions.append(button);
+    }
 
     function toast(text) {
       $('toast').textContent = text;
@@ -1764,14 +1935,14 @@ globalThis.OrbitVersion = "0.19.6";
         $('enter-button').hidden = false;
         $('enter-button').disabled = item.kind === 'gazeuse';
       } else if (item.kind === 'building') {
+        const definition = BuildingData.get(item.type);
         const progress = Math.round((item.constructionProgress || 0) * 100);
-        $('selection-type').textContent = 'USINE PLANÉTAIRE';
-        $('selection-name').textContent = item.customName || 'USINE';
+        $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
+        $('selection-name').textContent = item.customName || definition?.label || 'BÂTIMENT';
         $('selection-info').textContent = item.constructionState === 'complete' ?
-          'Structure assemblée. Son espace intérieur accueillera les blocs industriels.' :
-          `Assemblage de la structure en cours : ${progress} %.`;
+          definition?.description || 'Structure assemblée.' : `Assemblage de la structure en cours : ${progress} %.`;
         const count = state.surfaceBuildings.filter(building => building.planetId === state.planet?.id).length;
-        $('selection-meta').textContent = `RANG I   /   ${count} USINE${count > 1 ? 'S' : ''} SUR CE MONDE`;
+        $('selection-meta').textContent = `RANG I   /   ${count} INFRASTRUCTURE${count > 1 ? 'S' : ''} SUR CE MONDE`;
         $('enter-button').hidden = true;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
@@ -1805,21 +1976,27 @@ globalThis.OrbitVersion = "0.19.6";
       $('scan-button').disabled = level !== 'galaxy';
       $('build-button').hidden = level !== 'surface';
       $('build-button').disabled = level !== 'surface';
+      $('build-button').setAttribute('aria-expanded', String(state.buildMenuOpen));
+      $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
+      $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       $('back-button').disabled = level === 'galaxy';
-      $('pan-button').classList.toggle('active', state.tool === 'pan');
+      $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');
-      $('build-button').classList.toggle('active', state.tool === 'build-factory');
+      $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
       const constructing = (state.surfaceBuildings || []).filter(building =>
         building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
+      const placementLabel = BuildingData.get(state.placement?.type)?.label || 'BÂTIMENT';
+      const buildingWord = constructing > 1 ? 'INFRASTRUCTURES' : 'INFRASTRUCTURE';
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
         state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build-factory' ?
-            (state.placement?.valid ? 'USINE · POSITION VALIDE' : 'USINE · POSITION INVALIDE') :
-              constructing ? `ASSEMBLAGE · ${constructing} USINE${constructing > 1 ? 'S' : ''}` : 'TOPOGRAPHIE LOCALE';
+          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build' ?
+            `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
+              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
       $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
         level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build-factory' ?
-            'Déplacer l’aperçu · Toucher la terre ferme pour poser l’usine · Échap pour annuler' :
+          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build' ?
+            `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
+              'Choisir une infrastructure à poser' :
               'Glisser · Inspecter le relief · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
@@ -1850,7 +2027,7 @@ globalThis.OrbitVersion = "0.19.6";
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
-  let nextFactoryId = 1;
+  let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null;
   const viewport = { width: W, height: H };
@@ -1937,7 +2114,7 @@ globalThis.OrbitVersion = "0.19.6";
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = [];
-    state.placement = null; nextFactoryId = 1;
+    state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
@@ -1995,7 +2172,7 @@ globalThis.OrbitVersion = "0.19.6";
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
-      state.selected = null; state.tool = 'pan'; state.placement = null;
+      state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -2016,34 +2193,45 @@ globalThis.OrbitVersion = "0.19.6";
   }
 
   function clearSelection() {
-    state.selected = null; state.tool = 'pan'; state.placement = null;
+    state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
   }
-  function updateFactoryPreview(screenX, screenY) {
+  function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
+    const definition = BuildingData.get(type);
+    if (!definition) return;
     const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
     const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
-    const definition = BuildingData.get('factory');
     const validation = BuildingPlacement.validate({ terrain: terrainData,
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
-    state.placement = { type: 'factory', ...position, rotation: 0, ...validation };
+    state.placement = { type, ...position, rotation: 0, ...validation };
   }
-  function placeFactory() {
+  function placeSurfaceBuilding() {
     const preview = state.placement;
     if (!preview?.valid) {
       toast(preview?.reason || 'Choisissez un emplacement valide sur la planète.');
       return;
     }
-    const building = BuildingModel.create({ id: `factory-${state.planet.id}-${nextFactoryId++}`,
-      type: 'factory', planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
+    const definition = BuildingData.get(preview.type);
+    const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
+      type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
-    state.placement = null; state.tool = 'pan';
-    toast('Usine posée. Assemblage en cours.'); updateUI();
+    state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
+    toast(`${definition.label} posé. Assemblage en cours.`); updateUI();
+  }
+  function chooseBuilding(type) {
+    const definition = BuildingData.get(type);
+    if (!definition || state.level !== 'surface') return;
+    state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
+    $('inspector').hidden = true;
+    updateBuildingPreview(W / 2, H / 2, type);
+    toast(`Déplacez l’aperçu de ${definition.label} et touchez pour le poser.`);
+    updateUI();
   }
   function selectSurfaceBuilding(building) {
-    state.tool = 'pan'; state.placement = null;
+    state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     state.selected = { kind: 'building', ...building };
     hud.showSelection(state.selected, { state }); updateUI();
   }
@@ -2161,9 +2349,10 @@ globalThis.OrbitVersion = "0.19.6";
       if (best) { select(best); if (doubleClick) enterPlanet(); }
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
+      if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
-      if (state.tool === 'build-factory') {
-        updateFactoryPreview(x, y); placeFactory(); return;
+      if (state.tool === 'build') {
+        updateBuildingPreview(x, y); placeSurfaceBuilding(); return;
       }
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
@@ -2194,7 +2383,7 @@ globalThis.OrbitVersion = "0.19.6";
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
-    if (state.tool === 'build-factory' && pointers.size === 1) updateFactoryPreview(e.clientX, e.clientY);
+    if (state.tool === 'build' && pointers.size === 1) updateBuildingPreview(e.clientX, e.clientY);
     if (pointers.size === 2) {
       const points = [...pointers.values()];
       pinch = { distance: distance(points[0], points[1]), midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
@@ -2203,7 +2392,7 @@ globalThis.OrbitVersion = "0.19.6";
   });
   canvas.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) {
-      if (state.tool === 'build-factory') updateFactoryPreview(e.clientX, e.clientY);
+      if (state.tool === 'build') updateBuildingPreview(e.clientX, e.clientY);
       return;
     }
     const previous = pointers.get(e.pointerId);
@@ -2216,9 +2405,9 @@ globalThis.OrbitVersion = "0.19.6";
       state.target = Camera.anchoredZoom(state.camera, viewport, zoom, midpoint, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: nextDistance, midpoint }; pointerMoved = true;
       updateSceneContext(); updateUI();
-    } else if (pointers.size === 1 && state.tool === 'build-factory') {
+    } else if (pointers.size === 1 && state.tool === 'build') {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
-      updateFactoryPreview(e.clientX, e.clientY);
+      updateBuildingPreview(e.clientX, e.clientY);
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       if (pointerMoved) {
@@ -2245,18 +2434,20 @@ globalThis.OrbitVersion = "0.19.6";
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; updateUI(); };
+  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
   $('build-button').onclick = () => {
     if (state.level !== 'surface') return;
-    if (state.tool === 'build-factory') { state.tool = 'pan'; state.placement = null; }
-    else {
-      state.selected = null; $('inspector').hidden = true;
-      state.tool = 'build-factory'; updateFactoryPreview(W / 2, H / 2);
-      toast('Déplacez l’aperçu sur la terre ferme, puis touchez pour poser l’usine.');
-    }
+    if (state.tool === 'build') { state.tool = 'pan'; state.placement = null; }
+    else state.buildMenuOpen = !state.buildMenuOpen;
+    if (state.buildMenuOpen) { state.tool = 'pan'; state.placement = null; state.selected = null; $('inspector').hidden = true; }
     updateUI();
   };
-  $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
+  $('build-menu-close').onclick = () => { state.buildMenuOpen = false; updateUI(); };
+  $('build-options').addEventListener('click', event => {
+    const option = event.target.closest('[data-building-type]');
+    if (option) chooseBuilding(option.dataset.buildingType);
+  });
+  $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
@@ -2268,7 +2459,7 @@ globalThis.OrbitVersion = "0.19.6";
     focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
   };
   $('breadcrumb-system').onclick = () => { if (state.level === 'surface') back(); };
-  $('menu-button').onclick = () => { $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
+  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
   $('continue-button').onclick = () => { $('menu-dialog').close(); if (!menuStarted) { menuStarted = true; toast('Zoomez sur Néréide pour explorer son système.'); } };
   $('reset-system-button').onclick = () => {
     regenerate(state.seed);
@@ -2289,6 +2480,7 @@ globalThis.OrbitVersion = "0.19.6";
     if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
       if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();

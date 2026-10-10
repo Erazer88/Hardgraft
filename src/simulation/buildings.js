@@ -28,15 +28,16 @@
     const createdAt = properties.createdAt ?? Date.now();
     if (!isFiniteNumber(createdAt)) throw new TypeError('Creation time must be a finite timestamp');
 
-    const offset = definition.roadPortOffset;
-    let roadPort = null;
-    if (offset) {
+    const transformOffset = offset => {
+      if (!offset) return null;
       const cos = Math.cos(rotation), sin = Math.sin(rotation);
-      roadPort = {
+      return {
         x: properties.x + offset.x * cos - offset.y * sin,
         y: properties.y + offset.x * sin + offset.y * cos
       };
-    }
+    };
+    const roadPort = transformOffset(definition.roadPortOffset);
+    const waterPort = transformOffset(definition.marinePortOffset || definition.seaFacingOffset);
 
     const inventory = properties.inventory ?? {};
     if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) throw new TypeError('Building inventory must be a resource map');
@@ -57,6 +58,7 @@
       constructionState,
       constructionProgress: clamp(progress, 0, 1),
       roadPort,
+      waterPort,
       logisticsNodeId,
       inventory: { ...inventory },
       energyUse,
