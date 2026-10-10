@@ -33,7 +33,7 @@
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
-    for (const key of ['resources', 'buildings', 'factories']) {
+    for (const key of ['resources', 'deposits', 'buildings', 'factories']) {
       const value = saved.simulation?.[key];
       if (value && typeof value === 'object' && !Array.isArray(value)) simulation[key] = copy(value);
     }

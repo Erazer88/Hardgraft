@@ -423,6 +423,45 @@
         }
       }
     }
+    function drawExtractorRoutes(cam, planet) {
+      for (const source of Construction.list(state.simulation, planet.id)) {
+        if (source.type !== 'extractor' || !source.outputDestinationId) continue;
+        const route = source.outputRoute || FactorySimulation.extractorRouteGeometry(state.simulation, source.id);
+        if (!route) continue;
+        const samples = route.points?.length > 1 ? route.points :
+          Array.from({ length: 33 }, (_, index) => FactorySimulation.routePoint(route, index / 32));
+        const points = samples.map(point => project(point.x, point.y, cam));
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length - 1; i++) {
+          const mid = { x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2 };
+          ctx.quadraticCurveTo(points[i].x, points[i].y, mid.x, mid.y);
+        }
+        ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+        ctx.strokeStyle = '#17221fcf'; ctx.lineWidth = clamp(cam.zoom * 4, 1.2, 4); ctx.stroke();
+        ctx.setLineDash([Math.max(2, cam.zoom * 2.5), Math.max(3, cam.zoom * 5.5)]);
+        ctx.strokeStyle = '#d6c77fa8'; ctx.lineWidth = clamp(cam.zoom * .85, .65, 1.1); ctx.stroke(); ctx.setLineDash([]);
+        const vehicle = source.extractorTruck;
+        if (vehicle?.route && ['loading', 'outbound', 'returning'].includes(vehicle.status)) {
+          const progress = vehicle.status === 'loading' ? 0 : clamp(vehicle.elapsed / Math.max(.01, vehicle.duration), 0, 1);
+          const t = vehicle.status === 'returning' ? 1 - progress : progress;
+          const point = FactorySimulation.routePoint(vehicle.route, t), p = project(point.x, point.y, cam);
+          circle(ctx, p.x, p.y, clamp(cam.zoom * 4.8, 3, 5), '#16201c', .8);
+          dot(ctx, p.x, p.y, clamp(cam.zoom * 2.5, 1.5, 2.8), ResourceData.definitions[source.resourceId]?.color || '#d6c77f');
+        }
+        ctx.restore();
+      }
+    }
+    function drawSurfaceLinkPreview(cam) {
+      const drag = state.surfaceLinkDrag;
+      const source = drag && state.simulation.buildings?.[drag.sourceId];
+      if (!source) return;
+      const offset = BuildingData.definitions[source.type].footprint * .35;
+      const start = project(source.x + offset, source.y, cam);
+      ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 2; ctx.strokeStyle = '#e5a965cc';
+      ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(drag.x, drag.y); ctx.stroke();
+      circle(ctx, drag.x, drag.y, 5, '#f2ba77', 1); ctx.restore();
+    }
     function drawBuildingPlan(type, radius, color) {
       ctx.save(); ctx.fillStyle = '#101d22e8'; ctx.strokeStyle = color; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.roundRect(-radius, -radius * .76, radius * 2, radius * 1.52, Math.max(2, radius * .16)); ctx.fill(); ctx.stroke();
@@ -476,6 +515,16 @@
         ctx.strokeStyle = '#aabcb86e'; ctx.strokeRect(-radius, -radius, radius * 2, radius * 2);
       } else {
         drawBuildingPlan(building.type, radius, definition.color);
+        if (building.type === 'factory' || building.type === 'extractor') {
+          const port = (direction, color) => {
+            const x = direction * radius * 1.08;
+            line(ctx, [{ x: direction * radius * .7, y: 0 }, { x, y: 0 }], color, 1.2);
+            circle(ctx, x, 0, clamp(radius * .22, 2.6, 4.5), '#10191eea', .8);
+            dot(ctx, x, 0, clamp(radius * .12, 1.4, 2.2), color);
+          };
+          if (building.type === 'factory') port(-1, '#83c9d6');
+          port(1, '#e6aa63');
+        }
       }
       if (selected) circle(ctx, 0, 0, radius + 7, '#efa35a', 1);
       ctx.restore();
@@ -580,6 +629,8 @@
       ctx.imageSmoothingEnabled = true; ctx.drawImage(terrainTexture, top.x, top.y, terrainTexture.width * scale, terrainTexture.height * scale);
       if (scale > .06) drawGrid(cam, true);
       drawLogisticsRoutes(cam, planet);
+      drawExtractorRoutes(cam, planet);
+      drawSurfaceLinkPreview(cam);
       const bottom = project(terrainTexture.width, terrainTexture.height, cam);
       ctx.strokeStyle = '#a9b9ad40'; ctx.lineWidth = 1; ctx.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
       if (scale >= .15) for (const res of terrainData.resources) {

@@ -21,6 +21,10 @@ function colony() {
   const factory = FactorySimulation.create(simulation, 'building-1');
   return { simulation, factory };
 }
+function feed(factory, amount = 60) {
+  const input = factory.blocks[factory.order[0]];
+  input.stock.iron = amount; input.ready.iron = amount; input.status = 'ready';
+}
 
 test('factory starts with a data-driven input, transform, storage and output chain', () => {
   const { factory } = colony();
@@ -42,22 +46,22 @@ test('logistics fleet size, cargo capacity and speed follow the selected data le
   assert.equal(FactorySimulation.setLogisticsLevel(simulation, factory.id, 99).ok, false);
 });
 
-test('the starter line consumes iron and produces plates in the planetary inventory', () => {
+test('an empty factory does not create iron or plates from planetary inventory', () => {
   const { simulation, factory } = colony();
   const stock = simulation.resources['home:p-1'], initialIron = stock.iron;
   for (let i = 0; i < 500; i++) {
     Simulation.advance(simulation, .05);
     FactorySimulation.advance(simulation, .05);
   }
-  assert.ok(stock.iron < initialIron);
-  assert.ok(stock.iron_plate > 0);
-  assert.equal(factory.production.iron_plate, stock.iron_plate);
+  assert.equal(stock.iron, initialIron);
+  assert.equal(stock.iron_plate, 0);
+  assert.equal(factory.production.iron_plate || 0, 0);
   const input = factory.blocks[factory.order[0]], transform = factory.blocks[factory.order[1]];
-  assert.ok(input.status === 'running' || input.status === 'waiting');
-  assert.ok(['running', 'waiting', 'starved', 'blocked'].includes(transform.status));
+  assert.equal(input.status, 'starved');
+  assert.equal(transform.status, 'starved');
 });
 
-test('infinite-material mode feeds the factory without draining planetary iron', () => {
+test('infinite-material mode does not bypass the external factory input', () => {
   const { simulation } = colony();
   const stock = simulation.resources['home:p-1'], initialIron = stock.iron;
   simulation.infiniteMaterials = true;
@@ -66,11 +70,58 @@ test('infinite-material mode feeds the factory without draining planetary iron',
     FactorySimulation.advance(simulation, .05);
   }
   assert.equal(stock.iron, initialIron);
-  assert.ok(stock.iron_plate > 0);
+  assert.equal(stock.iron_plate, 0);
+});
+
+test('a linked extractor mines its finite deposit and supplies the receiving factory', () => {
+  const { simulation, factory: first } = colony();
+  const planetId = first.planetId;
+  const terrain = { width: 100, height: 100, elevation: new Uint8Array(10000).fill(140), seaLevel: 102,
+    resources: [{ id: 'iron', type: 'fer', x: 18, y: 18, abundance: .8 }] };
+  FactorySimulation.setTerrain(simulation, planetId, terrain, 3);
+  const deposit = simulation.deposits[planetId][0], remaining = deposit.remaining;
+  const extractor = { id: 'extractor-1', type: 'extractor', planetId, status: 'complete', x: 120, y: 120,
+    depositId: deposit.id, resourceId: 'iron', logisticsStock: {} };
+  simulation.buildings[extractor.id] = extractor;
+  const receiverBuilding = { id: 'factory-2', type: 'factory', planetId, status: 'complete', x: 560, y: 420, cost: {} };
+  simulation.buildings[receiverBuilding.id] = receiverBuilding;
+  const receiver = FactorySimulation.create(simulation, receiverBuilding.id);
+  const linked = FactorySimulation.connectBuildings(simulation, extractor.id, receiverBuilding.id);
+  assert.equal(linked.ok, true);
+  assert.ok(linked.route.length > 0);
+  for (let i = 0; i < 24000; i++) {
+    Simulation.advance(simulation, .05);
+    FactorySimulation.advance(simulation, .05);
+  }
+  assert.ok(deposit.remaining < remaining);
+  assert.ok(receiver.production.iron_plate > 0);
+  assert.equal(simulation.resources[planetId].iron_plate, receiver.production.iron_plate);
+  assert.ok(extractor.extractorTruck.tripsCompleted > 0);
+});
+
+test('factory output can be dragged to another factory input and delivered by truck', () => {
+  const { simulation, factory: source } = colony();
+  const destinationBuilding = { id: 'factory-2', type: 'factory', planetId: source.planetId,
+    status: 'complete', x: 560, y: 420, cost: {} };
+  simulation.buildings[destinationBuilding.id] = destinationBuilding;
+  const destination = FactorySimulation.create(simulation, destinationBuilding.id);
+  const output = source.blocks[source.order[3]];
+  output.stock.iron_plate = 8; output.ready.iron_plate = 8;
+  const link = FactorySimulation.connectBuildings(simulation, source.buildingId, destinationBuilding.id);
+  assert.equal(link.ok, true);
+  assert.ok(link.route.length > 0);
+  for (let i = 0; i < 1600; i++) {
+    Simulation.advance(simulation, .05);
+    FactorySimulation.advance(simulation, .05);
+  }
+  const processing = destination.blocks[destination.order[1]];
+  assert.equal(processing.stock.iron_plate, 8);
+  assert.equal(output.stock.iron_plate, 0);
 });
 
 test('a full storage block holds the upstream product instead of losing it', () => {
   const { simulation, factory } = colony();
+  feed(factory);
   const storage = factory.blocks[factory.order[2]], transform = factory.blocks[factory.order[1]];
   storage.capacity = 3;
   const edge = factory.connections.find(connection => connection.from === storage.id);
@@ -102,6 +153,7 @@ test('block placement, linking, movement, deletion and paused factory time are d
 
 test('freight trucks batch products, deliver them and make return trips to a selected depot', () => {
   const { simulation, factory } = colony();
+  feed(factory);
   const depot = { id: 'depot-1', type: 'depot', planetId: factory.planetId, status: 'complete', x: 440, y: 340, logisticsStock: {} };
   simulation.buildings[depot.id] = depot;
   const result = FactorySimulation.setOutputDestination(simulation, factory.id, depot.id);
@@ -123,6 +175,7 @@ test('freight trucks batch products, deliver them and make return trips to a sel
 
 test('the shipping port receives cargo without returning it to colony inventory', () => {
   const { simulation, factory } = colony();
+  feed(factory);
   const port = { id: 'port-1', type: 'port', planetId: factory.planetId, status: 'complete', x: 470, y: 370, logisticsStock: {} };
   simulation.buildings[port.id] = port;
   assert.equal(FactorySimulation.setOutputDestination(simulation, factory.id, port.id).ok, true);

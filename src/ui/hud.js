@@ -62,6 +62,10 @@
       const percent = Math.round(Construction.progress(state.simulation, building) * 100);
       const status = building.status === 'complete' ? 'OPÉRATIONNEL' : `CHANTIER ${percent} %`;
       const capacity = Buildings.definitions[building.type]?.logisticsCapacity;
+      if (building.type === 'extractor') {
+        const stock = Object.values(building.logisticsStock || {}).reduce((sum, amount) => sum + amount, 0);
+        return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status} · RÉSERVE ${fmt(stock)} · ${building.outputDestinationId ? 'ROUTE RELIÉE' : 'SORTIE À RELIER'}`;
+      }
       if (!capacity) return `X ${Math.round(building.x)} km · Y ${Math.round(building.y)} km   /   ${status}`;
       const cargo = building.logisticsStock || {};
       const contents = Object.entries(cargo).filter(([, amount]) => amount > 0)
@@ -75,7 +79,7 @@
       field.hidden = !active;
       if (!active) return;
       const destinations = Construction.list(state.simulation, factory.planetId)
-        .filter(building => ['depot', 'port'].includes(building.type) && building.status === 'complete')
+        .filter(building => ['depot', 'port', 'factory'].includes(building.type) && building.status === 'complete' && building.id !== factory.buildingId)
         .sort((a, b) => a.type.localeCompare(b.type) || a.id.localeCompare(b.id));
       const optionKey = destinations.map(building => `${building.id}:${building.type}`).join('|');
       if (select.dataset.optionKey !== optionKey) {
@@ -124,7 +128,10 @@
         const definition = Buildings.definitions[item.type];
         $('selection-type').textContent = item.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
         $('selection-name').textContent = definition?.name || 'Installation';
-        $('selection-info').textContent = definition?.description || 'Installation de la colonie.';
+        $('selection-info').textContent = item.type === 'factory' ?
+          'Usine avec une entrée à gauche et une sortie à droite. Glissez la sortie d’un gisement ou d’une autre usine vers cette entrée pour créer une route.' :
+          item.type === 'extractor' ? `Extrait ${Resources.definitions[item.resourceId]?.name || 'le minerai'} du gisement associé, puis l’envoie par camion vers une usine reliée.` :
+          definition?.description || 'Installation de la colonie.';
         $('selection-meta').textContent = buildingMeta(state, item);
         $('enter-button').hidden = true;
         $('demolish-button').hidden = false;
@@ -201,13 +208,13 @@
         const profile = LogisticsData.get(factoryView.factory.logisticsLevel);
         const activeTrucks = factoryView.factory.trucks.filter(truck => ['outbound', 'returning'].includes(truck.status)).length;
         const loading = factoryView.factory.trucks.some(truck => truck.status === 'loading');
-        const route = target ? `Flux → ${Buildings.definitions[target.type]?.name || 'destination'} · flotte ${profile.trucks} · ${profile.cargoCapacity} u/camion · ${activeTrucks} en trajet${loading ? ' · chargement' : ''}` : 'Sortie directe vers le stock de la colonie';
-        const chain = products ? `Flux livrés : ${products}` : 'Chaîne : minerai → transformation → stockage → sortie';
+        const route = target ? `Flux → ${Buildings.definitions[target.type]?.name || 'destination'} · flotte ${profile.trucks} · ${profile.cargoCapacity} u/camion · ${activeTrucks} en trajet${loading ? ' · chargement' : ''}` : 'Sortie vers le stock de la colonie';
+        const chain = products ? `Flux livrés : ${products}` : 'Entrée en attente de minerai relié';
         $('factory-console-status').textContent = `${chain} · ${route}${blocked ? ` · ${blocked} bloc${blocked > 1 ? 's' : ''} en attente` : ''}`;
       }
       updateSelection({ ...state, factoryView });
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' : state.tool === 'build' ? 'IMPLANTATION AU SOL' : state.tool === 'factory-add' ? 'AJOUT DE BLOC' : state.tool === 'factory-connect' ? 'CONNEXION DE BLOCS' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' : level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : level === 'factory' ? 'PRODUCTION ACTIVE' : 'TOPOGRAPHIE LOCALE';
-      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : state.tool === 'build' ? 'Touchez une terre ferme · Échap pour annuler' : state.tool === 'factory-add' ? 'Touchez une zone vide pour poser le bloc' : state.tool === 'factory-connect' ? (state.connectionSource ? 'Touchez le bloc de destination' : 'Touchez le bloc source') : hasFactory ? 'Zoomez sur une usine pour afficher ses blocs' : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : level === 'factory' ? 'Glisser un bloc · Relier les ports · Pincer pour zoomer' : 'Glisser · Inspecter · Construire · Pincer pour zoomer';
+      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : state.tool === 'build' ? 'Touchez une terre ferme · Échap pour annuler' : state.tool === 'factory-add' ? 'Touchez une zone vide pour poser le bloc' : state.tool === 'factory-connect' ? (state.connectionSource ? 'Touchez le bloc de destination' : 'Touchez le bloc source') : hasFactory ? 'Glissez une sortie vers une entrée · Zoomez pour voir les blocs' : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : level === 'factory' ? 'Glisser un bloc · Relier les ports · Pincer pour zoomer' : 'Glisser · Inspecter · Construire · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : level === 'factory' ? ' unités' : ' km';
       const camera = scaleCamera;
       const span = (width < 600 ? 50 : 96) / camera.zoom;

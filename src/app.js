@@ -17,7 +17,7 @@
   let galaxy, home, terrainTexture, terrainData;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, pointerMoved = false, menuStarted = false, pinch = null, pendingBuildingType = null;
-  let pendingBlockType = null, factoryDrag = null;
+  let pendingBlockType = null, factoryDrag = null, surfaceLinkDrag = null;
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
@@ -341,13 +341,41 @@
     }
     return nearest;
   }
+  function surfacePortAt(screenX, screenY, direction) {
+    if (state.level !== 'surface' || state.tool !== 'pan') return null;
+    const cam = localCamera(surfaceFrame());
+    let nearest = null, best = 13;
+    for (const building of Construction.list(state.simulation, state.planet.id)) {
+      if (building.status !== 'complete') continue;
+      const valid = direction === 'out' ? ['factory', 'extractor'].includes(building.type) : building.type === 'factory';
+      if (!valid) continue;
+      const p = project(building.x, building.y, cam);
+      const radius = clamp((BuildingData.definitions[building.type].footprint || 20) * cam.zoom * .32, 5.5, 22);
+      const offset = radius * 1.08 * (direction === 'out' ? 1 : -1);
+      const d = Math.hypot(screenX - (p.x + offset), screenY - p.y);
+      if (d < best) { nearest = { building, direction }; best = d; }
+    }
+    return nearest;
+  }
   function placeBuildingAt(terrainPoint, terrainHeight) {
     if (!pendingBuildingType) { state.tool = 'pan'; updateUI(); return; }
     if (terrainHeight <= terrainData.seaLevel + 4) {
       toast('Construction impossible sur l’eau ou le littoral. Choisissez une terre ferme.'); return;
     }
+    let deposit = null;
+    if (pendingBuildingType === 'extractor') {
+      deposit = terrainData.resources.map(item => ({ item, x: item.x * Config.terrain.textureScale, y: item.y * Config.terrain.textureScale }))
+        .sort((a, b) => Math.hypot(a.x - terrainPoint.x, a.y - terrainPoint.y) - Math.hypot(b.x - terrainPoint.x, b.y - terrainPoint.y))[0];
+      if (!deposit || Math.hypot(deposit.x - terrainPoint.x, deposit.y - terrainPoint.y) > 10 * Config.terrain.textureScale) {
+        toast('Un extracteur doit être posé sur un gisement repéré.'); return;
+      }
+      const records = state.simulation.deposits?.[state.planet.id] || [];
+      deposit = records.find(item => item.resourceId === deposit.item.id &&
+        Math.hypot(item.x - deposit.x, item.y - deposit.y) < 1) || null;
+      if (!deposit || deposit.remaining <= 0) { toast('Ce gisement ne contient plus de minerai exploitable.'); return; }
+    }
     const result = Construction.place(state.simulation, { planetId: state.planet.id, type: pendingBuildingType,
-      x: Math.round(terrainPoint.x), y: Math.round(terrainPoint.y) });
+      x: Math.round(terrainPoint.x), y: Math.round(terrainPoint.y), depositId: deposit?.id, resourceId: deposit?.resourceId });
     if (!result.ok) {
       if (result.reason === 'occupied') toast('Cette zone est trop proche d’une autre installation.');
       else if (result.reason === 'insufficient') toast(`Matériaux insuffisants : ${missingText(result.missing)}.`);
@@ -476,8 +504,15 @@
     canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointersLast.set(e.pointerId, { x: e.clientX, y: e.clientY }); pointerMoved = false;
     if (pointers.size === 2) {
-      factoryDrag = null;
+      factoryDrag = null; surfaceLinkDrag = null; state.surfaceLinkDrag = null;
       const ps = [...pointers.values()]; pinch = { distance: distance(ps[0], ps[1]), midpoint: { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 } }; pointerMoved = true;
+    } else if (state.level === 'surface') {
+      const port = surfacePortAt(e.clientX, e.clientY, 'out');
+      if (port) {
+        surfaceLinkDrag = { pointerId: e.pointerId, sourceId: port.building.id };
+        state.surfaceLinkDrag = { sourceId: port.building.id, x: e.clientX, y: e.clientY };
+        toast('Glissez la ligne jusqu’à l’entrée d’une usine.');
+      }
     } else if (state.level === 'factory' && state.tool === 'pan') {
       const block = factoryBlockAt(e.clientX, e.clientY);
       if (block) factoryDrag = { pointerId: e.pointerId, blockId: block.id, moved: false, startX: e.clientX, startY: e.clientY };
@@ -487,7 +522,7 @@
     if (!pointers.has(e.pointerId)) return;
     const last = pointers.get(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size >= 2 && pinch) {
-      factoryDrag = null;
+      factoryDrag = null; surfaceLinkDrag = null; state.surfaceLinkDrag = null;
       const ps = [...pointers.values()], d = distance(ps[0], ps[1]), mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
       focusFactoryAt(mid.x, mid.y, d / Math.max(1, pinch.distance));
       const before = unproject(pinch.midpoint.x, pinch.midpoint.y), [min, max] = zoomLimits(before);
@@ -495,6 +530,9 @@
       state.target = Camera.anchoredZoom(state.camera, viewport, z, mid, pinch.midpoint);
       state.camera = { ...state.target }; pinch = { distance: d, midpoint: mid }; pointerMoved = true;
       updateSceneContext(); updateUI();
+    } else if (surfaceLinkDrag?.pointerId === e.pointerId && state.level === 'surface') {
+      state.surfaceLinkDrag = { sourceId: surfaceLinkDrag.sourceId, x: e.clientX, y: e.clientY };
+      if (Math.hypot(e.clientX - pointersLast.get(e.pointerId).x, e.clientY - pointersLast.get(e.pointerId).y) > 2) pointerMoved = true;
     } else if (factoryDrag?.pointerId === e.pointerId && state.level === 'factory') {
       const d = Math.hypot(e.clientX - factoryDrag.startX, e.clientY - factoryDrag.startY);
       if (d > 5) {
@@ -517,8 +555,23 @@
     if (!pointers.has(e.pointerId)) return;
     const wasPinch = pinch !== null; pointers.delete(e.pointerId); pointersLast.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
+    const finishedLink = surfaceLinkDrag?.pointerId === e.pointerId ? surfaceLinkDrag : null;
+    if (finishedLink) {
+      if (!cancelled) {
+        const target = surfacePortAt(e.clientX, e.clientY, 'in');
+        if (target) {
+          const result = FactorySimulation.connectBuildings(state.simulation, finishedLink.sourceId, target.building.id);
+          if (result.ok) {
+            persist(); toast(`Route créée : ${BuildingData.definitions[result.source.type].name} → Usine.`);
+          } else toast(result.reason === 'input-occupied' ? 'Cette entrée d’usine est déjà reliée.' :
+            result.reason === 'output-occupied' ? 'Cette sortie est déjà reliée.' :
+            result.reason === 'no-route' ? 'Aucun trajet praticable ne relie ces ports.' : 'Connexion impossible entre ces ports.');
+        } else toast('Reliez la sortie à une entrée d’usine.');
+      }
+      surfaceLinkDrag = null; state.surfaceLinkDrag = null; updateUI();
+    }
     const finishedDrag = factoryDrag?.pointerId === e.pointerId ? factoryDrag : null;
-    if (!cancelled && !pointerMoved && !wasPinch) {
+    if (!finishedLink && !cancelled && !pointerMoved && !wasPinch) {
       const now = performance.now(), double = now - lastTap.t < 340 && Math.hypot(lastTap.x - e.clientX, lastTap.y - e.clientY) < 24;
       clickMap(e.clientX, e.clientY, double); lastTap = { t: now, x: e.clientX, y: e.clientY };
     }
@@ -533,7 +586,7 @@
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
   $('pan-button').onclick = () => {
     state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
-    state.connectionSource = null; factoryDrag = null; updateUI();
+    state.connectionSource = null; factoryDrag = null; surfaceLinkDrag = null; state.surfaceLinkDrag = null; updateUI();
   };
   $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('build-button').onclick = () => { if (state.level === 'surface') { updateUI(); $('build-dialog').showModal(); } };
@@ -572,7 +625,11 @@
     const view = factoryView(), block = state.selected?.entityType === 'block' ? state.selected : null;
     if (!view || block?.type !== 'output') return;
     const result = FactorySimulation.setOutputDestination(state.simulation, view.factory.id, e.target.value || null);
-    if (!result.ok) { toast('Cette destination ne peut pas recevoir les flux.'); updateUI(); return; }
+    if (!result.ok) {
+      toast(result.reason === 'input-occupied' ? 'Cette entrée d’usine est déjà reliée.' :
+        result.reason === 'no-route' ? 'Aucun trajet praticable ne relie ces installations.' :
+          'Cette destination ne peut pas recevoir les flux.'); updateUI(); return;
+    }
     persist(); updateUI();
     toast(result.destination ? `Route automatique vers ${BuildingData.definitions[result.destination.type].name}.` : 'Sortie reliée au stock de la colonie.');
   };

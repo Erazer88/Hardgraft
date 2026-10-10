@@ -54,7 +54,7 @@
     return id;
   }
 
-  function place(simulation, { planetId, type, x, y }) {
+  function place(simulation, { planetId, type, x, y, depositId = null, resourceId = null }) {
     const definition = Buildings.definitions[type];
     if (!definition) return { ok: false, reason: 'unknown-building' };
     if (typeof planetId !== 'string' || !planetId || !Number.isFinite(x) || !Number.isFinite(y)) {
@@ -77,6 +77,11 @@
     const building = { id, entityType: 'building', type, planetId, x, y, status: 'constructing',
       startedAt: simulation.time, completeAt: simulation.time + definition.duration, cost };
     if (definition.logisticsCapacity) building.logisticsStock = {};
+    if (type === 'extractor') {
+      building.depositId = typeof depositId === 'string' ? depositId : null;
+      building.resourceId = typeof resourceId === 'string' ? resourceId : null;
+      building.logisticsStock = {};
+    }
     simulation.buildings[id] = building;
     return { ok: true, building };
   }
@@ -129,6 +134,15 @@
     }
     if (building.type === 'port') {
       for (const [id, amount] of Object.entries(building.logisticsStock || {})) stock[id] = (stock[id] || 0) + amount;
+    }
+    if (building.type === 'extractor') {
+      for (const [id, amount] of Object.entries(building.logisticsStock || {})) stock[id] = (stock[id] || 0) + amount;
+      for (const [id, amount] of Object.entries(building.extractorTruck?.cargo || {})) stock[id] = (stock[id] || 0) + amount;
+    }
+    for (const other of Object.values(simulation.buildings || {})) {
+      if (other.id !== buildingId && other.outputDestinationId === buildingId) {
+        other.outputDestinationId = null; other.outputRoute = null;
+      }
     }
     if (building.factoryId) {
       const factory = simulation.factories?.[building.factoryId];

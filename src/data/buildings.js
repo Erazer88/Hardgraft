@@ -11,13 +11,13 @@
     }),
     factory: Object.freeze({
       id: 'factory', name: 'Usine', code: 'USI', color: '#77c7d9', duration: 4, footprint: 140,
-      description: 'Espace industriel intérieur à rang I, prêt pour une chaîne de production.',
+      description: 'Usine équipée d’une entrée et d’une sortie externes, reliées aux blocs de production.',
       cost: Object.freeze({ iron: 85, copper: 60, silicon: 45, carbon: 18, water: 15 }),
       production: null, energy: 1.2
     }),
     extractor: Object.freeze({
       id: 'extractor', name: 'Extracteur', code: 'EXT', color: '#d6c47b', duration: 3, footprint: 22,
-      description: 'Prépare un gisement pour la future chaîne d’extraction.',
+      description: 'À poser sur un gisement : extrait son minerai et l’expédie par camion vers une usine reliée.',
       cost: Object.freeze({ iron: 35, copper: 20, silicon: 10, carbon: 6 }),
       production: null, energy: 0
     }),
