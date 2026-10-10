@@ -336,6 +336,36 @@
     return { start, end, points: compact, cumulative, distance, length };
   }
 
+  function routeBetween(simulation, planetId, start, end, sourceBuildingId = null, destinationId = null) {
+    if (!start || !end || !Number.isFinite(start.x) || !Number.isFinite(start.y) ||
+      !Number.isFinite(end.x) || !Number.isFinite(end.y)) return null;
+    const dx = end.x - start.x, dy = end.y - start.y, direct = Math.hypot(dx, dy);
+    if (direct < 1) return null;
+    const terrain = terrainByPlanet.get(planetId);
+    const traced = terrain && makeTerrainPath(simulation, planetId, start, end, terrain, sourceBuildingId, destinationId);
+    if (traced) {
+      traced.sourceBuildingId = sourceBuildingId;
+      traced.destinationId = destinationId;
+      return traced;
+    }
+    const key = `${sourceBuildingId || ''}:${destinationId || ''}`;
+    const seed = [...key].reduce((sum, character) => sum + character.charCodeAt(0), 0);
+    const bend = Math.min(90, direct * .2) * (seed % 2 ? 1 : -1);
+    const normal = { x: -dy / direct, y: dx / direct };
+    const control1 = { x: start.x + dx * .34 + normal.x * bend, y: start.y + dy * .34 + normal.y * bend };
+    const control2 = { x: start.x + dx * .66 + normal.x * bend, y: start.y + dy * .66 + normal.y * bend };
+    const route = { start, control1, control2, end, length: 0 };
+    let previous = start;
+    for (let i = 1; i <= 20; i++) {
+      const point = routePoint(route, i / 20);
+      route.length += Math.hypot(point.x - previous.x, point.y - previous.y);
+      previous = point;
+    }
+    route.sourceBuildingId = sourceBuildingId;
+    route.destinationId = destinationId;
+    return route;
+  }
+
   function routeGeometry(simulation, factoryId, destinationId = null) {
     const factory = get(simulation, factoryId), building = simulation?.buildings?.[factory?.buildingId];
     const selectedId = destinationId || factory?.outputDestinationId;
@@ -349,28 +379,8 @@
       x: building.x - factory.width * scale / 2 + output.x * scale,
       y: building.y - physicalHeight / 2 + output.y * scale
     } : { x: building.x, y: building.y };
-    if (!Math.hypot(target.x - start.x, target.y - start.y)) return null;
-    const terrain = terrainByPlanet.get(factory.planetId);
-    const traced = terrain && makeTerrainPath(simulation, factory.planetId, start, { x: target.x, y: target.y }, terrain, building.id, target.id);
-    if (traced) {
-      traced.destinationId = target.id;
-      if (factory.outputDestinationId === target.id) factory.outputRoute = traced;
-      return traced;
-    }
-    const dx = target.x - start.x, dy = target.y - start.y, direct = Math.hypot(dx, dy);
-    const bend = Math.min(90, direct * .2) * (factory.id.charCodeAt(factory.id.length - 1) % 2 ? 1 : -1);
-    const normal = { x: -dy / direct, y: dx / direct };
-    const end = { x: target.x, y: target.y };
-    const control1 = { x: start.x + dx * .34 + normal.x * bend, y: start.y + dy * .34 + normal.y * bend };
-    const control2 = { x: start.x + dx * .66 + normal.x * bend, y: start.y + dy * .66 + normal.y * bend };
-    const route = { start, control1, control2, end, length: 0 };
-    let previous = start;
-    for (let i = 1; i <= 20; i++) {
-      const point = routePoint(route, i / 20);
-      route.length += Math.hypot(point.x - previous.x, point.y - previous.y);
-      previous = point;
-    }
-    route.destinationId = target.id;
+    const route = routeBetween(simulation, factory.planetId, start, { x: target.x, y: target.y }, building.id, target.id);
+    if (!route) return null;
     if (factory.outputDestinationId === target.id) factory.outputRoute = route;
     return route;
   }
@@ -689,6 +699,6 @@
 
   root.OrbitFactorySimulation = Object.freeze({ get, byBuilding, create, addBlock, moveBlock,
     removeBlock, connect: connectBlocks, disconnect, createFrame, setOutputDestination, setLogisticsLevel,
-    routeGeometry, routePoint, setTerrain,
+    routeGeometry, routeBetween, routePoint, setTerrain,
     refreshEnergy, advance, copy: copyRecord });
 })(globalThis);

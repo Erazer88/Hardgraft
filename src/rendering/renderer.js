@@ -14,6 +14,7 @@
     let W = 1, H = 1, DPR = 1;
     let state, galaxy, home, contexts, visibleContexts, factoryView, now;
     let galaxyTexture, fogCanvas, fogMask;
+    const surfaceBranchCache = new Map();
     const viewport = { width: W, height: H };
     function project(x, y, cam = state.camera) { return Camera.project({ x, y }, cam, viewport); }
     function localCamera(frame) { return Camera.toLocal(frame, state.camera); }
@@ -308,6 +309,38 @@
       }
       return terrainTexture;
     }
+    function nearestRoutePoint(route, target) {
+      const points = route.points?.length > 1 ? route.points :
+        Array.from({ length: 33 }, (_, index) => FactorySimulation.routePoint(route, index / 32));
+      let closest = points[0], best = Infinity;
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i], dx = b.x - a.x, dy = b.y - a.y;
+        const t = clamp(((target.x - a.x) * dx + (target.y - a.y) * dy) / Math.max(.0001, dx * dx + dy * dy), 0, 1);
+        const point = { x: a.x + dx * t, y: a.y + dy * t }, distanceToRoute = distance(point, target);
+        if (distanceToRoute < best) { best = distanceToRoute; closest = point; }
+      }
+      return { ...closest };
+    }
+    function organicBranches(factory, planet, route) {
+      if (!route) return [];
+      const buildings = Construction.list(state.simulation, planet.id)
+        .filter(item => item.status === 'complete' && item.id !== factory.buildingId && item.id !== route.destinationId);
+      const signature = `${factory.outputDestinationId}:${route.length.toFixed(2)}:${route.points?.length || 0}:` +
+        buildings.map(item => `${item.id}:${item.type}:${item.x.toFixed(1)}:${item.y.toFixed(1)}`).join('|');
+      const cached = surfaceBranchCache.get(factory.id);
+      if (cached?.signature === signature) return cached.branches;
+      const branches = [];
+      for (const building of buildings) {
+        const junction = nearestRoutePoint(route, building);
+        if (distance(junction, building) < 24) continue;
+        const branch = FactorySimulation.routeBetween(state.simulation, planet.id, junction,
+          { x: building.x, y: building.y }, factory.buildingId, building.id);
+        if (branch) branches.push({ route: branch, junction, end: { x: building.x, y: building.y } });
+      }
+      surfaceBranchCache.set(factory.id, { signature, branches });
+      if (surfaceBranchCache.size > 32) surfaceBranchCache.delete(surfaceBranchCache.keys().next().value);
+      return branches;
+    }
     function drawLogisticsRoutes(cam, planet) {
       const buildings = Construction.list(state.simulation, planet.id);
       for (const building of buildings) {
@@ -325,22 +358,37 @@
           const start = project(route.start.x, route.start.y, cam), end = project(route.end.x, route.end.y, cam);
           if (Math.max(start.x, end.x) < -W || Math.min(start.x, end.x) > W * 2 ||
             Math.max(start.y, end.y) < -H || Math.min(start.y, end.y) > H * 2) continue;
-          ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-          const trace = () => {
-            ctx.beginPath(); ctx.moveTo(start.x, start.y);
-            if (route.points?.length > 1) {
-              for (const point of route.points.slice(1)) {
-                const p = project(point.x, point.y, cam); ctx.lineTo(p.x, p.y);
+          const trace = path => {
+            const samples = path.points?.length > 1 ? path.points :
+              Array.from({ length: 33 }, (_, index) => FactorySimulation.routePoint(path, index / 32));
+            const screen = samples.map(point => project(point.x, point.y, cam));
+            ctx.beginPath(); ctx.moveTo(screen[0].x, screen[0].y);
+            if (screen.length < 3) ctx.lineTo(screen[screen.length - 1].x, screen[screen.length - 1].y);
+            else {
+              for (let i = 1; i < screen.length - 1; i++) {
+                const midpoint = { x: (screen[i].x + screen[i + 1].x) / 2, y: (screen[i].y + screen[i + 1].y) / 2 };
+                ctx.quadraticCurveTo(screen[i].x, screen[i].y, midpoint.x, midpoint.y);
               }
-            } else {
-              const c1 = project(route.control1.x, route.control1.y, cam), c2 = project(route.control2.x, route.control2.y, cam);
-              ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+              ctx.lineTo(screen[screen.length - 1].x, screen[screen.length - 1].y);
             }
           };
-          trace();
-          ctx.strokeStyle = '#14231fce'; ctx.lineWidth = clamp(cam.zoom * 5.5, 1.8, 6); ctx.stroke();
-          ctx.strokeStyle = '#d5ceb099'; ctx.lineWidth = clamp(cam.zoom * 1.1, .75, 1.5);
-          ctx.setLineDash([Math.max(2, cam.zoom * 7), Math.max(2, cam.zoom * 6)]); trace(); ctx.stroke(); ctx.setLineDash([]);
+          const strokeRoute = (path, branch = false) => {
+            ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            trace(path); ctx.strokeStyle = '#14231fc7'; ctx.lineWidth = branch ? clamp(cam.zoom * 3.2, 1, 3) : clamp(cam.zoom * 4.2, 1.2, 4); ctx.stroke();
+            trace(path); ctx.strokeStyle = branch ? '#c6c9ae99' : '#d4d0b1c4';
+            ctx.lineWidth = branch ? clamp(cam.zoom * .7, .55, .9) : clamp(cam.zoom * .9, .65, 1.1);
+            ctx.setLineDash(branch ? [Math.max(2, cam.zoom * 2.2), Math.max(3, cam.zoom * 5.5)] : []); ctx.stroke();
+            ctx.setLineDash([]); ctx.restore();
+          };
+          const branches = destinationId === factory.outputDestinationId ? organicBranches(factory, planet, route) : [];
+          for (const branch of branches) {
+            strokeRoute(branch.route, true);
+            const junction = project(branch.junction.x, branch.junction.y, cam), terminal = project(branch.end.x, branch.end.y, cam);
+            circle(ctx, junction.x, junction.y, clamp(cam.zoom * 5, 3, 5), '#d4cdb577', .7);
+            dot(ctx, junction.x, junction.y, clamp(cam.zoom * 2.1, 1.2, 2.2), '#d6d0b7');
+            dot(ctx, terminal.x, terminal.y, clamp(cam.zoom * 2.4, 1.4, 2.4), '#d6d0b7');
+          }
+          strokeRoute(route);
           for (const shipment of factory.shipments || []) {
             if (shipment.destinationId !== destinationId) continue;
             const shipmentRoute = shipment.route || route;

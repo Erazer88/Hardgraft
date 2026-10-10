@@ -155,4 +155,8 @@ test('surface freight routes bend around steep terrain and use the fleet speed d
   assert.ok(result.route.points.length > 3);
   assert.ok(result.route.distance > Math.hypot(result.route.end.x - result.route.start.x, result.route.end.y - result.route.start.y) * 1.1);
   assert.ok(result.route.length / 42 < result.route.length / 2.5);
+  const branch = FactorySimulation.routeBetween(simulation, factory.planetId,
+    { x: 120, y: 210 }, { x: 420, y: 210 }, factory.buildingId, 'branch-node');
+  assert.ok(branch.points.length > 3);
+  assert.ok(branch.distance > 300);
 });
