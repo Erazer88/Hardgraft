@@ -63,7 +63,8 @@
     }
     function showSelection(item, { state, systemModel }) {
       const panel = $('inspector'); panel.hidden = false;
-      $('toast').classList.remove('visible'); $('demolish-button').hidden = true; $('delete-block-button').hidden = true;
+      $('toast').classList.remove('visible'); $('demolish-button').hidden = true;
+      $('delete-block-button').hidden = true; $('connect-selected-block-button').hidden = true;
       if (state.level === 'galaxy') {
         const count = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE'; $('selection-name').textContent = item.name;
@@ -84,14 +85,15 @@
         $('selection-info').textContent = definition?.recipeId ? `Recette active : ${root.OrbitRecipeData.recipes[definition.recipeId].name}. Le stock interne reste bloqué si la sortie est saturée.` : `Stock interne limité à ${item.capacity}. Les transferts vers le bloc suivant sont instantanés si sa capacité le permet.`;
         $('selection-meta').textContent = `${stock}   /   ${String(item.status || 'waiting').toUpperCase()} · ${Math.round(item.x)}, ${Math.round(item.y)}`;
         $('enter-button').hidden = true; $('delete-block-button').hidden = false;
+        $('connect-selected-block-button').hidden = false;
+        $('connect-selected-block-button').classList.toggle('active', state.tool === 'factory-connect');
       } else if (item.entityType === 'building') {
         const definition = Buildings.definitions[item.type];
         $('selection-type').textContent = item.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
         $('selection-name').textContent = definition?.name || 'Installation';
         $('selection-info').textContent = definition?.description || 'Installation de la colonie.';
         $('selection-meta').textContent = buildingMeta(state, item);
-        $('enter-button').hidden = item.type !== 'factory'; $('enter-button').disabled = item.status !== 'complete';
-        if (item.type === 'factory') $('enter-label').textContent = item.status === 'complete' ? 'Zoomer dans l’usine' : 'Usine en construction';
+        $('enter-button').hidden = true;
         $('demolish-button').hidden = false;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN'; $('selection-name').textContent = item.name;
@@ -122,7 +124,6 @@
         if (!building) { $('inspector').hidden = true; state.selected = null; return; }
         $('selection-type').textContent = building.status === 'complete' ? 'INSTALLATION' : 'CHANTIER';
         $('selection-meta').textContent = buildingMeta(state, building);
-        if (building.type === 'factory') $('enter-button').disabled = building.status !== 'complete';
       } else if (state.selected?.entityType === 'block') {
         const factory = state.factoryView?.factory || FactorySimulation.get(state.simulation, state.focusFactory);
         const block = factory?.blocks?.[state.selected.id];
@@ -130,11 +131,14 @@
         const stock = Object.entries(block.stock || {}).filter(([, amount]) => amount > 0)
           .map(([id, amount]) => `${Resources.definitions[id]?.short || id} ${fmt(amount)}`).join(' · ') || 'Stock vide';
         $('selection-meta').textContent = `${stock}   /   ${String(block.status || 'waiting').toUpperCase()} · ${Math.round(block.x)}, ${Math.round(block.y)}`;
+        $('connect-selected-block-button').classList.toggle('active', state.tool === 'factory-connect');
       }
     }
     function update({ state, galaxy, terrainData, width, scaleCamera, factoryView }) {
       const known = galaxy.systems.filter(s => s.discovered || state.reveal).length;
       const level = state.level;
+      const hasFactory = level === 'surface' && Construction.list(state.simulation, state.planet?.id)
+        .some(building => building.type === 'factory' && building.status === 'complete');
       document.body.dataset.level = level;
       $('stat-label').textContent = level === 'galaxy' ? 'SYSTÈMES' : level === 'system' ? 'PLANÈTES' : level === 'factory' ? 'USINE' : 'SURFACE';
       $('stat-value').textContent = level === 'galaxy' ? `${fmt(known)} / ${fmt(galaxy.systems.length)}` : level === 'system' ? String(state.system.planets.length).padStart(2, '0') : level === 'factory' ? `RANG ${factoryView?.factory.rank || 1}` : `${terrainData.width * Config.terrain.textureScale} × ${terrainData.height * Config.terrain.textureScale} km`;
@@ -150,7 +154,8 @@
       $('pan-button').classList.toggle('active', state.tool === 'pan'); $('scan-button').classList.toggle('active', state.tool === 'scan');
       $('build-button').classList.toggle('active', state.tool === 'build');
       $('connect-factory-button').classList.toggle('active', state.tool === 'factory-connect');
-      $('resource-panel').hidden = level !== 'surface'; $('factory-console').hidden = level !== 'factory';
+      $('resource-panel').hidden = level !== 'surface';
+      $('factory-console').hidden = level !== 'factory' || state.selected?.entityType === 'block';
       if (level === 'surface') { updateInventory(state); updateBuildingOptions(state); }
       if (level === 'factory' && factoryView) {
         $('factory-console-title').textContent = `USINE · RANG ${factoryView.factory.rank}`;
@@ -162,7 +167,7 @@
       }
       updateSelection({ ...state, factoryView });
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' : state.tool === 'build' ? 'IMPLANTATION AU SOL' : state.tool === 'factory-add' ? 'AJOUT DE BLOC' : state.tool === 'factory-connect' ? 'CONNEXION DE BLOCS' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' : level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : level === 'factory' ? 'PRODUCTION ACTIVE' : 'TOPOGRAPHIE LOCALE';
-      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : state.tool === 'build' ? 'Touchez une terre ferme · Échap pour annuler' : state.tool === 'factory-add' ? 'Touchez une zone vide pour poser le bloc' : state.tool === 'factory-connect' ? (state.connectionSource ? 'Touchez le bloc de destination' : 'Touchez le bloc source') : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : level === 'factory' ? 'Glisser un bloc · Relier les ports · Pincer pour zoomer' : 'Glisser · Inspecter · Construire · Pincer pour zoomer';
+      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' : state.tool === 'build' ? 'Touchez une terre ferme · Échap pour annuler' : state.tool === 'factory-add' ? 'Touchez une zone vide pour poser le bloc' : state.tool === 'factory-connect' ? (state.connectionSource ? 'Touchez le bloc de destination' : 'Touchez le bloc source') : hasFactory ? 'Zoomez sur une usine pour afficher ses blocs' : level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' : level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : level === 'factory' ? 'Glisser un bloc · Relier les ports · Pincer pour zoomer' : 'Glisser · Inspecter · Construire · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : level === 'factory' ? ' unités' : ' km';
       const camera = scaleCamera;
       const span = (width < 600 ? 50 : 96) / camera.zoom;

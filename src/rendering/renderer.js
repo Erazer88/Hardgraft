@@ -344,8 +344,11 @@
       const a = project(0, 0, camera), b = project(factory.width, factory.height, camera);
       const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), width = Math.abs(b.x - a.x), height = Math.abs(b.y - a.y);
       if (x > W || y > H || x + width < 0 || y + height < 0) return;
+      const reveal = clamp((height - 60) / 180, 0, 1);
+      if (reveal <= 0) return;
       ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, width, height, Math.min(9, Math.max(0, 6 * camera.zoom))); ctx.clip();
-      ctx.fillStyle = '#0a1722'; ctx.fillRect(x, y, width, height);
+      ctx.globalAlpha *= reveal;
+      ctx.fillStyle = '#0a172215'; ctx.fillRect(x, y, width, height);
       ctx.strokeStyle = '#83c3d014'; ctx.lineWidth = 1; ctx.beginPath();
       for (let gx = Math.ceil((0 - camera.x) / 48) * 48; gx < factory.width; gx += 48) {
         const px = project(gx, 0, camera).x; ctx.moveTo(px, y); ctx.lineTo(px, y + height);
@@ -405,8 +408,10 @@
         ctx.restore();
         if (scale > .55) label(ctx, res.type.toUpperCase(), p.x + r + 6, p.y, '#c7c49b', 8);
       }
-      for (const building of Construction.list(state.simulation, planet.id)) drawSurfaceBuilding(cam, building);
-      if (factoryView?.building.planetId === planet.id && state.level !== 'factory') {
+      for (const building of Construction.list(state.simulation, planet.id)) {
+        if (factoryView?.building.id !== building.id) drawSurfaceBuilding(cam, building);
+      }
+      if (factoryView?.building.planetId === planet.id) {
         const nested = Camera.toLocal(factoryView.mapFrame, cam);
         drawFactoryInterior(nested, factoryView.factory);
       }
@@ -435,12 +440,9 @@
     function drawUniverse() {
       ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       const cam = state.camera;
-      if (state.level === 'factory' && factoryView) {
-        drawFactoryInterior(localCamera(factoryView.worldFrame), factoryView.factory); return;
-      }
-      if (state.level === 'surface' && state.planet) {
+      if ((state.level === 'surface' || state.level === 'factory') && state.planet) {
         const p = planetWorldPosition(state.planet), center = project(p.x, p.y), r = state.planet.radius * state.context.frame.scale * cam.zoom;
-        if (r > Math.max(W, H) * 1.5) { drawPlanetTerrain(state.planet, state.context, center, r); return; }
+        if (state.level === 'factory' || r > Math.max(W, H) * 1.5) { drawPlanetTerrain(state.planet, state.context, center, r); return; }
       }
       drawGalaxy(cam);
       if (cam.zoom < .7) return;

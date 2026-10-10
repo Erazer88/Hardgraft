@@ -35,6 +35,7 @@
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
+    <button class="console-button" id="connect-selected-block-button" hidden>Relier ce bloc</button>
     <button class="primary-button" id="delete-block-button" hidden><span>Supprimer ce bloc</span><span aria-hidden="true">×</span></button>
     <button class="danger-button" id="demolish-button" hidden><span>Démolir · remboursement 100 %</span><span aria-hidden="true">×</span></button>
   </aside>
@@ -45,7 +46,6 @@
       <button id="add-block-button" class="console-button">＋ Bloc</button>
       <button id="connect-factory-button" class="console-button">Relier</button>
       <button id="delete-link-button" class="console-button">Effacer lien</button>
-      <button id="exit-factory-button" class="console-button">Quitter</button>
     </div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -102,7 +102,6 @@
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
   <script src="src/simulation/construction.js"></script>
-  <script src="src/simulation/factory.js"></script>
   <script src="src/simulation/factory.js"></script>
   <script src="src/gameplay/exploration.js"></script>
   <script src="src/state.js"></script>

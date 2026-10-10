@@ -84,6 +84,24 @@
     if (!factory || !building || building.planetId !== state.planet?.id || !state.context) return null;
     return { factory, building, ...FactorySimulation.createFrame(surfaceFrame(), building, factory) };
   }
+  function focusFactoryAt(screenX, screenY, factor = 1) {
+    if (state.level !== 'surface' || state.focusFactory || !state.planet || factor <= 1) return false;
+    const surfaceCamera = localCamera(surfaceFrame());
+    const projectedBoardHeight = BuildingData.definitions.factory.footprint * surfaceCamera.zoom * factor;
+    if (projectedBoardHeight < 95) return false;
+    const hitRadius = Math.max(36, Math.min(72, BuildingData.definitions.factory.footprint * surfaceCamera.zoom * .55));
+    let nearest = null, nearestDistance = hitRadius;
+    for (const building of Construction.list(state.simulation, state.planet.id)) {
+      if (building.type !== 'factory' || building.status !== 'complete') continue;
+      const point = project(building.x, building.y, surfaceCamera);
+      const d = Math.hypot(point.x - screenX, point.y - screenY);
+      if (d <= nearestDistance) { nearest = building; nearestDistance = d; }
+    }
+    const factory = nearest && FactorySimulation.byBuilding(state.simulation, nearest.id);
+    if (!factory) return false;
+    state.focusFactory = factory.id;
+    return true;
+  }
   function cameraMoving() { return Camera.moving(state.camera, state.target); }
   function followPlanet(planet, context = state.context) {
     if (state.tracking?.planet.id === planet.id && state.tracking.context === context) return;
@@ -199,7 +217,7 @@
   function renderUniverse(now) {
     const cam = state.camera;
     let visibleContexts = [];
-    const closeSurface = state.level === 'surface' && state.planet &&
+    const closeSurface = (state.level === 'surface' || state.level === 'factory') && state.planet &&
       state.planet.radius * state.context.frame.scale * cam.zoom > Math.max(W, H) * 1.5;
     if (cam.zoom >= .7 && !closeSurface) {
       const visibleStars = galaxy.systems.filter(s => s.discovered || state.reveal)
@@ -234,17 +252,6 @@
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
-  }
-  function enterFactory(building = state.selected) {
-    if (state.level !== 'surface' || !building || building.type !== 'factory' || building.status !== 'complete') return;
-    const factory = FactorySimulation.byBuilding(state.simulation, building.id);
-    if (!factory) return;
-    state.focusFactory = factory.id; state.connectionSource = null; state.tool = 'pan'; state.selected = null;
-    $('inspector').hidden = true;
-    const frame = FactorySimulation.createFrame(surfaceFrame(), building, factory).worldFrame;
-    const camera = Camera.toWorld(frame, { x: factory.width / 2, y: factory.height / 2,
-      zoom: Math.max(W / factory.width, H / factory.height) * 1.12 });
-    focusCamera(camera.x, camera.y, camera.zoom); updateUI();
   }
   function back() {
     if (state.level === 'factory') {
@@ -453,6 +460,7 @@
     }
   }
   function zoomAt(factor, x = W / 2, y = H / 2) {
+    focusFactoryAt(x, y, factor);
     const before = unproject(x, y), [min, max] = zoomLimits(before);
     const z = clamp(state.camera.zoom * factor, min, max);
     state.target = Camera.anchoredZoom(state.camera, viewport, z, { x, y });
@@ -478,6 +486,7 @@
     if (pointers.size >= 2 && pinch) {
       factoryDrag = null;
       const ps = [...pointers.values()], d = distance(ps[0], ps[1]), mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
+      focusFactoryAt(mid.x, mid.y, d / Math.max(1, pinch.distance));
       const before = unproject(pinch.midpoint.x, pinch.midpoint.y), [min, max] = zoomLimits(before);
       const z = clamp(state.camera.zoom * d / Math.max(1, pinch.distance), min, max);
       state.target = Camera.anchoredZoom(state.camera, viewport, z, mid, pinch.midpoint);
@@ -536,17 +545,23 @@
     state.connectionSource = null; state.tool = state.tool === 'factory-connect' ? 'pan' : 'factory-connect';
     updateUI(); if (state.tool === 'factory-connect') toast('Choisissez le bloc source puis le bloc de destination.');
   };
+  $('connect-selected-block-button').onclick = () => {
+    const block = state.selected?.entityType === 'block' ? state.selected : null;
+    if (!block || !factoryView()) return;
+    state.tool = state.tool === 'factory-connect' ? 'pan' : 'factory-connect';
+    state.connectionSource = state.tool === 'factory-connect' ? block.id : null;
+    updateUI();
+    if (state.tool === 'factory-connect') toast('Touchez le bloc de destination.');
+  };
   $('delete-link-button').onclick = () => { state.tool = 'factory-delete-link'; state.connectionSource = null; updateUI(); toast('Touchez le lien à supprimer.'); };
-  $('exit-factory-button').onclick = back;
   for (const button of document.querySelectorAll('[data-building-type]')) button.onclick = () => {
     pendingBuildingType = button.dataset.buildingType; state.tool = 'build'; state.selected = null;
     $('inspector').hidden = true; $('build-dialog').close(); updateUI();
     toast(`${BuildingData.definitions[pendingBuildingType].name} sélectionné. Touchez une terre ferme.`);
   };
-  $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; };
+  $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
-    else if (state.level === 'surface' && state.selected?.type === 'factory') enterFactory();
     else if (state.level === 'system') enterPlanet();
   };
   $('delete-block-button').onclick = deleteSelectedBlock;
@@ -582,7 +597,7 @@
         state.tool = 'pan'; pendingBuildingType = null; pendingBlockType = null;
         state.connectionSource = null; factoryDrag = null; updateUI();
       }
-      else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; }
+      else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();
     }
     if (e.key === '+' || e.key === '=') zoomAt(1.4);

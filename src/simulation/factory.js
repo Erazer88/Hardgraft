@@ -70,10 +70,10 @@
       baseEnergyDemand: Buildings.definitions.factory.energy, energyDemand: Buildings.definitions.factory.energy,
       blocks: {}, order: [], connections: [], nextBlockId: 1, nextConnectionId: 1, production: {}, elapsed: 0 };
     simulation.factories[id] = factory; building.factoryId = id;
-    const input = makeBlock(factory, 'input', 140, 255);
-    const transform = makeBlock(factory, 'transform', 390, 255);
-    const storage = makeBlock(factory, 'storage', 640, 255);
-    const output = makeBlock(factory, 'output', 640, 475);
+    const input = makeBlock(factory, 'input', 140, 650);
+    const transform = makeBlock(factory, 'transform', 390, 650);
+    const storage = makeBlock(factory, 'storage', 640, 650);
+    const output = makeBlock(factory, 'output', 640, 860);
     connect(factory, input.id, transform.id);
     connect(factory, transform.id, storage.id);
     connect(factory, storage.id, output.id);

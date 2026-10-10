@@ -75,13 +75,13 @@ test('a full storage block holds the upstream product instead of losing it', () 
 
 test('block placement, linking, movement, deletion and paused factory time are deterministic', () => {
   const { simulation, factory } = colony();
-  const added = FactorySimulation.addBlock(simulation, factory.id, 'splitter', 380, 760);
+  const added = FactorySimulation.addBlock(simulation, factory.id, 'splitter', 380, 1050);
   assert.equal(added.ok, true);
-  const merger = FactorySimulation.addBlock(simulation, factory.id, 'merger', 630, 760);
+  const merger = FactorySimulation.addBlock(simulation, factory.id, 'merger', 630, 1050);
   assert.equal(merger.ok, true);
   const linked = FactorySimulation.connect(simulation, factory.id, added.block.id, merger.block.id);
   assert.equal(linked.ok, true);
-  assert.equal(FactorySimulation.moveBlock(simulation, factory.id, added.block.id, 390, 790).ok, true);
+  assert.equal(FactorySimulation.moveBlock(simulation, factory.id, added.block.id, 390, 1080).ok, true);
   assert.equal(FactorySimulation.removeBlock(simulation, factory.id, added.block.id).ok, true);
   assert.equal(factory.connections.some(edge => edge.from === added.block.id || edge.to === added.block.id), false);
   const elapsed = factory.elapsed;
