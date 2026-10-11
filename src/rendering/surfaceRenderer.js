@@ -410,14 +410,33 @@
           minimumElevation = Math.min(minimumElevation, value);
           maximumElevation = Math.max(maximumElevation, value);
         }
-        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103]
-          .filter(level => minimumElevation < level && maximumElevation >= level);
-        const contours = contourLevels.map(level => {
-          const path = new root.Path2D();
-          for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-            const index = (y - minY) * sampleWidth + x - minX;
-            const a = samples[index], b = samples[index + 1];
-            const d = samples[index + sampleWidth], e = samples[index + sampleWidth + 1];
+        const contourByIndex = new Array(40);
+        const contours = [];
+        for (let index = 0; index < contourByIndex.length; index += 1) {
+          const level = 48 + index * 5;
+          if (minimumElevation >= level || maximumElevation < level) continue;
+          const coastline = level === 103;
+          const indexContour = !coastline && (level - 48) % 20 === 0;
+          const contour = { level, path: new root.Path2D(),
+            color: coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544',
+            width: (coastline ? 1.15 : indexContour ? .85 : .56) / detailFactor };
+          contourByIndex[index] = contour;
+          contours.push(contour);
+        }
+
+        // Visit each visible cell once, then trace only the contour levels that
+        // cross its local elevation range instead of rescanning it 40 times.
+        for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+          const index = (y - minY) * sampleWidth + x - minX;
+          const a = samples[index], b = samples[index + 1];
+          const d = samples[index + sampleWidth], e = samples[index + sampleWidth + 1];
+          const cellMinimum = Math.min(a, b, d, e), cellMaximum = Math.max(a, b, d, e);
+          const firstLevel = Math.max(0, Math.ceil((cellMinimum - 48) / 5));
+          const lastLevel = Math.min(39, Math.floor((cellMaximum - 48) / 5));
+          for (let levelIndex = firstLevel; levelIndex <= lastLevel; levelIndex += 1) {
+            const contour = contourByIndex[levelIndex];
+            if (!contour) continue;
+            const level = contour.level, path = contour.path;
             const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
             if (mask === 0 || mask === 15) continue;
             let hasFirst = false, firstX = 0, firstY = 0;
@@ -442,11 +461,7 @@
               else { firstX = px; firstY = py; hasFirst = true; }
             }
           }
-          const coastline = level === 103;
-          const indexContour = !coastline && (level - 48) % 20 === 0;
-          return { path, color: coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544',
-            width: (coastline ? 1.15 : indexContour ? .85 : .56) / detailFactor };
-        });
+        }
         detailContourCache = { planetId: frame.planet.id, subdivision, minX, maxX, minY, maxY, contours };
       }
       if (!detailContourCache || detailContourCache.planetId !== frame.planet.id) return;
