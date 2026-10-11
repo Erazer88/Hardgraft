@@ -16,6 +16,7 @@
   const canvas = $('universe');
   const renderer = globalThis.OrbitRenderer.create(canvas);
   const hud = globalThis.OrbitHUD.create(document);
+  globalThis.OrbitDeveloperTools.create(document);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const formatAmount = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
@@ -938,14 +939,16 @@
   }
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
-    if (e.target instanceof HTMLInputElement) return;
     if (e.key === 'Escape') {
+      if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();
     }
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement ||
+        $('menu-dialog').open || $('developer-dialog').open) return;
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }

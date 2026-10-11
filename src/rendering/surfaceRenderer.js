@@ -517,7 +517,7 @@
           const waterContour = level < 102;
           const contour = { level, path: new root.Path2D(),
             overview,
-            color: overview ? '#e2e8eaaa' : coastline ? '#f2d8a7ed' : waterContour
+            color: overview ? '#e2e8ea' : coastline ? '#f2d8a7ed' : waterContour
               ? (indexContour ? '#a0e4e9cf' : '#83cbd69e')
               : (indexContour ? '#111a16e8' : '#1a2921bf'),
             outlineColor: overview ? '#13212b80' : coastline ? '#102127d4' : waterContour ? '#071827a8' : '#ddd4ae78',
@@ -573,16 +573,22 @@
       canvasContext.translate(top.x, top.y);
       canvasContext.scale(frame.zoom, frame.zoom);
       canvasContext.lineCap = 'round'; canvasContext.lineJoin = 'round';
+      const developerSettings = root.OrbitDeveloperSettings;
+      const overviewColor = developerSettings?.get('overviewContourColor') || '#e2e8ea';
+      const overviewOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 67) / 100, 0, 1);
       for (const contour of detailContourCache.contours) {
         const contourScale = contour.overview ? 1 / frame.zoom : 1;
+        canvasContext.globalAlpha = contour.overview ? overviewOpacity : 1;
         if (contour.outlineWidth) {
-          canvasContext.strokeStyle = contour.outlineColor;
+          canvasContext.strokeStyle = contour.overview ? '#13212b80' : contour.outlineColor;
           canvasContext.lineWidth = (contour.width + contour.outlineWidth) * contourScale;
           canvasContext.stroke(contour.path);
         }
-        canvasContext.strokeStyle = contour.color; canvasContext.lineWidth = contour.width * contourScale;
+        canvasContext.strokeStyle = contour.overview ? overviewColor : contour.color;
+        canvasContext.lineWidth = contour.width * contourScale;
         canvasContext.stroke(contour.path);
       }
+      canvasContext.globalAlpha = 1;
       canvasContext.restore();
     }
 
