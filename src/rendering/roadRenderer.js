@@ -3,7 +3,7 @@
 
   const Style = root.OrbitRoadConfig.render;
 
-  function roadRuns(frame, segment, opacity = 1, color = Style.landColor) {
+  function roadRuns(frame, segment, opacity = 1, color = Style.landColor, waterOpacity = Style.waterOpacity) {
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
     let landOpen = false, waterOpen = false, waterProgress = Style.waterDotSpacingPx / 2;
@@ -25,7 +25,7 @@
       if (isWater) {
         if (landOpen) { ctx.stroke(); ctx.beginPath(); landOpen = false; }
         if (!waterOpen) waterProgress = Style.waterDotSpacingPx / 2;
-        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity, color);
+        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity, color, waterOpacity);
         waterOpen = true;
       } else {
         waterOpen = false; waterProgress = Style.waterDotSpacingPx / 2;
@@ -55,10 +55,10 @@
     return false;
   }
 
-  function drawWaterDots(ctx, a, b, progress, opacity = 1, color = Style.waterColor) {
+  function drawWaterDots(ctx, a, b, progress, opacity = 1, color = Style.waterColor, waterOpacity = Style.waterOpacity) {
     const length = Math.hypot(b.x - a.x, b.y - a.y), spacing = Style.waterDotSpacingPx;
     if (length < .1) return progress;
-    ctx.save(); ctx.fillStyle = color; ctx.globalAlpha = Style.waterOpacity * opacity;
+    ctx.save(); ctx.fillStyle = color; ctx.globalAlpha = waterOpacity * opacity;
     for (; progress < length; progress += spacing) {
       const t = progress / length;
       const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
@@ -143,9 +143,11 @@
       const opacity = Number.isFinite(preview.opacity) ? preview.opacity : .52;
       const color = preview.valid ? Style.landColor : (preview.color || Style.landColor);
       const lineWidth = Number.isFinite(preview.lineWidth) ? preview.lineWidth : Style.landWidthPx;
+      const waterOpacity = Number.isFinite(preview.waterOpacity) ? preview.waterOpacity : Style.waterOpacity;
       ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = opacity;
-      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, opacity, color);
+      ctx.setLineDash(preview.valid ? [] : (preview.dash || []));
+      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, opacity, color, waterOpacity);
       ctx.restore();
     }
   }

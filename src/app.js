@@ -354,6 +354,8 @@
           fromPoint: roadDrag.from.point, toPoint: target.point }
         : { points: [roadDrag.from.point, target.point], surfaceTypes: [], valid: false, snapped: true,
           opacity: RoadPlacement.config.interaction.freePreviewOpacity,
+          lineWidth: RoadPlacement.config.interaction.freePreviewWidthPx,
+          dash: RoadPlacement.config.interaction.freePreviewDashPx, waterOpacity: 1,
           color: RoadPlacement.config.interaction.freePreviewColor,
           fromPoint: roadDrag.from.point, toPoint: target.point, reason: preview.reason };
       roadDrag.preview = preview;
@@ -367,6 +369,8 @@
       valid: false, snapped: false, committable: false,
       opacity: RoadPlacement.config.interaction.freePreviewOpacity,
       lineWidth: RoadPlacement.config.interaction.freePreviewWidthPx,
+      dash: RoadPlacement.config.interaction.freePreviewDashPx,
+      waterOpacity: 1,
       color: RoadPlacement.config.interaction.freePreviewColor,
       fromPoint: roadDrag.from.point, toPoint: point
     };
