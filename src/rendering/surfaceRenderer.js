@@ -52,30 +52,12 @@
     const pendingMaterialTextures = new Set();
     let materialImagesReady = false;
     let detailContourCache = null;
-    let detailMaterialOverlay = null;
-    let detailMaterialView = null;
+    const materialIndices = Object.fromEntries(materialDefinitions.map((definition, index) => [definition.id, index]));
 
     function makeCanvas(width, height) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       return canvas;
-    }
-
-    function drawMirroredTextureTile(image, tileCanvas) {
-      const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
-      if (tileCanvas.width !== width * 2 || tileCanvas.height !== height * 2) {
-        tileCanvas.width = width * 2; tileCanvas.height = height * 2;
-      }
-      const context = tileCanvas.getContext('2d');
-      context.clearRect(0, 0, tileCanvas.width, tileCanvas.height);
-      context.drawImage(image, 0, 0, width, height);
-      context.save(); context.translate(width * 2, 0); context.scale(-1, 1);
-      context.drawImage(image, 0, 0, width, height); context.restore();
-      context.save(); context.translate(0, height * 2); context.scale(1, -1);
-      context.drawImage(image, 0, 0, width, height); context.restore();
-      context.save(); context.translate(width * 2, height * 2); context.scale(-1, -1);
-      context.drawImage(image, 0, 0, width, height); context.restore();
-      return { width, height };
     }
 
     function createWaterDistanceField(terrain) {
@@ -111,7 +93,9 @@
       const frozenWorld = record.planet.kind === 'glacée';
       const aridWorld = record.planet.kind === 'aride';
       const volcanicWorld = record.planet.kind === 'volcanique';
-      const retainedAlpha = record.materialMasks ? new Uint8Array(elevation.length) : null;
+      const materialIndex = materialIndices[materialId];
+      const retainedGroup = record.materialMasks ? record.materialMasks[Math.floor(materialIndex / 3)] : null;
+      const retainedChannel = materialIndex % 3;
       for (let i = 0; i < elevation.length; i += 1) {
         const value = elevation[i], aboveSea = value - seaLevel;
         const localTemperature = averageTemperature - Math.max(0, aboveSea) * SurfaceStyle.terrain.temperatureLapsePerElevation;
@@ -151,12 +135,11 @@
         }
         const pixel = i * 4;
         const alphaByte = Math.round(clamp(alpha, 0, 1) * 255);
-        if (retainedAlpha) retainedAlpha[i] = alphaByte;
+        if (retainedGroup) retainedGroup[i * 3 + retainedChannel] = alphaByte;
         pixels.data[pixel] = pixels.data[pixel + 1] = pixels.data[pixel + 2] = 255;
         pixels.data[pixel + 3] = alphaByte;
       }
       maskContext.putImageData(pixels, 0, 0);
-      if (retainedAlpha) record.materialMasks[materialId] = retainedAlpha;
       return mask;
     }
 
@@ -325,7 +308,8 @@
       const terrainTexture = makeCanvas(width * textureScale, height * textureScale);
       terrainTexture.logicalWidth = options.logicalWidth || width * textureScale;
       terrainTexture.logicalHeight = options.logicalHeight || height * textureScale;
-      terrainTexture.materialMasks = options.retainMaterialMasks ? Object.create(null) : null;
+      terrainTexture.materialMasks = options.retainMaterialMasks
+        ? Array.from({ length: 3 }, () => new Uint8Array(width * height * 3)) : null;
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
@@ -523,103 +507,16 @@
       };
     }
 
-    function stableDetailView(frame, top) {
-      const camera = frame.camera, now = frame.now;
-      const moved = !detailMaterialView || detailMaterialView.planetId !== frame.planet.id ||
-        Math.abs(detailMaterialView.x - camera.x) > .015 ||
-        Math.abs(detailMaterialView.y - camera.y) > .015 ||
-        Math.abs(detailMaterialView.zoom - camera.zoom) > .0001 ||
-        Math.abs(detailMaterialView.topX - top.x) > .25 ||
-        Math.abs(detailMaterialView.topY - top.y) > .25;
-      if (moved) detailMaterialView = { planetId: frame.planet.id, x: camera.x, y: camera.y,
-        zoom: camera.zoom, topX: top.x, topY: top.y, stableSince: now };
-      return now - detailMaterialView.stableSince >= 140;
-    }
-
-    function createDetailMaterialOverlay(frame, top, masks) {
-      const viewport = frame.viewport, pixelWidth = canvasContext.canvas.width;
-      const pixelHeight = canvasContext.canvas.height;
-      const pixelRatio = pixelWidth / viewport.width, scale = pixelRatio * frame.zoom;
-      const detailTerrain = frame.detailTerrain;
-      const width = detailTerrain.width, height = detailTerrain.height;
-      const overlay = makeCanvas(pixelWidth, pixelHeight), overlayContext = overlay.getContext('2d');
-      const sample = makeCanvas(pixelWidth, pixelHeight), sampleContext = sample.getContext('2d');
-      const maskCanvas = makeCanvas(width, height), maskContext = maskCanvas.getContext('2d');
-      const maskImage = maskContext.createImageData(width, height);
-      const maskPixels = maskImage.data;
-      for (let i = 0; i < width * height; i += 1) {
-        const pixel = i * 4;
-        maskPixels[pixel] = maskPixels[pixel + 1] = maskPixels[pixel + 2] = 255;
-      }
-      const tileCanvas = makeCanvas(1, 1);
-      let drawn = 0;
-      for (const definition of materialDefinitions) {
-        const alpha = masks[definition.id], image = materialImages[definition.id];
-        if (!alpha || !image) continue;
-        const { width: imageWidth, height: imageHeight } = drawMirroredTextureTile(image, tileCanvas);
-        for (let i = 0; i < alpha.length; i += 1) maskPixels[i * 4 + 3] = alpha[i];
-        maskContext.putImageData(maskImage, 0, 0);
-        const pattern = sampleContext.createPattern(tileCanvas, 'repeat');
-        if (!pattern) continue;
-        const tileWorldSize = Math.min(imageWidth, imageHeight) / Config.terrain.materialTexturePixelsPerKm;
-        const textureScale = tileWorldSize / imageWidth;
-        sampleContext.setTransform(1, 0, 0, 1, 0, 0);
-        sampleContext.globalAlpha = 1;
-        sampleContext.globalCompositeOperation = 'source-over';
-        sampleContext.clearRect(0, 0, pixelWidth, pixelHeight);
-        sampleContext.imageSmoothingEnabled = true;
-        sampleContext.setTransform(scale * textureScale, 0, 0, scale * textureScale,
-          pixelRatio * top.x, pixelRatio * top.y);
-        sampleContext.globalAlpha = definition.opacity;
-        sampleContext.fillStyle = pattern;
-        sampleContext.fillRect(0, 0, frame.terrainWidth / textureScale, frame.terrainHeight / textureScale);
-        sampleContext.globalCompositeOperation = 'destination-in';
-        sampleContext.globalAlpha = 1;
-        sampleContext.setTransform(scale, 0, 0, scale, pixelRatio * top.x, pixelRatio * top.y);
-        sampleContext.drawImage(maskCanvas, 0, 0, frame.terrainWidth, frame.terrainHeight);
-        sampleContext.setTransform(1, 0, 0, 1, 0, 0);
-        sampleContext.globalCompositeOperation = 'source-over';
-        sampleContext.globalAlpha = 1;
-        sampleContext.fillStyle = '#fff';
-        overlayContext.drawImage(sample, 0, 0);
-        drawn += 1;
-      }
-      sample.width = 0; sample.height = 0;
-      maskCanvas.width = 0; maskCanvas.height = 0;
-      tileCanvas.width = 0; tileCanvas.height = 0;
-      return drawn ? overlay : null;
-    }
-
-    function drawDetailMaterialOverlay(frame, top) {
-      if (!frame.detailTerrain || frame.zoom < 2) {
-        detailMaterialOverlay = null;
-        detailMaterialView = null;
-        return null;
-      }
-      const masks = frame.terrainTexture.materialMasks;
-      if (!masks || !Object.keys(masks).length || !stableDetailView(frame, top)) return null;
-      const key = [frame.planet.id, canvasContext.canvas.width, canvasContext.canvas.height,
-        frame.zoom.toFixed(3), (Math.round(top.x * 2) / 2).toFixed(1),
-        (Math.round(top.y * 2) / 2).toFixed(1)].join(':');
-      if (detailMaterialOverlay?.key !== key) {
-        const canvas = createDetailMaterialOverlay(frame, top, masks);
-        detailMaterialOverlay = canvas ? { key, canvas } : null;
-      }
-      return detailMaterialOverlay?.canvas || null;
-    }
-
     function drawTerrain(frame) {
       const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
-      const masks = terrainTexture.materialMasks;
-      const detailMaskLayers = masks && materialDefinitions.map(definition => masks[definition.id] || null);
       const pixelRatio = canvasContext.canvas.width / frame.viewport.width;
-      const gpuRendered = frame.detailTerrain && frame.zoom >= 2 && detailMaskLayers &&
+      const gpuRendered = frame.detailTerrain && frame.zoom >= 2 &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
           baseCanvas: terrainTexture.baseColorCanvas,
-          materialMasks: detailMaskLayers,
+          materialMasks: terrainTexture.materialMasks,
           viewport: frame.viewport,
           pixelRatio,
           top,
@@ -630,18 +527,11 @@
           seed: World.hashSeed(String(frame.planet.seed) + ':stochastic-materials:v1')
         });
       if (gpuRendered) {
-        // The GPU mask layers replace nine full-size CPU alpha maps. The
-        // original baked canvas remains available as a fallback if WebGL is lost.
-        for (const definition of materialDefinitions) delete masks[definition.id];
+        // The GPU texture replaces packed CPU masks; keep the baked canvas as a fallback.
+        terrainTexture.materialMasks = null;
         canvasContext.drawImage(materialRenderer.canvas, 0, 0, frame.viewport.width, frame.viewport.height);
       } else {
-        const detailOverlay = drawDetailMaterialOverlay(frame, top);
-        const baseTexture = detailOverlay && terrainTexture.baseColorCanvas
-          ? terrainTexture.baseColorCanvas : terrainTexture;
-        canvasContext.drawImage(baseTexture, top.x, top.y, width, height);
-        if (detailOverlay) {
-          canvasContext.drawImage(detailOverlay, 0, 0, frame.viewport.width, frame.viewport.height);
-        }
+        canvasContext.drawImage(terrainTexture, top.x, top.y, width, height);
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       drawDetailContours(frame);

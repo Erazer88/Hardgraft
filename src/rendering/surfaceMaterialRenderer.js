@@ -2,6 +2,7 @@
   'use strict';
 
   const MATERIAL_COUNT = 9;
+  const MATERIAL_MASK_GROUPS = 3;
 
   const VERTEX_SHADER = `#version 300 es
     const vec2 positions[3] = vec2[3](
@@ -43,8 +44,16 @@
       return float(hashCell(cell, salt) & 0x00ffffffu) / 16777216.0;
     }
 
-    float materialMask(vec2 uv, int layer) {
-      return texture(uMaterialMasks, vec3(uv, float(layer))).r;
+    float channelAt(vec3 channels, int index) {
+      if (index == 0) return channels.r;
+      if (index == 1) return channels.g;
+      return channels.b;
+    }
+
+    float materialMask(vec3 group0, vec3 group1, vec3 group2, int material) {
+      if (material < 3) return channelAt(group0, material);
+      if (material < 6) return channelAt(group1, material - 3);
+      return channelAt(group2, material - 6);
     }
 
     vec2 stochasticUv(vec2 coordinate, vec2 site, ivec2 cell, int material) {
@@ -71,16 +80,21 @@
       vec2 coordinate = world / uTileWorldSize;
       ivec2 cell = ivec2(floor(coordinate));
       vec2 fraction = fract(coordinate);
-      if (fraction.x + fraction.y <= 1.0) {
-        float firstWeight = 1.0 - fraction.x - fraction.y;
-        return sampleBiomeSite(coordinate, cell, material) * firstWeight +
-          sampleBiomeSite(coordinate, cell + ivec2(1, 0), material) * fraction.x +
-          sampleBiomeSite(coordinate, cell + ivec2(0, 1), material) * fraction.y;
+      const float seamWidth = 0.09;
+      float seamX = smoothstep(1.0 - seamWidth, 1.0, fraction.x);
+      float seamY = smoothstep(1.0 - seamWidth, 1.0, fraction.y);
+      vec3 current = sampleBiomeSite(coordinate, cell, material);
+      if (seamX > 0.0 && seamY > 0.0) {
+        vec3 right = sampleBiomeSite(coordinate, cell + ivec2(1, 0), material);
+        vec3 down = sampleBiomeSite(coordinate, cell + ivec2(0, 1), material);
+        vec3 diagonal = sampleBiomeSite(coordinate, cell + ivec2(1, 1), material);
+        return mix(mix(current, right, seamX), mix(down, diagonal, seamX), seamY);
       }
-      float firstWeight = fraction.x + fraction.y - 1.0;
-      return sampleBiomeSite(coordinate, cell + ivec2(1, 1), material) * firstWeight +
-        sampleBiomeSite(coordinate, cell + ivec2(1, 0), material) * (1.0 - fraction.y) +
-        sampleBiomeSite(coordinate, cell + ivec2(0, 1), material) * (1.0 - fraction.x);
+      if (seamX > 0.0) return mix(current,
+        sampleBiomeSite(coordinate, cell + ivec2(1, 0), material), seamX);
+      if (seamY > 0.0) return mix(current,
+        sampleBiomeSite(coordinate, cell + ivec2(0, 1), material), seamY);
+      return current;
     }
 
     void main() {
@@ -90,8 +104,11 @@
       if (mapUv.x < 0.0 || mapUv.y < 0.0 || mapUv.x > 1.0 || mapUv.y > 1.0) discard;
 
       vec3 color = texture(uBaseColor, mapUv).rgb;
+      vec3 maskGroup0 = texture(uMaterialMasks, vec3(mapUv, 0.0)).rgb;
+      vec3 maskGroup1 = texture(uMaterialMasks, vec3(mapUv, 1.0)).rgb;
+      vec3 maskGroup2 = texture(uMaterialMasks, vec3(mapUv, 2.0)).rgb;
       for (int material = 0; material < 9; material++) {
-        float coverage = materialMask(mapUv, material);
+        float coverage = materialMask(maskGroup0, maskGroup1, maskGroup2, material);
         if (coverage > 0.005) {
           vec3 textureColor = sampleBiome(world, material);
           color = mix(color, textureColor, coverage);
@@ -252,8 +269,9 @@
     }
 
     function uploadSurface(key, baseCanvas, masks, seed) {
-      if (!biomeTexture || !program || !baseCanvas || !masks) return false;
+      if (!biomeTexture || !program || !baseCanvas) return false;
       if (activeSurface?.key === key) return true;
+      if (!masks) return false;
       if (failedSurface === key) return false;
       deleteSurface(activeSurface);
       activeSurface = null;
@@ -267,12 +285,12 @@
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         gl.bindTexture(gl.TEXTURE_2D_ARRAY, maskTexture);
         configureSampler(gl.TEXTURE_2D_ARRAY, gl.CLAMP_TO_EDGE, false);
-        gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8, width, height, MATERIAL_COUNT);
-        for (let index = 0; index < MATERIAL_COUNT; index += 1) {
-          const alpha = masks[index];
-          if (!alpha || alpha.length !== width * height) continue;
+        gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_MASK_GROUPS);
+        for (let index = 0; index < MATERIAL_MASK_GROUPS; index += 1) {
+          const channels = masks[index];
+          if (!channels || channels.length !== width * height * 3) continue;
           gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, index, width, height, 1,
-            gl.RED, gl.UNSIGNED_BYTE, alpha);
+            gl.RGB, gl.UNSIGNED_BYTE, channels);
         }
 
         gl.bindTexture(gl.TEXTURE_2D, baseTexture);
@@ -293,7 +311,7 @@
     }
 
     function draw(frame) {
-      if (contextLost || disabled || !frame.baseCanvas || !frame.materialMasks || !frame.detailTexture) return false;
+      if (contextLost || disabled || !frame.baseCanvas || !frame.detailTexture) return false;
       if (!biomeTexture && !uploadBiomeTextures()) return false;
       const { viewport, pixelRatio, top, zoom, mapSize, tileWorldSize, seed } = frame;
       const width = Math.max(1, Math.round(viewport.width * pixelRatio));
