@@ -127,7 +127,8 @@
         textureScale: (record.texture.logicalWidth || record.texture.width) * Config.terrain.renderTexturePixelRatio / detailedTerrain.width,
         logicalWidth: record.texture.logicalWidth || record.texture.width,
         logicalHeight: record.texture.logicalHeight || record.texture.height,
-        skipContours: true
+        skipContours: true,
+        retainMaterialMasks: true
       });
       record.detailTerrain = detailedTerrain;
     }
