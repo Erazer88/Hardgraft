@@ -334,6 +334,11 @@
       baseField: record.roadCostField, buildings: state.surfaceBuildings };
   }
 
+  function roadTerrainPointAt(screenX, screenY) {
+    const frame = surfaceFrame(), world = unproject(screenX, screenY);
+    return { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
+  }
+
   function updateRoadPreview(screenX, screenY, force = false) {
     if (!roadDrag || state.level !== 'surface') return;
     const now = performance.now();
@@ -341,15 +346,31 @@
     roadDrag.lastPreviewAt = now;
     const target = roadEndpointAt(screenX, screenY);
     roadDrag.target = target;
-    if (!target) { state.roadPreview = null; return; }
-    const params = roadRouteParameters(roadDrag.from, target);
-    const preview = RoadPlacement.previewBetween(params);
-    state.roadPreview = preview.connected
-      ? { points: preview.points, surfaceTypes: preview.surfaceTypes, valid: true,
-        opacity: RoadPlacement.config.interaction.previewOpacity,
-        fromPoint: roadDrag.from.point, toPoint: target.point }
-      : { valid: false, opacity: RoadPlacement.config.interaction.previewOpacity,
-        fromPoint: roadDrag.from.point, toPoint: target.point, reason: preview.reason };
+    if (target) {
+      const preview = RoadPlacement.previewBetween(roadRouteParameters(roadDrag.from, target));
+      state.roadPreview = preview.connected
+        ? { points: preview.points, surfaceTypes: preview.surfaceTypes, valid: true, snapped: true,
+          opacity: RoadPlacement.config.interaction.previewOpacity,
+          fromPoint: roadDrag.from.point, toPoint: target.point }
+        : { points: [roadDrag.from.point, target.point], surfaceTypes: [], valid: false, snapped: true,
+          opacity: RoadPlacement.config.interaction.freePreviewOpacity,
+          color: RoadPlacement.config.interaction.freePreviewColor,
+          fromPoint: roadDrag.from.point, toPoint: target.point, reason: preview.reason };
+      roadDrag.preview = preview;
+      return;
+    }
+
+    const point = roadTerrainPointAt(screenX, screenY);
+    const parameters = roadRouteParameters(roadDrag.from, { kind: 'free', point });
+    const preview = RoadPlacement.previewToPoint({ ...parameters, point });
+    state.roadPreview = {
+      points: preview.connected ? preview.points : [roadDrag.from.point, point],
+      surfaceTypes: preview.connected ? preview.surfaceTypes : [],
+      valid: false, snapped: false, committable: false,
+      opacity: RoadPlacement.config.interaction.freePreviewOpacity,
+      color: RoadPlacement.config.interaction.freePreviewColor,
+      fromPoint: roadDrag.from.point, toPoint: point, reason: preview.reason || ''
+    };
     roadDrag.preview = preview;
   }
 

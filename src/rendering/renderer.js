@@ -39,6 +39,7 @@
       project, localCamera, surfaceFrame,
       getState: () => state,
       getViewport: () => viewport,
+      getNow: () => now,
       drawLine: line, drawCircle: circle, drawLabel: label,
       layers: {
         roads: root.OrbitRoadRenderer,

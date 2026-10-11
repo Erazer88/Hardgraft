@@ -71,6 +71,18 @@
     return { connected: true, from, to, ...route };
   }
 
+  function previewToPoint({ network, from, point, terrain, baseField, buildings }) {
+    const to = { kind: 'free', point };
+    const problem = validateEndpoints({ network, from, to });
+    if (problem) return { connected: false, reason: problem };
+    const field = CostField.withNetwork(baseField, network, buildings, [from.point, point], null,
+      { allowDeepWater: false, avoidExistingRoads: true, builtRoadsOnly: true });
+    const rawPath = Pathfinder.findPath(field, terrain, from.point, point);
+    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings);
+    if (!route) return { connected: false, reason: 'Aucun tracé valide vers ce point.' };
+    return { connected: true, committable: false, from, to, ...route };
+  }
+
   function copyNetwork(network) {
     return { ...network,
       nodes: network.nodes.map(node => ({ ...node })),
@@ -104,5 +116,5 @@
     return { connected: true, segment, points: route.points, surfaceTypes: route.surfaceTypes };
   }
 
-  root.OrbitRoadPlacement = Object.freeze({ previewBetween, createBetween, config: Config });
+  root.OrbitRoadPlacement = Object.freeze({ previewBetween, previewToPoint, createBetween, config: Config });
 })(globalThis);

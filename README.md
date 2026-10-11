@@ -29,7 +29,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Jav
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de relief, les coordonnées et l'altitude. Les gisements restent des éléments naturels générés, sans extraction active.
 - En surface, le bouton usine active un aperçu de placement. Déplacez-le sur la terre ferme et touchez pour lancer l'assemblage ; Échap annule le mode. Les usines se sélectionnent en touchant leur empreinte. L'éditeur intérieur des blocs viendra dans une étape suivante.
-- Le bouton route active le tracé manuel : faites glisser depuis un bâtiment ou une route jusqu'à un autre bâtiment ou point de route. Une prévisualisation topographique semi-transparente apparaît pendant le geste, puis la route se construit progressivement après relâchement.
+- Le bouton route active le tracé manuel : faites glisser depuis un bâtiment ou une route jusqu'à un autre bâtiment ou point de route. Avant l'accrochage à une arrivée, un trajet potentiel rouge et discret suit le relief, sans pouvoir être validé. Il devient blanc après accrochage à une cible valide. Après relâchement, une lumière pulsée accompagne le front de construction.
 - Le menu permet de reprendre l'exploration, de réinitialiser la progression avec la même graine, de saisir une autre graine ou d'afficher tous les systèmes.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 

@@ -131,6 +131,7 @@
         terrainTexture: record.texture,
         state: getState(),
         viewport: getViewport(),
+        now: dependencies.getNow(),
         project: (x, y) => project(x, y, cam)
       };
     }

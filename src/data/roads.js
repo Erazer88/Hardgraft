@@ -40,7 +40,9 @@
     interaction: Object.freeze({
       roadSnapRadiusPx: 18,
       previewIntervalMs: 85,
-      previewOpacity: .52
+      previewOpacity: .52,
+      freePreviewColor: '#e76f72',
+      freePreviewOpacity: .27
     }),
     construction: Object.freeze({
       speedByClass: Object.freeze({ main: 22, secondary: 8 })
@@ -63,7 +65,12 @@
       waterDotRadiusPx: 1.15,
       waterDotSpacingPx: 7,
       junctionColor: '#f2f4ef',
-      junctionRadiusPx: 2.1
+      junctionRadiusPx: 2.1,
+      constructionColor: '#f3b46b',
+      constructionPulsePeriodMs: 1450,
+      constructionPulseRadiusPx: 5.5,
+      constructionPulseOpacity: .42,
+      constructionHeadRadiusPx: 1.8
     })
   });
 })(globalThis);

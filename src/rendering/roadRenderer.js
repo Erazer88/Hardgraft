@@ -3,7 +3,7 @@
 
   const Style = root.OrbitRoadConfig.render;
 
-  function roadRuns(frame, segment, opacity = 1) {
+  function roadRuns(frame, segment, opacity = 1, color = Style.landColor) {
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
     let landOpen = false, waterOpen = false, waterProgress = Style.waterDotSpacingPx / 2;
@@ -25,7 +25,7 @@
       if (isWater) {
         if (landOpen) { ctx.stroke(); ctx.beginPath(); landOpen = false; }
         if (!waterOpen) waterProgress = Style.waterDotSpacingPx / 2;
-        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity);
+        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity, color);
         waterOpen = true;
       } else {
         waterOpen = false; waterProgress = Style.waterDotSpacingPx / 2;
@@ -55,10 +55,10 @@
     return false;
   }
 
-  function drawWaterDots(ctx, a, b, progress, opacity = 1) {
+  function drawWaterDots(ctx, a, b, progress, opacity = 1, color = Style.waterColor) {
     const length = Math.hypot(b.x - a.x, b.y - a.y), spacing = Style.waterDotSpacingPx;
     if (length < .1) return progress;
-    ctx.save(); ctx.fillStyle = Style.waterColor; ctx.globalAlpha = Style.waterOpacity * opacity;
+    ctx.save(); ctx.fillStyle = color; ctx.globalAlpha = Style.waterOpacity * opacity;
     for (; progress < length; progress += spacing) {
       const t = progress / length;
       const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
@@ -80,6 +80,40 @@
       bottomRight.y >= -margin && topLeft.y <= frame.viewport.height + margin;
   }
 
+  function pointAtDistance(points, target) {
+    let remaining = target;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i], length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (remaining <= length) {
+        const t = length > 0 ? remaining / length : 0;
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      }
+      remaining -= length;
+    }
+    return { ...points[points.length - 1] };
+  }
+
+  function drawConstructionHead(frame, segment) {
+    const built = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length;
+    if (built <= 0 || built >= segment.length || segment.points?.length < 2) return;
+    const style = Style, point = pointAtDistance(segment.points, built), screen = frame.project(point.x, point.y);
+    if (screen.x < -style.constructionPulseRadiusPx || screen.y < -style.constructionPulseRadiusPx ||
+        screen.x > frame.viewport.width + style.constructionPulseRadiusPx ||
+        screen.y > frame.viewport.height + style.constructionPulseRadiusPx) return;
+    const phase = ((frame.now || 0) % style.constructionPulsePeriodMs) / style.constructionPulsePeriodMs;
+    const eased = phase * phase * (3 - 2 * phase);
+    const radius = style.constructionHeadRadiusPx + eased * (style.constructionPulseRadiusPx - style.constructionHeadRadiusPx);
+    frame.context.save();
+    frame.context.globalAlpha = style.constructionPulseOpacity * (1 - eased * .5);
+    frame.context.strokeStyle = style.constructionColor;
+    frame.context.lineWidth = 1;
+    frame.context.beginPath(); frame.context.arc(screen.x, screen.y, radius, 0, Math.PI * 2); frame.context.stroke();
+    frame.context.globalAlpha = .8;
+    frame.context.fillStyle = style.constructionColor;
+    frame.context.beginPath(); frame.context.arc(screen.x, screen.y, style.constructionHeadRadiusPx * .65, 0, Math.PI * 2); frame.context.fill();
+    frame.context.restore();
+  }
+
   function render(frame) {
     const network = frame.state.roadNetworks?.[frame.planet.id];
     const ctx = frame.context;
@@ -89,6 +123,7 @@
       for (const segment of network.segments) {
         if (segment.points?.length < 2 || !visible(frame, segment)) continue;
         roadRuns(frame, segment);
+        drawConstructionHead(frame, segment);
       }
       ctx.restore();
       ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
@@ -102,12 +137,14 @@
     }
 
     const preview = frame.state.roadPreview;
-    if (preview?.valid && preview.points?.length >= 2) {
+    if (preview?.points?.length >= 2) {
       const length = preview.points.slice(1).reduce((sum, point, index) =>
         sum + Math.hypot(point.x - preview.points[index].x, point.y - preview.points[index].y), 0);
-      ctx.save(); ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = preview.opacity || .52;
-      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, preview.opacity || .52);
+      const opacity = Number.isFinite(preview.opacity) ? preview.opacity : .52;
+      const color = preview.valid ? Style.landColor : (preview.color || Style.landColor);
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = Style.landWidthPx;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = opacity;
+      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, opacity, color);
       ctx.restore();
     }
   }
