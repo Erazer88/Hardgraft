@@ -17,6 +17,7 @@ version = json.loads((ROOT / 'package.json').read_text())['version']
 )
 html = (ROOT / 'index.html').read_text()
 html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>' + (ROOT / 'styles.css').read_text() + '</style>')
+embedded_settlement_assets = {}
 def embed_script(match):
     # Follow the HTML load order: adding a module never requires a second list.
     relative = match.group(1)
@@ -33,7 +34,13 @@ for asset in sorted((ROOT / 'assets').rglob('*')):
     relative = asset.relative_to(ROOT).as_posix()
     mime = mimetypes.guess_type(relative)[0] or 'application/octet-stream'
     encoded = base64.b64encode(asset.read_bytes()).decode('ascii')
-    html = html.replace(relative, f'data:{mime};base64,{encoded}')
+    data_url = f'data:{mime};base64,{encoded}'
+    html = html.replace(relative, data_url)
+    if asset.parent == ROOT / 'assets' / 'settlements' and asset.name.startswith(('village_', 'ville_')):
+        embedded_settlement_assets[relative] = data_url
+if embedded_settlement_assets:
+    manifest = '<script>globalThis.OrbitEmbeddedAssets = ' + json.dumps(embedded_settlement_assets) + ';</script>'
+    html = html.replace('</head>', manifest + '</head>')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)

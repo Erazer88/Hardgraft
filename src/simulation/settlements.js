@@ -15,7 +15,7 @@
   const DISTRICT_ASSETS = Object.freeze(['village', 'ville'].flatMap(scale =>
     ['ligne_droite', 'carrefour_T', 'carrefour_croix'].map(layout =>
       `assets/settlements/${scale}_${layout}.webp`)));
-  const VISUAL_VERSION = 4;
+  const VISUAL_VERSION = 5;
   const INDUSTRIAL_TYPES = new Set(['factory', 'extractor', 'oil_platform']);
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const copyPoint = point => ({ x: point.x, y: point.y });

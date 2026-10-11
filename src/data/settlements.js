@@ -26,8 +26,8 @@
       cityStage: 5,
       districtMinRoadLength: 120,
       houseStartDistance: 54,
-      houseMinSpacing: 10,
-      houseMaxSpacing: 14,
+      houseMinSpacing: 15,
+      houseMaxSpacing: 19,
       houseSideOffset: 4.5,
       districtRoadDistance: 11
     }),
@@ -37,7 +37,7 @@
       secondaryColor: '#c4cdc5',
       secondaryOpacity: .68,
       secondaryWidthPx: 1.1,
-      houseWidthWorld: 6.5,
+      houseWidthWorld: 10,
       districtWidthWorld: 64,
       spriteOpacity: .93,
       cullMarginPx: 40

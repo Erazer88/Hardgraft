@@ -8,7 +8,7 @@
     if (typeof root.Image !== 'function') return null;
     if (!imageCache.has(path)) {
       const image = new root.Image();
-      image.src = path;
+      image.src = root.OrbitEmbeddedAssets?.[path] || path;
       imageCache.set(path, image);
     }
     return imageCache.get(path);
