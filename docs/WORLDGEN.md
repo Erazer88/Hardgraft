@@ -60,10 +60,12 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
 `createTerrain(seed, width, height, planet)` utilise la couverture d'eau du
 profil, ou la couverture totale eau/glace dans `terrainWater` pour les mondes
-froids. Les planètes riches en eau utilisent plusieurs masses terrestres plus
-petites pour produire des archipels ; les mondes tempérés natals conservent leur
-profil de départ viable. Le relief ajoute deux fréquences de détail configurées
-dans `OrbitWorldgenData.terrain`.
+froids. Le terrain v2 déforme les masses continentales avec un bruit basse
+fréquence et place des îlots secondaires autour des continents. Les planètes
+riches en eau forment davantage d'archipels ; les mondes tempérés natals
+conservent leur profil de départ viable. Le relief combine plusieurs fréquences
+de détail configurées dans `OrbitWorldgenData.terrain`. Un changement de version
+du terrain conserve la graine, mais régénère la géographie des sauvegardes.
 
 Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont moins nombreux
 qu'avant et possèdent un rayon déterministe en cellules de terrain. Les champs
@@ -72,9 +74,12 @@ pétrolières doivent être posées dans leur zone. Les marqueurs de ressource s
 dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 
 Le rendu interpole une palette de couleurs par température, altitude et
-humidité. Une texture de relief NASA Blue Marble, téléchargée depuis le miroir
-`regar007/EarthTextureStreamingResources`, ne sert qu'à produire un détail
-monochrome discret ; son attribution est conservée sous
+humidité. Il accentue les hauts fonds près des côtes et superpose trois textures
+CC0 de Poly Haven aux plages, plaines tempérées et reliefs élevés. Les sources
+sont converties en WebP, intégrées à l'export autonome et masquées selon la
+géographie et l'humidité de chaque monde. Une texture de relief NASA Blue Marble,
+téléchargée depuis le miroir `regar007/EarthTextureStreamingResources`, fournit
+un détail monochrome discret. Les attributions et sources sont conservées sous
 `assets/textures/ATTRIBUTION.txt`.
 
 ## Départ viable et sauvegardes

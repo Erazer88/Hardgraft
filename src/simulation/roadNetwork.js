@@ -204,6 +204,31 @@
     return node;
   }
 
+  function detachBuilding(network, buildingId) {
+    if (!network || typeof buildingId !== 'string' || !Array.isArray(network.nodes) ||
+        !Array.isArray(network.segments)) return 0;
+    const buildingNodes = network.nodes.filter(node => node.buildingId === buildingId);
+    if (!buildingNodes.length) return 0;
+    const marineNodeIds = new Set(buildingNodes.filter(node => node.connectionMode === 'marine').map(node => node.id));
+    const marineRoutes = new Set(network.segments.filter(segment => segment.routeType === 'marine' &&
+      (marineNodeIds.has(segment.from) || marineNodeIds.has(segment.to)))
+      .map(segment => segment.routeId || segment.id));
+    if (marineRoutes.size) {
+      network.segments = network.segments.filter(segment => segment.routeType !== 'marine' ||
+        !marineRoutes.has(segment.routeId || segment.id));
+    }
+    for (const node of buildingNodes) {
+      node.buildingId = null;
+      if (node.connectionMode !== 'marine') {
+        node.type = 'intersection';
+        node.isIntersection = true;
+      }
+    }
+    const usedNodes = new Set(network.segments.flatMap(segment => [segment.from, segment.to]));
+    network.nodes = network.nodes.filter(node => node.connectionMode !== 'marine' || usedNodes.has(node.id));
+    return buildingNodes.length;
+  }
+
   function nodeById(network, id) { return network.nodes.find(node => node.id === id) || null; }
   function segmentById(network, id) { return network.segments.find(segment => segment.id === id) || null; }
 
@@ -563,6 +588,7 @@
   }
 
   root.OrbitRoadNetwork = Object.freeze({ create, addNode, addSegment, nodeById, segmentById,
+    detachBuilding,
     nearestConnection, firstContact, connectToTarget, connectRouteCrossings, splitPolylineAtNodes,
     replaceSegmentPoints, restore, lengthOf,
     nearestBuiltConnection, distanceAlongSegment });

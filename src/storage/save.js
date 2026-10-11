@@ -2,7 +2,7 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, 4, 5, 6, config.saveVersion];
+  const supportedSaveVersions = [2, 3, 4, 5, 6, 7, config.saveVersion];
 
   // Houses are kept both in the settlement-wide list and on each road for
   // rendering. The settlement-wide list is authoritative when restoring, so
@@ -59,6 +59,7 @@
         elapsedMs: Math.max(0, Math.min(mission.duration, now - mission.start))
       })),
       time: state.simulation.time, reveal: Boolean(state.reveal),
+      inventory: copy(state.inventory || {}),
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
       surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
       view: {
@@ -87,6 +88,7 @@
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
     state.simulation = simulation;
+    state.inventory = root.OrbitInventory.create(saved.inventory ?? state.inventory ?? root.OrbitResourceData.startingInventory);
     return true;
   }
 

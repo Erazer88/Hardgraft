@@ -8,3 +8,16 @@ Credit: NASA Earth Observatory.
 The downloaded Blue Marble imagery is a NASA Earth Observatory public-domain work.
 The mirror repository is distributed under the MIT License; its README credits the NASA source.
 This project uses the image only as a subtle relief-detail source, not as a map of the generated planet.
+
+Terrain material textures
+-------------------------
+The following diffuse textures are from Poly Haven, released under CC0 1.0 Universal:
+
+- aerial_sand: https://polyhaven.com/a/aerial_sand
+- aerial_rocks_04: https://polyhaven.com/a/aerial_rocks_04
+- aerial_rocks_02: https://polyhaven.com/a/aerial_rocks_02
+- License: https://polyhaven.com/license
+
+The 1k JPEG downloads were converted to 1024 px WebP files (quality 78) for
+the standalone game export. Poly Haven does not require attribution under CC0;
+the source links are retained here for provenance.

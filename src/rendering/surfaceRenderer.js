@@ -36,11 +36,130 @@
 
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
+    const materialAssets = [
+      { id: 'shore', src: 'assets/textures/aerial_sand_diff_1k.webp', opacity: .52 },
+      { id: 'lowland', src: 'assets/textures/aerial_rocks_04_diff_1k.webp', opacity: .34 },
+      { id: 'highland', src: 'assets/textures/aerial_rocks_02_diff_1k.webp', opacity: .48 }
+    ];
+    const materialImages = Object.create(null);
+    const terrainMaterialCache = new WeakMap();
+    let materialAssetsReady = false;
+
+    if (typeof root.Image === 'function') {
+      let pending = materialAssets.length;
+      for (const asset of materialAssets) {
+        const image = new root.Image();
+        const settle = () => { pending -= 1; if (pending === 0) materialAssetsReady = true; };
+        image.onload = () => { materialImages[asset.id] = image; settle(); };
+        image.onerror = settle;
+        image.src = asset.src;
+      }
+    }
 
     function makeCanvas(width, height) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       return canvas;
+    }
+
+    function createWaterDistanceField(terrain) {
+      const { width, height, elevation, seaLevel } = terrain;
+      const far = width + height;
+      const distance = new Float32Array(width * height);
+      for (let i = 0; i < distance.length; i += 1) distance[i] = elevation[i] > seaLevel ? 0 : far;
+      const diagonal = Math.SQRT2;
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        if (x > 0) distance[i] = Math.min(distance[i], distance[i - 1] + 1);
+        if (y > 0) distance[i] = Math.min(distance[i], distance[i - width] + 1);
+        if (x > 0 && y > 0) distance[i] = Math.min(distance[i], distance[i - width - 1] + diagonal);
+        if (x + 1 < width && y > 0) distance[i] = Math.min(distance[i], distance[i - width + 1] + diagonal);
+      }
+      for (let y = height - 1; y >= 0; y -= 1) for (let x = width - 1; x >= 0; x -= 1) {
+        const i = y * width + x;
+        if (x + 1 < width) distance[i] = Math.min(distance[i], distance[i + 1] + 1);
+        if (y + 1 < height) distance[i] = Math.min(distance[i], distance[i + width] + 1);
+        if (x + 1 < width && y + 1 < height) distance[i] = Math.min(distance[i], distance[i + width + 1] + diagonal);
+        if (x > 0 && y + 1 < height) distance[i] = Math.min(distance[i], distance[i + width - 1] + diagonal);
+      }
+      return distance;
+    }
+
+    function transition(value, start, end) {
+      return ease(clamp((value - start) / (end - start), 0, 1));
+    }
+
+    function drawTextureSample(context, image, width, height, seed, materialId) {
+      const random = World.rng(World.hashSeed(String(seed) + ':surface:' + materialId));
+      const offsetX = (random() - .5) * width * .16;
+      const offsetY = (random() - .5) * height * .16;
+      const rotation = Math.floor(random() * 4) * Math.PI / 2;
+      const flipX = random() < .5 ? -1 : 1;
+      const flipY = random() < .5 ? -1 : 1;
+      const size = Math.max(width, height) * 1.55;
+      context.save();
+      context.translate(width / 2 + offsetX, height / 2 + offsetY);
+      context.rotate(rotation);
+      context.scale(flipX, flipY);
+      context.drawImage(image, -size / 2, -size / 2, size, size);
+      context.restore();
+    }
+
+    function materialMask(terrain, coastDistance, materialId, planet, mask) {
+      const { width, height, elevation, moisture, seaLevel } = terrain;
+      const context = mask.getContext('2d');
+      const pixels = context.createImageData(width, height);
+      const temperature = Number.isFinite(planet.temperature) ? planet.temperature : 18;
+      for (let i = 0; i < elevation.length; i += 1) {
+        const aboveSea = elevation[i] - seaLevel, humidity = moisture[i] / 255;
+        const localTemperature = temperature - Math.max(0, aboveSea) * SurfaceStyle.terrain.temperatureLapsePerElevation;
+        let alpha = 0;
+        if (materialId === 'shore') {
+          if (aboveSea <= 0) {
+            const coast = 1 - transition(coastDistance[i], 0, SurfaceStyle.terrain.shelfDistanceCells);
+            const shallow = 1 - transition(-aboveSea, 0, SurfaceStyle.terrain.shelfDepthCells);
+            alpha = coast * shallow * .82;
+          } else {
+            alpha = (1 - transition(aboveSea, 2, 13)) * .72;
+          }
+        } else if (aboveSea > 0 && materialId === 'lowland') {
+          const plain = clamp(1 - Math.abs(aboveSea - 34) / 72, 0, 1);
+          const temperate = clamp((localTemperature + 18) / 36, 0, 1);
+          alpha = plain * (.2 + humidity * .8) * temperate * .76;
+        } else if (aboveSea > 0 && materialId === 'highland') {
+          const mountain = transition(aboveSea, 30, 130);
+          alpha = mountain * (.62 + (1 - humidity) * .24) * .78;
+        }
+        const pixel = i * 4;
+        pixels.data[pixel] = pixels.data[pixel + 1] = pixels.data[pixel + 2] = 255;
+        pixels.data[pixel + 3] = Math.round(clamp(alpha, 0, 1) * 255);
+      }
+      context.putImageData(pixels, 0, 0);
+      return mask;
+    }
+
+    function createMaterialOverlay(terrain, planet, coastDistance) {
+      const scale = SurfaceStyle.terrain.materialTextureScale;
+      const width = terrain.width * scale, height = terrain.height * scale;
+      const overlay = makeCanvas(width, height), overlayContext = overlay.getContext('2d');
+      const sample = makeCanvas(width, height), sampleContext = sample.getContext('2d');
+      const mask = makeCanvas(terrain.width, terrain.height);
+      overlayContext.imageSmoothingEnabled = true;
+      sampleContext.imageSmoothingEnabled = true;
+      for (const material of materialAssets) {
+        const image = materialImages[material.id];
+        if (!image) continue;
+        sampleContext.clearRect(0, 0, width, height);
+        drawTextureSample(sampleContext, image, width, height, planet.seed, material.id);
+        const maskCanvas = materialMask(terrain, coastDistance, material.id, planet, mask);
+        sampleContext.globalCompositeOperation = 'destination-in';
+        sampleContext.drawImage(maskCanvas, 0, 0, width, height);
+        sampleContext.globalCompositeOperation = 'source-over';
+        overlayContext.globalAlpha = material.opacity;
+        overlayContext.drawImage(sample, 0, 0);
+        overlayContext.globalAlpha = 1;
+      }
+      return overlay;
     }
 
     let reliefDetailTexture = null;
@@ -89,6 +208,7 @@
     function createTerrainTexture(planet, terrainData) {
       const { width, height, elevation, moisture, seaLevel } = terrainData;
       const textureScale = Config.terrain.textureScale;
+      const coastDistance = createWaterDistanceField(terrainData);
       const rawCanvas = makeCanvas(width, height), rawContext = rawCanvas.getContext('2d'), image = rawContext.createImageData(width, height);
       const averageTemperature = Number.isFinite(planet.temperature) ? planet.temperature : 18;
       const lapseRate = SurfaceStyle.terrain.temperatureLapsePerElevation;
@@ -102,8 +222,13 @@
         const altitude = clamp((value - seaLevel - 4) / 145, 0, 1);
         let rgb;
         if (value <= seaLevel) {
-          const depth = ease(clamp((seaLevel - value) / 22, 0, 1));
+          const depth = ease(clamp((seaLevel - value) / SurfaceStyle.terrain.shelfDepthCells, 0, 1));
           rgb = mixRGB(colors.shore, colors.sea, depth);
+          const depthShelf = 1 - transition(seaLevel - value, 0, SurfaceStyle.terrain.shelfDepthCells);
+          const coastShelf = 1 - transition(coastDistance[index], 0, SurfaceStyle.terrain.shelfDistanceCells);
+          const warmShelf = clamp((localTemperature + 20) / 45, 0, 1);
+          const shelfColor = mixRGB([91, 151, 169], [35, 151, 148], warmShelf);
+          rgb = mixRGB(rgb, shelfColor, Math.min(depthShelf, coastShelf) * .78);
           const ice = clamp((climate.snowlineStartTemperature - localTemperature) / climate.snowlineRange, 0, .9);
           rgb = mixRGB(rgb, colors.snow, ice);
         } else {
@@ -126,12 +251,13 @@
         }
         const dx = elevation[y * width + Math.min(width - 1, x + 1)] - elevation[y * width + Math.max(0, x - 1)];
         const dy = elevation[Math.min(height - 1, y + 1) * width + x] - elevation[Math.max(0, y - 1) * width + x];
-        const shade = clamp((-dx * 1.1 - dy * 1.45), -32, 27);
+        const shade = clamp((-dx * 1.3 - dy * 1.65), -38, 32);
         for (let channel = 0; channel < 3; channel++) image.data[index * 4 + channel] = clamp(rgb[channel] + shade, 0, 255);
         image.data[index * 4 + 3] = 255;
       }
       rawContext.putImageData(image, 0, 0);
       const terrainTexture = makeCanvas(width * textureScale, height * textureScale);
+      terrainMaterialCache.set(terrainTexture, { coastDistance, overlay: null });
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
@@ -225,6 +351,17 @@
         canvasContext.globalCompositeOperation = 'soft-light';
         canvasContext.drawImage(reliefDetailTexture, top.x, top.y, width, height);
         canvasContext.restore();
+      }
+      const materialRecord = terrainMaterialCache.get(terrainTexture);
+      if (materialRecord && materialAssetsReady) {
+        if (!materialRecord.overlay) materialRecord.overlay = createMaterialOverlay(
+          frame.terrain, frame.planet, materialRecord.coastDistance);
+        canvasContext.save();
+        canvasContext.globalAlpha = SurfaceStyle.terrain.materialTextureOpacity;
+        canvasContext.globalCompositeOperation = 'soft-light';
+        canvasContext.drawImage(materialRecord.overlay, top.x, top.y, width, height);
+        canvasContext.restore();
+        materialRecord.coastDistance = null;
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       const bottom = frame.project(terrainTexture.width, terrainTexture.height);

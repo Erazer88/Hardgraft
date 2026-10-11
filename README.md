@@ -28,7 +28,8 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Jav
 - Le retour et le fil d'Ariane remontent d'un niveau. Le bouton de cadrage montre la carte entière ; la cible recentre la vue.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de relief, les coordonnées et l'altitude. Les gisements restent des éléments naturels générés, sans extraction active.
-- En surface, le bouton usine active un aperçu de placement. Déplacez-le sur la terre ferme et touchez pour lancer l'assemblage ; Échap annule le mode. Les usines se sélectionnent en touchant leur empreinte. L'éditeur intérieur des blocs viendra dans une étape suivante.
+- En surface, le catalogue affiche les stocks et le coût de chaque infrastructure. Les matériaux sont débités au lancement de l'assemblage ; toucher un bâtiment puis **Démolir** rembourse le taux indiqué. L'inventaire initial est limité : extraction et production ne sont pas encore actives.
+- Le bouton construction active un aperçu de placement. Déplacez-le sur le terrain valide et touchez pour lancer l'assemblage ; Échap annule le mode. Les bâtiments se sélectionnent en touchant leur empreinte. L'éditeur intérieur des usines viendra dans une étape suivante.
 - Le bouton route active le tracé manuel : faites glisser depuis un bâtiment ou une route jusqu'à un autre bâtiment ou point de route. Avant l'accrochage à une arrivée, un trait guide blanc opaque et pointillé relie le départ au doigt, sans pouvoir être validé. Il devient continu après accrochage à une cible valide et suit le relief. Après relâchement, une lumière pulsée accompagne le front de construction. Deux doigts annulent l'aperçu en cours et permettent de zoomer ou déplacer la carte ; le bouton route reste actif.
 - Une plateforme pétrolière se relie uniquement à un port de surface en faisant glisser l'outil route d'un bâtiment à l'autre. Un port peut recevoir plusieurs liaisons maritimes, qui partagent son point d'amarrage sûr au large ; l'approche rejoint le quai perpendiculairement. Les lignes maritimes ne s'accrochent pas à leur milieu et ne créent pas de carrefour en mer. Elles prennent le chemin navigable le plus court, contournent les terres sans zigzag et s'affichent en pointillés blancs à 60 % d'opacité.
 - Tout nouveau tracé terrestre qui coupe une autre route terrestre crée un carrefour au point exact du croisement, même si le joueur continue jusqu'à une autre destination. Les segments se raccordent au nœud et la construction conserve sa progression depuis le départ. Les routes maritimes restent isolées jusqu'à leurs extrémités port et plateforme.
@@ -43,10 +44,10 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - 2 560 systèmes répartis dans quatre bras et un noyau. Le brouillard masque les secteurs non découverts.
 - Des systèmes générés avec des compositions variées, des planètes solides ou gazeuses, des ceintures de débris et des épaves occasionnelles.
 - Des vitesses orbitales relatives qui suivent la troisième loi de Kepler, avec des durées adaptées à la navigation du prototype.
-- Des cartes planétaires reproductibles avec continents, océans, côtes, ombrage, courbes de niveau et gisements naturels.
+- Des cartes planétaires reproductibles avec archipels, côtes détaillées, hauts fonds turquoise, relief ombré, textures de terrain CC0, courbes de niveau et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
-La pose de bâtiments et les routes planétaires constituent encore un outil de test ; la création des routes est manuelle, leur construction progressive et leur avancement sont sauvegardés. Les blocs internes, les flux de ressources et le transport logistique ne sont pas encore simulés.
+Les coûts, délais de construction et remboursements sont déclarés dans les données des bâtiments. Les gisements planétaires restent visuels : l'extraction, la production, les blocs internes et le transport logistique ne sont pas encore simulés. Les routes planétaires sont tracées manuellement ; leur construction progressive et leur avancement sont sauvegardés.
 
 ## Vérification manuelle
 

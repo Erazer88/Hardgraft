@@ -21,7 +21,11 @@
     terrain: Object.freeze({
       edgeColor: '#a9b9ad40',
       edgeWidthPx: 1,
-      reliefTextureOpacity: .24,
+      reliefTextureOpacity: .28,
+      materialTextureScale: 2,
+      materialTextureOpacity: .56,
+      shelfDepthCells: 72,
+      shelfDistanceCells: 26,
       temperatureLapsePerElevation: .17,
       globeRevealStartRadiusPx: 50,
       globeRevealEndRadiusPx: 150,

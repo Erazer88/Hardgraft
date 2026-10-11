@@ -23,6 +23,19 @@
     if (!constructionStates.includes(constructionState)) throw new RangeError('Unknown construction state: ' + constructionState);
     const progress = properties.constructionProgress ?? 0;
     if (!isFiniteNumber(progress) || progress < 0 || progress > 1) throw new RangeError('Construction progress must be between 0 and 1');
+    const constructionDurationSeconds = properties.constructionDurationSeconds ?? definition.constructionDurationSeconds ?? 3.5;
+    if (!isFiniteNumber(constructionDurationSeconds) || constructionDurationSeconds <= 0) {
+      throw new RangeError('Construction duration must be a positive number of seconds');
+    }
+    const demolitionRefundRate = properties.demolitionRefundRate ?? definition.demolitionRefundRate ?? 1;
+    if (!isFiniteNumber(demolitionRefundRate) || demolitionRefundRate < 0 || demolitionRefundRate > 1) {
+      throw new RangeError('Demolition refund rate must be between 0 and 1');
+    }
+    const costPaid = properties.costPaid ?? null;
+    if (costPaid !== null && (!costPaid || typeof costPaid !== 'object' || Array.isArray(costPaid) ||
+        Object.entries(costPaid).some(([id, amount]) => !id.trim() || !isFiniteNumber(amount) || amount < 0))) {
+      throw new TypeError('Paid construction cost must be a resource map');
+    }
     const energyUse = properties.energyUse ?? 0;
     if (!isFiniteNumber(energyUse) || energyUse < 0) throw new RangeError('Energy use must be a non-negative number');
     const createdAt = properties.createdAt ?? Date.now();
@@ -67,6 +80,9 @@
       rotation,
       constructionState,
       constructionProgress: clamp(progress, 0, 1),
+      constructionDurationSeconds,
+      demolitionRefundRate,
+      costPaid: costPaid ? { ...costPaid } : null,
       roadPort,
       waterPort,
       logisticsNodeId,

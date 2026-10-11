@@ -9,6 +9,7 @@
       sprite: 'assets/buildings/factory.webp', spriteAspectRatio: 4 / 3,
       description: 'Transforme les minerais en matériaux.',
       functions: { transformsMinerals: true },
+      cost: { iron: 35, copper: 16, silicon: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 34, height: 28 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 14 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
@@ -18,6 +19,7 @@
       sprite: 'assets/buildings/extractor.webp',
       description: 'Extrait les minerais des gisements compatibles.',
       functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
+      cost: { iron: 18, copper: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
       placementRules: { landOnly: true, requiresDeposit: true, depositMargin: 12 },
@@ -28,6 +30,7 @@
       sprite: 'assets/buildings/surface-port.webp', spriteRotationOffset: Math.PI / 2,
       description: 'Relie les quais maritimes au réseau de camions.',
       functions: { transfersShipTruck: true },
+      cost: { iron: 24, copper: 12 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 36, height: 28 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 16 }, seaFacingOffset: { x: 0, y: -24 },
       placementRules: { landOnly: true, coastRequired: true },
@@ -38,6 +41,7 @@
       sprite: 'assets/buildings/oil-platform.webp',
       description: 'Extrait les ressources des grands fonds marins.',
       functions: { extractsOffshoreResources: true }, extracts: ['oil'],
+      cost: { iron: 40, copper: 20, silicon: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 46, height: 38 }, roadRequired: false,
       marinePortOffset: { x: 0, y: -24 },
       placementRules: { deepWaterOnly: true, deepWaterMargin: 10, requiresDeposit: true, depositMargin: 12 },
@@ -48,6 +52,7 @@
       sprite: 'assets/buildings/depot.webp',
       description: 'Stocke tous types de matériaux acheminés vers le site.',
       functions: { storesAllMaterials: true },
+      cost: { iron: 12, copper: 4 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
@@ -57,6 +62,7 @@
       sprite: 'assets/buildings/orbital-hub.webp',
       description: 'Accueille les arrivées orbitales et exporte les marchandises.',
       functions: { receivesPersonnel: true, exportsMerchandise: true, exportsToOrbit: true },
+      cost: { iron: 25, copper: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
@@ -66,6 +72,7 @@
       sprite: 'assets/buildings/wind-turbine.webp',
       description: 'Produit de l’énergie sur la terre ferme.',
       functions: { generatesEnergy: true },
+      cost: { iron: 15, copper: 10, carbon: 2 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 22, height: 30 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 15 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
@@ -74,6 +81,7 @@
     geothermal: {
       id: 'geothermal', label: 'GÉOTHERMIE', shortLabel: 'GT', category: 'energy', icon: 'geothermal',
       description: 'Centrale géothermique.', functions: { generatesEnergy: true },
+      cost: { iron: 22, copper: 12, silicon: 4 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 30, height: 28 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 14 },
       placementRules: { landOnly: true, prefersElevatedTerrain: true },
@@ -92,6 +100,7 @@
     Object.freeze(definition.placementRules);
     Object.freeze(definition.preferredTerrain);
     Object.freeze(definition.functions);
+    Object.freeze(definition.cost);
     if (definition.extracts) Object.freeze(definition.extracts);
     Object.freeze(definition);
   }

@@ -38,11 +38,13 @@
       <div class="building-level" id="building-level"></div>
       <div class="building-stats" id="building-stats"></div>
     </div>
+    <button class="demolish-button" id="demolish-button" hidden>DÉMOLIR · RÉCUPÉRER 100 %</button>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
   <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
     <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong id="build-menu-title">INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
     <p class="build-menu-hint" id="build-menu-hint" hidden>Le hub orbital est le premier bâtiment à implanter. Il accueille les arrivées et sert à l’export des marchandises.</p>
+    <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -77,6 +79,7 @@
   </dialog>
   <script src="src/data/version.js"></script>
   <script src="src/data/config.js"></script>
+  <script src="src/data/resources.js"></script>
   <script src="src/data/worldgen.js"></script>
   <script src="src/data/buildings.js"></script>
   <script src="src/data/roads.js"></script>
@@ -85,6 +88,7 @@
   <script src="src/world.js"></script>
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
+  <script src="src/simulation/inventory.js"></script>
   <script src="src/simulation/buildings.js"></script>
   <script src="src/simulation/construction.js"></script>
   <script src="src/simulation/roadNetwork.js"></script>

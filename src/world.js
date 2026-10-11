@@ -158,11 +158,11 @@
   function createTerrain(seed, width = 320, height = 240, planet = null) {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
-    const terrainSeed = hashSeed(String(seed) + ':terrain');
+    const settings = root.OrbitWorldgenData.terrain;
+    const terrainSeed = hashSeed(String(seed) + ':terrain:v' + (settings.version || 1));
     const random = rng(terrainSeed);
     const offsetX = random() * 80 + 8, offsetY = random() * 80 + 8;
     const aspect = width / height;
-    const settings = root.OrbitWorldgenData.terrain;
     const waterFraction = clamp(planet?.terrainWater ?? planet?.surfaceWater ??
       (settings.genericWater[0] + random() * (settings.genericWater[1] - settings.genericWater[0])),
     0, root.OrbitWorldgenData.planets.maxSurfaceWater);
@@ -180,6 +180,25 @@
         radiusY: radiusX * (0.78 + random() * 0.44)
       });
     }
+    const archipelago = settings.archipelago;
+    const isletRange = islandWorld ? archipelago.islandIslets : archipelago.continentalIslets;
+    const isletCount = isletRange[0] + Math.floor(random() * (isletRange[1] - isletRange[0] + 1));
+    const islets = [];
+    for (let i = 0; i < isletCount; i += 1) {
+      const parent = continents[Math.floor(random() * continents.length)];
+      const angle = random() * TAU;
+      const distance = archipelago.parentDistance[0] +
+        random() * (archipelago.parentDistance[1] - archipelago.parentDistance[0]);
+      const radiusX = archipelago.isletRadius[0] + random() *
+        (archipelago.isletRadius[1] - archipelago.isletRadius[0]);
+      islets.push({
+        x: parent.x + Math.cos(angle) * parent.radiusX * distance,
+        y: parent.y + Math.sin(angle) * parent.radiusY * distance,
+        radiusX,
+        radiusY: radiusX * (0.65 + random() * 0.7)
+      });
+    }
+    const landforms = continents.concat(islets);
     const raw = new Float32Array(width * height);
     const elevation = new Uint8Array(width * height);
     const moisture = new Uint8Array(width * height);
@@ -188,19 +207,25 @@
       const ny = y / Math.max(1, height - 1);
       for (let x = 0; x < width; x += 1) {
         const nx = x / Math.max(1, width - 1);
-        const broad = fbm(offsetX + nx * 3.3 * aspect, offsetY + ny * 3.3, terrainSeed, 4);
-        const detail = fbm(offsetX + nx * 15 * aspect, offsetY + ny * 15, terrainSeed ^ 0x5a6a4f29, 4);
-        const fine = fbm(offsetX + nx * settings.relief.fineScale * aspect,
-          offsetY + ny * settings.relief.fineScale, terrainSeed ^ 0x29f1483b, 3);
-        const micro = fbm(offsetX + nx * settings.relief.microScale * aspect,
-          offsetY + ny * settings.relief.microScale, terrainSeed ^ 0x74a1d2c7, 2);
+        const warpX = fbm(offsetX + nx * settings.relief.warpScale * aspect,
+          offsetY + ny * settings.relief.warpScale, terrainSeed ^ 0x6c8e9cf5, 3);
+        const warpY = fbm(offsetX + 41 + nx * settings.relief.warpScale * aspect,
+          offsetY + 19 + ny * settings.relief.warpScale, terrainSeed ^ 0x1b56c4e9, 3);
+        const warpedX = nx + warpX * settings.relief.warpStrength;
+        const warpedY = ny + warpY * settings.relief.warpStrength;
+        const broad = fbm(offsetX + warpedX * 3.3 * aspect, offsetY + warpedY * 3.3, terrainSeed, 4);
+        const detail = fbm(offsetX + warpedX * 15 * aspect, offsetY + warpedY * 15, terrainSeed ^ 0x5a6a4f29, 4);
+        const fine = fbm(offsetX + warpedX * settings.relief.fineScale * aspect,
+          offsetY + warpedY * settings.relief.fineScale, terrainSeed ^ 0x29f1483b, 3);
+        const micro = fbm(offsetX + warpedX * settings.relief.microScale * aspect,
+          offsetY + warpedY * settings.relief.microScale, terrainSeed ^ 0x74a1d2c7, 2);
         let continental = 0;
-        for (const continent of continents) {
-          const dx = (nx - continent.x) / continent.radiusX;
-          const dy = (ny - continent.y) / continent.radiusY;
+        for (const landform of landforms) {
+          const dx = (warpedX - landform.x) / landform.radiusX;
+          const dy = (warpedY - landform.y) / landform.radiusY;
           continental = Math.max(continental, Math.exp(-(dx * dx + dy * dy) * 0.75));
         }
-        const ridge = 1 - Math.abs(fbm(offsetX + nx * 7 * aspect, offsetY + ny * 7, terrainSeed ^ 0x3482f129, 3));
+        const ridge = 1 - Math.abs(fbm(offsetX + warpedX * 7 * aspect, offsetY + warpedY * 7, terrainSeed ^ 0x3482f129, 3));
         const ridgeMask = clamp((broad + continental * 0.9 - 0.53) * 2.1, 0, 1);
         const altitude = clamp(52 + continental * 120 + broad * 52 + detail * 16 +
           fine * settings.relief.fineAmplitude + micro * settings.relief.microAmplitude +
@@ -208,8 +233,8 @@
         const index = y * width + x;
         raw[index] = altitude;
         histogram[Math.round(altitude)] += 1;
-        moisture[index] = Math.round(clamp(0.52 + fbm(offsetX + nx * 6 * aspect,
-          offsetY + ny * 6, terrainSeed ^ 0x19191531, 4) * 0.7 -
+        moisture[index] = Math.round(clamp(0.52 + fbm(offsetX + warpedX * 6 * aspect,
+          offsetY + warpedY * 6, terrainSeed ^ 0x19191531, 4) * 0.7 -
           ridgeMask * 0.12, 0, 1) * 255);
       }
     }

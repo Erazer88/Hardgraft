@@ -6,8 +6,8 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/config.js', 'data/buildings.js', 'data/roads.js', 'data/settlements.js',
-  'simulation/simulation.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
+for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js', 'data/settlements.js',
+  'simulation/simulation.js', 'simulation/inventory.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/settlements.js', 'gameplay/exploration.js', 'state.js', 'storage/save.js',
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);

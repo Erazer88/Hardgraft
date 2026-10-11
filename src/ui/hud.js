@@ -2,6 +2,8 @@
   'use strict';
   const Config = root.OrbitConfig;
   const BuildingData = root.OrbitBuildingData;
+  const ResourceData = root.OrbitResourceData;
+  const Inventory = root.OrbitInventory;
 
   function create(document) {
     const $ = id => document.getElementById(id);
@@ -9,9 +11,6 @@
     const TAU = Math.PI * 2;
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
     const fmtDecimal = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
-    const resourceLabels = Object.freeze({ iron: 'Fer', copper: 'Cuivre', silicon: 'Silice', carbon: 'Carbone',
-      petroleum: 'Hydrocarbures', oil: 'Hydrocarbures', iron_ore: 'Minerai de fer', copper_ore: 'Minerai de cuivre',
-      silicon_ore: 'Silice', ingot_iron: 'Lingot de fer', ingot_copper: 'Lingot de cuivre' });
     const mineralLabels = ['Fer', 'Cuivre', 'Silice', 'Carbone'];
     let toastTimer;
 
@@ -23,7 +22,9 @@
       const copy = document.createElement('span'); copy.className = 'build-option-copy';
       const title = document.createElement('strong'); title.textContent = definition.label;
       const description = document.createElement('small'); description.textContent = definition.description;
-      copy.append(title, description); button.append(icon, copy); buildOptions.append(button);
+      const cost = document.createElement('small'); cost.className = 'build-option-cost';
+      cost.textContent = resourceSummary(definition.cost);
+      copy.append(title, description, cost); button.append(icon, copy); buildOptions.append(button);
     }
 
     function toast(text) {
@@ -44,7 +45,11 @@
     }
 
     function resourceName(id) {
-      return resourceLabels[id] || String(id).replace(/[_-]+/g, ' ').replace(/^./, first => first.toUpperCase());
+      return ResourceData.get(id)?.label || String(id).replace(/[_-]+/g, ' ').replace(/^./, first => first.toUpperCase());
+    }
+
+    function resourceSummary(amounts) {
+      return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Aucun coût';
     }
 
     function inventoryEntries(building) {
@@ -111,6 +116,7 @@
       const isBuilding = item.kind === 'building';
       panel.classList.toggle('building-panel', isBuilding);
       $('building-readout').hidden = !isBuilding;
+      $('demolish-button').hidden = !isBuilding;
       $('selection-info').hidden = isBuilding;
       $('selection-meta').hidden = isBuilding;
       if (state.level === 'galaxy') {
@@ -139,6 +145,8 @@
         $('selection-meta').textContent = '';
         renderBuildingReadout(item);
         $('enter-button').hidden = true;
+        const refundRate = Number.isFinite(item.demolitionRefundRate) ? item.demolitionRefundRate : 1;
+        $('demolish-button').textContent = `DÉMOLIR · RÉCUPÉRER ${Math.round(refundRate * 100)} %`;
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
         $('selection-name').textContent = item.name;
@@ -184,9 +192,15 @@
         building.planetId === state.planet.id && building.type === 'hub');
       const orbitalHubRequired = level === 'surface' && state.planet && !hasOrbitalHub;
       for (const option of buildOptions.children) {
-        const isHub = option.dataset.buildingType === 'hub';
+        const definition = BuildingData.get(option.dataset.buildingType);
+        const isHub = definition?.id === 'hub';
         option.hidden = orbitalHubRequired ? !isHub : isHub;
+        option.disabled = !Inventory.canAfford(state.inventory, definition?.cost || {});
+        if (definition) option.title = option.disabled
+          ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
+      $('resource-stock').textContent = `STOCK · ${ResourceData.catalog()
+        .map(resource => `${resource.label} ${fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
       $('build-menu-title').textContent = orbitalHubRequired ? 'HUB ORBITAL REQUIS' : 'INFRASTRUCTURES';
       $('build-menu-hint').hidden = !orbitalHubRequired;
       $('back-button').disabled = level === 'galaxy';

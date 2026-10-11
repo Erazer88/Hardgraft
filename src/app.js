@@ -4,6 +4,7 @@
   const Camera = globalThis.OrbitCamera, Simulation = globalThis.OrbitSimulation;
   const Exploration = globalThis.OrbitExploration, Save = globalThis.OrbitSave;
   const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
+  const ResourceData = globalThis.OrbitResourceData, Inventory = globalThis.OrbitInventory;
   const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
   const RoadConstruction = globalThis.OrbitRoadConstruction;
@@ -17,6 +18,12 @@
   const hud = globalThis.OrbitHUD.create(document);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const formatAmount = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
+  function resourceName(id) { return ResourceData.get(id)?.label || String(id).replace(/[_-]+/g, ' '); }
+  function amountSummary(amounts) {
+    const entries = Object.entries(amounts || {}).filter(([, amount]) => Number.isFinite(amount) && amount > 0);
+    return entries.length ? entries.map(([id, amount]) => `${resourceName(id)} ${formatAmount(amount)}`).join(' · ') : 'aucun matériau';
+  }
   const state = globalThis.OrbitState.create();
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
@@ -159,6 +166,7 @@
     state.seed = normalizedSeed(seed); galaxy = World.createGalaxy(state.seed);
     home = galaxy.systems.find(s => s.id === galaxy.homeId);
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
+    state.inventory = Inventory.create(ResourceData.startingInventory);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {};
@@ -299,7 +307,13 @@
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, waterPort: preview.waterPort,
-      constructionState: 'constructing', constructionProgress: 0, status: 'building' });
+      constructionState: 'planned', constructionProgress: 0, status: 'planned' });
+    const construction = Construction.start(building, state.inventory);
+    if (!construction.started) {
+      const shortage = construction.missing?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
+      toast(shortage ? `Ressources insuffisantes : ${shortage}.` : 'Construction impossible pour le moment.');
+      updateUI(); return;
+    }
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
@@ -311,6 +325,12 @@
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface') return;
+    const shortage = Inventory.missing(state.inventory, definition.cost || {});
+    if (shortage === null || shortage.length) {
+      const details = shortage?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
+      toast(details ? `Ressources insuffisantes : ${details}.` : 'Coût de construction invalide.');
+      return;
+    }
     if (type === 'hub' && hasOrbitalHub()) {
       toast('Un hub orbital est déjà installé sur cette planète.'); return;
     }
@@ -329,6 +349,18 @@
     state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     state.selected = { kind: 'building', ...building };
     hud.showSelection(state.selected, { state }); updateUI();
+  }
+  function demolishSelectedBuilding() {
+    const building = state.selected?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+    if (!building) return;
+    const refund = Construction.demolish(building, state.inventory);
+    if (refund === null) return;
+    for (const network of Object.values(state.roadNetworks)) RoadNetwork.detachBuilding(network, building.id);
+    state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
+    state.selected = null; $('inspector').hidden = true;
+    toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli. Récupéré : ${amountSummary(refund)}.`);
+    updateUI(); persist();
   }
   function buildingHit(frame, building, definition, x, y) {
     const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
@@ -765,6 +797,7 @@
   });
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
+  $('demolish-button').onclick = demolishSelectedBuilding;
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
     else if (state.level === 'system') enterPlanet();
