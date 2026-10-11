@@ -101,6 +101,13 @@
     return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
   }
 
+  function surfaceTypes(points, terrain, textureScale) {
+    return points.slice(1).map((point, index) => {
+      const previous = points[index], midpoint = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
+      return elevationAt(terrain, textureScale, midpoint.x, midpoint.y) <= terrain.seaLevel;
+    });
+  }
+
   function valid(points, terrain, textureScale, buildings = [], options = {}) {
     const rules = Config.obstacles, maxX = (terrain.width - 1) * textureScale, maxY = (terrain.height - 1) * textureScale;
     let previous = null, previousHeight = 0, previousWater = false;
@@ -136,15 +143,11 @@
       const curve = catmullRom(simplified, geometry.splineSamplesPerSpan, geometry.centripetalAlpha, strength);
       const points = resample(curve, geometry.validationSpacing);
       if (followsPath(points, rawPath, geometry.maxSplineDeviation) && valid(points, terrain, textureScale, buildings, options)) {
-        const surfaceTypes = points.slice(1).map((point, index) => {
-          const previous = points[index], midpoint = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
-          return elevationAt(terrain, textureScale, midpoint.x, midpoint.y) <= terrain.seaLevel;
-        });
-        return { points, surfaceTypes, simplifiedPointCount: simplified.length };
+        return { points, surfaceTypes: surfaceTypes(points, terrain, textureScale), simplifiedPointCount: simplified.length };
       }
     }
     return null;
   }
 
-  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, valid, create });
+  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, surfaceTypes, valid, create });
 })(globalThis);

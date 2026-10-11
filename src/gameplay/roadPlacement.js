@@ -13,7 +13,7 @@
   function connectBuilding({ network, building, definition, terrain, baseField, buildings }) {
     if (!definition?.roadRequired) return { connected: false, reason: 'no-road-required' };
     const port = building.roadPort || { x: building.x, y: building.y };
-    const target = Network.nearestConnection(network, port);
+    let target = Network.nearestConnection(network, port);
     if (!target) {
       const node = Network.addNode(network, { ...port, type: 'building', buildingId: building.id });
       return { connected: false, root: true, node };
@@ -24,6 +24,18 @@
     const rawPath = Pathfinder.findPath(field, terrain, port, target.point);
     const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
     if (!route) return { connected: false, reason: 'no-valid-route' };
+
+    const acceptContact = allowDeepWater ? candidate => {
+      if (candidate.kind === 'node') return isPortNode(candidate.node, buildings);
+      const endpoints = [Network.nodeById(network, candidate.segment.from), Network.nodeById(network, candidate.segment.to)];
+      return candidate.segment.surfaceTypes?.some(Boolean) && endpoints.some(node => isPortNode(node, buildings));
+    } : null;
+    const contact = Network.firstContact(network, route.points, Config.network.snapDistance, acceptContact);
+    if (contact && Geometry.valid(contact.points, terrain, baseField.textureScale, buildings, { allowDeepWater })) {
+      target = contact.target;
+      route.points = contact.points;
+      route.surfaceTypes = Geometry.surfaceTypes(contact.points, terrain, baseField.textureScale);
+    }
 
     const targetNode = Network.connectToTarget(network, target);
     if (!targetNode) return { connected: false, reason: 'target-lost' };

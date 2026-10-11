@@ -56,9 +56,10 @@
     return segment;
   }
 
-  function nearestConnection(network, point, excludedNodeId = null) {
+  function nearestConnection(network, point, excludedNodeId = null, accepts = null) {
     let best = null;
     function consider(candidate) {
+      if (accepts && !accepts(candidate)) return;
       if (!best || candidate.distance < best.distance - 1e-7 ||
           (Math.abs(candidate.distance - best.distance) <= 1e-7 && candidate.kind === 'node' && best.kind !== 'node') ||
           (Math.abs(candidate.distance - best.distance) <= 1e-7 && candidate.kind === best.kind && candidate.id < best.id)) best = candidate;
@@ -76,6 +77,88 @@
         point: projection, distance: distance(point, projection) });
     }
     return best;
+  }
+
+  function firstContact(network, points, snapDistance, accepts = null) {
+    if (!network || !Array.isArray(points) || points.length < 2 || !Number.isFinite(snapDistance) || snapDistance < 0) return null;
+    const bucketSize = Math.max(1, snapDistance), buckets = new Map();
+    const bucketKey = (x, y) => `${x},${y}`;
+    for (const segment of network.segments) for (let edgeIndex = 1; edgeIndex < segment.points.length; edgeIndex++) {
+      const a = segment.points[edgeIndex - 1], b = segment.points[edgeIndex];
+      const left = Math.floor(Math.min(a.x, b.x) / bucketSize), right = Math.floor(Math.max(a.x, b.x) / bucketSize);
+      const top = Math.floor(Math.min(a.y, b.y) / bucketSize), bottom = Math.floor(Math.max(a.y, b.y) / bucketSize);
+      const edge = { segment, edgeIndex: edgeIndex - 1, a, b };
+      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+        const key = bucketKey(x, y), candidates = buckets.get(key) || [];
+        candidates.push(edge); buckets.set(key, candidates);
+      }
+    }
+    function nearbyEdges(left, top, right, bottom) {
+      const candidates = new Map();
+      for (let y = Math.floor(top / bucketSize); y <= Math.floor(bottom / bucketSize); y++) {
+        for (let x = Math.floor(left / bucketSize); x <= Math.floor(right / bucketSize); x++) {
+          for (const edge of buckets.get(bucketKey(x, y)) || []) candidates.set(`${edge.segment.id}:${edge.edgeIndex}`, edge);
+        }
+      }
+      return candidates.values();
+    }
+    function trimAt(index, point) {
+      const trimmed = points.slice(0, index).map(copyPoint);
+      const contact = copyPoint(point);
+      if (!trimmed.length) trimmed.push(copyPoint(points[0]));
+      if (distance(trimmed[trimmed.length - 1], contact) > 1e-7) trimmed.push(contact);
+      if (trimmed.length === 1) trimmed.push(contact);
+      return trimmed;
+    }
+
+    // Prefer the real crossing when two polylines intersect. This keeps the
+    // junction marker on the visible crossing instead of snapping to an
+    // earlier point that merely happens to be nearby.
+    let crossing = null;
+    for (let index = 1; index < points.length; index++) {
+      const a = points[index - 1], b = points[index], rx = b.x - a.x, ry = b.y - a.y;
+      const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x), top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+      for (const edge of nearbyEdges(left, top, right, bottom)) {
+        const { segment, edgeIndex, a: c, b: d } = edge, sx = d.x - c.x, sy = d.y - c.y;
+        const denominator = rx * sy - ry * sx;
+        if (Math.abs(denominator) < 1e-9) continue;
+        const qx = c.x - a.x, qy = c.y - a.y;
+        const routeT = (qx * sy - qy * sx) / denominator;
+        const segmentT = (qx * ry - qy * rx) / denominator;
+        if (routeT < -1e-8 || routeT > 1 + 1e-8 || segmentT < -1e-8 || segmentT > 1 + 1e-8) continue;
+        const point = { x: a.x + rx * routeT, y: a.y + ry * routeT };
+        const existingNode = network.nodes.find(node => distance(node, point) <= 1e-6);
+        const target = existingNode
+          ? { kind: 'node', id: existingNode.id, node: existingNode, point: copyPoint(existingNode), distance: 0 }
+          : { kind: 'segment', id: segment.id, segment, edgeIndex: edgeIndex - 1,
+            t: Math.max(0, Math.min(1, segmentT)), point, distance: 0 };
+        if (accepts && !accepts(target)) continue;
+        const progress = index - 1 + routeT;
+        if (!crossing || progress < crossing.progress) crossing = { target, index, t: routeT, progress };
+      }
+    }
+    if (crossing) return { target: crossing.target, points: trimAt(crossing.index, crossing.target.point), contactIndex: crossing.index };
+
+    for (let index = 1; index < points.length; index++) {
+      const point = points[index];
+      let target = null;
+      function consider(candidate) {
+        if (accepts && !accepts(candidate)) return;
+        if (!target || candidate.distance < target.distance - 1e-7 ||
+            (Math.abs(candidate.distance - target.distance) <= 1e-7 && candidate.kind === 'node' && target.kind !== 'node') ||
+            (Math.abs(candidate.distance - target.distance) <= 1e-7 && candidate.kind === target.kind && candidate.id < target.id)) target = candidate;
+      }
+      for (const node of network.nodes) consider({ kind: 'node', id: node.id, node, point: copyPoint(node), distance: distance(point, node) });
+      for (const edge of nearbyEdges(point.x - snapDistance, point.y - snapDistance, point.x + snapDistance, point.y + snapDistance)) {
+        const { segment, edgeIndex, a, b } = edge, dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+        const t = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
+        const projection = { x: a.x + dx * t, y: a.y + dy * t };
+        consider({ kind: 'segment', id: segment.id, segment, edgeIndex, t, point: projection, distance: distance(point, projection) });
+      }
+      if (!target || target.distance > snapDistance) continue;
+      return { target, points: trimAt(index, target.point), contactIndex: index };
+    }
+    return null;
   }
 
   function connectToTarget(network, target) {
@@ -158,5 +241,5 @@
   }
 
   root.OrbitRoadNetwork = Object.freeze({ create, addNode, addSegment, nodeById, segmentById,
-    nearestConnection, connectToTarget, replaceSegmentPoints, restore, lengthOf });
+    nearestConnection, firstContact, connectToTarget, replaceSegmentPoints, restore, lengthOf });
 })(globalThis);
