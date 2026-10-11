@@ -100,16 +100,29 @@
         if (delta.x && delta.y && current !== start.index && next !== goal.index &&
             (field.blocked[y * field.width + nx] || field.blocked[ny * field.width + x])) continue;
         const elevationDelta = elevationAt(next) - currentElevation;
-        const grade = Math.abs(elevationDelta) / field.step;
+        const travel = delta.x && delta.y ? Math.SQRT2 : 1;
+        const grade = Math.abs(elevationDelta) / (field.step * travel);
         const bothLand = !field.water[current] && !field.water[next];
         if (bothLand && grade > Config.weights.maxSlopePerHeightCell) continue;
-        const travel = delta.x && delta.y ? Math.SQRT2 : 1;
-        const slopeCost = bothLand ? Math.max(0, elevationDelta) * Config.weights.uphillPerElevation / field.step +
-          Math.max(0, -elevationDelta) * Config.weights.downhillPerElevation / field.step : 0;
+        const rise = bothLand ? Math.max(0, elevationDelta) / (field.step * travel) : 0;
+        const fall = bothLand ? Math.max(0, -elevationDelta) / (field.step * travel) : 0;
+        const excessGrade = bothLand ? Math.max(0, grade - Config.weights.comfortableSlopePerHeightCell) : 0;
+        const slopeCost = rise * Config.weights.uphillPerElevation + fall * Config.weights.downhillPerElevation +
+          excessGrade * excessGrade * Config.weights.steepGradePenalty;
         let turnCost = 0;
         if (incoming !== NONE) {
           const turn = Math.abs(direction - incoming);
-          turnCost = Math.min(turn, 8 - turn) * Config.weights.directionChange;
+          const previousDirection = directions[incoming];
+          const previousX = x - previousDirection.x, previousY = y - previousDirection.y;
+          const previous = previousX >= 0 && previousY >= 0 && previousX < field.width && previousY < field.height
+            ? previousY * field.width + previousX : -1;
+          const previousTravel = Math.hypot(previousDirection.x, previousDirection.y);
+          const previousRise = previous >= 0 && !field.water[previous] && !field.water[current]
+            ? Math.max(0, currentElevation - elevationAt(previous)) / (field.step * previousTravel) : 0;
+          const climbingGrade = Math.max(previousRise, rise);
+          const turnMultiplier = climbingGrade >= Config.weights.switchbackGradePerHeightCell
+            ? Config.weights.switchbackTurnMultiplier : 1;
+          turnCost = Math.min(turn, 8 - turn) * Config.weights.directionChange * turnMultiplier;
         }
         const nextState = next * 9 + direction;
         const nextG = best[currentState] + travel * ((field.costs[current] + field.costs[next]) / 2 + slopeCost) + turnCost;

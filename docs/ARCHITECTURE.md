@@ -17,8 +17,8 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/simulation/construction.js` | Avancement temporel des constructions planétaires |
 | `src/simulation/roadNetwork.js` | Nœuds, segments et intersections du réseau |
 | `src/simulation/roadCostField.js` | Coût déterministe du relief, des obstacles et des routes existantes |
-| `src/simulation/roadPathfinder.js` | Recherche A* pondérée avec pente et changements de direction |
-| `src/simulation/roadGeometry.js` | Simplification, spline Catmull–Rom et validation du tracé |
+| `src/simulation/roadPathfinder.js` | Recherche A* pondérée avec vallée, pente, lacets et mutualisation |
+| `src/simulation/roadGeometry.js` | Simplification, spline Catmull–Rom et validation du relief |
 | `src/gameplay/buildingPlacement.js` | Validation spatiale du placement sur la surface |
 | `src/gameplay/roadPlacement.js` | Raccord automatique, création et recalcul d'itinéraires |
 | `src/gameplay/exploration.js` | Missions de sonde et découverte des systèmes |
@@ -35,7 +35,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 
 `index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`.
 
-Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Un bâtiment routier posé rejoint le réseau le plus proche. La hauteur du terrain alimente un cost-field déterministe, puis A* cherche une route en tenant compte des pentes, des obstacles, des virages et des routes existantes. Le tracé brut passe par Ramer–Douglas–Peucker, une spline Catmull–Rom et une validation dense avant d'être enregistré. La classe terre/mer de chaque tronçon est aussi enregistrée avec sa géométrie : la boucle de rendu ne lit que le chemin précalculé. Les routes sauvegardées sont conservées par planète.
+Le rendu de surface suit un ordre stable : terrain, gisements, routes, bâtiments physiques, véhicules, ancres et cartes de bâtiments, sélection, labels. Un bâtiment routier posé rejoint le réseau le plus proche. La hauteur du terrain alimente un cost-field déterministe, puis A* cherche une route en tenant compte des vallées, des pentes, des obstacles, des lacets et des routes existantes. Un surcoût non linéaire pénalise les montées raides, tandis que la pénalité de virage diminue sur ces pentes afin de permettre des lacets. Le tracé brut passe par Ramer–Douglas–Peucker, une spline Catmull–Rom et une validation dense avant d'être enregistré. La courbe reste proche du chemin A* pour préserver ses détours de relief. La classe terre/mer de chaque tronçon est aussi enregistrée avec sa géométrie : la boucle de rendu ne lit que le chemin précalculé. Les routes sauvegardées sont conservées par planète.
 
 Les définitions de bâtiments décrivent des empreintes et ports en coordonnées monde de la surface. `OrbitSurfaceBuilding.create()` produit une instance ancrée par `planetId`, `x` et `y`; les extracteurs conservent aussi l'identifiant du gisement compatible choisi. `OrbitBuildingPlacement.validate()` vérifie les limites, le terrain et les chevauchements. La fiche d'un bâtiment sélectionné affiche son niveau d'amélioration, ses informations propres à son type, son stock ou son débit courant. Les débits et la puissance sont initialisés à zéro jusqu'à l'ajout de leur simulation. Les bâtiments, leur progression, les sondes en cours et la vue courante sont conservés dans la sauvegarde locale.
 

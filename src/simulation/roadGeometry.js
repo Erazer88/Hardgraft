@@ -71,6 +71,27 @@
     return output;
   }
 
+  function followsPath(points, path, maxDeviation) {
+    const limitSquared = maxDeviation * maxDeviation, bucketSize = Math.max(maxDeviation, EPSILON), buckets = new Map();
+    const bucketKey = (x, y) => `${x},${y}`;
+    for (let index = 1; index < path.length; index++) {
+      const a = path[index - 1], b = path[index];
+      const left = Math.floor((Math.min(a.x, b.x) - maxDeviation) / bucketSize);
+      const right = Math.floor((Math.max(a.x, b.x) + maxDeviation) / bucketSize);
+      const top = Math.floor((Math.min(a.y, b.y) - maxDeviation) / bucketSize);
+      const bottom = Math.floor((Math.max(a.y, b.y) + maxDeviation) / bucketSize);
+      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+        const key = bucketKey(x, y), candidates = buckets.get(key) || [];
+        candidates.push(index - 1); buckets.set(key, candidates);
+      }
+    }
+    for (const point of points) {
+      const candidates = buckets.get(bucketKey(Math.floor(point.x / bucketSize), Math.floor(point.y / bucketSize))) || [];
+      if (!candidates.some(index => pointSegmentDistanceSquared(point, path[index], path[index + 1]) <= limitSquared)) return false;
+    }
+    return true;
+  }
+
   function elevationAt(terrain, textureScale, xWorld, yWorld) {
     const x = xWorld / textureScale, y = yWorld / textureScale;
     const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(terrain.width - 1, x0 + 1), y1 = Math.min(terrain.height - 1, y0 + 1);
@@ -114,7 +135,7 @@
       const simplified = simplify(rawPath, tolerance);
       const curve = catmullRom(simplified, geometry.splineSamplesPerSpan, geometry.centripetalAlpha, strength);
       const points = resample(curve, geometry.validationSpacing);
-      if (valid(points, terrain, textureScale, buildings, options)) {
+      if (followsPath(points, rawPath, geometry.maxSplineDeviation) && valid(points, terrain, textureScale, buildings, options)) {
         const surfaceTypes = points.slice(1).map((point, index) => {
           const previous = points[index], midpoint = { x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2 };
           return elevationAt(terrain, textureScale, midpoint.x, midpoint.y) <= terrain.seaLevel;
@@ -125,5 +146,5 @@
     return null;
   }
 
-  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, elevationAt, valid, create });
+  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, valid, create });
 })(globalThis);
