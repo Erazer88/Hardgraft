@@ -36,7 +36,7 @@
   });
 
   function create(canvasContext, dependencies) {
-    const { project, localCamera, surfaceFrame, getState, getViewport, isCameraMoving, layers } = dependencies;
+    const { project, localCamera, surfaceFrame, getState, getViewport, isCameraInteracting, layers } = dependencies;
     const materialRenderer = root.OrbitSurfaceMaterialRenderer.create();
     const materialDefinitions = [
       { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: 1 },
@@ -53,6 +53,7 @@
     const pendingMaterialTextures = new Set();
     let materialImagesReady = false;
     let detailContourCache = null;
+    let detailContourJob = null;
     const materialIndices = Object.fromEntries(materialDefinitions.map((definition, index) => [definition.id, index]));
     let detailWorker = null;
     let detailWorkerUrl = null;
@@ -463,152 +464,249 @@
       return terrainTexture;
     }
 
+    function contourDefinitions(overview, terrainFactor) {
+      const contourByIndex = new Array(40), contours = [];
+      for (let index = 0; index < contourByIndex.length; index += 1) {
+        const level = 48 + index * 5;
+        const coastline = level === 103;
+        const indexContour = (level - 48) % 20 === 0;
+        if (overview && !coastline && !indexContour) continue;
+        const waterContour = level < 102;
+        const contour = { level, path: new root.Path2D(), overview,
+          color: overview ? '#e2e8ea' : coastline ? '#f2d8a7ed' : waterContour
+            ? (indexContour ? '#a0e4e9cf' : '#83cbd69e')
+            : (indexContour ? '#111a16e8' : '#1a2921bf'),
+          outlineColor: overview ? '#13212b80' : coastline ? '#102127d4' : waterContour ? '#071827a8' : '#ddd4ae78',
+          width: overview ? (coastline ? 1.05 : .82) : (coastline ? 1.5 : indexContour ? 1.15 : .66) / terrainFactor,
+          outlineWidth: overview ? .42 : coastline ? .62 / terrainFactor : indexContour ? .42 / terrainFactor : 0 };
+        contourByIndex[index] = contour;
+        contours.push(contour);
+      }
+      return { contourByIndex, contours };
+    }
+
+    function sameContourRequest(first, second) {
+      return first && second && first.kind === second.kind && first.planetId === second.planetId &&
+        first.terrain === second.terrain && first.terrainFactor === second.terrainFactor &&
+        first.lod === second.lod && first.minX === second.minX && first.maxX === second.maxX &&
+        first.minY === second.minY && first.maxY === second.maxY && first.zoom === second.zoom &&
+        first.pixelRatio === second.pixelRatio && first.color === second.color &&
+        (first.kind !== 'raster' || first.cache === second.cache);
+    }
+
+    function stopContourJob() {
+      if (!detailContourJob) return;
+      if (detailContourJob.timer) root.clearTimeout(detailContourJob.timer);
+      detailContourJob = null;
+    }
+
+    function queueContourJob(job, delay = 0) {
+      job.timer = root.setTimeout(() => processContourJob(job), delay);
+    }
+
+    function prepareContourRaster(job) {
+      const cache = job.cache;
+      const cellSize = Config.terrain.textureScale / cache.terrainFactor;
+      const padding = 2 / job.zoom;
+      const worldX = cache.minX * cellSize - padding;
+      const worldY = cache.minY * cellSize - padding;
+      const worldWidth = (cache.maxX - cache.minX + 1) * cellSize + padding * 2;
+      const worldHeight = (cache.maxY - cache.minY + 1) * cellSize + padding * 2;
+      const rasterCanvas = makeCanvas(Math.max(1, Math.ceil(worldWidth * job.zoom * job.pixelRatio)),
+        Math.max(1, Math.ceil(worldHeight * job.zoom * job.pixelRatio)));
+      const rasterContext = rasterCanvas.getContext('2d');
+      rasterContext.scale(job.zoom * job.pixelRatio, job.zoom * job.pixelRatio);
+      rasterContext.translate(-worldX, -worldY);
+      rasterContext.lineCap = 'round'; rasterContext.lineJoin = 'round';
+      job.rasterContext = rasterContext;
+      job.rasterContourIndex = 0;
+      job.raster = { canvas: rasterCanvas, x: worldX, y: worldY,
+        width: worldWidth, height: worldHeight, zoom: job.zoom,
+        pixelRatio: job.pixelRatio, color: job.color };
+      job.phase = 'rasterize';
+    }
+
+    function processContourCell(job, x, y) {
+      const { width, elevation } = job.terrain;
+      const cellSize = Config.terrain.textureScale / job.terrainFactor;
+      const index = y * width + x;
+      const a = elevation[index], b = elevation[index + 1];
+      const d = elevation[index + width], e = elevation[index + width + 1];
+      const cellMinimum = Math.min(a, b, d, e), cellMaximum = Math.max(a, b, d, e);
+      const firstLevel = Math.max(0, Math.ceil((cellMinimum - 48) / 5));
+      const lastLevel = Math.min(39, Math.floor((cellMaximum - 48) / 5));
+      for (let levelIndex = firstLevel; levelIndex <= lastLevel; levelIndex += 1) {
+        const contour = job.contourByIndex[levelIndex];
+        if (!contour) continue;
+        const level = contour.level, path = contour.path;
+        const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
+        if (mask === 0 || mask === 15) continue;
+        let hasFirst = false, firstX = 0, firstY = 0;
+        if ((a < level) !== (b < level)) {
+          const px = x + (level - a) / (b - a), py = y;
+          if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+          else { firstX = px; firstY = py; hasFirst = true; }
+        }
+        if ((b < level) !== (e < level)) {
+          const px = x + 1, py = y + (level - b) / (e - b);
+          if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+          else { firstX = px; firstY = py; hasFirst = true; }
+        }
+        if ((e < level) !== (d < level)) {
+          const px = x + 1 - (level - e) / (d - e), py = y + 1;
+          if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+          else { firstX = px; firstY = py; hasFirst = true; }
+        }
+        if ((d < level) !== (a < level)) {
+          const px = x, py = y + 1 - (level - d) / (a - d);
+          if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+          else { firstX = px; firstY = py; hasFirst = true; }
+        }
+      }
+    }
+
+    function strokeContour(job, contour) {
+      const context = job.rasterContext;
+      const lineScale = contour.overview ? 1 / job.zoom : 1;
+      if (contour.outlineWidth) {
+        context.lineWidth = (contour.width + contour.outlineWidth) * lineScale;
+        context.strokeStyle = contour.overview ? '#13212b80' : contour.outlineColor;
+        context.stroke(contour.path);
+      }
+      context.lineWidth = contour.width * lineScale;
+      context.strokeStyle = contour.overview ? job.color : contour.color;
+      context.stroke(contour.path);
+    }
+
+    function processContourJob(job) {
+      if (detailContourJob !== job) return;
+      job.timer = null;
+      if (getState().level !== 'surface') {
+        detailContourCache = null;
+        stopContourJob();
+        return;
+      }
+      if (isCameraInteracting && isCameraInteracting()) { queueContourJob(job, 50); return; }
+      if (job.phase === 'prepare-raster') {
+        prepareContourRaster(job);
+        queueContourJob(job);
+        return;
+      }
+      const now = () => root.performance?.now?.() || Date.now();
+      const stopAt = now() + 3;
+      if (job.phase === 'geometry') {
+        while (job.y <= job.maxY && now() < stopAt) {
+          processContourCell(job, job.x, job.y);
+          job.x += 1;
+          if (job.x > job.maxX) { job.x = job.minX; job.y += 1; }
+        }
+        if (job.y > job.maxY) {
+          job.phase = 'prepare-raster';
+          queueContourJob(job);
+          return;
+        }
+      }
+      if (job.phase === 'rasterize') {
+        const contours = job.cache.contours;
+        while (job.rasterContourIndex < contours.length && now() < stopAt) {
+          strokeContour(job, contours[job.rasterContourIndex]);
+          job.rasterContourIndex += 1;
+        }
+        if (job.rasterContourIndex >= contours.length) {
+          if (job.kind === 'geometry') {
+            job.cache.raster = job.raster;
+            detailContourCache = job.cache;
+          } else if (detailContourCache === job.cache) job.cache.raster = job.raster;
+          detailContourJob = null;
+          return;
+        }
+      }
+      queueContourJob(job);
+    }
+
+    function scheduleContourBuild(request) {
+      const candidate = { ...request, kind: 'geometry' };
+      if (sameContourRequest(detailContourJob, candidate)) return;
+      const activeBuild = detailContourJob;
+      const overlapsActiveBuild = activeBuild?.kind === 'geometry' &&
+        activeBuild.planetId === candidate.planetId && activeBuild.terrain === candidate.terrain &&
+        activeBuild.terrainFactor === candidate.terrainFactor &&
+        candidate.minX <= activeBuild.maxX && candidate.maxX >= activeBuild.minX &&
+        candidate.minY <= activeBuild.maxY && candidate.maxY >= activeBuild.minY;
+      if (overlapsActiveBuild) return;
+      stopContourJob();
+      const { contourByIndex, contours } = contourDefinitions(request.lod === 'overview', request.terrainFactor);
+      candidate.contourByIndex = contourByIndex;
+      candidate.cache = { planetId: request.planetId, terrain: request.terrain,
+        terrainFactor: request.terrainFactor, subdivision: 1, minX: request.minX,
+        maxX: request.maxX, minY: request.minY, maxY: request.maxY,
+        lod: request.lod, contours, raster: null };
+      candidate.x = candidate.minX; candidate.y = candidate.minY; candidate.phase = 'geometry';
+      detailContourJob = candidate;
+      queueContourJob(candidate);
+    }
+
+    function scheduleContourRaster(cache, zoom, pixelRatio, color) {
+      const candidate = { kind: 'raster', planetId: cache.planetId, terrain: cache.terrain,
+        terrainFactor: cache.terrainFactor, lod: cache.lod, minX: cache.minX,
+        maxX: cache.maxX, minY: cache.minY, maxY: cache.maxY,
+        cache, zoom, pixelRatio, color };
+      if (sameContourRequest(detailContourJob, candidate)) return;
+      if (detailContourJob?.kind === 'raster' && detailContourJob.cache === cache) return;
+      stopContourJob();
+      candidate.phase = 'prepare-raster'; candidate.rasterContourIndex = 0;
+      detailContourJob = candidate;
+      queueContourJob(candidate);
+    }
+
     function drawDetailContours(frame) {
       const terrain = frame.detailTerrain || frame.terrain;
       if (!terrain) {
-        if (getState().level !== 'surface') detailContourCache = null;
+        if (getState().level !== 'surface') { detailContourCache = null; stopContourJob(); }
         return;
       }
       if (typeof root.Path2D !== 'function') return;
-      const overview = frame.zoom < 2;
-      const contourLod = overview ? 'overview' : 'detail';
-      const { width, height, elevation } = terrain;
+      const contourLod = frame.zoom < 2 ? 'overview' : 'detail';
+      const { width, height } = terrain;
       const viewport = frame.viewport, top = frame.project(0, 0);
       const terrainFactor = frame.detailTerrain ? frame.detailTerrainFactor || Config.terrain.renderDetailFactor : 1;
-      // The terrain already has its final resolution; extra 2x/4x contour
-      // interpolation only multiplies per-frame geometry work.
-      const subdivision = 1;
-      const gridWidth = width, gridHeight = height;
       const cellSize = Config.terrain.textureScale / terrainFactor;
-      const minX = clamp(Math.floor((-top.x / frame.zoom) / cellSize) - 1, 0, gridWidth - 2);
-      const maxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize) + 1, 0, gridWidth - 2);
-      const minY = clamp(Math.floor((-top.y / frame.zoom) / cellSize) - 1, 0, gridHeight - 2);
-      const maxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize) + 1, 0, gridHeight - 2);
-      const visibleMinX = clamp(Math.floor((-top.x / frame.zoom) / cellSize), 0, gridWidth - 2);
-      const visibleMaxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize), 0, gridWidth - 2);
-      const visibleMinY = clamp(Math.floor((-top.y / frame.zoom) / cellSize), 0, gridHeight - 2);
-      const visibleMaxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize), 0, gridHeight - 2);
+      const visibleMinX = clamp(Math.floor((-top.x / frame.zoom) / cellSize), 0, width - 2);
+      const visibleMaxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize), 0, width - 2);
+      const visibleMinY = clamp(Math.floor((-top.y / frame.zoom) / cellSize), 0, height - 2);
+      const visibleMaxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize), 0, height - 2);
+      // Keep untraced terrain around the view so ordinary pans reuse this cache.
+      const marginX = Math.max(2, Math.ceil((visibleMaxX - visibleMinX + 1) * .12));
+      const marginY = Math.max(2, Math.ceil((visibleMaxY - visibleMinY + 1) * .12));
+      const minX = clamp(visibleMinX - marginX, 0, width - 2);
+      const maxX = clamp(visibleMaxX + marginX, 0, width - 2);
+      const minY = clamp(visibleMinY - marginY, 0, height - 2);
+      const maxY = clamp(visibleMaxY + marginY, 0, height - 2);
       const coversViewport = detailContourCache?.planetId === frame.planet.id &&
-        detailContourCache.lod === contourLod &&
-        detailContourCache.subdivision === subdivision &&
-        detailContourCache.terrainFactor === terrainFactor &&
-        detailContourCache.terrain === terrain &&
-        visibleMinX >= detailContourCache.minX &&
+        detailContourCache.lod === contourLod && detailContourCache.terrainFactor === terrainFactor &&
+        detailContourCache.terrain === terrain && visibleMinX >= detailContourCache.minX &&
         visibleMaxX <= detailContourCache.maxX && visibleMinY >= detailContourCache.minY &&
         visibleMaxY <= detailContourCache.maxY;
-      const cameraMoving = isCameraMoving && isCameraMoving();
-      const overviewLodChanged = overview && (detailContourCache?.lod !== 'overview' ||
-        detailContourCache?.planetId !== frame.planet.id);
-      if (!coversViewport && (!cameraMoving || overviewLodChanged)) {
-        let minimumElevation = Infinity, maximumElevation = -Infinity;
-        for (let y = minY; y <= maxY + 1; y += 1) for (let x = minX; x <= maxX + 1; x += 1) {
-          const value = elevation[y * width + x];
-          minimumElevation = Math.min(minimumElevation, value);
-          maximumElevation = Math.max(maximumElevation, value);
-        }
-        const contourByIndex = new Array(40);
-        const contours = [];
-        for (let index = 0; index < contourByIndex.length; index += 1) {
-          const level = 48 + index * 5;
-          const coastline = level === 103;
-          const indexContour = (level - 48) % 20 === 0;
-          if (overview && !coastline && !indexContour) continue;
-          if (minimumElevation >= level || maximumElevation < level) continue;
-          const waterContour = level < 102;
-          const contour = { level, path: new root.Path2D(),
-            overview,
-            color: overview ? '#e2e8ea' : coastline ? '#f2d8a7ed' : waterContour
-              ? (indexContour ? '#a0e4e9cf' : '#83cbd69e')
-              : (indexContour ? '#111a16e8' : '#1a2921bf'),
-            outlineColor: overview ? '#13212b80' : coastline ? '#102127d4' : waterContour ? '#071827a8' : '#ddd4ae78',
-            width: overview ? (coastline ? 1.05 : .82) : (coastline ? 1.5 : indexContour ? 1.15 : .66) / terrainFactor,
-            outlineWidth: overview ? .42 : coastline ? .62 / terrainFactor : indexContour ? .42 / terrainFactor : 0 };
-          contourByIndex[index] = contour;
-          contours.push(contour);
-        }
-
-        // Visit each visible cell once, then trace only the contour levels that
-        // cross its local elevation range instead of rescanning it 40 times.
-        for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-          const index = y * width + x;
-          const a = elevation[index], b = elevation[index + 1];
-          const d = elevation[index + width], e = elevation[index + width + 1];
-          const cellMinimum = Math.min(a, b, d, e), cellMaximum = Math.max(a, b, d, e);
-          const firstLevel = Math.max(0, Math.ceil((cellMinimum - 48) / 5));
-          const lastLevel = Math.min(39, Math.floor((cellMaximum - 48) / 5));
-          for (let levelIndex = firstLevel; levelIndex <= lastLevel; levelIndex += 1) {
-            const contour = contourByIndex[levelIndex];
-            if (!contour) continue;
-            const level = contour.level, path = contour.path;
-            const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
-            if (mask === 0 || mask === 15) continue;
-            let hasFirst = false, firstX = 0, firstY = 0;
-            if ((a < level) !== (b < level)) {
-              const px = x + (level - a) / (b - a), py = y;
-              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
-              else { firstX = px; firstY = py; hasFirst = true; }
-            }
-            if ((b < level) !== (e < level)) {
-              const px = x + 1, py = y + (level - b) / (e - b);
-              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
-              else { firstX = px; firstY = py; hasFirst = true; }
-            }
-            if ((e < level) !== (d < level)) {
-              const px = x + 1 - (level - e) / (d - e), py = y + 1;
-              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
-              else { firstX = px; firstY = py; hasFirst = true; }
-            }
-            if ((d < level) !== (a < level)) {
-              const px = x, py = y + 1 - (level - d) / (a - d);
-              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
-              else { firstX = px; firstY = py; hasFirst = true; }
-            }
-          }
-        }
-        detailContourCache = { planetId: frame.planet.id, terrain, terrainFactor,
-          subdivision, minX, maxX, minY, maxY, lod: contourLod, contours };
-      }
-      if (!detailContourCache || detailContourCache.planetId !== frame.planet.id) return;
+      const cameraInteracting = isCameraInteracting && isCameraInteracting();
       const developerSettings = root.OrbitDeveloperSettings;
       const overviewColor = developerSettings?.get('overviewContourColor') || '#e2e8ea';
       const overviewOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 67) / 100, 0, 1);
-      if (overviewOpacity === 0 && detailContourCache.lod === 'overview') return;
-      // Contour paths can contain many thousands of segments. Rasterize the
-      // visible region once per settled camera scale, then composite one image.
-      const overviewCache = detailContourCache.lod === 'overview';
       const pixelRatio = canvasContext.canvas.width / viewport.width;
-      let raster = detailContourCache.raster;
+      if (!coversViewport && !cameraInteracting) {
+        scheduleContourBuild({ planetId: frame.planet.id, terrain, terrainFactor,
+          lod: contourLod, minX, maxX, minY, maxY, zoom: frame.zoom, pixelRatio,
+          color: contourLod === 'overview' ? overviewColor : null });
+      }
+      if (!detailContourCache || detailContourCache.planetId !== frame.planet.id ||
+          detailContourCache.terrain !== terrain || !detailContourCache.raster) return;
+      const overviewCache = detailContourCache.lod === 'overview';
+      if (overviewCache && overviewOpacity === 0) return;
       const rasterColor = overviewCache ? overviewColor : null;
-      const zoomNeedsRefresh = raster && !cameraMoving &&
+      const raster = detailContourCache.raster;
+      const rasterNeedsRefresh = raster.color !== rasterColor || raster.pixelRatio !== pixelRatio ||
         Math.abs(Math.log(frame.zoom / raster.zoom)) > .08;
-      if (!raster || raster.color !== rasterColor || raster.pixelRatio !== pixelRatio || zoomNeedsRefresh) {
-        const rasterCellSize = Config.terrain.textureScale / detailContourCache.terrainFactor;
-        const rasterPadding = 2 / frame.zoom;
-        const worldX = detailContourCache.minX * rasterCellSize - rasterPadding;
-        const worldY = detailContourCache.minY * rasterCellSize - rasterPadding;
-        const worldWidth = (detailContourCache.maxX - detailContourCache.minX + 1) * rasterCellSize + rasterPadding * 2;
-        const worldHeight = (detailContourCache.maxY - detailContourCache.minY + 1) * rasterCellSize + rasterPadding * 2;
-        const rasterCanvas = makeCanvas(Math.max(1, Math.ceil(worldWidth * frame.zoom * pixelRatio)),
-          Math.max(1, Math.ceil(worldHeight * frame.zoom * pixelRatio)));
-        const rasterContext = rasterCanvas.getContext('2d');
-        rasterContext.scale(frame.zoom * pixelRatio, frame.zoom * pixelRatio);
-        rasterContext.translate(-worldX, -worldY);
-        rasterContext.lineCap = 'round'; rasterContext.lineJoin = 'round';
-        for (const contour of detailContourCache.contours) {
-          const lineScale = contour.overview ? 1 / frame.zoom : 1;
-          if (contour.outlineWidth) {
-            rasterContext.lineWidth = (contour.width + contour.outlineWidth) * lineScale;
-            rasterContext.strokeStyle = contour.overview ? '#13212b80' : contour.outlineColor;
-            rasterContext.stroke(contour.path);
-          }
-          rasterContext.lineWidth = contour.width * lineScale;
-          rasterContext.strokeStyle = contour.overview ? overviewColor : contour.color;
-          rasterContext.stroke(contour.path);
-        }
-        raster = detailContourCache.raster = {
-          canvas: rasterCanvas, x: worldX, y: worldY, width: worldWidth, height: worldHeight,
-          zoom: frame.zoom, pixelRatio, color: rasterColor
-        };
+      if (coversViewport && rasterNeedsRefresh && !cameraInteracting && detailContourJob?.kind !== 'geometry') {
+        scheduleContourRaster(detailContourCache, frame.zoom, pixelRatio, rasterColor);
       }
       canvasContext.save();
       if (overviewCache) canvasContext.globalAlpha = overviewOpacity;
@@ -616,7 +714,6 @@
       canvasContext.scale(frame.zoom, frame.zoom);
       canvasContext.drawImage(raster.canvas, raster.x, raster.y, raster.width, raster.height);
       canvasContext.restore();
-      return;
     }
 
     function drawSurfaceGrid(cam) {
@@ -668,7 +765,7 @@
       };
     }
 
-    function drawTerrain(frame) {
+    function drawTerrain(frame, drawContours = true) {
       const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
@@ -695,7 +792,8 @@
         canvasContext.drawImage(frame.fallbackTexture || terrainTexture, top.x, top.y, width, height);
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
-      drawDetailContours(frame);
+      if (drawContours) drawDetailContours(frame);
+      else if (getState().level !== 'surface') { detailContourCache = null; stopContourJob(); }
       const bottom = frame.project(terrainWidth, terrainHeight);
       canvasContext.strokeStyle = SurfaceStyle.terrain.edgeColor;
       canvasContext.lineWidth = SurfaceStyle.terrain.edgeWidthPx;
@@ -768,9 +866,9 @@
         top.x + 15, bottom.y - 16, '#c3c9b1', SurfaceStyle.labels.siteDetailSizePx);
     }
 
-    function drawSurface(cam, planet, record) {
+    function drawSurface(cam, planet, record, planetPreview = false) {
       const frame = makeSurfaceFrame(cam, planet, record);
-      drawTerrain(frame);
+      drawTerrain(frame, !planetPreview);
       drawGeologicalOverlays(frame);
       layers.roads.render(frame);
       layers.settlements.render(frame);
@@ -782,7 +880,7 @@
       drawLabels(frame);
     }
 
-    function drawPlanetTerrain(planet, context, center, radius) {
+    function drawPlanetTerrain(planet, context, center, radius, planetPreview = false) {
       const record = context.terrains.get(planet.id);
       if (!record) return;
       const frame = surfaceFrame(planet, context), style = SurfaceStyle.terrain;
@@ -792,7 +890,7 @@
       canvasContext.save(); canvasContext.beginPath();
       canvasContext.roundRect(center.x - width / 2, center.y - height / 2, width, height, Math.max(0, radius * (1 - open)));
       canvasContext.clip();
-      drawSurface(localCamera(frame), planet, record);
+      drawSurface(localCamera(frame), planet, record, planetPreview);
       canvasContext.restore();
     }
 

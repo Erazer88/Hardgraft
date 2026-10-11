@@ -14,7 +14,11 @@
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
-  const renderer = globalThis.OrbitRenderer.create(canvas);
+  const pointers = new Map();
+  let pointerMoved = false;
+  const renderer = globalThis.OrbitRenderer.create(canvas, {
+    isCameraInteracting: () => pointers.size > 0 && pointerMoved
+  });
   const hud = globalThis.OrbitHUD.create(document);
   globalThis.OrbitDeveloperTools.create(document);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -29,9 +33,8 @@
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
-  let lastHUD = 0, lastAutosave = 0, pointerMoved = false, menuStarted = false, storageWarningShown = false, pinch = null;
+  let lastHUD = 0, lastAutosave = 0, menuStarted = false, storageWarningShown = false, pinch = null;
   const viewport = { width: W, height: H };
-  const pointers = new Map();
   const contexts = new Map();
   let roadDrag = null;
 

@@ -7,7 +7,7 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const ease = t => t * t * (3 - 2 * t);
 
-  function create(canvas) {
+  function create(canvas, options = {}) {
     const ctx = canvas.getContext('2d', { alpha: false });
     let W = 1, H = 1, DPR = 1;
     let state, galaxy, home, contexts, visibleContexts, now;
@@ -42,7 +42,7 @@
       getState: () => state,
       getViewport: () => viewport,
       getNow: () => now,
-      isCameraMoving: () => Camera.moving(state.camera, state.target),
+      isCameraInteracting: options.isCameraInteracting || (() => false),
       drawLine: line, drawCircle: circle, drawLabel: label,
       layers: {
         roads: root.OrbitRoadRenderer,
@@ -215,7 +215,10 @@
           ctx.beginPath(); ctx.ellipse(p.x, p.y, radius * .45, radius, 0, 0, TAU); ctx.stroke();
           line(ctx, [{ x: p.x - radius, y: p.y }, { x: p.x + radius, y: p.y }], planet.color + '99', .6); ctx.restore();
         }
-        if (planet.kind !== 'gazeuse' && radius > 18 && context.terrains.has(planet.id)) surfaceRenderer.drawPlanetTerrain(planet, context, p, radius);
+        if (planet.kind !== 'gazeuse' && radius > 18 && context.terrains.has(planet.id)) {
+          const suppressPreviewContours = state.level !== 'surface' || state.planet?.id !== planet.id;
+          surfaceRenderer.drawPlanetTerrain(planet, context, p, radius, suppressPreviewContours);
+        }
         const selected = state.selected?.id === planet.id;
         if (selected && radius < 90) circle(ctx, p.x, p.y, radius + 5, '#e6a25a', 1);
         if (!detailed || radius > 90) continue;
