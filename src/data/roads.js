@@ -31,7 +31,17 @@
       buildingClearance: 2
     }),
     search: Object.freeze({ maxExpandedStates: 500000 }),
-    network: Object.freeze({ snapDistance: 6.5 }),
+    network: Object.freeze({
+      snapDistance: 6.5,
+      secondaryBranch: Object.freeze({
+        offsetFromPort: 32,
+        minimumMainRun: 26,
+        minimumLength: 26,
+        minimumAxisSeparation: 36,
+        maximumTargetDistance: 220,
+        minimumAngleDegrees: 35
+      })
+    }),
     construction: Object.freeze({
       speedByClass: Object.freeze({ main: 22, secondary: 8 })
     }),

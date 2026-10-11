@@ -13,7 +13,13 @@
 
   function create(planetId) {
     if (typeof planetId !== 'string' || !planetId) throw new TypeError('A planet id is required for a road network');
-    return { version: 2, planetId, nextNodeId: 1, nextSegmentId: 1, nodes: [], segments: [] };
+    return { version: 3, planetId, nextNodeId: 1, nextSegmentId: 1, nodes: [], segments: [] };
+  }
+
+  function constructionPrerequisite(value, network) {
+    if (!value || typeof value.fromNodeId !== 'string' || typeof value.toNodeId !== 'string' ||
+        !nodeById(network, value.fromNodeId) || !nodeById(network, value.toNodeId)) return null;
+    return { fromNodeId: value.fromNodeId, toNodeId: value.toNodeId };
   }
 
   function addNode(network, properties) {
@@ -52,7 +58,8 @@
       surfaceTypes,
       length,
       builtLength: Math.max(0, Math.min(length, Number.isFinite(properties.builtLength) ? properties.builtLength : 0)),
-      roadClass: properties.roadClass || 'main'
+      roadClass: properties.roadClass || 'main',
+      constructionPrerequisite: constructionPrerequisite(properties.constructionPrerequisite, network)
     };
     network.segments.push(segment);
     return segment;
@@ -240,10 +247,18 @@
       const surfaceTypes = Array.isArray(saved.surfaceTypes) && saved.surfaceTypes.length === points.length - 1 &&
         saved.surfaceTypes.every(value => typeof value === 'boolean') ? saved.surfaceTypes.slice() : Array(points.length - 1).fill(false);
       const length = lengthOf(points);
+      const prerequisite = saved.constructionPrerequisite &&
+        typeof saved.constructionPrerequisite.fromNodeId === 'string' &&
+        typeof saved.constructionPrerequisite.toNodeId === 'string' &&
+        validNodes.has(saved.constructionPrerequisite.fromNodeId) &&
+        validNodes.has(saved.constructionPrerequisite.toNodeId)
+        ? { fromNodeId: saved.constructionPrerequisite.fromNodeId,
+          toNodeId: saved.constructionPrerequisite.toNodeId } : null;
       network.segments.push({ id: saved.id, from: saved.from, to: saved.to, points,
         surfaceTypes, length,
         builtLength: Number.isFinite(saved.builtLength) ? Math.max(0, Math.min(length, saved.builtLength)) : length,
-        roadClass: typeof saved.roadClass === 'string' ? saved.roadClass : 'standard' });
+        roadClass: typeof saved.roadClass === 'string' ? saved.roadClass : 'standard',
+        constructionPrerequisite: prerequisite });
       const suffix = Number(saved.id.split(':road:').pop());
       if (Number.isInteger(suffix)) network.nextSegmentId = Math.max(network.nextSegmentId, suffix + 1);
     }
