@@ -200,6 +200,7 @@
       drawTerrain(frame);
       drawGeologicalOverlays(frame);
       layers.roads.render(frame);
+      layers.settlements.render(frame);
       layers.buildings.renderPhysical(frame);
       layers.vehicles.render(frame);
       layers.buildings.renderAnchors(frame);

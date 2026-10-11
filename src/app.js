@@ -8,6 +8,8 @@
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
+  const SettlementSimulation = globalThis.OrbitSettlementSimulation;
+  const SettlementConfig = globalThis.OrbitSettlementConfig;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
@@ -87,6 +89,26 @@
     terrainData = record.data;
     return record;
   }
+  function refreshSettlements(planetId) {
+    const network = state.roadNetworks[planetId];
+    if (!network) return false;
+    let found = null;
+    for (const context of contexts.values()) {
+      const planet = context.model.planets.find(candidate => candidate.id === planetId);
+      if (planet) { found = { context, planet }; break; }
+    }
+    if (!found) return false;
+    const record = prepareTerrain(found.planet, found.context);
+    record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
+    const result = SettlementSimulation.grow(state.surfaceSettlements[planetId] || SettlementSimulation.create(planetId), {
+      planetId, seed: found.planet.seed, network,
+      buildings: state.surfaceBuildings.filter(building => building.planetId === planetId),
+      baseField: record.roadCostField, terrain: record.data
+    });
+    state.surfaceSettlements[planetId] = result.settlement;
+    if (result.changed) persist();
+    return result.changed;
+  }
   function surfaceFrame(planet = state.planet, context = state.context) {
     const record = prepareTerrain(planet, context);
     return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
@@ -118,7 +140,7 @@
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
-    state.surfaceBuildings = []; state.roadNetworks = {};
+    state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {};
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
     cancelRoadDrag();
@@ -207,6 +229,7 @@
     if (previousLevel !== state.level) {
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
       cancelRoadDrag();
+      if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -302,6 +325,30 @@
     return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
   }
 
+  function nearestSettlementConnection(settlement, position) {
+    let best = null;
+    for (const road of settlement?.roads || []) {
+      let remaining = Number.isFinite(road.builtLength) ? Math.min(road.length, road.builtLength) : road.length;
+      let travelled = 0;
+      for (let edgeIndex = 1; edgeIndex < road.points.length && remaining > 1e-7; edgeIndex++) {
+        const a = road.points[edgeIndex - 1], b = road.points[edgeIndex];
+        const dx = b.x - a.x, dy = b.y - a.y, edgeLength = Math.hypot(dx, dy);
+        if (edgeLength <= 1e-9) continue;
+        const builtRatio = Math.min(1, remaining / edgeLength);
+        const builtX = dx * builtRatio, builtY = dy * builtRatio, lengthSquared = builtX * builtX + builtY * builtY;
+        const t = lengthSquared ? Math.max(0, Math.min(1,
+          ((position.x - a.x) * builtX + (position.y - a.y) * builtY) / lengthSquared)) : 0;
+        const point = { x: a.x + builtX * t, y: a.y + builtY * t };
+        const candidate = { road, point, distance: distance(position, point),
+          roadDistance: travelled + edgeLength * builtRatio * t };
+        if (!best || candidate.distance < best.distance) best = candidate;
+        remaining -= edgeLength * builtRatio;
+        travelled += edgeLength;
+      }
+    }
+    return best;
+  }
+
   function roadEndpointAt(screenX, screenY) {
     if (state.level !== 'surface' || !state.planet || !terrainData) return null;
     const frame = surfaceFrame();
@@ -315,18 +362,35 @@
       point: { ...(building.roadPort || building.waterPort || { x: building.x, y: building.y }) } };
 
     const network = state.roadNetworks[state.planet.id];
-    if (!network?.nodes.length) return null;
     const world = unproject(screenX, screenY);
     const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
-    const connection = RoadNetwork.nearestBuiltConnection(network, position, candidate =>
-      candidate.kind === 'node' ? candidate.node.connectionMode !== 'marine' : candidate.segment.routeType !== 'marine');
-    if (!connection) return null;
-    const screenPoint = project(frame.x + connection.point.x * frame.scale, frame.y + connection.point.y * frame.scale);
-    if (Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY) > RoadPlacement.config.interaction.roadSnapRadiusPx) return null;
-    const target = connection.kind === 'node'
-      ? { kind: 'node', id: connection.id }
-      : { kind: 'segment', id: connection.id, edgeIndex: connection.edgeIndex, t: connection.t };
-    return { kind: 'road', point: { ...connection.point }, connection: target };
+    const radius = RoadPlacement.config.interaction.roadSnapRadiusPx;
+    let closest = null;
+    function consider(endpoint) {
+      const screenPoint = project(frame.x + endpoint.point.x * frame.scale, frame.y + endpoint.point.y * frame.scale);
+      const screenDistance = Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY);
+      if (screenDistance <= radius && (!closest || screenDistance < closest.screenDistance)) {
+        closest = { ...endpoint, screenDistance };
+      }
+    }
+    if (network?.nodes.length) {
+      const connection = RoadNetwork.nearestBuiltConnection(network, position, candidate =>
+        candidate.kind === 'node' ? candidate.node.connectionMode !== 'marine' : candidate.segment.routeType !== 'marine');
+      if (connection) {
+        const target = connection.kind === 'node'
+          ? { kind: 'node', id: connection.id }
+          : { kind: 'segment', id: connection.id, edgeIndex: connection.edgeIndex, t: connection.t };
+        consider({ kind: 'road', point: { ...connection.point }, connection: target });
+      }
+    }
+    if (state.camera.zoom * frame.scale >= SettlementConfig.render.minZoom) {
+      const settlementConnection = nearestSettlementConnection(state.surfaceSettlements[state.planet.id], position);
+      if (settlementConnection) consider({ kind: 'settlement', point: settlementConnection.point,
+        connection: { kind: 'settlement', id: settlementConnection.road.id,
+          roadDistance: settlementConnection.roadDistance } });
+    }
+    if (!closest) return null;
+    return { kind: closest.kind, point: { ...closest.point }, connection: closest.connection };
   }
 
   function roadRouteParameters(from, to) {
@@ -411,6 +475,7 @@
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
     const record = prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    refreshSettlements(planet.id);
     clearSelection();
     const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
@@ -736,8 +801,9 @@
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
     if (!state.paused && !document.hidden) {
-      Construction.advance(state.surfaceBuildings, dt);
-      RoadConstruction.advance(state.roadNetworks, dt);
+      Construction.advance(state.surfaceBuildings, dt, building => refreshSettlements(building.planetId));
+      RoadConstruction.advance(state.roadNetworks, dt, planetId => refreshSettlements(planetId));
+      SettlementSimulation.advance(state.surfaceSettlements, dt);
     }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);

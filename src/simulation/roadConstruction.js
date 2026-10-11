@@ -36,10 +36,10 @@
     return hasConnection(completedAdjacency(network), fromNodeId, toNodeId);
   }
 
-  function advance(networks, deltaSeconds) {
+  function advance(networks, deltaSeconds, onComplete = null) {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) throw new RangeError('Road construction time must be non-negative');
     let changed = false;
-    for (const network of Object.values(networks || {})) {
+    for (const [planetId, network] of Object.entries(networks || {})) {
       const adjacency = completedAdjacency(network);
       const segmentsById = new Map((network.segments || []).map(segment => [segment.id, segment]));
       for (const segment of network.segments || []) {
@@ -59,7 +59,10 @@
         const nextLength = Math.min(length, builtLength + speed * deltaSeconds);
         if (nextLength > builtLength) changed = true;
         segment.builtLength = nextLength;
-        if (nextLength >= length - 1e-7) addCompletedSegment(adjacency, segment);
+        if (nextLength >= length - 1e-7) {
+          addCompletedSegment(adjacency, segment);
+          if (builtLength < length - 1e-7 && typeof onComplete === 'function') onComplete(planetId, network, segment);
+        }
       }
     }
     return changed;

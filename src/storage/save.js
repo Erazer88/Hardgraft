@@ -2,7 +2,7 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, 4, config.saveVersion];
+  const supportedSaveVersions = [2, 3, 4, 5, config.saveVersion];
 
   function load(storage) {
     try {
@@ -28,6 +28,7 @@
       })),
       time: state.simulation.time, reveal: Boolean(state.reveal),
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
+      surfaceSettlements: copy(state.surfaceSettlements || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -49,6 +50,7 @@
     state.reveal = Boolean(saved.reveal);
     state.surfaceBuildings = restoreBuildings(saved.surfaceBuildings);
     state.roadNetworks = restoreRoadNetworks(saved.roadNetworks);
+    state.surfaceSettlements = restoreSettlements(saved.surfaceSettlements);
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
@@ -87,6 +89,17 @@
     for (const [planetId, saved] of Object.entries(value)) {
       const network = root.OrbitRoadNetwork.restore(saved, planetId);
       if (network) result[planetId] = network;
+    }
+    return result;
+  }
+
+  function restoreSettlements(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !root.OrbitSettlementSimulation) return {};
+    const result = {};
+    for (const [planetId, saved] of Object.entries(value)) {
+      if (typeof planetId === 'string' && planetId) {
+        result[planetId] = root.OrbitSettlementSimulation.restore(saved, planetId);
+      }
     }
     return result;
   }
