@@ -69,6 +69,7 @@
     if (routeLength <= 1e-8) return [];
     const found = [], routeBounds = pointsBounds(points);
     for (const segment of network.segments) {
+      if (segment.routeType === 'marine') continue;
       if (!boundsOverlap(routeBounds, pointsBounds(segment.points))) continue;
       const segmentMeasures = pathMeasures(segment.points);
       for (let i = 1; i < points.length; i++) {
@@ -106,10 +107,12 @@
     return found.sort((a, b) => a.routeDistance - b.routeDistance);
   }
 
-  function connectRouteCrossings(network, points) {
+  function connectRouteCrossings(network, points, routeType = 'land') {
+    if (routeType === 'marine') return [];
     const crossings = routeCrossings(network, points);
     for (const crossing of crossings) {
-      let node = network.nodes.find(candidate => distance(candidate, crossing.point) <= 1e-6);
+      let node = network.nodes.find(candidate => candidate.connectionMode !== 'marine' &&
+        distance(candidate, crossing.point) <= 1e-6);
       if (!node) node = addNode(network, { ...crossing.point, type: 'intersection', isIntersection: true });
       node.isIntersection = true;
       crossing.nodeId = node.id;
@@ -316,14 +319,17 @@
     if (!network || !Array.isArray(points) || points.length < 2 || !Number.isFinite(snapDistance) || snapDistance < 0) return null;
     const bucketSize = Math.max(1, snapDistance), buckets = new Map();
     const bucketKey = (x, y) => `${x},${y}`;
-    for (const segment of network.segments) for (let edgeIndex = 1; edgeIndex < segment.points.length; edgeIndex++) {
-      const a = segment.points[edgeIndex - 1], b = segment.points[edgeIndex];
-      const left = Math.floor(Math.min(a.x, b.x) / bucketSize), right = Math.floor(Math.max(a.x, b.x) / bucketSize);
-      const top = Math.floor(Math.min(a.y, b.y) / bucketSize), bottom = Math.floor(Math.max(a.y, b.y) / bucketSize);
-      const edge = { segment, edgeIndex: edgeIndex - 1, a, b };
-      for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
-        const key = bucketKey(x, y), candidates = buckets.get(key) || [];
-        candidates.push(edge); buckets.set(key, candidates);
+    for (const segment of network.segments) {
+      if (segment.routeType === 'marine') continue;
+      for (let edgeIndex = 1; edgeIndex < segment.points.length; edgeIndex++) {
+        const a = segment.points[edgeIndex - 1], b = segment.points[edgeIndex];
+        const left = Math.floor(Math.min(a.x, b.x) / bucketSize), right = Math.floor(Math.max(a.x, b.x) / bucketSize);
+        const top = Math.floor(Math.min(a.y, b.y) / bucketSize), bottom = Math.floor(Math.max(a.y, b.y) / bucketSize);
+        const edge = { segment, edgeIndex: edgeIndex - 1, a, b };
+        for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
+          const key = bucketKey(x, y), candidates = buckets.get(key) || [];
+          candidates.push(edge); buckets.set(key, candidates);
+        }
       }
     }
     function nearbyEdges(left, top, right, bottom) {
@@ -360,7 +366,8 @@
         const segmentT = (qx * ry - qy * rx) / denominator;
         if (routeT < -1e-8 || routeT > 1 + 1e-8 || segmentT < -1e-8 || segmentT > 1 + 1e-8) continue;
         const point = { x: a.x + rx * routeT, y: a.y + ry * routeT };
-        const existingNode = network.nodes.find(node => distance(node, point) <= 1e-6);
+        const existingNode = network.nodes.find(node => node.connectionMode !== 'marine' &&
+          distance(node, point) <= 1e-6);
         const target = existingNode
           ? { kind: 'node', id: existingNode.id, node: existingNode, point: copyPoint(existingNode), distance: 0 }
           : { kind: 'segment', id: segment.id, segment, edgeIndex: edgeIndex - 1,
@@ -381,7 +388,10 @@
             (Math.abs(candidate.distance - target.distance) <= 1e-7 && candidate.kind === 'node' && target.kind !== 'node') ||
             (Math.abs(candidate.distance - target.distance) <= 1e-7 && candidate.kind === target.kind && candidate.id < target.id)) target = candidate;
       }
-      for (const node of network.nodes) consider({ kind: 'node', id: node.id, node, point: copyPoint(node), distance: distance(point, node) });
+      for (const node of network.nodes) {
+        if (node.connectionMode === 'marine') continue;
+        consider({ kind: 'node', id: node.id, node, point: copyPoint(node), distance: distance(point, node) });
+      }
       for (const edge of nearbyEdges(point.x - snapDistance, point.y - snapDistance, point.x + snapDistance, point.y + snapDistance)) {
         const { segment, edgeIndex, a, b } = edge, dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
         const t = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
@@ -396,9 +406,12 @@
 
   function connectToTarget(network, target) {
     if (!target) return null;
-    if (target.kind === 'node') return nodeById(network, target.id);
+    if (target.kind === 'node') {
+      const node = nodeById(network, target.id);
+      return node?.connectionMode === 'marine' ? null : node;
+    }
     const segment = segmentById(network, target.id);
-    if (!segment) return null;
+    if (!segment || segment.routeType === 'marine') return null;
     const from = nodeById(network, segment.from), to = nodeById(network, segment.to);
     if (target.t < 1e-7 && target.edgeIndex === 0) return from;
     if (target.t > 1 - 1e-7 && target.edgeIndex === segment.points.length - 2) return to;

@@ -9,21 +9,15 @@
     return endpoint?.kind === 'building' ? buildings.find(building => building.id === endpoint.buildingId) || null : null;
   }
 
-  function endpointIsPort(endpoint, network, buildings) {
-    const building = buildingFor(endpoint, buildings);
-    if (building) return building.type === 'surface_port';
+  function isMarineRoadEndpoint(endpoint, network) {
+    if (endpoint?.kind !== 'road' || !endpoint.connection) return false;
     const connection = endpoint?.connection;
-    if (!connection) return false;
     if (connection.kind === 'node') {
       const node = Network.nodeById(network, connection.id);
-      return Boolean(node && buildings.find(item => item.id === node.buildingId)?.type === 'surface_port');
+      return Boolean(node?.connectionMode === 'marine');
     }
     const segment = Network.segmentById(network, connection.id);
-    if (!segment?.surfaceTypes?.some(Boolean)) return false;
-    return [segment.from, segment.to].some(id => {
-      const node = Network.nodeById(network, id);
-      return Boolean(node && buildings.find(item => item.id === node.buildingId)?.type === 'surface_port');
-    });
+    return Boolean(segment?.routeType === 'marine');
   }
 
   function marinePair(from, to, buildings) {
@@ -70,6 +64,9 @@
   }
 
   function previewBetween({ network, from, to, terrain, baseField, buildings }) {
+    if (isMarineRoadEndpoint(from, network) || isMarineRoadEndpoint(to, network)) {
+      return { connected: false, reason: 'Une route maritime se relie uniquement entre un port et une plateforme pétrolière.' };
+    }
     const fromBuilding = buildingFor(from, buildings), toBuilding = buildingFor(to, buildings);
     const hasOilPlatform = fromBuilding?.type === 'oil_platform' || toBuilding?.type === 'oil_platform';
     const isMarine = marinePair(from, to, buildings);
@@ -81,7 +78,7 @@
     if (!routeFrom || !routeTo) return { connected: false, reason: 'Point de raccordement maritime indisponible.' };
     const problem = validateEndpoints({ network, from: routeFrom, to: routeTo });
     if (problem) return { connected: false, reason: problem };
-    const allowDeepWater = isMarine || (endpointIsPort(from, network, buildings) && endpointIsPort(to, network, buildings));
+    const allowDeepWater = isMarine;
     // Maritime routes use a water-only field, so their A* path is the shortest
     // navigable route. Land routes avoid duplicating existing corridors.
     const field = isMarine
@@ -112,9 +109,12 @@
       return existing || Network.addNode(network, { ...endpoint.point,
         type: connectionMode === 'marine' ? 'marine-port' : 'building', buildingId: endpoint.buildingId, connectionMode });
     }
-    const target = Network.nearestConnection(network, endpoint.point);
-    if (!target || target.distance > .05) return null;
-    return Network.connectToTarget(network, target);
+    const target = endpoint.connection || Network.nearestConnection(network, endpoint.point, null, candidate =>
+      candidate.kind === 'node' ? candidate.node.connectionMode !== 'marine' : candidate.segment.routeType !== 'marine');
+    if (!target) return null;
+    if (target.kind === 'node' && Network.nodeById(network, target.id)?.connectionMode === 'marine') return null;
+    if (target.kind === 'segment' && Network.segmentById(network, target.id)?.routeType === 'marine') return null;
+    return Network.connectToTarget(network, { ...target, point: endpoint.point });
   }
 
   function createBetween({ network, from, to, terrain, baseField, buildings, preview = null }) {
@@ -124,7 +124,7 @@
     const fromNode = attachEndpoint(draft, route.from || from), toNode = attachEndpoint(draft, route.to || to);
     if (!fromNode || !toNode) return { connected: false, reason: 'Une extrémité ne rejoint plus le réseau.' };
     if (fromNode.id === toNode.id) return { connected: false, reason: 'Les deux extrémités rejoignent déjà le même nœud.' };
-    const crossings = Network.connectRouteCrossings(draft, route.points);
+    const crossings = Network.connectRouteCrossings(draft, route.points, route.routeType || 'land');
     const pieces = Network.splitPolylineAtNodes(route.points, route.surfaceTypes, crossings, fromNode.id, toNode.id);
     const routeId = `${draft.planetId}:route:${draft.nextRouteId++}`, segments = [];
     for (const piece of pieces) {

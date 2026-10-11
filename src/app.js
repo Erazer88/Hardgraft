@@ -318,7 +318,8 @@
     if (!network?.nodes.length) return null;
     const world = unproject(screenX, screenY);
     const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
-    const connection = RoadNetwork.nearestBuiltConnection(network, position);
+    const connection = RoadNetwork.nearestBuiltConnection(network, position, candidate =>
+      candidate.kind === 'node' ? candidate.node.connectionMode !== 'marine' : candidate.segment.routeType !== 'marine');
     if (!connection) return null;
     const screenPoint = project(frame.x + connection.point.x * frame.scale, frame.y + connection.point.y * frame.scale);
     if (Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY) > RoadPlacement.config.interaction.roadSnapRadiusPx) return null;
