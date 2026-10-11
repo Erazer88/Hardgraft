@@ -569,27 +569,54 @@
           subdivision, minX, maxX, minY, maxY, lod: contourLod, contours };
       }
       if (!detailContourCache || detailContourCache.planetId !== frame.planet.id) return;
-      canvasContext.save();
-      canvasContext.translate(top.x, top.y);
-      canvasContext.scale(frame.zoom, frame.zoom);
-      canvasContext.lineCap = 'round'; canvasContext.lineJoin = 'round';
       const developerSettings = root.OrbitDeveloperSettings;
       const overviewColor = developerSettings?.get('overviewContourColor') || '#e2e8ea';
       const overviewOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 67) / 100, 0, 1);
-      for (const contour of detailContourCache.contours) {
-        const contourScale = contour.overview ? 1 / frame.zoom : 1;
-        canvasContext.globalAlpha = contour.overview ? overviewOpacity : 1;
-        if (contour.outlineWidth) {
-          canvasContext.strokeStyle = contour.overview ? '#13212b80' : contour.outlineColor;
-          canvasContext.lineWidth = (contour.width + contour.outlineWidth) * contourScale;
-          canvasContext.stroke(contour.path);
+      if (overviewOpacity === 0 && detailContourCache.lod === 'overview') return;
+      // Contour paths can contain many thousands of segments. Rasterize the
+      // visible region once per settled camera scale, then composite one image.
+      const overviewCache = detailContourCache.lod === 'overview';
+      const pixelRatio = canvasContext.canvas.width / viewport.width;
+      let raster = detailContourCache.raster;
+      const rasterColor = overviewCache ? overviewColor : null;
+      const zoomNeedsRefresh = raster && !cameraMoving &&
+        Math.abs(Math.log(frame.zoom / raster.zoom)) > .08;
+      if (!raster || raster.color !== rasterColor || raster.pixelRatio !== pixelRatio || zoomNeedsRefresh) {
+        const rasterCellSize = Config.terrain.textureScale / detailContourCache.terrainFactor;
+        const rasterPadding = 2 / frame.zoom;
+        const worldX = detailContourCache.minX * rasterCellSize - rasterPadding;
+        const worldY = detailContourCache.minY * rasterCellSize - rasterPadding;
+        const worldWidth = (detailContourCache.maxX - detailContourCache.minX + 1) * rasterCellSize + rasterPadding * 2;
+        const worldHeight = (detailContourCache.maxY - detailContourCache.minY + 1) * rasterCellSize + rasterPadding * 2;
+        const rasterCanvas = makeCanvas(Math.max(1, Math.ceil(worldWidth * frame.zoom * pixelRatio)),
+          Math.max(1, Math.ceil(worldHeight * frame.zoom * pixelRatio)));
+        const rasterContext = rasterCanvas.getContext('2d');
+        rasterContext.scale(frame.zoom * pixelRatio, frame.zoom * pixelRatio);
+        rasterContext.translate(-worldX, -worldY);
+        rasterContext.lineCap = 'round'; rasterContext.lineJoin = 'round';
+        for (const contour of detailContourCache.contours) {
+          const lineScale = contour.overview ? 1 / frame.zoom : 1;
+          if (contour.outlineWidth) {
+            rasterContext.lineWidth = (contour.width + contour.outlineWidth) * lineScale;
+            rasterContext.strokeStyle = contour.overview ? '#13212b80' : contour.outlineColor;
+            rasterContext.stroke(contour.path);
+          }
+          rasterContext.lineWidth = contour.width * lineScale;
+          rasterContext.strokeStyle = contour.overview ? overviewColor : contour.color;
+          rasterContext.stroke(contour.path);
         }
-        canvasContext.strokeStyle = contour.overview ? overviewColor : contour.color;
-        canvasContext.lineWidth = contour.width * contourScale;
-        canvasContext.stroke(contour.path);
+        raster = detailContourCache.raster = {
+          canvas: rasterCanvas, x: worldX, y: worldY, width: worldWidth, height: worldHeight,
+          zoom: frame.zoom, pixelRatio, color: rasterColor
+        };
       }
-      canvasContext.globalAlpha = 1;
+      canvasContext.save();
+      if (overviewCache) canvasContext.globalAlpha = overviewOpacity;
+      canvasContext.translate(top.x, top.y);
+      canvasContext.scale(frame.zoom, frame.zoom);
+      canvasContext.drawImage(raster.canvas, raster.x, raster.y, raster.width, raster.height);
       canvasContext.restore();
+      return;
     }
 
     function drawSurfaceGrid(cam) {
