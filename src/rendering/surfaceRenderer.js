@@ -507,9 +507,14 @@
           if (minimumElevation >= level || maximumElevation < level) continue;
           const coastline = level === 103;
           const indexContour = !coastline && (level - 48) % 20 === 0;
+          const waterContour = level < 102;
           const contour = { level, path: new root.Path2D(),
-            color: coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544',
-            width: (coastline ? 1.15 : indexContour ? .85 : .56) / terrainFactor };
+            color: coastline ? '#f2d8a7ed' : waterContour
+              ? (indexContour ? '#a0e4e9cf' : '#83cbd69e')
+              : (indexContour ? '#111a16e8' : '#1a2921bf'),
+            outlineColor: coastline ? '#102127d4' : waterContour ? '#071827a8' : '#ddd4ae78',
+            width: (coastline ? 1.5 : indexContour ? 1.15 : .66) / terrainFactor,
+            outlineWidth: coastline ? .62 / terrainFactor : indexContour ? .42 / terrainFactor : 0 };
           contourByIndex[index] = contour;
           contours.push(contour);
         }
@@ -561,6 +566,11 @@
       canvasContext.scale(frame.zoom, frame.zoom);
       canvasContext.lineCap = 'round'; canvasContext.lineJoin = 'round';
       for (const contour of detailContourCache.contours) {
+        if (contour.outlineWidth) {
+          canvasContext.strokeStyle = contour.outlineColor;
+          canvasContext.lineWidth = contour.width + contour.outlineWidth;
+          canvasContext.stroke(contour.path);
+        }
         canvasContext.strokeStyle = contour.color; canvasContext.lineWidth = contour.width;
         canvasContext.stroke(contour.path);
       }
