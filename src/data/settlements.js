@@ -26,9 +26,9 @@
       cityStage: 5,
       districtMinRoadLength: 120,
       houseStartDistance: 54,
-      houseMinSpacing: 20,
-      houseMaxSpacing: 28,
-      houseSideOffset: 10,
+      houseMinSpacing: 10,
+      houseMaxSpacing: 14,
+      houseSideOffset: 4.5,
       districtRoadDistance: 11
     }),
     construction: Object.freeze({ secondarySpeed: 4.2 }),
@@ -37,7 +37,7 @@
       secondaryColor: '#c4cdc5',
       secondaryOpacity: .68,
       secondaryWidthPx: 1.1,
-      houseWidthWorld: 13,
+      houseWidthWorld: 6.5,
       districtWidthWorld: 64,
       spriteOpacity: .93,
       cullMarginPx: 40
