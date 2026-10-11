@@ -286,6 +286,9 @@
       buildings: state.surfaceBuildings });
     state.placement = { type, ...position, rotation: 0, ...validation };
   }
+  function hasOrbitalHub(planetId = state.planet?.id) {
+    return state.surfaceBuildings.some(building => building.planetId === planetId && building.type === 'hub');
+  }
   function placeSurfaceBuilding() {
     const preview = state.placement;
     if (!preview?.valid) {
@@ -300,11 +303,20 @@
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
-    toast(`${definition.label} posé. Assemblage en cours.${routeHint}`); updateUI(); persist();
+    const message = preview.type === 'hub'
+      ? 'Hub orbital posé. Les autres bâtiments sont maintenant déverrouillés. Reliez-le au réseau pour acheminer les marchandises.'
+      : `${definition.label} posé. Assemblage en cours.${routeHint}`;
+    toast(message); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface') return;
+    if (type === 'hub' && hasOrbitalHub()) {
+      toast('Un hub orbital est déjà installé sur cette planète.'); return;
+    }
+    if (type !== 'hub' && !hasOrbitalHub()) {
+      toast('Le hub orbital doit être le premier bâtiment posé sur cette planète.'); return;
+    }
     cancelRoadDrag();
     state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
     $('inspector').hidden = true;

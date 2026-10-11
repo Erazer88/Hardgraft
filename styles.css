@@ -28,6 +28,7 @@ body[data-level="surface"] .corner-note{display:none}
 .build-menu{position:fixed;z-index:18;left:16px;bottom:calc(112px + var(--safe-bottom));width:min(380px,calc(100% - 32px));max-height:min(55vh,440px);overflow:auto;padding:10px;background:#0a1724ed;border:1px solid #819eae38;border-radius:7px;box-shadow:0 12px 36px #0008;backdrop-filter:blur(12px)}
 .build-menu-header{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 9px 5px;border-bottom:1px solid #819eae25;margin-bottom:8px}
 .build-menu-header div{display:flex;flex-direction:column;gap:3px}.build-menu-header span{font-size:7px;letter-spacing:1.6px;color:#718ea0}.build-menu-header strong{font-size:10px;letter-spacing:1.3px;color:#c5d5dd;font-weight:500}
+.build-menu-hint{margin:0 4px 9px;color:#8fa6b4;font-size:8px;line-height:1.5}
 .build-menu-header .text-icon{font-size:19px}.build-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .build-option{display:flex;min-width:0;align-items:center;gap:8px;padding:8px 7px;border:1px solid #829eaf22;border-radius:4px;background:#101e2b8a;color:#b7cbd4;text-align:left;cursor:pointer;transition:border-color .15s,background .15s}
 .build-option:hover,.build-option:focus-visible{border-color:#d39a5d9c;background:#d39a5d12;outline:none}.build-option-icon{display:grid;place-items:center;flex:0 0 27px;height:27px;border:1px solid #8ba4b240;border-radius:50%;color:#a9c1ce;font:8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:-.4px}

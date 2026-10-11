@@ -55,8 +55,8 @@
     hub: {
       id: 'hub', label: 'HUB ORBITAL', shortLabel: 'HO', category: 'logistics', icon: 'hub',
       sprite: 'assets/buildings/orbital-hub.webp',
-      description: 'Prépare les matériaux pour leur lancement en orbite.',
-      functions: { exportsToOrbit: true },
+      description: 'Accueille les arrivées orbitales et exporte les marchandises.',
+      functions: { receivesPersonnel: true, exportsMerchandise: true, exportsToOrbit: true },
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
@@ -81,7 +81,7 @@
     }
   };
   const catalogOrder = Object.freeze([
-    'factory', 'extractor', 'surface_port', 'oil_platform', 'storage', 'hub', 'wind_turbine'
+    'hub', 'factory', 'extractor', 'surface_port', 'oil_platform', 'storage', 'wind_turbine'
   ]);
 
   for (const definition of Object.values(definitions)) {

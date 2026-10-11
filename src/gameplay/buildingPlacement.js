@@ -177,6 +177,14 @@
       return { valid: false, reason: 'Position de construction indisponible.', rotation };
     }
 
+    const hasOrbitalHub = buildings.some(building => building.planetId === planetId && building.type === 'hub');
+    if (definition.id === 'hub' && hasOrbitalHub) {
+      return { valid: false, reason: 'Un hub orbital est déjà installé sur cette planète.', rotation };
+    }
+    if (definition.id !== 'hub' && !hasOrbitalHub) {
+      return { valid: false, reason: 'Le hub orbital doit être le premier bâtiment posé sur cette planète.', rotation };
+    }
+
     const rules = definition.placementRules || {};
     let resolvedRotation = rotation;
     if (rules.coastRequired) {

@@ -75,8 +75,9 @@
         ],
         wind_turbine: [['ÉNERGIE FOURNIE', formatPower(building.energyOutputWatts)]],
         hub: [
-          ['DÉBIT D’ENVOI', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCES', inventory.length ? stockText : 'En attente de matériaux']
+          ['ARRIVÉES', 'Personnel orbital'],
+          ['DÉBIT D’EXPORT', `${fmtDecimal(flow)} / min`],
+          ['MARCHANDISES', inventory.length ? stockText : 'En attente de matériaux']
         ],
         storage: [
           ['RESSOURCES', stockText],
@@ -179,6 +180,15 @@
       $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
       $('road-button').setAttribute('aria-pressed', String(state.tool === 'road'));
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
+      const hasOrbitalHub = level === 'surface' && state.planet && (state.surfaceBuildings || []).some(building =>
+        building.planetId === state.planet.id && building.type === 'hub');
+      const orbitalHubRequired = level === 'surface' && state.planet && !hasOrbitalHub;
+      for (const option of buildOptions.children) {
+        const isHub = option.dataset.buildingType === 'hub';
+        option.hidden = orbitalHubRequired ? !isHub : isHub;
+      }
+      $('build-menu-title').textContent = orbitalHubRequired ? 'HUB ORBITAL REQUIS' : 'INFRASTRUCTURES';
+      $('build-menu-hint').hidden = !orbitalHubRequired;
       $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');
