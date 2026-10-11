@@ -49,7 +49,7 @@
     state.exploration.visited = new Set(Array.isArray(saved.visited) ? saved.visited : []);
     state.reveal = Boolean(saved.reveal);
     state.surfaceBuildings = restoreBuildings(saved.surfaceBuildings);
-    state.roadNetworks = restoreRoadNetworks(saved.roadNetworks);
+    state.roadNetworks = restoreRoadNetworks(saved.roadNetworks, state.surfaceBuildings);
     state.surfaceSettlements = restoreSettlements(saved.surfaceSettlements);
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
@@ -83,11 +83,11 @@
     });
   }
 
-  function restoreRoadNetworks(value) {
+  function restoreRoadNetworks(value, buildings) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !root.OrbitRoadNetwork) return {};
     const result = {};
     for (const [planetId, saved] of Object.entries(value)) {
-      const network = root.OrbitRoadNetwork.restore(saved, planetId);
+      const network = root.OrbitRoadNetwork.restore(saved, planetId, buildings);
       if (network) result[planetId] = network;
     }
     return result;

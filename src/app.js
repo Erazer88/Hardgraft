@@ -349,22 +349,63 @@
     return best;
   }
 
-  function roadEndpointAt(screenX, screenY) {
+  function roadEndpointAt(screenX, screenY, from = null) {
     if (state.level !== 'surface' || !state.planet || !terrainData) return null;
     const frame = surfaceFrame();
+    const network = state.roadNetworks[state.planet.id];
+    const radius = RoadPlacement.config.interaction.roadSnapRadiusPx;
+    const originBuilding = from?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === from.buildingId) : null;
+    const platformRequiresPort = originBuilding?.type === 'oil_platform';
+    const world = unproject(screenX, screenY);
+    const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
+    const marineConnection = network?.segments.length
+      ? RoadNetwork.nearestBuiltConnection(network, position, candidate => candidate.kind === 'segment' &&
+        (candidate.segment.routeType === 'marine' ||
+          (candidate.segment.surfaceTypes?.length > 0 && candidate.segment.surfaceTypes.every(Boolean))))
+      : null;
+    let marineRouteHit = false;
+    if (marineConnection) {
+      const point = project(frame.x + marineConnection.point.x * frame.scale,
+        frame.y + marineConnection.point.y * frame.scale);
+      marineRouteHit = Math.hypot(point.x - screenX, point.y - screenY) <= radius;
+    }
+
+    // The sea-side marker sits outside the port sprite's hit box. Treat either
+    // visible connector as a building target so a platform can snap to it.
+    let connectorTarget = null;
+    for (const candidate of [...state.surfaceBuildings].reverse()) {
+      if (candidate.planetId !== state.planet.id ||
+          (platformRequiresPort && candidate.type !== 'surface_port') ||
+          (marineRouteHit && candidate.type !== 'surface_port' && candidate.type !== 'oil_platform')) continue;
+      const points = [candidate.roadPort, candidate.waterPort].filter(Boolean);
+      for (const point of points) {
+        const screenPoint = project(frame.x + point.x * frame.scale, frame.y + point.y * frame.scale);
+        const screenDistance = Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY);
+        if (screenDistance <= Math.min(radius, 12) &&
+            (!connectorTarget || screenDistance < connectorTarget.screenDistance)) {
+          connectorTarget = { building: candidate, point, screenDistance };
+        }
+      }
+    }
+    if (connectorTarget) return { kind: 'building', buildingId: connectorTarget.building.id,
+      point: { ...connectorTarget.point } };
+
     const building = [...state.surfaceBuildings].reverse().find(candidate => {
       if (candidate.planetId !== state.planet.id) return false;
+      if (platformRequiresPort && candidate.type !== 'surface_port') return false;
+      if (marineRouteHit && candidate.type !== 'surface_port' && candidate.type !== 'oil_platform') return false;
       const definition = BuildingData.get(candidate.type);
       return Boolean((definition?.roadRequired || candidate.type === 'oil_platform') &&
         buildingHit(frame, candidate, definition, screenX, screenY));
     });
     if (building) return { kind: 'building', buildingId: building.id,
       point: { ...(building.roadPort || building.waterPort || { x: building.x, y: building.y }) } };
+    // Marine paths are not road junctions, even if they overlap a land route.
+    if (marineRouteHit) return null;
+    // A platform can only begin a maritime route to a surface port.
+    if (platformRequiresPort) return null;
 
-    const network = state.roadNetworks[state.planet.id];
-    const world = unproject(screenX, screenY);
-    const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
-    const radius = RoadPlacement.config.interaction.roadSnapRadiusPx;
     let closest = null;
     function consider(endpoint) {
       const screenPoint = project(frame.x + endpoint.point.x * frame.scale, frame.y + endpoint.point.y * frame.scale);
@@ -411,7 +452,7 @@
     const now = performance.now();
     if (!force && now - roadDrag.lastPreviewAt < RoadPlacement.config.interaction.previewIntervalMs) return;
     roadDrag.lastPreviewAt = now;
-    const target = roadEndpointAt(screenX, screenY);
+    const target = roadEndpointAt(screenX, screenY, roadDrag.from);
     roadDrag.target = target;
     if (target) {
       const preview = RoadPlacement.previewBetween(roadRouteParameters(roadDrag.from, target));
@@ -449,7 +490,7 @@
     const drag = roadDrag;
     cancelRoadDrag();
     if (!drag || cancelled || !pointerMoved) { updateUI(); return; }
-    const target = roadEndpointAt(screenX, screenY);
+    const target = roadEndpointAt(screenX, screenY, drag.from);
     if (!target) { toast('Relâchez sur un bâtiment ou sur une route existante.'); updateUI(); return; }
     const params = roadRouteParameters(drag.from, target);
     const preview = RoadPlacement.previewBetween(params);

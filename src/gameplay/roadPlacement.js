@@ -26,10 +26,37 @@
       (b?.type === 'oil_platform' && a?.type === 'surface_port'));
   }
 
+  function marinePairAlreadyConnected(network, from, to) {
+    const wanted = new Set([from.buildingId, to.buildingId]);
+    const groups = new Map();
+    for (const segment of network?.segments || []) {
+      if (segment.routeType !== 'marine') continue;
+      const routeId = segment.routeId || segment.id, group = groups.get(routeId) || [];
+      group.push(segment); groups.set(routeId, group);
+    }
+    for (const segments of groups.values()) {
+      const degree = new Map();
+      for (const segment of segments) {
+        degree.set(segment.from, (degree.get(segment.from) || 0) + 1);
+        degree.set(segment.to, (degree.get(segment.to) || 0) + 1);
+      }
+      const buildingIds = [...degree].filter(([, count]) => count === 1)
+        .map(([id]) => Network.nodeById(network, id)?.buildingId).filter(Boolean);
+      if (buildingIds.length === 2 && wanted.has(buildingIds[0]) && wanted.has(buildingIds[1])) return true;
+    }
+    return false;
+  }
+
   function marineEndpoint(endpoint, buildings) {
     const building = buildingFor(endpoint, buildings), point = building?.waterPort;
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
     return { ...endpoint, point: { ...point }, connectionMode: 'marine' };
+  }
+
+  function landEndpoint(endpoint, buildings) {
+    const building = buildingFor(endpoint, buildings);
+    if (building?.type !== 'surface_port' || !building.roadPort) return endpoint;
+    return { ...endpoint, point: { ...building.roadPort }, connectionMode: 'land' };
   }
 
   function sameSegmentGap(network, from, to) {
@@ -73,11 +100,14 @@
     const fromBuilding = buildingFor(from, buildings), toBuilding = buildingFor(to, buildings);
     const hasOilPlatform = fromBuilding?.type === 'oil_platform' || toBuilding?.type === 'oil_platform';
     const isMarine = marinePair(from, to, buildings);
+    if (isMarine && marinePairAlreadyConnected(network, from, to)) {
+      return { connected: false, reason: 'Cette plateforme est déjà reliée à ce port.' };
+    }
     if (hasOilPlatform && !isMarine) {
       return { connected: false, reason: 'Une plateforme pétrolière doit être reliée à un port de surface.' };
     }
-    const routeFrom = isMarine ? marineEndpoint(from, buildings) : from;
-    const routeTo = isMarine ? marineEndpoint(to, buildings) : to;
+    const routeFrom = isMarine ? marineEndpoint(from, buildings) : landEndpoint(from, buildings);
+    const routeTo = isMarine ? marineEndpoint(to, buildings) : landEndpoint(to, buildings);
     if (!routeFrom || !routeTo) return { connected: false, reason: 'Point de raccordement maritime indisponible.' };
     const problem = validateEndpoints({ network, from: routeFrom, to: routeTo });
     if (problem) return { connected: false, reason: problem };

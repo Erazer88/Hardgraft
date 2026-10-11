@@ -465,7 +465,7 @@
     return true;
   }
 
-  function restore(value, planetId) {
+  function restore(value, planetId, buildings = []) {
     if (!value || typeof value !== 'object' || value.planetId !== planetId ||
         !Array.isArray(value.nodes) || !Array.isArray(value.segments)) return null;
     const network = create(planetId), seenNodes = new Set();
@@ -517,7 +517,49 @@
         segment.constructionPrerequisiteSegmentId = null;
       }
     }
+    restoreLegacyMarineRoutes(network, buildings);
     return network;
+  }
+
+  function restoreLegacyMarineRoutes(network, buildings) {
+    const buildingById = new Map((buildings || []).map(building => [building.id, building]));
+    const groups = new Map();
+    for (const segment of network.segments) {
+      if (segment.routeType === 'marine') continue;
+      const routeId = segment.routeId || segment.id, group = groups.get(routeId) || [];
+      group.push(segment); groups.set(routeId, group);
+    }
+    for (const segments of groups.values()) {
+      const degree = new Map();
+      for (const segment of segments) {
+        degree.set(segment.from, (degree.get(segment.from) || 0) + 1);
+        degree.set(segment.to, (degree.get(segment.to) || 0) + 1);
+      }
+      const endpointIds = [...degree].filter(([, count]) => count === 1).map(([id]) => id);
+      if (endpointIds.length !== 2) continue;
+      const endpoints = endpointIds.map(id => ({ node: nodeById(network, id), building: buildingById.get(nodeById(network, id)?.buildingId) }));
+      if (endpoints.some(endpoint => !endpoint.node || !endpoint.building)) continue;
+      const types = endpoints.map(endpoint => endpoint.building.type);
+      const hasPlatformAndPort = types.includes('oil_platform') && types.includes('surface_port');
+      const isAllWater = segments.every(segment => segment.surfaceTypes.length > 0 && segment.surfaceTypes.every(Boolean));
+      const isLegacySeaLink = hasPlatformAndPort || (isAllWater &&
+        types.every(type => type === 'surface_port' || type === 'oil_platform'));
+      if (!isLegacySeaLink) continue;
+
+      const groupIds = new Set(segments.map(segment => segment.id));
+      for (const segment of segments) segment.routeType = 'marine';
+      for (const { node } of endpoints) {
+        const sharedWithLand = network.segments.some(segment => !groupIds.has(segment.id) &&
+          segment.routeType !== 'marine' && (segment.from === node.id || segment.to === node.id));
+        if (sharedWithLand) {
+          const marineNode = addNode(network, { ...node, type: 'marine-port', connectionMode: 'marine' });
+          for (const segment of segments) {
+            if (segment.from === node.id) segment.from = marineNode.id;
+            if (segment.to === node.id) segment.to = marineNode.id;
+          }
+        } else node.connectionMode = 'marine';
+      }
+    }
   }
 
   root.OrbitRoadNetwork = Object.freeze({ create, addNode, addSegment, nodeById, segmentById,
