@@ -38,7 +38,7 @@
       secondaryOpacity: .68,
       secondaryWidthPx: 1.1,
       houseWidthWorld: 10,
-      districtWidthWorld: 64,
+      districtWidthWorld: 10,
       spriteOpacity: .93,
       cullMarginPx: 40
     })
