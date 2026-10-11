@@ -36,6 +36,15 @@
 
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
+    const materialDefinitions = [
+      { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: .34 },
+      { id: 'alpine', src: 'assets/textures/terrain-alpine.webp', opacity: .36 },
+      { id: 'ocean', src: 'assets/textures/terrain-deep-ocean.webp', opacity: .34 }
+    ];
+    const materialImages = Object.create(null);
+    const pendingMaterialTextures = new Set();
+    let materialImagesReady = false;
+
     function makeCanvas(width, height) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
@@ -63,6 +72,85 @@
         if (x > 0 && y + 1 < height) distance[i] = Math.min(distance[i], distance[i + width - 1] + diagonal);
       }
       return distance;
+    }
+
+    function materialMask(record, materialId) {
+      const { width, height, elevation, moisture, seaLevel } = record.terrain;
+      const mask = makeCanvas(width, height), maskContext = mask.getContext('2d');
+      const pixels = maskContext.createImageData(width, height);
+      const averageTemperature = Number.isFinite(record.planet.temperature) ? record.planet.temperature : 18;
+      const climate = SurfaceStyle.climate;
+      for (let i = 0; i < elevation.length; i += 1) {
+        const value = elevation[i], aboveSea = value - seaLevel;
+        const localTemperature = averageTemperature - Math.max(0, aboveSea) * SurfaceStyle.terrain.temperatureLapsePerElevation;
+        let alpha = 0;
+        if (materialId === 'ocean' && value <= seaLevel) {
+          alpha = transition(seaLevel - value, 10, 62) * .88;
+        } else if (materialId === 'lowlands' && aboveSea > 0) {
+          const humidity = moisture[i] / 255;
+          const vegetation = clamp((localTemperature - climate.vegetationTemperatureRange[0]) / 13, 0, 1) *
+            clamp((climate.vegetationTemperatureRange[1] - localTemperature) / 18, 0, 1);
+          const plain = transition(aboveSea, 3, 24) * (1 - transition(aboveSea, 84, 142));
+          alpha = plain * (.12 + humidity * .88) * vegetation;
+        } else if (materialId === 'alpine' && aboveSea > 0) {
+          const snow = clamp((climate.snowlineStartTemperature - localTemperature + 2) / 14, 0, 1);
+          alpha = transition(aboveSea, 52, 108) * (1 - transition(snow, .28, .7));
+        }
+        const pixel = i * 4;
+        pixels.data[pixel] = pixels.data[pixel + 1] = pixels.data[pixel + 2] = 255;
+        pixels.data[pixel + 3] = Math.round(clamp(alpha, 0, 1) * 255);
+      }
+      maskContext.putImageData(pixels, 0, 0);
+      return mask;
+    }
+
+    function drawMaterialSample(record, definition, image) {
+      const scale = Config.terrain.textureScale;
+      const width = record.terrain.width * scale, height = record.terrain.height * scale;
+      const sample = makeCanvas(width, height), sampleContext = sample.getContext('2d');
+      const random = World.rng(World.hashSeed(String(record.planet.seed) + ':material:' + definition.id));
+      const size = Math.max(width, height) * 1.52;
+      sampleContext.translate(width / 2 + (random() - .5) * width * .12,
+        height / 2 + (random() - .5) * height * .12);
+      sampleContext.rotate(Math.floor(random() * 4) * Math.PI / 2);
+      sampleContext.scale(random() < .5 ? -1 : 1, random() < .5 ? -1 : 1);
+      sampleContext.drawImage(image, -size / 2, -size / 2, size, size);
+      sampleContext.setTransform(1, 0, 0, 1, 0, 0);
+      sampleContext.globalCompositeOperation = 'destination-in';
+      sampleContext.drawImage(materialMask(record, definition.id), 0, 0, width, height);
+      return sample;
+    }
+
+    function applyMaterialTextures(record) {
+      if (record.materialsApplied || !materialImagesReady) return;
+      const textureContext = record.texture.getContext('2d');
+      textureContext.save();
+      textureContext.globalCompositeOperation = 'multiply';
+      for (const definition of materialDefinitions) {
+        const image = materialImages[definition.id];
+        if (!image) continue;
+        textureContext.globalAlpha = definition.opacity;
+        textureContext.drawImage(drawMaterialSample(record, definition, image), 0, 0);
+      }
+      textureContext.restore();
+      record.materialsApplied = true;
+      pendingMaterialTextures.delete(record);
+    }
+
+    if (typeof root.Image === 'function') {
+      let pending = materialDefinitions.length;
+      const settle = () => {
+        pending -= 1;
+        if (pending > 0) return;
+        materialImagesReady = true;
+        for (const record of [...pendingMaterialTextures]) applyMaterialTextures(record);
+      };
+      for (const definition of materialDefinitions) {
+        const image = new root.Image();
+        image.onload = () => { materialImages[definition.id] = image; settle(); };
+        image.onerror = settle;
+        image.src = definition.src;
+      }
     }
 
     function transition(value, start, end) {
@@ -166,6 +254,9 @@
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
+      const materialRecord = { planet, terrain: terrainData, texture: terrainTexture, materialsApplied: false };
+      if (materialImagesReady) applyMaterialTextures(materialRecord);
+      else pendingMaterialTextures.add(materialRecord);
 
       // Interpolated contour lines retain the topographic map at every zoom.
       const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];

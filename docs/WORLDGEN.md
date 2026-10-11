@@ -76,9 +76,12 @@ dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 Le rendu interpole une palette de couleurs par température, altitude et
 humidité. L'éclairage directionnel est calculé depuis les pentes et la
 courbure du terrain ; un bruit albédo déterministe varie selon la graine du
-monde. Les fonds marins passent du turquoise du plateau continental au bleu
-profond, et la neige apparaît selon la température locale et l'altitude. Les
-textures sont générées par le code de rendu, sans image de surface externe.
+monde. Trois textures aériennes WebP, créées pour le projet, détaillent les
+plaines boisées, les montagnes alpines et les océans profonds. Le rendu les
+masque selon l'altitude, la neige et l'humidité, puis les multiplie à faible
+opacité pour garder les couleurs du biome sans voile. Les fonds marins passent
+du turquoise du plateau continental au bleu profond, et la neige apparaît selon
+la température locale et l'altitude.
 
 ## Départ viable et sauvegardes
 

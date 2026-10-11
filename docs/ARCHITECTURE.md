@@ -13,6 +13,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/data/surfaceStyle.js` | Contrat visuel de la carte planétaire et niveaux de détail |
 | `assets/buildings/*.webp` | Sprites transparents des bâtiments planétaires |
 | `assets/settlements/*.webp` | Maisons et modules transparents de villages et de villes |
+| `assets/textures/*.webp` | Matières aériennes détaillées des plaines, montagnes et océans |
 | `src/world.js` | Galaxies, positions orbitales et terrains procéduraux |
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |
