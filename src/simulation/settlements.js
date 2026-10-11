@@ -14,6 +14,8 @@
   ]);
   const DISTRICT_ASSETS = Object.freeze(['village', 'ville'].map(scale =>
     `assets/settlements/${scale}_ligne_droite.webp`));
+  const HOUSE_ASSET_KEYS = Object.freeze(['house:maison_01', 'house:maison_02', 'house:maison_03']);
+  const DISTRICT_ASSET_KEYS = Object.freeze(['district:village_ligne_droite', 'district:ville_ligne_droite']);
   const VISUAL_VERSION = 6;
   const INDUSTRIAL_TYPES = new Set(['factory', 'extractor', 'oil_platform']);
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -453,7 +455,24 @@
     return changed;
   }
 
-  function validAsset(path, allowed) { return allowed.includes(path); }
+  function assetKey(asset) {
+    const houseIndex = HOUSE_ASSETS.indexOf(asset);
+    if (houseIndex >= 0) return HOUSE_ASSET_KEYS[houseIndex];
+    const districtIndex = DISTRICT_ASSETS.indexOf(asset);
+    if (districtIndex >= 0) return DISTRICT_ASSET_KEYS[districtIndex];
+    if (HOUSE_ASSET_KEYS.includes(asset) || DISTRICT_ASSET_KEYS.includes(asset)) return asset;
+    return asset;
+  }
+
+  function resolveAsset(value, assets, keys) {
+    if (typeof value !== 'string') return null;
+    const keyIndex = keys.indexOf(value);
+    if (keyIndex >= 0) return assets[keyIndex];
+    // Accept saves made before assets were serialized as compact identifiers.
+    const legacyIndex = assets.indexOf(value);
+    return legacyIndex >= 0 ? assets[legacyIndex] : null;
+  }
+
   function restore(saved, planetId) {
     const result = create(planetId);
     if (!saved || typeof saved !== 'object' || saved.planetId !== planetId) return result;
@@ -477,22 +496,24 @@
     });
     const roadById = new Map(result.roads.map(road => [road.id, road]));
     result.houses = (Array.isArray(saved.houses) ? saved.houses : []).flatMap(house => {
+      const asset = resolveAsset(house?.asset, HOUSE_ASSETS, HOUSE_ASSET_KEYS);
       if (!house || typeof house.id !== 'string' || !roadById.has(house.roadId) ||
           !Number.isFinite(house.x) || !Number.isFinite(house.y) || !Number.isFinite(house.rotation) ||
-          !Number.isFinite(house.roadDistance) || !validAsset(house.asset, HOUSE_ASSETS)) return [];
-      return [{ ...house }];
+          !Number.isFinite(house.roadDistance) || !asset) return [];
+      return [{ ...house, asset }];
     });
     result.districts = (Array.isArray(saved.districts) ? saved.districts : []).flatMap(district => {
+      const asset = resolveAsset(district?.asset, DISTRICT_ASSETS, DISTRICT_ASSET_KEYS);
       const mainRoadAsset = district?.mainRoadAsset === true && typeof district.routeId === 'string';
       if (!district || typeof district.id !== 'string' || (!mainRoadAsset && !roadById.has(district.roadId)) ||
           !Number.isFinite(district.x) || !Number.isFinite(district.y) || !Number.isFinite(district.rotation) ||
-          !Number.isFinite(district.roadDistance) || !validAsset(district.asset, DISTRICT_ASSETS)) return [];
+          !Number.isFinite(district.roadDistance) || !asset) return [];
       const variant = Number.isInteger(district.variant) && district.variant >= 0 && district.variant < 2
         ? district.variant : World.hashSeed(`settlement-district:${district.id}`) % 2;
-      return [{ ...district, variant, mainRoadAsset }];
+      return [{ ...district, asset, variant, mainRoadAsset }];
     });
     return result;
   }
 
-  root.OrbitSettlementSimulation = Object.freeze({ create, grow, advance, restore, growthMetrics });
+  root.OrbitSettlementSimulation = Object.freeze({ create, grow, advance, restore, growthMetrics, assetKey });
 })(globalThis);

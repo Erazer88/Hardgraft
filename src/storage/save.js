@@ -2,13 +2,14 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, 4, 5, config.saveVersion];
+  const supportedSaveVersions = [2, 3, 4, 5, 6, config.saveVersion];
 
   // Houses are kept both in the settlement-wide list and on each road for
   // rendering. The settlement-wide list is authoritative when restoring, so
   // omit the per-road copies from saves to keep localStorage usage bounded.
   function snapshotSettlements(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const compactAsset = asset => root.OrbitSettlementSimulation?.assetKey(asset) ?? asset;
     return Object.fromEntries(Object.entries(value).map(([planetId, settlement]) => {
       if (!settlement || typeof settlement !== 'object') return [planetId, settlement];
       return [planetId, {
@@ -23,13 +24,13 @@
         })),
         houses: (settlement.houses || []).map(house => ({
           id: house.id, roadId: house.roadId, roadDistance: house.roadDistance,
-          x: house.x, y: house.y, rotation: house.rotation, asset: house.asset
+          x: house.x, y: house.y, rotation: house.rotation, asset: compactAsset(house.asset)
         })),
         districts: (settlement.districts || []).map(district => ({
           id: district.id, roadId: district.roadId, routeId: district.routeId,
           mainRoadAsset: district.mainRoadAsset, roadDistance: district.roadDistance,
           x: district.x, y: district.y, rotation: district.rotation,
-          variant: district.variant, asset: district.asset
+          variant: district.variant, asset: compactAsset(district.asset)
         }))
       }];
     }));

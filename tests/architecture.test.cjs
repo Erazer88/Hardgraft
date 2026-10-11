@@ -6,8 +6,10 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/config.js', 'simulation/simulation.js', 'gameplay/exploration.js',
-  'state.js', 'storage/save.js', 'navigation/camera.js']) {
+for (const relative of ['data/config.js', 'data/buildings.js', 'data/roads.js', 'data/settlements.js',
+  'simulation/simulation.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
+  'simulation/settlements.js', 'gameplay/exploration.js', 'state.js', 'storage/save.js',
+  'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const { OrbitConfig: Config, OrbitSimulation: Simulation, OrbitExploration: Exploration,
@@ -130,6 +132,55 @@ test('versioned saves round-trip exploration and clock state without serializing
   assert.equal('simulation' in saved, false);
   assert.equal('buildings' in saved, false);
   assert.equal('context' in saved, false); assert.equal('camera' in saved, false);
+});
+
+test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {
+  const state = State.create(), world = galaxy();
+  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'hub-1', type: 'hub',
+    planetId: 'planet-1', x: 20, y: 30, constructionState: 'complete' })];
+  const network = context.OrbitRoadNetwork.create('planet-1');
+  const from = context.OrbitRoadNetwork.addNode(network, { x: 20, y: 30, buildingId: 'hub-1' });
+  const to = context.OrbitRoadNetwork.addNode(network, { x: 120, y: 60, type: 'intersection' });
+  context.OrbitRoadNetwork.addSegment(network, { from: from.id, to: to.id,
+    points: [{ x: 20, y: 30 }, { x: 120, y: 60 }], builtLength: 35 });
+  state.roadNetworks['planet-1'] = network;
+  const settlement = context.OrbitSettlementSimulation.create('planet-1');
+  const roadId = 'planet-1:settlement-road:1';
+  settlement.roads.push({ id: roadId, type: 'branch', stage: 1, routeId: 'road-1',
+    anchor: { x: 40, y: 35 }, endpoint: { x: 80, y: 50 }, parentRoadId: null,
+    connectsToRoadId: null, points: [{ x: 40, y: 35 }, { x: 80, y: 50 }], length: 42.72, builtLength: 12 });
+  const houseAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/maison_01.webp');
+  const districtAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/village_ligne_droite.webp');
+  settlement.houses = Array.from({ length: 100 }, (_, index) => ({ id: `house-${index + 1}`, roadId,
+    roadDistance: index + 1, x: 50 + index, y: 39, rotation: .2, asset: houseAsset }));
+  settlement.districts.push({ id: 'district-1', roadId, routeId: 'road-1', mainRoadAsset: false,
+    roadDistance: 20, x: 60, y: 42, rotation: .3, variant: 1, asset: districtAsset });
+  state.surfaceSettlements['planet-1'] = settlement;
+
+  let stored;
+  const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
+  assert.equal(Save.save(storage, state, world), true);
+  const saved = Save.load(storage);
+  assert.equal(saved.surfaceSettlements['planet-1'].houses[0].asset, 'house:maison_01');
+  assert.equal(saved.surfaceSettlements['planet-1'].districts[0].asset, 'district:village_ligne_droite');
+  assert.ok(stored.length < 25000, `100-house compact save is ${stored.length} characters`);
+
+  const restored = State.create();
+  assert.equal(Save.restore(restored, galaxy(), saved), true);
+  assert.equal(restored.surfaceBuildings.length, 1);
+  assert.equal(restored.roadNetworks['planet-1'].segments.length, 1);
+  assert.equal(restored.surfaceSettlements['planet-1'].roads.length, 1);
+  assert.equal(restored.surfaceSettlements['planet-1'].houses.length, 100);
+  assert.equal(restored.surfaceSettlements['planet-1'].houses[0].asset, 'assets/settlements/maison_01.webp');
+  assert.equal(restored.surfaceSettlements['planet-1'].districts.length, 1);
+
+  const legacy = plain(saved);
+  legacy.version = 6;
+  legacy.surfaceSettlements['planet-1'].houses[0].asset = 'assets/settlements/maison_01.webp';
+  const restoredLegacy = State.create();
+  assert.equal(Save.restore(restoredLegacy, galaxy(), legacy), true);
+  assert.equal(restoredLegacy.surfaceSettlements['planet-1'].houses.length, 100);
+  assert.equal(restoredLegacy.surfaceSettlements['planet-1'].houses[0].asset, 'assets/settlements/maison_01.webp');
 });
 
 test('unavailable storage, invalid saves and different seeds do not break a new session', () => {
