@@ -142,7 +142,8 @@
         sum + Math.hypot(point.x - preview.points[index].x, point.y - preview.points[index].y), 0);
       const opacity = Number.isFinite(preview.opacity) ? preview.opacity : .52;
       const color = preview.valid ? Style.landColor : (preview.color || Style.landColor);
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = Style.landWidthPx;
+      const lineWidth = Number.isFinite(preview.lineWidth) ? preview.lineWidth : Style.landWidthPx;
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = opacity;
       roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, opacity, color);
       ctx.restore();

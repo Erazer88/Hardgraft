@@ -42,7 +42,8 @@
       previewIntervalMs: 85,
       previewOpacity: .52,
       freePreviewColor: '#e76f72',
-      freePreviewOpacity: .27
+      freePreviewOpacity: .42,
+      freePreviewWidthPx: 1.8
     }),
     construction: Object.freeze({
       speedByClass: Object.freeze({ main: 22, secondary: 8 })

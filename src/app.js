@@ -361,17 +361,16 @@
     }
 
     const point = roadTerrainPointAt(screenX, screenY);
-    const parameters = roadRouteParameters(roadDrag.from, { kind: 'free', point });
-    const preview = RoadPlacement.previewToPoint({ ...parameters, point });
     state.roadPreview = {
-      points: preview.connected ? preview.points : [roadDrag.from.point, point],
-      surfaceTypes: preview.connected ? preview.surfaceTypes : [],
+      points: [roadDrag.from.point, point],
+      surfaceTypes: [],
       valid: false, snapped: false, committable: false,
       opacity: RoadPlacement.config.interaction.freePreviewOpacity,
+      lineWidth: RoadPlacement.config.interaction.freePreviewWidthPx,
       color: RoadPlacement.config.interaction.freePreviewColor,
-      fromPoint: roadDrag.from.point, toPoint: point, reason: preview.reason || ''
+      fromPoint: roadDrag.from.point, toPoint: point
     };
-    roadDrag.preview = preview;
+    roadDrag.preview = null;
   }
 
   function finishRoadDrag(screenX, screenY, cancelled = false) {
