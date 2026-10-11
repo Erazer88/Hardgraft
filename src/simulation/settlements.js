@@ -75,6 +75,9 @@
     const groups = completedRouteGroups(network), completeSegments = groups.flatMap(([, segments]) => segments);
     const allCompletedSegments = completedRouteGroups(network, true).flatMap(([, segments]) => segments);
     const completedLength = completeSegments.reduce((sum, segment) => sum + segment.length, 0);
+    const primaryLength = (network?.segments || []).filter(segment =>
+      segment.routeType !== 'marine' && segment.roadClass !== 'secondary')
+      .reduce((sum, segment) => sum + (Number.isFinite(segment.length) ? segment.length : 0), 0);
     const nodes = new Map((network?.nodes || []).map(node => [node.id, node]));
     const buildingById = new Map((buildings || []).map(building => [building.id, building]));
     const connectedIndustry = new Set();
@@ -86,13 +89,13 @@
     }
     const secondaryLength = (settlement?.roads || []).filter(isComplete)
       .reduce((sum, road) => sum + road.length, 0);
-    const secondaryTargetLength = completedLength * Config.growth.secondaryToPrimaryRatio;
+    const secondaryTargetLength = primaryLength * Config.growth.secondaryToPrimaryRatio;
     const activityScore = connectedIndustry.size +
       Math.floor(completedLength / Config.growth.roadLengthPerStage) +
       Math.floor(secondaryLength / Config.growth.secondaryRoadLengthPerStage);
     const score = Math.min(Config.growth.maxStages,
       Math.max(groups.length ? Config.growth.initialRouteStages : 0, activityScore));
-    return { score, completedLength, secondaryLength, secondaryTargetLength, groups };
+    return { score, completedLength, primaryLength, secondaryLength, secondaryTargetLength, groups };
   }
 
   function buildCandidates(groups, network, buildings, settlement) {
@@ -206,9 +209,9 @@
       parentRoadId: candidate.hostKind === 'secondary' ? candidate.hostId : null, stage };
   }
 
-  function fitRoadToBudget(road, budget) {
+  function clipRoadToLength(road, budget) {
     if (!road || road.length <= budget + 1e-7) return road;
-    if (road.type === 'connector' || !Array.isArray(road.points) || budget <= 1e-7) return null;
+    if (!Array.isArray(road.points) || budget <= 1e-7) return null;
     const points = [copyPoint(road.points[0])];
     let remaining = budget, length = 0;
     for (let i = 1; i < road.points.length && remaining > 1e-7; i++) {
@@ -222,7 +225,47 @@
       }
     }
     if (points.length < 2 || length <= 1e-7) return null;
-    return { ...road, points, length, endpoint: copyPoint(points[points.length - 1]) };
+    return { ...road, points, length,
+      builtLength: Math.max(0, Math.min(length, Number.isFinite(road.builtLength) ? road.builtLength : 0)),
+      endpoint: copyPoint(points[points.length - 1]) };
+  }
+
+  function fitRoadToBudget(road, budget) {
+    if (!road || road.length <= budget + 1e-7) return road;
+    if (road.type === 'connector') return null;
+    return clipRoadToLength(road, budget);
+  }
+
+  function enforceSecondaryLength(settlement, targetLength) {
+    const roads = settlement.roads || [];
+    const totalLength = roads.reduce((sum, road) => sum + (Number.isFinite(road.length) ? road.length : 0), 0);
+    if (totalLength <= targetLength + 1e-7) return false;
+
+    const retained = [];
+    let remaining = Math.max(0, targetLength);
+    for (const road of roads) {
+      if (remaining <= 1e-7) break;
+      if (road.length <= remaining + 1e-7) {
+        retained.push(road);
+        remaining -= road.length;
+      } else {
+        const clipped = clipRoadToLength(road, remaining);
+        if (clipped) retained.push(clipped);
+        break;
+      }
+    }
+
+    settlement.roads = retained;
+    const lengthByRoadId = new Map(retained.map(road => [road.id, road.length]));
+    settlement.houses = (settlement.houses || []).filter(house => lengthByRoadId.has(house.roadId) &&
+      house.roadDistance <= lengthByRoadId.get(house.roadId));
+    settlement.districts = (settlement.districts || []).filter(district => district.mainRoadAsset ||
+      (lengthByRoadId.has(district.roadId) && district.roadDistance <= lengthByRoadId.get(district.roadId)));
+    for (const road of retained) {
+      if (Array.isArray(road.houses)) road.houses = road.houses.filter(house => house.roadDistance <= road.length);
+      road.builtLength = Math.max(0, Math.min(road.length, Number.isFinite(road.builtLength) ? road.builtLength : 0));
+    }
+    return true;
   }
 
   function assetForDistrict(stage) {
@@ -336,10 +379,11 @@
   }
 
   function nextRoadOrdinal(settlement) {
-    return (settlement.roads || []).reduce((maximum, road) => {
+    const roadMaximum = (settlement.roads || []).reduce((maximum, road) => {
       const match = typeof road.id === 'string' && road.id.match(/settlement-road:(\d+)$/);
       return match ? Math.max(maximum, Number(match[1])) : maximum;
-    }, 0) + 1;
+    }, 0);
+    return Math.max(roadMaximum, Number.isInteger(settlement.generatedStage) ? settlement.generatedStage : 0) + 1;
   }
 
   function grow(settlement, options) {
@@ -348,7 +392,11 @@
     const previousVisualVersion = settlement.version || 1;
     let migrated = migrateSettlementVisuals(settlement, options);
     migrated = syncMainRoadDistricts(settlement, options) || migrated;
-    const metrics = growthMetrics(network, buildings, settlement);
+    let metrics = growthMetrics(network, buildings, settlement);
+    if (enforceSecondaryLength(settlement, metrics.secondaryTargetLength)) {
+      migrated = true;
+      metrics = growthMetrics(network, buildings, settlement);
+    }
     if (migrated && previousVisualVersion < 3 && metrics.score > 0 && settlement.generatedStage >= metrics.score) {
       settlement.generatedStage = metrics.score - 1;
       migrated = true;
