@@ -45,25 +45,33 @@
     if (!image?.complete || !image.naturalWidth) return;
     const size = widthWorld * frame.zoom;
     if (size < 1.6) return;
-    const center = frame.project(item.x, item.y), aspect = image.naturalWidth / image.naturalHeight;
+    const variant = Number.isInteger(item.variant) && item.variant >= 0 && item.variant < 4
+      ? item.variant : null;
+    const sourceWidth = variant === null ? image.naturalWidth : image.naturalWidth / 2;
+    const sourceHeight = variant === null ? image.naturalHeight : image.naturalHeight / 2;
+    const sourceX = variant === null ? 0 : (variant % 2) * sourceWidth;
+    const sourceY = variant === null ? 0 : Math.floor(variant / 2) * sourceHeight;
+    const center = frame.project(item.x, item.y), aspect = sourceWidth / sourceHeight;
     const width = size, height = size / aspect, ctx = frame.context;
     ctx.save(); ctx.globalAlpha = opacity; ctx.translate(center.x, center.y); ctx.rotate(item.rotation || 0);
-    ctx.drawImage(image, -width / 2, -height / 2, width, height); ctx.restore();
+    ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight,
+      -width / 2, -height / 2, width, height); ctx.restore();
   }
 
   function render(frame) {
     if (frame.zoom < Style.minZoom) return;
     const settlement = frame.state.surfaceSettlements?.[frame.planet.id];
     if (!settlement) return;
-    for (const road of settlement.roads || []) drawRoad(frame, road);
+    const roads = settlement.roads || [], roadById = new Map(roads.map(road => [road.id, road]));
+    for (const road of roads) drawRoad(frame, road);
     for (const district of settlement.districts || []) {
-      const road = settlement.roads.find(item => item.id === district.roadId);
+      const road = roadById.get(district.roadId);
       if (road && road.builtLength >= district.roadDistance) {
         drawAsset(frame, district, Style.districtWidthWorld, Style.spriteOpacity);
       }
     }
     for (const house of settlement.houses || []) {
-      const road = settlement.roads.find(item => item.id === house.roadId);
+      const road = roadById.get(house.roadId);
       if (road && road.builtLength >= house.roadDistance) {
         drawAsset(frame, house, Style.houseWidthWorld, Style.spriteOpacity);
       }

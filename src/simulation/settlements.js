@@ -52,7 +52,7 @@
   }
 
   function create(planetId) {
-    return { version: 2, planetId, generatedStage: 0, roads: [], houses: [], districts: [] };
+    return { version: 3, planetId, generatedStage: 0, roads: [], houses: [], districts: [] };
   }
 
   function isComplete(segment) {
@@ -86,9 +86,11 @@
     }
     const secondaryLength = (settlement?.roads || []).filter(isComplete)
       .reduce((sum, road) => sum + road.length, 0);
-    const score = Math.min(Config.growth.maxStages, connectedIndustry.size +
+    const activityScore = connectedIndustry.size +
       Math.floor(completedLength / Config.growth.roadLengthPerStage) +
-      Math.floor(secondaryLength / Config.growth.secondaryRoadLengthPerStage));
+      Math.floor(secondaryLength / Config.growth.secondaryRoadLengthPerStage);
+    const score = Math.min(Config.growth.maxStages,
+      Math.max(groups.length ? Config.growth.initialRouteStages : 0, activityScore));
     return { score, completedLength, secondaryLength, groups };
   }
 
@@ -185,8 +187,10 @@
     const { network, settlement, baseField, terrain, buildings, stage } = options;
     const tangent = candidate.tangent, side = random() < .5 ? -1 : 1;
     const normal = { x: -tangent.y * side, y: tangent.x * side };
-    const branchLength = Config.growth.branchMinLength + random() *
-      (Config.growth.branchMaxLength - Config.growth.branchMinLength);
+    const isInitialRoute = stage <= Config.growth.initialRouteStages;
+    const minLength = isInitialRoute ? Config.growth.initialBranchMinLength : Config.growth.branchMinLength;
+    const maxLength = isInitialRoute ? Config.growth.initialBranchMaxLength : Config.growth.branchMaxLength;
+    const branchLength = minLength + random() * (maxLength - minLength);
     const along = (random() - .5) * branchLength * .45;
     const center = { x: candidate.point.x + normal.x * branchLength + tangent.x * along,
       y: candidate.point.y + normal.y * branchLength + tangent.y * along };
@@ -199,7 +203,7 @@
   }
 
   function assetForDistrict(stage) {
-    const scale = stage >= 7 ? 'ville' : 'village';
+    const scale = stage >= Config.growth.cityStage ? 'ville' : 'village';
     const layout = stage % 4 === 0 ? 'carrefour_croix' : 'carrefour_T';
     return `assets/settlements/${scale}_${layout}.webp`;
   }
@@ -212,7 +216,8 @@
 
   function createResidents(road, random, terrain, textureScale, buildings) {
     const houses = [], maxDistance = road.length - Config.growth.branchEndpointClearance * .5;
-    for (let roadDistance = Config.growth.houseMinSpacing; roadDistance < maxDistance;
+    const firstHouseDistance = Config.growth.houseStartDistance;
+    for (let roadDistance = firstHouseDistance; roadDistance < maxDistance;
          roadDistance += Config.growth.houseMinSpacing + random() *
            (Config.growth.houseMaxSpacing - Config.growth.houseMinSpacing)) {
       const point = pointAtDistance(road.points, roadDistance), tangent = tangentAtDistance(road.points, roadDistance);
@@ -231,23 +236,63 @@
     return houses;
   }
 
-  function districtFor(road, stage) {
-    const distanceOnRoad = Math.min(Config.growth.districtRoadDistance, road.length * .35);
-    const position = pointAtDistance(road.points, distanceOnRoad);
-    const tangent = tangentAtDistance(road.points, distanceOnRoad);
-    return { id: `${road.id}:district`, roadId: road.id, roadDistance: distanceOnRoad,
+  function districtFor(road, stage, random, requestedDistance = Config.growth.districtRoadDistance, part = 'start') {
+    const roadDistance = Math.max(0, Math.min(road.length, requestedDistance));
+    const position = pointAtDistance(road.points, roadDistance);
+    const tangent = tangentAtDistance(road.points, roadDistance);
+    return { id: `${road.id}:district:${part}`, roadId: road.id, roadDistance,
       x: position.x, y: position.y, rotation: Math.atan2(tangent.y, tangent.x),
-      asset: assetForDistrict(stage) };
+      variant: Math.floor(random() * 4), asset: assetForDistrict(stage) };
+  }
+
+  function districtsFor(road, stage, random) {
+    if (road.length < Config.growth.districtMinRoadLength) return [];
+    const districts = [districtFor(road, stage, random)];
+    if (road.type === 'connector' && road.length > Config.growth.districtRoadDistance * 2 + 40) {
+      districts.push(districtFor(road, stage, random,
+        road.length - Config.growth.districtRoadDistance, 'end'));
+    }
+    return districts;
+  }
+
+  function migrateSettlementVisuals(settlement, options) {
+    if (settlement.version >= 3) return false;
+    const previousHouses = settlement.houses || [];
+    settlement.houses = []; settlement.districts = [];
+    for (let index = 0; index < (settlement.roads || []).length; index++) {
+      const road = settlement.roads[index];
+      const stageMatch = road.id.match(/settlement-road:(\d+)$/);
+      if (!Number.isInteger(road.stage)) road.stage = stageMatch ? Number(stageMatch[1]) : index + 1;
+      const random = World.rng(World.hashSeed(`${options.seed}:${options.planetId}:settlement:visual:${road.id}`));
+      const updatedHouses = createResidents(road, random, options.terrain, options.baseField.textureScale, options.buildings);
+      road.houses = updatedHouses.length ? updatedHouses : previousHouses.filter(house => house.roadId === road.id);
+      settlement.houses.push(...road.houses);
+      settlement.districts.push(...districtsFor(road, road.stage, random));
+    }
+    settlement.version = 3;
+    return true;
+  }
+
+  function nextRoadOrdinal(settlement) {
+    return (settlement.roads || []).reduce((maximum, road) => {
+      const match = typeof road.id === 'string' && road.id.match(/settlement-road:(\d+)$/);
+      return match ? Math.max(maximum, Number(match[1])) : maximum;
+    }, 0) + 1;
   }
 
   function grow(settlement, options) {
     const { seed, network, buildings, baseField, terrain } = options;
     if (!settlement || settlement.planetId !== options.planetId) settlement = create(options.planetId);
+    let migrated = migrateSettlementVisuals(settlement, options);
     const metrics = growthMetrics(network, buildings, settlement);
-    if (!metrics.score || settlement.generatedStage >= metrics.score) return { settlement, changed: false };
-    if ((settlement.roads || []).some(road => !isComplete(road))) return { settlement, changed: false };
+    if (migrated && metrics.score > 0 && settlement.generatedStage >= metrics.score) {
+      settlement.generatedStage = metrics.score - 1;
+      migrated = true;
+    }
+    if (!metrics.score || settlement.generatedStage >= metrics.score) return { settlement, changed: migrated };
+    if ((settlement.roads || []).some(road => !isComplete(road))) return { settlement, changed: migrated };
     let candidates = buildCandidates(metrics.groups, network, buildings, settlement);
-    if (!candidates.length) return { settlement, changed: false };
+    if (!candidates.length) return { settlement, changed: migrated };
 
     const stage = settlement.generatedStage + 1;
     const random = World.rng(World.hashSeed(`${seed}:${options.planetId}:settlement:${stage}`));
@@ -264,14 +309,14 @@
       }
       if (!road) road = createBranch(candidate, random, { network, settlement, baseField, terrain, buildings, stage });
     }
-    if (!road) return { settlement, changed: false };
-    road.id = `${options.planetId}:settlement-road:${stage}`;
+    if (!road) return { settlement, changed: migrated };
+    road.id = `${options.planetId}:settlement-road:${nextRoadOrdinal(settlement)}`;
+    road.stage = stage;
     road.builtLength = 0;
     road.houses = createResidents(road, random, terrain, baseField.textureScale, buildings);
-    const district = districtFor(road, stage);
     settlement.roads.push(road);
     settlement.houses.push(...road.houses);
-    settlement.districts.push(district);
+    settlement.districts.push(...districtsFor(road, stage, random));
     settlement.generatedStage = stage;
     return { settlement, changed: true };
   }
@@ -295,6 +340,7 @@
   function restore(saved, planetId) {
     const result = create(planetId);
     if (!saved || typeof saved !== 'object' || saved.planetId !== planetId) return result;
+    result.version = Number.isInteger(saved.version) ? saved.version : 1;
     result.generatedStage = Number.isInteger(saved.generatedStage)
       ? Math.max(0, Math.min(Config.growth.maxStages, saved.generatedStage)) : 0;
     const roads = Array.isArray(saved.roads) ? saved.roads : [];
@@ -303,6 +349,7 @@
           !road.points.every(point => Number.isFinite(point?.x) && Number.isFinite(point?.y)) ||
           !Number.isFinite(road.length) || road.length <= 0) return [];
       return [{ id: road.id, type: road.type === 'connector' ? 'connector' : 'branch',
+        stage: Number.isInteger(road.stage) ? road.stage : null,
         routeId: typeof road.routeId === 'string' ? road.routeId : '',
         anchor: Number.isFinite(road.anchor?.x) && Number.isFinite(road.anchor?.y) ? copyPoint(road.anchor) : null,
         endpoint: Number.isFinite(road.endpoint?.x) && Number.isFinite(road.endpoint?.y) ? copyPoint(road.endpoint) : null,
@@ -322,7 +369,9 @@
       if (!district || typeof district.id !== 'string' || !roadById.has(district.roadId) ||
           !Number.isFinite(district.x) || !Number.isFinite(district.y) || !Number.isFinite(district.rotation) ||
           !Number.isFinite(district.roadDistance) || !validAsset(district.asset, DISTRICT_ASSETS)) return [];
-      return [{ ...district }];
+      const variant = Number.isInteger(district.variant) && district.variant >= 0 && district.variant < 4
+        ? district.variant : World.hashSeed(`settlement-district:${district.id}`) % 4;
+      return [{ ...district, variant }];
     });
     return result;
   }
