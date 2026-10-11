@@ -124,11 +124,18 @@
     const fromNode = attachEndpoint(draft, route.from || from), toNode = attachEndpoint(draft, route.to || to);
     if (!fromNode || !toNode) return { connected: false, reason: 'Une extrémité ne rejoint plus le réseau.' };
     if (fromNode.id === toNode.id) return { connected: false, reason: 'Les deux extrémités rejoignent déjà le même nœud.' };
-    const segment = Network.addSegment(draft, { from: fromNode.id, to: toNode.id,
-      points: route.points, surfaceTypes: route.surfaceTypes, routeType: route.routeType || 'land' });
+    const crossings = Network.connectRouteCrossings(draft, route.points);
+    const pieces = Network.splitPolylineAtNodes(route.points, route.surfaceTypes, crossings, fromNode.id, toNode.id);
+    const routeId = `${draft.planetId}:route:${draft.nextRouteId++}`, segments = [];
+    for (const piece of pieces) {
+      segments.push(Network.addSegment(draft, { ...piece, routeId, routeType: route.routeType || 'land',
+        constructionPrerequisiteSegmentId: segments.length ? segments[segments.length - 1].id : null }));
+    }
+    const segment = segments[0];
     network.nextNodeId = draft.nextNodeId; network.nextSegmentId = draft.nextSegmentId;
-    network.nodes = draft.nodes; network.segments = draft.segments;
-    return { connected: true, segment, points: route.points, surfaceTypes: route.surfaceTypes, routeType: route.routeType || 'land' };
+    network.nextRouteId = draft.nextRouteId; network.nodes = draft.nodes; network.segments = draft.segments;
+    return { connected: true, segment, segments, crossings, points: route.points,
+      surfaceTypes: route.surfaceTypes, routeType: route.routeType || 'land' };
   }
 
   root.OrbitRoadPlacement = Object.freeze({ previewBetween, createBetween, config: Config });

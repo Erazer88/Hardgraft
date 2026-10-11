@@ -67,10 +67,12 @@
   }
 
   function reachedIntersection(network, node) {
-    let reachedRoads = 0;
+    const reachedRoutes = new Set();
     for (const segment of network.segments) {
-      if ((segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id)) reachedRoads++;
-      if (reachedRoads >= 2) return true;
+      if ((segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id)) {
+        reachedRoutes.add(segment.routeId || segment.id);
+      }
+      if (reachedRoutes.size >= 2) return true;
     }
     return false;
   }
@@ -149,7 +151,7 @@
       ctx.restore();
       ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
       for (const node of network.nodes) {
-        if (node.type !== 'intersection' || !reachedIntersection(network, node)) continue;
+        if ((node.type !== 'intersection' && node.isIntersection !== true) || !reachedIntersection(network, node)) continue;
         const point = frame.project(node.x, node.y);
         if (point.x < -4 || point.y < -4 || point.x > frame.viewport.width + 4 || point.y > frame.viewport.height + 4) continue;
         ctx.beginPath(); ctx.arc(point.x, point.y, Style.junctionRadiusPx, 0, Math.PI * 2); ctx.fill();

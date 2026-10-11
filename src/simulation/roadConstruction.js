@@ -41,10 +41,18 @@
     let changed = false;
     for (const network of Object.values(networks || {})) {
       const adjacency = completedAdjacency(network);
+      const segmentsById = new Map((network.segments || []).map(segment => [segment.id, segment]));
       for (const segment of network.segments || []) {
         const length = Number.isFinite(segment.length) ? segment.length : 0;
         const builtLength = Number.isFinite(segment.builtLength) ? Math.max(0, segment.builtLength) : length;
         if (builtLength >= length) { segment.builtLength = length; continue; }
+        const previousSegment = segment.constructionPrerequisiteSegmentId &&
+          segmentsById.get(segment.constructionPrerequisiteSegmentId);
+        if (previousSegment) {
+          const previousLength = Number.isFinite(previousSegment.length) ? previousSegment.length : 0;
+          const previousBuilt = Number.isFinite(previousSegment.builtLength) ? previousSegment.builtLength : previousLength;
+          if (previousBuilt < previousLength - 1e-7) continue;
+        }
         const prerequisite = segment.constructionPrerequisite;
         if (prerequisite && !hasConnection(adjacency, prerequisite.fromNodeId, prerequisite.toNodeId)) continue;
         const speed = Config.construction.speedByClass[segment.roadClass] || Config.construction.speedByClass.main;
