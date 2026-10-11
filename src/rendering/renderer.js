@@ -20,7 +20,9 @@
     }
     function surfaceFrame(planet, context) {
       const record = context.terrains.get(planet.id);
-      return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
+      const texture = record.texture;
+      return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale,
+        { width: texture.logicalWidth || texture.width, height: texture.logicalHeight || texture.height });
     }
     function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
     function dot(c, x, y, r, color) { c.fillStyle = color; c.beginPath(); c.arc(x, y, Math.max(.1, r), 0, TAU); c.fill(); }
@@ -40,6 +42,7 @@
       getState: () => state,
       getViewport: () => viewport,
       getNow: () => now,
+      isCameraMoving: () => Camera.moving(state.camera, state.target),
       drawLine: line, drawCircle: circle, drawLabel: label,
       layers: {
         roads: root.OrbitRoadRenderer,

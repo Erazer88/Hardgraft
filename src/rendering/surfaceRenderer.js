@@ -35,7 +35,7 @@
   });
 
   function create(canvasContext, dependencies) {
-    const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
+    const { project, localCamera, surfaceFrame, getState, getViewport, isCameraMoving, layers } = dependencies;
     const materialDefinitions = [
       { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: 1 },
       { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: 1 },
@@ -50,6 +50,7 @@
     const materialImages = Object.create(null);
     const pendingMaterialTextures = new Set();
     let materialImagesReady = false;
+    let detailContourCache = null;
 
     function makeCanvas(width, height) {
       const canvas = document.createElement('canvas');
@@ -135,26 +136,32 @@
       return mask;
     }
 
-    function drawMaterialSample(record, definition, image) {
+    function drawMaterialSample(record, definition, image, sampleCanvas) {
       const scale = Config.terrain.textureScale;
       const width = record.terrain.width * scale, height = record.terrain.height * scale;
-      const sample = makeCanvas(width, height), sampleContext = sample.getContext('2d');
+      const sampleContext = sampleCanvas.getContext('2d');
+      sampleContext.clearRect(0, 0, width, height);
       const random = World.rng(World.hashSeed(String(record.planet.seed) + ':material:' + definition.id));
       const size = Math.max(width, height) * 1.52;
+      sampleContext.save();
       sampleContext.translate(width / 2 + (random() - .5) * width * .12,
         height / 2 + (random() - .5) * height * .12);
       sampleContext.rotate(Math.floor(random() * 4) * Math.PI / 2);
       sampleContext.scale(random() < .5 ? -1 : 1, random() < .5 ? -1 : 1);
       sampleContext.drawImage(image, -size / 2, -size / 2, size, size);
-      sampleContext.setTransform(1, 0, 0, 1, 0, 0);
+      sampleContext.restore();
       sampleContext.globalCompositeOperation = 'destination-in';
-      sampleContext.drawImage(materialMask(record, definition.id), 0, 0, width, height);
-      return sample;
+      const mask = materialMask(record, definition.id);
+      sampleContext.drawImage(mask, 0, 0, width, height);
+      sampleContext.globalCompositeOperation = 'source-over';
+      mask.width = 0; mask.height = 0;
+      return sampleCanvas;
     }
 
     function applyMaterialTextures(record) {
       if (record.materialsApplied || !materialImagesReady) return;
       const textureContext = record.texture.getContext('2d');
+      const sampleCanvas = makeCanvas(record.texture.width, record.texture.height);
       textureContext.clearRect(0, 0, record.texture.width, record.texture.height);
       textureContext.drawImage(record.rawCanvas, 0, 0, record.texture.width, record.texture.height);
       textureContext.save();
@@ -163,13 +170,16 @@
         const image = materialImages[definition.id];
         if (!image) continue;
         textureContext.globalAlpha = definition.opacity;
-        textureContext.drawImage(drawMaterialSample(record, definition, image), 0, 0);
+        textureContext.drawImage(drawMaterialSample(record, definition, image, sampleCanvas), 0, 0);
       }
       textureContext.restore();
       record.drawDetails(textureContext);
       record.materialsApplied = true;
       record.rawCanvas = null;
       record.drawDetails = null;
+      record.terrain = null;
+      record.coastDistance = null;
+      sampleCanvas.width = 0; sampleCanvas.height = 0;
       pendingMaterialTextures.delete(record);
     }
 
@@ -216,9 +226,9 @@
       context.fillStyle = color; context.beginPath(); context.arc(x, y, Math.max(.1, radius), 0, TAU); context.fill();
     }
 
-    function createTerrainTexture(planet, terrainData) {
+    function createTerrainTexture(planet, terrainData, options = {}) {
       const { width, height, elevation, moisture, seaLevel } = terrainData;
-      const textureScale = Config.terrain.textureScale;
+      const textureScale = options.textureScale || Config.terrain.textureScale;
       const coastDistance = createWaterDistanceField(terrainData);
       const rawCanvas = makeCanvas(width, height), rawContext = rawCanvas.getContext('2d'), image = rawContext.createImageData(width, height);
       const averageTemperature = Number.isFinite(planet.temperature) ? planet.temperature : 18;
@@ -287,6 +297,8 @@
       }
       rawContext.putImageData(image, 0, 0);
       const terrainTexture = makeCanvas(width * textureScale, height * textureScale);
+      terrainTexture.logicalWidth = options.logicalWidth || width * textureScale;
+      terrainTexture.logicalHeight = options.logicalHeight || height * textureScale;
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
@@ -295,34 +307,37 @@
         materialsApplied: false, drawDetails: null
       };
       function drawDetails(context) {
-        // Draw after materials so contour lines and forest marks remain crisp.
-        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
-        let edgeX = 0, edgeY = 0, pairing = false;
-        function contourEdge(x, y) {
-          if (pairing) {
-            context.moveTo(edgeX * textureScale, edgeY * textureScale);
-            context.lineTo(x * textureScale, y * textureScale);
-          } else { edgeX = x; edgeY = y; }
-          pairing = !pairing;
-        }
-        for (const level of contourLevels) {
-          const coastline = level === 103;
-          const indexContour = !coastline && (level - 48) % 20 === 0;
-          context.beginPath();
-          context.strokeStyle = coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544';
-          context.lineWidth = coastline ? 1.15 : indexContour ? .85 : .56;
-          for (let y = 0; y < height - 1; y++) for (let x = 0; x < width - 1; x++) {
-            const a = elevation[y * width + x], b = elevation[y * width + x + 1];
-            const d = elevation[(y + 1) * width + x], e = elevation[(y + 1) * width + x + 1];
-            const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
-            if (mask === 0 || mask === 15) continue;
-            pairing = false;
-            if ((a < level) !== (b < level)) contourEdge(x + (level - a) / (b - a), y);
-            if ((b < level) !== (e < level)) contourEdge(x + 1, y + (level - b) / (e - b));
-            if ((e < level) !== (d < level)) contourEdge(x + 1 - (level - e) / (d - e), y + 1);
-            if ((d < level) !== (a < level)) contourEdge(x, y + 1 - (level - d) / (a - d));
+        // The active high-resolution map draws its contour lines directly in
+        // screen space so they do not soften when the raster underneath zooms.
+        if (!options.skipContours) {
+          const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
+          let edgeX = 0, edgeY = 0, pairing = false;
+          function contourEdge(x, y) {
+            if (pairing) {
+              context.moveTo(edgeX * textureScale, edgeY * textureScale);
+              context.lineTo(x * textureScale, y * textureScale);
+            } else { edgeX = x; edgeY = y; }
+            pairing = !pairing;
           }
-          context.stroke();
+          for (const level of contourLevels) {
+            const coastline = level === 103;
+            const indexContour = !coastline && (level - 48) % 20 === 0;
+            context.beginPath();
+            context.strokeStyle = coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544';
+            context.lineWidth = coastline ? 1.15 : indexContour ? .85 : .56;
+            for (let y = 0; y < height - 1; y++) for (let x = 0; x < width - 1; x++) {
+              const a = elevation[y * width + x], b = elevation[y * width + x + 1];
+              const d = elevation[(y + 1) * width + x], e = elevation[(y + 1) * width + x + 1];
+              const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
+              if (mask === 0 || mask === 15) continue;
+              pairing = false;
+              if ((a < level) !== (b < level)) contourEdge(x + (level - a) / (b - a), y);
+              if ((b < level) !== (e < level)) contourEdge(x + 1, y + (level - b) / (e - b));
+              if ((e < level) !== (d < level)) contourEdge(x + 1 - (level - e) / (d - e), y + 1);
+              if ((d < level) !== (a < level)) contourEdge(x, y + 1 - (level - d) / (a - d));
+            }
+            context.stroke();
+          }
         }
         const random = World.rng(planet.seed + 113);
         for (let i = 0; i < 800; i++) {
@@ -339,6 +354,94 @@
         pendingMaterialTextures.add(materialRecord);
       }
       return terrainTexture;
+    }
+
+    function drawDetailContours(frame) {
+      const terrain = frame.detailTerrain;
+      if (!terrain) {
+        if (getState().level !== 'surface') detailContourCache = null;
+        return;
+      }
+      if (frame.zoom < 2 || typeof root.Path2D !== 'function') return;
+      const { width, height, elevation } = terrain;
+      const viewport = frame.viewport, top = frame.project(0, 0);
+      const detailFactor = Config.terrain.renderDetailFactor;
+      const subdivision = frame.zoom >= 3 ? 4 : 2;
+      const gridWidth = (width - 1) * subdivision + 1, gridHeight = (height - 1) * subdivision + 1;
+      const cellSize = Config.terrain.textureScale / detailFactor / subdivision;
+      const minX = clamp(Math.floor((-top.x / frame.zoom) / cellSize) - 1, 0, gridWidth - 2);
+      const maxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize) + 1, 0, gridWidth - 2);
+      const minY = clamp(Math.floor((-top.y / frame.zoom) / cellSize) - 1, 0, gridHeight - 2);
+      const maxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize) + 1, 0, gridHeight - 2);
+      const visibleMinX = clamp(Math.floor((-top.x / frame.zoom) / cellSize), 0, gridWidth - 2);
+      const visibleMaxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize), 0, gridWidth - 2);
+      const visibleMinY = clamp(Math.floor((-top.y / frame.zoom) / cellSize), 0, gridHeight - 2);
+      const visibleMaxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize), 0, gridHeight - 2);
+      const coversViewport = detailContourCache?.planetId === frame.planet.id &&
+        detailContourCache.subdivision === subdivision &&
+        visibleMinX >= detailContourCache.minX &&
+        visibleMaxX <= detailContourCache.maxX && visibleMinY >= detailContourCache.minY &&
+        visibleMaxY <= detailContourCache.maxY;
+      if (!coversViewport && (!isCameraMoving || !isCameraMoving())) {
+        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
+        const sampleWidth = maxX - minX + 2, sampleHeight = maxY - minY + 2;
+        const samples = new Float32Array(sampleWidth * sampleHeight);
+        for (let y = 0; y < sampleHeight; y += 1) for (let x = 0; x < sampleWidth; x += 1) {
+          const sourceX = (minX + x) / subdivision, sourceY = (minY + y) / subdivision;
+          const x0 = Math.floor(sourceX), y0 = Math.floor(sourceY);
+          const x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(height - 1, y0 + 1);
+          const tx = sourceX - x0, ty = sourceY - y0;
+          const a = elevation[y0 * width + x0], b = elevation[y0 * width + x1];
+          const c = elevation[y1 * width + x0], d = elevation[y1 * width + x1];
+          samples[y * sampleWidth + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+        }
+        const contours = contourLevels.map(level => {
+          const path = new root.Path2D();
+          for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+            const index = (y - minY) * sampleWidth + x - minX;
+            const a = samples[index], b = samples[index + 1];
+            const d = samples[index + sampleWidth], e = samples[index + sampleWidth + 1];
+            const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
+            if (mask === 0 || mask === 15) continue;
+            let hasFirst = false, firstX = 0, firstY = 0;
+            if ((a < level) !== (b < level)) {
+              const px = x + (level - a) / (b - a), py = y;
+              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+              else { firstX = px; firstY = py; hasFirst = true; }
+            }
+            if ((b < level) !== (e < level)) {
+              const px = x + 1, py = y + (level - b) / (e - b);
+              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+              else { firstX = px; firstY = py; hasFirst = true; }
+            }
+            if ((e < level) !== (d < level)) {
+              const px = x + 1 - (level - e) / (d - e), py = y + 1;
+              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+              else { firstX = px; firstY = py; hasFirst = true; }
+            }
+            if ((d < level) !== (a < level)) {
+              const px = x, py = y + 1 - (level - d) / (a - d);
+              if (hasFirst) { path.moveTo(firstX * cellSize, firstY * cellSize); path.lineTo(px * cellSize, py * cellSize); hasFirst = false; }
+              else { firstX = px; firstY = py; hasFirst = true; }
+            }
+          }
+          const coastline = level === 103;
+          const indexContour = !coastline && (level - 48) % 20 === 0;
+          return { path, color: coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544',
+            width: (coastline ? 1.15 : indexContour ? .85 : .56) / detailFactor };
+        });
+        detailContourCache = { planetId: frame.planet.id, subdivision, minX, maxX, minY, maxY, contours };
+      }
+      if (!detailContourCache || detailContourCache.planetId !== frame.planet.id) return;
+      canvasContext.save();
+      canvasContext.translate(top.x, top.y);
+      canvasContext.scale(frame.zoom, frame.zoom);
+      canvasContext.lineCap = 'round'; canvasContext.lineJoin = 'round';
+      for (const contour of detailContourCache.contours) {
+        canvasContext.strokeStyle = contour.color; canvasContext.lineWidth = contour.width;
+        canvasContext.stroke(contour.path);
+      }
+      canvasContext.restore();
     }
 
     function drawSurfaceGrid(cam) {
@@ -366,14 +469,21 @@
     }
 
     function makeSurfaceFrame(cam, planet, record) {
+      const state = getState();
+      const useDetailedTexture = state.level === 'surface' && state.planet?.id === planet.id &&
+        cam.zoom >= 2 && record.detailTexture;
+      const terrainTexture = useDetailedTexture || record.texture;
       return {
         context: canvasContext,
         camera: cam,
         zoom: cam.zoom,
         planet,
         terrain: record.data,
-        terrainTexture: record.texture,
-        state: getState(),
+        terrainTexture,
+        detailTerrain: useDetailedTexture ? record.detailTerrain : null,
+        terrainWidth: record.texture.logicalWidth || record.texture.width,
+        terrainHeight: record.texture.logicalHeight || record.texture.height,
+        state,
         viewport: getViewport(),
         now: dependencies.getNow(),
         project: (x, y) => project(x, y, cam)
@@ -381,12 +491,13 @@
     }
 
     function drawTerrain(frame) {
-      const { terrainTexture } = frame, top = frame.project(0, 0);
-      const width = terrainTexture.width * frame.zoom, height = terrainTexture.height * frame.zoom;
+      const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
+      const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
       canvasContext.drawImage(terrainTexture, top.x, top.y, width, height);
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
-      const bottom = frame.project(terrainTexture.width, terrainTexture.height);
+      drawDetailContours(frame);
+      const bottom = frame.project(terrainWidth, terrainHeight);
       canvasContext.strokeStyle = SurfaceStyle.terrain.edgeColor;
       canvasContext.lineWidth = SurfaceStyle.terrain.edgeWidthPx;
       canvasContext.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
@@ -453,7 +564,7 @@
             p.x + radius + marker.labelOffsetXPx, p.y, marker.labelColor, marker.labelSizePx);
         }
       }
-      const top = frame.project(0, 0), bottom = frame.project(frame.terrainTexture.width, frame.terrainTexture.height);
+      const top = frame.project(0, 0), bottom = frame.project(frame.terrainWidth, frame.terrainHeight);
       dependencies.drawLabel(canvasContext, frame.planet.name.toUpperCase() + ' / RELEVÉ TOPOGRAPHIQUE',
         top.x + 15, bottom.y - 16, '#c3c9b1', SurfaceStyle.labels.siteDetailSizePx);
     }

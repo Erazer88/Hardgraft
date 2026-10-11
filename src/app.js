@@ -117,6 +117,28 @@
     }
     return record;
   }
+  function prepareSurfaceDetail(planet, context = state.context) {
+    const record = prepareTerrain(planet, context);
+    if (!record.detailTexture) {
+      const detailFactor = Config.terrain.renderDetailFactor;
+      const detailedTerrain = World.createTerrain(planet.seed, record.data.width * detailFactor,
+        record.data.height * detailFactor, planet);
+      record.detailTexture = renderer.createTerrainTexture(planet, detailedTerrain, {
+        logicalWidth: record.texture.logicalWidth || record.texture.width,
+        logicalHeight: record.texture.logicalHeight || record.texture.height,
+        skipContours: true
+      });
+      record.detailTerrain = detailedTerrain;
+    }
+    return record;
+  }
+  function releaseSurfaceDetail(planet = state.planet, context = state.context) {
+    const record = planet && context?.terrains.get(planet.id);
+    if (record) {
+      record.detailTexture = null;
+      record.detailTerrain = null;
+    }
+  }
   function refreshSettlements(planetId) {
     const network = state.roadNetworks[planetId];
     if (!network) return false;
@@ -139,7 +161,9 @@
   }
   function surfaceFrame(planet = state.planet, context = state.context) {
     const record = prepareTerrain(planet, context);
-    return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale, record.texture);
+    const texture = record.texture;
+    return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale,
+      { width: texture.logicalWidth || texture.width, height: texture.logicalHeight || texture.height });
   }
   function cameraMoving() { return Camera.moving(state.camera, state.target); }
   function followPlanet(planet, context = state.context) {
@@ -210,7 +234,7 @@
 
   function updateSceneContext() {
     if (!galaxy) return;
-    const previousLevel = state.level, previousContext = state.context;
+    const previousLevel = state.level, previousContext = state.context, previousPlanet = state.planet;
     const known = galaxy.systems.filter(s => s.discovered || state.reveal);
     if (state.tracking) state.context = state.tracking.context;
     if (state.camera.zoom >= .7 && !state.tracking && !cameraMoving()) {
@@ -245,7 +269,7 @@
             if (r > 45) followPlanet(planet, context);
             if (r >= 80) {
               state.level = 'surface'; state.planet = planet;
-              const record = context.terrains.get(planet.id); terrainTexture = record.texture; terrainData = record.data;
+              const record = prepareSurfaceDetail(planet, context); terrainTexture = record.texture; terrainData = record.data;
             }
           }
         }
@@ -260,6 +284,9 @@
       cancelRoadDrag();
       if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
+    }
+    if (previousLevel === 'surface' && (state.level !== 'surface' || previousPlanet?.id !== state.planet?.id)) {
+      releaseSurfaceDetail(previousPlanet, previousContext);
     }
   }
 
@@ -581,15 +608,18 @@
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    const record = prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    const record = prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     refreshSettlements(planet.id);
     clearSelection();
-    const f = surfaceFrame(planet), camera = worldCamera(f, { x: record.texture.width / 2, y: record.texture.height / 2, zoom: Math.max(W / record.texture.width, H / record.texture.height) * 1.08 });
+    const width = record.texture.logicalWidth || record.texture.width;
+    const height = record.texture.logicalHeight || record.texture.height;
+    const f = surfaceFrame(planet), camera = worldCamera(f, { x: width / 2, y: height / 2, zoom: Math.max(W / width, H / height) * 1.08 });
     focusCamera(camera.x, camera.y, camera.zoom);
     persist();
   }
   function back() {
     if (state.level === 'surface') {
+      releaseSurfaceDetail();
       clearSelection(); state.tracking = null; state.focusPlanet = null;
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
