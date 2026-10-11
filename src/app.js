@@ -866,7 +866,7 @@
     if (!state.paused && !document.hidden) {
       Construction.advance(state.surfaceBuildings, dt, building => refreshSettlements(building.planetId));
       RoadConstruction.advance(state.roadNetworks, dt, planetId => refreshSettlements(planetId));
-      SettlementSimulation.advance(state.surfaceSettlements, dt);
+      SettlementSimulation.advance(state.surfaceSettlements, dt, refreshSettlements);
     }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);

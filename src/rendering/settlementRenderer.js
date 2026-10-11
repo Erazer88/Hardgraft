@@ -2,9 +2,7 @@
   'use strict';
 
   const Style = root.OrbitSettlementConfig.render;
-  const TAU = Math.PI * 2;
   const imageCache = new Map();
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   function imageFor(path) {
     if (typeof root.Image !== 'function') return null;
@@ -39,18 +37,6 @@
       if (ratio < 1 || remaining <= 1e-8) break;
     }
     ctx.stroke(); ctx.restore();
-
-    if (road.roundabout && road.builtLength >= road.length - 1e-6 &&
-        isVisible(frame, road.roundabout.x, road.roundabout.y, Style.cullMarginPx)) {
-      const center = frame.project(road.roundabout.x, road.roundabout.y);
-      const radius = clamp(road.roundabout.radius * frame.zoom,
-        Style.roundaboutRadiusMinPx, Style.roundaboutRadiusMaxPx);
-      ctx.save(); ctx.globalAlpha = Style.roundaboutFillOpacity; ctx.fillStyle = Style.roundaboutFill;
-      ctx.beginPath(); ctx.arc(center.x, center.y, radius, 0, TAU); ctx.fill();
-      ctx.globalAlpha = Style.secondaryOpacity; ctx.strokeStyle = Style.secondaryColor;
-      ctx.lineWidth = Style.secondaryWidthPx; ctx.beginPath(); ctx.arc(center.x, center.y, radius, 0, TAU); ctx.stroke();
-      ctx.restore();
-    }
   }
 
   function drawAsset(frame, item, widthWorld, opacity) {
