@@ -4,6 +4,37 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const supportedSaveVersions = [2, 3, 4, 5, config.saveVersion];
 
+  // Houses are kept both in the settlement-wide list and on each road for
+  // rendering. The settlement-wide list is authoritative when restoring, so
+  // omit the per-road copies from saves to keep localStorage usage bounded.
+  function snapshotSettlements(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).map(([planetId, settlement]) => {
+      if (!settlement || typeof settlement !== 'object') return [planetId, settlement];
+      return [planetId, {
+        version: settlement.version,
+        planetId: settlement.planetId,
+        generatedStage: settlement.generatedStage,
+        roads: (settlement.roads || []).map(road => ({
+          id: road.id, type: road.type, stage: road.stage, routeId: road.routeId,
+          anchor: road.anchor, endpoint: road.endpoint, parentRoadId: road.parentRoadId,
+          connectsToRoadId: road.connectsToRoadId, points: road.points, length: road.length,
+          builtLength: road.builtLength
+        })),
+        houses: (settlement.houses || []).map(house => ({
+          id: house.id, roadId: house.roadId, roadDistance: house.roadDistance,
+          x: house.x, y: house.y, rotation: house.rotation, asset: house.asset
+        })),
+        districts: (settlement.districts || []).map(district => ({
+          id: district.id, roadId: district.roadId, routeId: district.routeId,
+          mainRoadAsset: district.mainRoadAsset, roadDistance: district.roadDistance,
+          x: district.x, y: district.y, rotation: district.rotation,
+          variant: district.variant, asset: district.asset
+        }))
+      }];
+    }));
+  }
+
   function load(storage) {
     try {
       const saved = JSON.parse(storage.getItem(config.storageKey) || 'null');
@@ -28,7 +59,7 @@
       })),
       time: state.simulation.time, reveal: Boolean(state.reveal),
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
-      surfaceSettlements: copy(state.surfaceSettlements || {}),
+      surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId

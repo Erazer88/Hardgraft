@@ -36,11 +36,11 @@
   function persist() {
     try {
       if (!Save.save(localStorage, state, galaxy, performance.now())) {
-        if (!storageWarningShown) toast('Le navigateur bloque la sauvegarde locale de cette page.');
+        if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
         storageWarningShown = true;
       } else storageWarningShown = false;
     } catch (_) {
-      if (!storageWarningShown) toast('Le navigateur bloque la sauvegarde locale de cette page.');
+      if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
       storageWarningShown = true;
     }
   }
