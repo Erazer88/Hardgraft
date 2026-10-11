@@ -33,7 +33,15 @@
       buildingClearance: 2
     }),
     search: Object.freeze({ maxExpandedStates: 500000 }),
-    marine: Object.freeze({ waterCost: .65 }),
+    marine: Object.freeze({
+      waterCost: .65,
+      docking: Object.freeze({
+        clearanceCells: 1,
+        approachCells: 2,
+        maxSearchCells: 12,
+        searchStepFraction: .25
+      })
+    }),
     network: Object.freeze({
       snapDistance: 6.5,
       minimumSameRouteSeparation: 48

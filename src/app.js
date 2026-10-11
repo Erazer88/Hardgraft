@@ -87,6 +87,27 @@
     }
     const record = context.terrains.get(planet.id);
     terrainData = record.data;
+    if (!record.marineDockAnchorsResolved) {
+      record.marineDockAnchorsResolved = true;
+      const network = state.roadNetworks[planet.id];
+      let changed = false;
+      for (const building of state.surfaceBuildings) {
+        if (building.planetId !== planet.id ||
+            (building.type !== 'surface_port' && building.type !== 'oil_platform')) continue;
+        const marineNodeIds = new Set((network?.nodes || []).filter(node =>
+          node.buildingId === building.id && node.connectionMode === 'marine').map(node => node.id));
+        const hasMarineRoute = (network?.segments || []).some(segment => segment.routeType === 'marine' &&
+          (marineNodeIds.has(segment.from) || marineNodeIds.has(segment.to)));
+        if (hasMarineRoute) continue;
+        const dock = BuildingPlacement.resolveMarineDock(record.data, Config.terrain.textureScale,
+          building, BuildingData.get(building.type));
+        if (dock && (!building.waterPort || distance(building.waterPort, dock.point) > .01)) {
+          building.waterPort = dock.point;
+          changed = true;
+        }
+      }
+      if (changed && state.level === 'surface' && state.planet?.id === planet.id) persist();
+    }
     return record;
   }
   function refreshSettlements(planetId) {
@@ -274,7 +295,7 @@
     const definition = BuildingData.get(preview.type);
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
-      resourceId: preview.resourceId,
+      resourceId: preview.resourceId, waterPort: preview.waterPort,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
@@ -378,7 +399,8 @@
       if (candidate.planetId !== state.planet.id ||
           (platformRequiresPort && candidate.type !== 'surface_port') ||
           (marineRouteHit && candidate.type !== 'surface_port' && candidate.type !== 'oil_platform')) continue;
-      const points = [candidate.roadPort, candidate.waterPort].filter(Boolean);
+      const points = (platformRequiresPort ? [candidate.waterPort] :
+        [candidate.roadPort, candidate.waterPort]).filter(Boolean);
       for (const point of points) {
         const screenPoint = project(frame.x + point.x * frame.scale, frame.y + point.y * frame.scale);
         const screenDistance = Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY);

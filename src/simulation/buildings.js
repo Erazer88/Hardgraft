@@ -37,7 +37,9 @@
       };
     };
     const roadPort = transformOffset(definition.roadPortOffset);
-    const waterPort = transformOffset(definition.marinePortOffset || definition.seaFacingOffset);
+    const derivedWaterPort = transformOffset(definition.marinePortOffset || definition.seaFacingOffset);
+    const waterPort = isFiniteNumber(properties.waterPort?.x) && isFiniteNumber(properties.waterPort?.y)
+      ? { x: properties.waterPort.x, y: properties.waterPort.y } : derivedWaterPort;
 
     const inventory = properties.inventory ?? {};
     if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) throw new TypeError('Building inventory must be a resource map');

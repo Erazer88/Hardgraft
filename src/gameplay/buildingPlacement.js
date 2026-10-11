@@ -2,6 +2,8 @@
   'use strict';
 
   const BuildingModel = root.OrbitSurfaceBuilding;
+  const RoadConfig = root.OrbitRoadConfig;
+  const RoadGeometry = root.OrbitRoadGeometry;
   const TAU = Math.PI * 2;
   const point = (x, y, origin, angle) => {
     const cos = Math.cos(angle), sin = Math.sin(angle);
@@ -79,6 +81,81 @@
     return null;
   }
 
+  function inBounds(terrain, textureScale, sample) {
+    return sample.x >= 0 && sample.y >= 0 &&
+      sample.x <= (terrain.width - 1) * textureScale &&
+      sample.y <= (terrain.height - 1) * textureScale;
+  }
+
+  function waterAt(terrain, textureScale, sample) {
+    return inBounds(terrain, textureScale, sample) &&
+      RoadGeometry.elevationAt(terrain, textureScale, sample.x, sample.y) <= terrain.seaLevel;
+  }
+
+  function navigableWaterAt(terrain, textureScale, sample, gridStep) {
+    const cellWorld = gridStep * textureScale;
+    const maxCellX = Math.floor((terrain.width - 1) / gridStep);
+    const maxCellY = Math.floor((terrain.height - 1) / gridStep);
+    const cellX = Math.max(0, Math.min(maxCellX, Math.round(sample.x / cellWorld)));
+    const cellY = Math.max(0, Math.min(maxCellY, Math.round(sample.y / cellWorld)));
+    return waterAt(terrain, textureScale, { x: cellX * cellWorld, y: cellY * cellWorld });
+  }
+
+  function waterCorridor(terrain, textureScale, start, normal, distance, gridStep) {
+    const cellWorld = gridStep * textureScale;
+    const sampleStep = Math.max(.5, Math.min(textureScale, cellWorld / 4));
+    const samples = Math.ceil(distance / sampleStep);
+    for (let i = 0; i <= samples; i++) {
+      const travelled = distance * i / Math.max(1, samples);
+      const sample = { x: start.x + normal.x * travelled, y: start.y + normal.y * travelled };
+      if (!waterAt(terrain, textureScale, sample) || !navigableWaterAt(terrain, textureScale, sample, gridStep)) return false;
+    }
+    return true;
+  }
+
+  function marineFacingNormal(rotation, definition) {
+    const offset = definition?.marinePortOffset || definition?.seaFacingOffset;
+    const offsetLength = offset ? Math.hypot(offset.x, offset.y) : 0;
+    if (!offsetLength || !Number.isFinite(rotation)) return null;
+    const localNormal = { x: offset.x / offsetLength, y: offset.y / offsetLength };
+    const cos = Math.cos(rotation), sin = Math.sin(rotation);
+    return { x: localNormal.x * cos - localNormal.y * sin,
+      y: localNormal.x * sin + localNormal.y * cos };
+  }
+
+  function resolveMarineDock(terrain, textureScale, position, definition) {
+    const offset = definition?.marinePortOffset || definition?.seaFacingOffset;
+    if (!offset || !Number.isFinite(position?.x) || !Number.isFinite(position?.y) ||
+        !Number.isFinite(position?.rotation) || !RoadGeometry || !RoadConfig) return null;
+    const gridStep = RoadConfig.gridStep;
+    const cellWorld = gridStep * textureScale;
+    const settings = RoadConfig.marine.docking;
+    const offsetLength = Math.hypot(offset.x, offset.y);
+    if (!offsetLength || !Number.isFinite(cellWorld) || cellWorld <= 0) return null;
+    const normal = marineFacingNormal(position.rotation, definition);
+    if (!normal) return null;
+    const approachDistance = settings.approachCells * cellWorld;
+    const clearDistance = Math.max(settings.clearanceCells * cellWorld, approachDistance);
+    const searchStep = Math.max(.5, cellWorld * settings.searchStepFraction);
+    const maxSearchDistance = settings.maxSearchCells * cellWorld;
+    const resultAt = point => ({ point: { x: point.x, y: point.y }, normal,
+      approachPoint: { x: point.x + normal.x * approachDistance,
+        y: point.y + normal.y * approachDistance } });
+
+    if (Number.isFinite(position.waterPort?.x) && Number.isFinite(position.waterPort?.y) &&
+        waterCorridor(terrain, textureScale, position.waterPort, normal, clearDistance, gridStep)) {
+      return resultAt(position.waterPort);
+    }
+
+    for (let extra = 0; extra <= maxSearchDistance; extra += searchStep) {
+      const point = { x: position.x + normal.x * (offsetLength + extra),
+        y: position.y + normal.y * (offsetLength + extra) };
+      if (!waterCorridor(terrain, textureScale, point, normal, clearDistance, gridStep)) continue;
+      return resultAt(point);
+    }
+    return null;
+  }
+
   function compatibleDeposit(terrain, textureScale, position, definition, rules) {
     const allowed = new Set(definition.extracts || []), margin = rules.depositMargin || 0;
     const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
@@ -116,6 +193,12 @@
     if (rules.deepWaterOnly && !footprintFits(terrain, textureScale, candidate, definition, 'deep-water', rules.deepWaterMargin || 10)) {
       return { valid: false, reason: 'La plateforme doit tenir entièrement en mer profonde.', rotation: resolvedRotation };
     }
+    const hasMarineConnector = Boolean(definition.marinePortOffset || definition.seaFacingOffset);
+    const marineDock = hasMarineConnector
+      ? resolveMarineDock(terrain, textureScale, candidate, definition) : null;
+    if (hasMarineConnector && !marineDock) {
+      return { valid: false, reason: 'Aucun point d’amarrage sûr ne rejoint la mer depuis ce côté.', rotation: resolvedRotation };
+    }
     const deposit = rules.requiresDeposit ? compatibleDeposit(terrain, textureScale, candidate, definition, rules) : null;
     if (rules.requiresDeposit && !deposit) {
       return { valid: false, reason: 'Placez l’extracteur sur un gisement de minerai compatible.', rotation: resolvedRotation };
@@ -128,8 +211,10 @@
         return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.', rotation: resolvedRotation };
       }
     }
-    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: deposit?.id || null };
+    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: deposit?.id || null,
+      waterPort: marineDock?.point || null };
   }
 
-  root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation });
+  root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation,
+    marineFacingNormal, resolveMarineDock });
 })(globalThis);

@@ -2,6 +2,7 @@
   'use strict';
 
   const Config = root.OrbitRoadConfig, Network = root.OrbitRoadNetwork;
+  const BuildingData = root.OrbitBuildingData, BuildingPlacement = root.OrbitBuildingPlacement;
   const CostField = root.OrbitRoadCostField, Pathfinder = root.OrbitRoadPathfinder, Geometry = root.OrbitRoadGeometry;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -47,10 +48,20 @@
     return false;
   }
 
-  function marineEndpoint(endpoint, buildings) {
-    const building = buildingFor(endpoint, buildings), point = building?.waterPort;
-    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
-    return { ...endpoint, point: { ...point }, connectionMode: 'marine' };
+  function marineEndpoint(endpoint, buildings, network, terrain, textureScale, baseField) {
+    const building = buildingFor(endpoint, buildings);
+    if (!building) return null;
+    const definition = BuildingData.get(building.type);
+    const dock = BuildingPlacement.resolveMarineDock(terrain, textureScale, building, definition);
+    const existingNode = (network?.nodes || []).find(node => node.buildingId === building.id &&
+      node.connectionMode === 'marine');
+    const point = existingNode ? { x: existingNode.x, y: existingNode.y } : dock?.point;
+    const normal = dock?.normal || BuildingPlacement.marineFacingNormal(building.rotation || 0, definition);
+    if (!point || !normal || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    const approachDistance = Config.marine.docking.approachCells * baseField.cellWorld;
+    const approachPoint = { x: point.x + normal.x * approachDistance,
+      y: point.y + normal.y * approachDistance };
+    return { ...endpoint, point, normal, approachPoint, connectionMode: 'marine' };
   }
 
   function landEndpoint(endpoint, buildings) {
@@ -106,8 +117,12 @@
     if (hasOilPlatform && !isMarine) {
       return { connected: false, reason: 'Une plateforme pétrolière doit être reliée à un port de surface.' };
     }
-    const routeFrom = isMarine ? marineEndpoint(from, buildings) : landEndpoint(from, buildings);
-    const routeTo = isMarine ? marineEndpoint(to, buildings) : landEndpoint(to, buildings);
+    const routeFrom = isMarine
+      ? marineEndpoint(from, buildings, network, terrain, baseField.textureScale, baseField)
+      : landEndpoint(from, buildings);
+    const routeTo = isMarine
+      ? marineEndpoint(to, buildings, network, terrain, baseField.textureScale, baseField)
+      : landEndpoint(to, buildings);
     if (!routeFrom || !routeTo) return { connected: false, reason: 'Point de raccordement maritime indisponible.' };
     const problem = validateEndpoints({ network, from: routeFrom, to: routeTo });
     if (problem) return { connected: false, reason: problem };
@@ -118,9 +133,31 @@
       ? CostField.createMarine(baseField)
       : CostField.withNetwork(baseField, network, buildings, [routeFrom.point, routeTo.point], null,
         { allowDeepWater, avoidExistingRoads: true, builtRoadsOnly: true });
-    const rawPath = Pathfinder.findPath(field, terrain, routeFrom.point, routeTo.point);
-    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings,
-      { allowDeepWater, waterOnly: isMarine });
+    let route;
+    if (isMarine) {
+      const portEndpoint = fromBuilding?.type === 'surface_port' ? routeFrom : routeTo;
+      const portIsFrom = portEndpoint === routeFrom;
+      const pathStart = portIsFrom ? portEndpoint.approachPoint : routeFrom.point;
+      const pathEnd = portIsFrom ? routeTo.point : portEndpoint.approachPoint;
+      const rawPath = Pathfinder.findPath(field, terrain, pathStart, pathEnd);
+      const seaRoute = Geometry.create(rawPath, terrain, baseField.textureScale, buildings,
+        { allowDeepWater: true, waterOnly: true });
+      if (seaRoute) {
+        const lead = Geometry.resample([portEndpoint.point, portEndpoint.approachPoint],
+          Config.geometry.validationSpacing);
+        const points = portIsFrom
+          ? [...lead, ...seaRoute.points.slice(1)]
+          : [...seaRoute.points.slice(0, -1), ...lead.slice().reverse().slice(1)];
+        if (Geometry.valid(points, terrain, baseField.textureScale, buildings,
+            { allowDeepWater: true, waterOnly: true })) {
+          route = { ...seaRoute, points,
+            surfaceTypes: Geometry.surfaceTypes(points, terrain, baseField.textureScale) };
+        }
+      }
+    } else {
+      const rawPath = Pathfinder.findPath(field, terrain, routeFrom.point, routeTo.point);
+      route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
+    }
     if (!route) return { connected: false, reason: 'Aucun tracé valide ne relie ces deux points.' };
     return { connected: true, from: routeFrom, to: routeTo, routeType: isMarine ? 'marine' : 'land', ...route };
   }
