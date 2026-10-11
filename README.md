@@ -42,7 +42,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Des cartes planétaires reproductibles avec continents, océans, côtes, ombrage, courbes de niveau et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
-La pose d'usines est un premier outil de test ; les blocs internes, routes, flux de ressources et sauvegarde des bâtiments ne sont pas encore implémentés.
+La pose de bâtiments et les routes planétaires constituent encore un outil de test ; les routes se construisent progressivement et leur avancement est sauvegardé. Les blocs internes, les flux de ressources et le transport logistique ne sont pas encore simulés.
 
 ## Vérification manuelle
 

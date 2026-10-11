@@ -7,10 +7,21 @@
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
     let landOpen = false, waterOpen = false, waterProgress = Style.waterDotSpacingPx / 2;
+    let remaining = Number.isFinite(segment.builtLength)
+      ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length;
+    if (remaining <= 0) return;
     ctx.beginPath();
     for (let i = 1; i < points.length; i++) {
+      const worldA = points[i - 1], worldB = points[i];
+      const worldLength = Math.hypot(worldB.x - worldA.x, worldB.y - worldA.y);
+      if (worldLength <= 1e-8) continue;
+      const ratio = Math.min(1, remaining / worldLength);
       const isWater = Boolean(segment.surfaceTypes?.[i - 1]);
-      const screenA = projected[i - 1], screenB = projected[i];
+      const screenA = projected[i - 1], fullScreenB = projected[i];
+      const screenB = ratio < 1 ? {
+        x: screenA.x + (fullScreenB.x - screenA.x) * ratio,
+        y: screenA.y + (fullScreenB.y - screenA.y) * ratio
+      } : fullScreenB;
       if (isWater) {
         if (landOpen) { ctx.stroke(); ctx.beginPath(); landOpen = false; }
         if (!waterOpen) waterProgress = Style.waterDotSpacingPx / 2;
@@ -21,9 +32,27 @@
         if (!landOpen) { ctx.moveTo(screenA.x, screenA.y); landOpen = true; }
         ctx.lineTo(screenB.x, screenB.y);
       }
+      remaining -= worldLength * ratio;
+      if (ratio < 1 || remaining <= 1e-8) break;
     }
     if (landOpen) ctx.stroke();
     ctx.beginPath();
+  }
+
+  function reachesNode(segment, nodeId) {
+    const builtLength = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length;
+    if (segment.from === nodeId) return builtLength > 1e-5;
+    if (segment.to === nodeId) return builtLength >= segment.length - 1e-5;
+    return false;
+  }
+
+  function reachedIntersection(network, node) {
+    let reachedRoads = 0;
+    for (const segment of network.segments) {
+      if ((segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id)) reachedRoads++;
+      if (reachedRoads >= 2) return true;
+    }
+    return false;
   }
 
   function drawWaterDots(ctx, a, b, progress) {
@@ -64,7 +93,7 @@
     ctx.restore();
     ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
     for (const node of network.nodes) {
-      if (node.type !== 'intersection') continue;
+      if (node.type !== 'intersection' || !reachedIntersection(network, node)) continue;
       const point = frame.project(node.x, node.y);
       if (point.x < -4 || point.y < -4 || point.x > frame.viewport.width + 4 || point.y > frame.viewport.height + 4) continue;
       ctx.beginPath(); ctx.arc(point.x, point.y, Style.junctionRadiusPx, 0, Math.PI * 2); ctx.fill();

@@ -6,6 +6,7 @@
   const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
   const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
+  const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const $ = id => document.getElementById(id);
@@ -251,7 +252,7 @@
       record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
       const route = RoadPlacement.connectBuilding({ network, building, definition, terrain: record.data,
         baseField: record.roadCostField, buildings: state.surfaceBuildings });
-      routeMessage = route.connected ? ' Route raccordée au réseau.' : route.root ? ' Point de départ du réseau routier.' :
+      routeMessage = route.connected ? ' Route en construction vers le réseau.' : route.root ? ' Point de départ du réseau routier.' :
         route.reason === 'no-valid-route' ? ' Aucune route valide vers le réseau n’a été trouvée.' : '';
     }
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
@@ -604,7 +605,10 @@
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
-    if (!state.paused && !document.hidden) Construction.advance(state.surfaceBuildings, dt);
+    if (!state.paused && !document.hidden) {
+      Construction.advance(state.surfaceBuildings, dt);
+      RoadConstruction.advance(state.roadNetworks, dt);
+    }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;

@@ -32,6 +32,9 @@
     }),
     search: Object.freeze({ maxExpandedStates: 500000 }),
     network: Object.freeze({ snapDistance: 6.5 }),
+    construction: Object.freeze({
+      speedByClass: Object.freeze({ main: 22, secondary: 8 })
+    }),
     geometry: Object.freeze({
       rdpTolerance: 2,
       splineSamplesPerSpan: 10,

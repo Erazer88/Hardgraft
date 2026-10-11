@@ -13,7 +13,7 @@
 
   function create(planetId) {
     if (typeof planetId !== 'string' || !planetId) throw new TypeError('A planet id is required for a road network');
-    return { version: 1, planetId, nextNodeId: 1, nextSegmentId: 1, nodes: [], segments: [] };
+    return { version: 2, planetId, nextNodeId: 1, nextSegmentId: 1, nodes: [], segments: [] };
   }
 
   function addNode(network, properties) {
@@ -43,14 +43,16 @@
     const surfaceTypes = Array.isArray(properties.surfaceTypes) &&
       properties.surfaceTypes.length === points.length - 1 && properties.surfaceTypes.every(value => typeof value === 'boolean')
       ? properties.surfaceTypes.slice() : Array(points.length - 1).fill(false);
+    const length = lengthOf(points);
     const segment = {
       id: `${network.planetId}:road:${network.nextSegmentId++}`,
       from: properties.from,
       to: properties.to,
       points,
       surfaceTypes,
-      length: lengthOf(points),
-      roadClass: properties.roadClass || 'standard'
+      length,
+      builtLength: Math.max(0, Math.min(length, Number.isFinite(properties.builtLength) ? properties.builtLength : 0)),
+      roadClass: properties.roadClass || 'main'
     };
     network.segments.push(segment);
     return segment;
@@ -175,6 +177,7 @@
     let leftPoints, rightPoints;
     let leftSurfaceTypes, rightSurfaceTypes;
     const surfaceTypes = segment.surfaceTypes || Array(segment.points.length - 1).fill(false);
+    const previousBuiltLength = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length;
     if (target.t < 1e-7) {
       leftPoints = segment.points.slice(0, target.edgeIndex + 1).map(copyPoint);
       rightPoints = segment.points.slice(target.edgeIndex).map(copyPoint);
@@ -195,8 +198,11 @@
     segment.points = leftPoints;
     segment.surfaceTypes = leftSurfaceTypes;
     segment.length = lengthOf(leftPoints);
+    segment.builtLength = Math.min(previousBuiltLength, segment.length);
+    const rightLength = lengthOf(rightPoints);
     addSegment(network, { from: junction.id, to: originalTo, points: rightPoints,
-      surfaceTypes: rightSurfaceTypes, roadClass: segment.roadClass });
+      surfaceTypes: rightSurfaceTypes, roadClass: segment.roadClass,
+      builtLength: Math.max(0, Math.min(rightLength, previousBuiltLength - segment.length)) });
     return junction;
   }
 
@@ -207,6 +213,7 @@
     segment.surfaceTypes = Array.isArray(surfaceTypes) && surfaceTypes.length === points.length - 1 &&
       surfaceTypes.every(value => typeof value === 'boolean') ? surfaceTypes.slice() : Array(points.length - 1).fill(false);
     segment.length = lengthOf(segment.points);
+    segment.builtLength = 0;
     return true;
   }
 
@@ -232,8 +239,11 @@
       const points = saved.points.map(copyPoint);
       const surfaceTypes = Array.isArray(saved.surfaceTypes) && saved.surfaceTypes.length === points.length - 1 &&
         saved.surfaceTypes.every(value => typeof value === 'boolean') ? saved.surfaceTypes.slice() : Array(points.length - 1).fill(false);
+      const length = lengthOf(points);
       network.segments.push({ id: saved.id, from: saved.from, to: saved.to, points,
-        surfaceTypes, length: lengthOf(points), roadClass: typeof saved.roadClass === 'string' ? saved.roadClass : 'standard' });
+        surfaceTypes, length,
+        builtLength: Number.isFinite(saved.builtLength) ? Math.max(0, Math.min(length, saved.builtLength)) : length,
+        roadClass: typeof saved.roadClass === 'string' ? saved.roadClass : 'standard' });
       const suffix = Number(saved.id.split(':road:').pop());
       if (Number.isInteger(suffix)) network.nextSegmentId = Math.max(network.nextSegmentId, suffix + 1);
     }
