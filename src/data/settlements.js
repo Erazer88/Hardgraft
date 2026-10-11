@@ -7,6 +7,7 @@
       maxStages: 48,
       roadLengthPerStage: 320,
       secondaryRoadLengthPerStage: 150,
+      secondaryToPrimaryRatio: .5,
       initialRouteStages: 2,
       initialBranchMinLength: 240,
       initialBranchMaxLength: 400,
