@@ -39,18 +39,19 @@
     ctx.stroke(); ctx.restore();
   }
 
-  function drawAsset(frame, item, widthWorld, opacity) {
+  function drawAsset(frame, item, widthWorld, opacity, paired = false) {
     if (!isVisible(frame, item.x, item.y, Style.cullMarginPx)) return;
     const image = imageFor(item.asset);
     if (!image?.complete || !image.naturalWidth) return;
     const size = widthWorld * frame.zoom;
     if (size < 1.6) return;
-    const variant = Number.isInteger(item.variant) && item.variant >= 0 && item.variant < 4
+    const variantCount = paired ? 2 : 4;
+    const variant = Number.isInteger(item.variant) && item.variant >= 0 && item.variant < variantCount
       ? item.variant : null;
-    const sourceWidth = variant === null ? image.naturalWidth : image.naturalWidth / 2;
+    const sourceWidth = variant === null || paired ? image.naturalWidth : image.naturalWidth / 2;
     const sourceHeight = variant === null ? image.naturalHeight : image.naturalHeight / 2;
-    const sourceX = variant === null ? 0 : (variant % 2) * sourceWidth;
-    const sourceY = variant === null ? 0 : Math.floor(variant / 2) * sourceHeight;
+    const sourceX = variant === null || paired ? 0 : (variant % 2) * sourceWidth;
+    const sourceY = variant === null ? 0 : (paired ? variant : Math.floor(variant / 2)) * sourceHeight;
     const center = frame.project(item.x, item.y), aspect = sourceWidth / sourceHeight;
     const width = size, height = size / aspect, ctx = frame.context;
     ctx.save(); ctx.globalAlpha = opacity; ctx.translate(center.x, center.y); ctx.rotate(item.rotation || 0);
@@ -62,13 +63,22 @@
     if (frame.zoom < Style.minZoom) return;
     const settlement = frame.state.surfaceSettlements?.[frame.planet.id];
     if (!settlement) return;
-    const roads = settlement.roads || [], roadById = new Map(roads.map(road => [road.id, road]));
+    const roads = settlement.roads || [], network = frame.state.roadNetworks?.[frame.planet.id];
+    const roadById = new Map([...roads, ...(network?.segments || [])].map(road => [road.id, road]));
+    const routeGroups = new Map();
+    for (const segment of network?.segments || []) {
+      if (segment.routeType === 'marine') continue;
+      const routeId = segment.routeId || segment.id, group = routeGroups.get(routeId) || [];
+      group.push(segment); routeGroups.set(routeId, group);
+    }
+    const completeMainRoutes = new Set([...routeGroups].filter(([, segments]) =>
+      segments.every(segment => segment.builtLength >= segment.length - 1e-6)).map(([routeId]) => routeId));
     for (const road of roads) drawRoad(frame, road);
     for (const district of settlement.districts || []) {
       const road = roadById.get(district.roadId);
-      if (road && road.builtLength >= district.roadDistance) {
-        drawAsset(frame, district, Style.districtWidthWorld, Style.spriteOpacity);
-      }
+      const ready = district.mainRoadAsset ? completeMainRoutes.has(district.routeId) :
+        road && road.builtLength >= district.roadDistance;
+      if (ready) drawAsset(frame, district, Style.districtWidthWorld, Style.spriteOpacity, true);
     }
     for (const house of settlement.houses || []) {
       const road = roadById.get(house.roadId);

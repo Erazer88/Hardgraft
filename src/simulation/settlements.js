@@ -12,10 +12,9 @@
     'assets/settlements/maison_02.webp',
     'assets/settlements/maison_03.webp'
   ]);
-  const DISTRICT_ASSETS = Object.freeze(['village', 'ville'].flatMap(scale =>
-    ['ligne_droite', 'carrefour_T', 'carrefour_croix'].map(layout =>
-      `assets/settlements/${scale}_${layout}.webp`)));
-  const VISUAL_VERSION = 5;
+  const DISTRICT_ASSETS = Object.freeze(['village', 'ville'].map(scale =>
+    `assets/settlements/${scale}_ligne_droite.webp`));
+  const VISUAL_VERSION = 6;
   const INDUSTRIAL_TYPES = new Set(['factory', 'extractor', 'oil_platform']);
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const copyPoint = point => ({ x: point.x, y: point.y });
@@ -203,11 +202,9 @@
       parentRoadId: candidate.hostKind === 'secondary' ? candidate.hostId : null, stage };
   }
 
-  function assetForDistrict(road, stage) {
+  function assetForDistrict(stage) {
     const scale = stage >= Config.growth.cityStage ? 'ville' : 'village';
-    const layout = road.type === 'branch' ? 'ligne_droite' :
-      stage % 4 === 0 ? 'carrefour_croix' : 'carrefour_T';
-    return `assets/settlements/${scale}_${layout}.webp`;
+    return `assets/settlements/${scale}_ligne_droite.webp`;
   }
 
   function isLand(terrain, textureScale, point) {
@@ -238,32 +235,69 @@
     return houses;
   }
 
-  function districtFor(road, stage, random, requestedDistance = Config.growth.districtRoadDistance, part = 'start') {
-    const roadDistance = Math.max(0, Math.min(road.length, requestedDistance));
-    const position = pointAtDistance(road.points, roadDistance);
-    const tangent = tangentAtDistance(road.points, roadDistance);
-    return { id: `${road.id}:district:${part}`, roadId: road.id, roadDistance,
-      x: position.x, y: position.y, rotation: Math.atan2(tangent.y, tangent.x),
-      variant: Math.floor(random() * 4), asset: assetForDistrict(road, stage) };
+  function districtOnMainRoute(routeId, segments, random, settlement, options) {
+    const mainSegments = segments.filter(segment => segment.routeType !== 'marine' && segment.roadClass !== 'secondary');
+    if (mainSegments.reduce((sum, segment) => sum + segment.length, 0) < Config.growth.districtMinMainRoadLength) return null;
+    const candidates = mainSegments.filter(segment => segment.length >= Config.growth.districtMinPlacementSegmentLength)
+      .sort((a, b) => b.length - a.length || a.id.localeCompare(b.id));
+    if (!candidates.length) return null;
+    const segment = candidates[0];
+    const roadDistance = segment.length * (.36 + random() * .28);
+    const anchor = pointAtDistance(segment.points, roadDistance);
+    const tangent = tangentAtDistance(segment.points, roadDistance);
+    const normal = { x: -tangent.y, y: tangent.x };
+    const rotation = Math.atan2(tangent.y, tangent.x);
+    const halfSpan = Config.render.districtWidthWorld * .38;
+    const side = random() < .5 ? 1 : -1;
+    const stage = settlement.generatedStage || 0;
+    for (const direction of [side, -side]) {
+      const position = { x: anchor.x + normal.x * direction * Config.growth.districtSideOffset,
+        y: anchor.y + normal.y * direction * Config.growth.districtSideOffset };
+      const samples = [position,
+        { x: position.x - tangent.x * halfSpan, y: position.y - tangent.y * halfSpan },
+        { x: position.x + tangent.x * halfSpan, y: position.y + tangent.y * halfSpan }];
+      if (!samples.every(point => isLand(options.terrain, options.baseField.textureScale, point))) continue;
+      if ((options.buildings || []).some(building => samples.some(point =>
+          distance(point, building) < Config.growth.minAnchorNodeDistance * .55))) continue;
+      return { id: `${routeId}:district`, roadId: segment.id, routeId, mainRoadAsset: true,
+        roadDistance, x: position.x, y: position.y, rotation,
+        variant: Math.floor(random() * 2), asset: assetForDistrict(stage) };
+    }
+    return null;
   }
 
-  function districtsFor(road, stage, random) {
-    if (road.length < Config.growth.districtMinRoadLength) return [];
-    const districts = [districtFor(road, stage, random)];
-    if (road.type === 'connector' && road.length > Config.growth.districtRoadDistance * 2 + 40) {
-      districts.push(districtFor(road, stage, random,
-        road.length - Config.growth.districtRoadDistance, 'end'));
+  function syncMainRoadDistricts(settlement, options) {
+    const existingRoutes = new Set((settlement.districts || [])
+      .filter(district => district.mainRoadAsset && typeof district.routeId === 'string')
+      .map(district => district.routeId));
+    const candidates = [];
+    for (const [routeId, segments] of completedRouteGroups(options.network)) {
+      if (existingRoutes.has(routeId)) continue;
+      const random = World.rng(World.hashSeed(`${options.seed}:${options.planetId}:settlement:main-road-pair:${routeId}`));
+      const include = random() < Config.growth.districtRouteChance;
+      const district = districtOnMainRoute(routeId, segments, random, settlement, options);
+      if (district) candidates.push({ district, include });
     }
-    return districts;
+    if (!candidates.length) return false;
+    let chosen = candidates.filter(candidate => candidate.include);
+    if (!chosen.length && !existingRoutes.size) {
+      const fallback = World.hashSeed(`${options.seed}:${options.planetId}:settlement:main-road-pair:fallback`) % candidates.length;
+      chosen = [candidates[fallback]];
+    }
+    const placed = [...(settlement.districts || [])];
+    let changed = false;
+    for (const candidate of chosen) {
+      if (placed.some(district => distance(district, candidate.district) < Config.growth.districtMinSpacing)) continue;
+      placed.push(candidate.district); changed = true;
+    }
+    if (changed) settlement.districts = placed;
+    return changed;
   }
 
   function migrateSettlementVisuals(settlement, options) {
     const roads = settlement.roads || [];
-    const missingDistrict = roads.some(road => road.length >= Config.growth.districtMinRoadLength &&
-      !(settlement.districts || []).some(district => district.roadId === road.id));
-    if (settlement.version >= VISUAL_VERSION && !missingDistrict &&
+    if (settlement.version >= VISUAL_VERSION &&
         Array.isArray(settlement.houses) && Array.isArray(settlement.districts)) return false;
-    const previousHouses = settlement.houses || [];
     settlement.houses = []; settlement.districts = [];
     for (let index = 0; index < roads.length; index++) {
       const road = roads[index];
@@ -271,9 +305,8 @@
       if (!Number.isInteger(road.stage)) road.stage = stageMatch ? Number(stageMatch[1]) : index + 1;
       const random = World.rng(World.hashSeed(`${options.seed}:${options.planetId}:settlement:visual:${road.id}`));
       const updatedHouses = createResidents(road, random, options.terrain, options.baseField.textureScale, options.buildings);
-      road.houses = updatedHouses.length ? updatedHouses : previousHouses.filter(house => house.roadId === road.id);
+      road.houses = updatedHouses;
       settlement.houses.push(...road.houses);
-      settlement.districts.push(...districtsFor(road, road.stage, random));
     }
     settlement.version = VISUAL_VERSION;
     return true;
@@ -291,6 +324,7 @@
     if (!settlement || settlement.planetId !== options.planetId) settlement = create(options.planetId);
     const previousVisualVersion = settlement.version || 1;
     let migrated = migrateSettlementVisuals(settlement, options);
+    migrated = syncMainRoadDistricts(settlement, options) || migrated;
     const metrics = growthMetrics(network, buildings, settlement);
     if (migrated && previousVisualVersion < 3 && metrics.score > 0 && settlement.generatedStage >= metrics.score) {
       settlement.generatedStage = metrics.score - 1;
@@ -323,7 +357,6 @@
     road.houses = createResidents(road, random, terrain, baseField.textureScale, buildings);
     settlement.roads.push(road);
     settlement.houses.push(...road.houses);
-    settlement.districts.push(...districtsFor(road, stage, random));
     settlement.generatedStage = stage;
     return { settlement, changed: true };
   }
@@ -373,12 +406,13 @@
       return [{ ...house }];
     });
     result.districts = (Array.isArray(saved.districts) ? saved.districts : []).flatMap(district => {
-      if (!district || typeof district.id !== 'string' || !roadById.has(district.roadId) ||
+      const mainRoadAsset = district?.mainRoadAsset === true && typeof district.routeId === 'string';
+      if (!district || typeof district.id !== 'string' || (!mainRoadAsset && !roadById.has(district.roadId)) ||
           !Number.isFinite(district.x) || !Number.isFinite(district.y) || !Number.isFinite(district.rotation) ||
           !Number.isFinite(district.roadDistance) || !validAsset(district.asset, DISTRICT_ASSETS)) return [];
-      const variant = Number.isInteger(district.variant) && district.variant >= 0 && district.variant < 4
-        ? district.variant : World.hashSeed(`settlement-district:${district.id}`) % 4;
-      return [{ ...district, variant }];
+      const variant = Number.isInteger(district.variant) && district.variant >= 0 && district.variant < 2
+        ? district.variant : World.hashSeed(`settlement-district:${district.id}`) % 2;
+      return [{ ...district, variant, mainRoadAsset }];
     });
     return result;
   }

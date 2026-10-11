@@ -24,12 +24,15 @@
       branchCandidateFractions: Object.freeze([.32, .5, .68]),
       pathRetries: 5,
       cityStage: 5,
-      districtMinRoadLength: 120,
+      districtMinMainRoadLength: 260,
+      districtMinPlacementSegmentLength: 90,
+      districtRouteChance: .12,
+      districtMinSpacing: 220,
       houseStartDistance: 54,
       houseMinSpacing: 15,
       houseMaxSpacing: 19,
-      houseSideOffset: 4.5,
-      districtRoadDistance: 11
+      houseSideOffset: 5.8,
+      districtSideOffset: 7.5
     }),
     construction: Object.freeze({ secondarySpeed: 4.2 }),
     render: Object.freeze({
