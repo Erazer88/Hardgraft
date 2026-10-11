@@ -37,15 +37,15 @@
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
     const materialDefinitions = [
-      { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: .28 },
-      { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: .34 },
-      { id: 'arid', src: 'assets/textures/terrain-arid-desert.webp', opacity: .32 },
-      { id: 'beach', src: 'assets/textures/terrain-coastal-sand.webp', opacity: .3 },
-      { id: 'alpine', src: 'assets/textures/terrain-alpine.webp', opacity: .34 },
-      { id: 'frozen', src: 'assets/textures/terrain-frozen.webp', opacity: .28 },
-      { id: 'volcanic', src: 'assets/textures/terrain-volcanic-basalt.webp', opacity: .4 },
-      { id: 'ocean', src: 'assets/textures/terrain-deep-ocean.webp', opacity: .32 },
-      { id: 'shelf', src: 'assets/textures/terrain-shallow-reef.webp', opacity: .25 }
+      { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: 1 },
+      { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: 1 },
+      { id: 'arid', src: 'assets/textures/terrain-arid-desert.webp', opacity: 1 },
+      { id: 'beach', src: 'assets/textures/terrain-coastal-sand.webp', opacity: 1 },
+      { id: 'alpine', src: 'assets/textures/terrain-alpine.webp', opacity: 1 },
+      { id: 'frozen', src: 'assets/textures/terrain-frozen.webp', opacity: 1 },
+      { id: 'volcanic', src: 'assets/textures/terrain-volcanic-basalt.webp', opacity: 1 },
+      { id: 'ocean', src: 'assets/textures/terrain-deep-ocean.webp', opacity: 1 },
+      { id: 'shelf', src: 'assets/textures/terrain-shallow-reef.webp', opacity: 1 }
     ];
     const materialImages = Object.create(null);
     const pendingMaterialTextures = new Set();
@@ -155,8 +155,10 @@
     function applyMaterialTextures(record) {
       if (record.materialsApplied || !materialImagesReady) return;
       const textureContext = record.texture.getContext('2d');
+      textureContext.clearRect(0, 0, record.texture.width, record.texture.height);
+      textureContext.drawImage(record.rawCanvas, 0, 0, record.texture.width, record.texture.height);
       textureContext.save();
-      textureContext.globalCompositeOperation = 'multiply';
+      textureContext.globalCompositeOperation = 'source-over';
       for (const definition of materialDefinitions) {
         const image = materialImages[definition.id];
         if (!image) continue;
@@ -164,7 +166,10 @@
         textureContext.drawImage(drawMaterialSample(record, definition, image), 0, 0);
       }
       textureContext.restore();
+      record.drawDetails(textureContext);
       record.materialsApplied = true;
+      record.rawCanvas = null;
+      record.drawDetails = null;
       pendingMaterialTextures.delete(record);
     }
 
@@ -285,45 +290,53 @@
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
-      const materialRecord = { planet, terrain: terrainData, texture: terrainTexture, coastDistance, materialsApplied: false };
+      const materialRecord = {
+        planet, terrain: terrainData, texture: terrainTexture, coastDistance, rawCanvas,
+        materialsApplied: false, drawDetails: null
+      };
+      function drawDetails(context) {
+        // Draw after materials so contour lines and forest marks remain crisp.
+        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
+        let edgeX = 0, edgeY = 0, pairing = false;
+        function contourEdge(x, y) {
+          if (pairing) {
+            context.moveTo(edgeX * textureScale, edgeY * textureScale);
+            context.lineTo(x * textureScale, y * textureScale);
+          } else { edgeX = x; edgeY = y; }
+          pairing = !pairing;
+        }
+        for (const level of contourLevels) {
+          const coastline = level === 103;
+          const indexContour = !coastline && (level - 48) % 20 === 0;
+          context.beginPath();
+          context.strokeStyle = coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544';
+          context.lineWidth = coastline ? 1.15 : indexContour ? .85 : .56;
+          for (let y = 0; y < height - 1; y++) for (let x = 0; x < width - 1; x++) {
+            const a = elevation[y * width + x], b = elevation[y * width + x + 1];
+            const d = elevation[(y + 1) * width + x], e = elevation[(y + 1) * width + x + 1];
+            const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
+            if (mask === 0 || mask === 15) continue;
+            pairing = false;
+            if ((a < level) !== (b < level)) contourEdge(x + (level - a) / (b - a), y);
+            if ((b < level) !== (e < level)) contourEdge(x + 1, y + (level - b) / (e - b));
+            if ((e < level) !== (d < level)) contourEdge(x + 1 - (level - e) / (d - e), y + 1);
+            if ((d < level) !== (a < level)) contourEdge(x, y + 1 - (level - d) / (a - d));
+          }
+          context.stroke();
+        }
+        const random = World.rng(planet.seed + 113);
+        for (let i = 0; i < 800; i++) {
+          const x = Math.floor(random() * width), y = Math.floor(random() * height), index = y * width + x;
+          if (elevation[index] > 113 && elevation[index] < 165 && moisture[index] > 139) {
+            dot(context, x * textureScale, y * textureScale, 1 + random() * 3.5, '#243e3327');
+          }
+        }
+      }
+      materialRecord.drawDetails = drawDetails;
       if (materialImagesReady) applyMaterialTextures(materialRecord);
-      else pendingMaterialTextures.add(materialRecord);
-
-      // Interpolated contour lines retain the topographic map at every zoom.
-      const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
-      let edgeX = 0, edgeY = 0, pairing = false;
-      function contourEdge(x, y) {
-        if (pairing) {
-          textureContext.moveTo(edgeX * textureScale, edgeY * textureScale);
-          textureContext.lineTo(x * textureScale, y * textureScale);
-        } else { edgeX = x; edgeY = y; }
-        pairing = !pairing;
-      }
-      for (const level of contourLevels) {
-        const coastline = level === 103;
-        const indexContour = !coastline && (level - 48) % 20 === 0;
-        textureContext.beginPath();
-        textureContext.strokeStyle = coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544';
-        textureContext.lineWidth = coastline ? 1.15 : indexContour ? .85 : .56;
-        for (let y = 0; y < height - 1; y++) for (let x = 0; x < width - 1; x++) {
-          const a = elevation[y * width + x], b = elevation[y * width + x + 1];
-          const d = elevation[(y + 1) * width + x], e = elevation[(y + 1) * width + x + 1];
-          const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
-          if (mask === 0 || mask === 15) continue;
-          pairing = false;
-          if ((a < level) !== (b < level)) contourEdge(x + (level - a) / (b - a), y);
-          if ((b < level) !== (e < level)) contourEdge(x + 1, y + (level - b) / (e - b));
-          if ((e < level) !== (d < level)) contourEdge(x + 1 - (level - e) / (d - e), y + 1);
-          if ((d < level) !== (a < level)) contourEdge(x, y + 1 - (level - d) / (a - d));
-        }
-        textureContext.stroke();
-      }
-      const random = World.rng(planet.seed + 113);
-      for (let i = 0; i < 800; i++) {
-        const x = Math.floor(random() * width), y = Math.floor(random() * height), index = y * width + x;
-        if (elevation[index] > 113 && elevation[index] < 165 && moisture[index] > 139) {
-          dot(textureContext, x * textureScale, y * textureScale, 1 + random() * 3.5, '#243e3327');
-        }
+      else {
+        drawDetails(textureContext);
+        pendingMaterialTextures.add(materialRecord);
       }
       return terrainTexture;
     }
