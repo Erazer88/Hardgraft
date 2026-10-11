@@ -514,6 +514,13 @@
     updateSceneContext(); updateUI(); persist();
   }
   let lastTap = { t: 0, x: 0, y: 0 };
+  function beginPinch() {
+    const points = [...pointers.values()].slice(0, 2);
+    if (points.length < 2) return;
+    pinch = { distance: distance(points[0], points[1]),
+      midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
+    pointerMoved = true;
+  }
   canvas.addEventListener('pointerdown', e => {
     if ($('menu-dialog').open) return;
     canvas.setPointerCapture(e.pointerId);
@@ -526,15 +533,12 @@
           startScreen: { x: e.clientX, y: e.clientY }, lastPreviewAt: -Infinity, target: null, preview: null } : null;
       } else {
         cancelRoadDrag(); pointerMoved = true;
+        if (pointers.size === 2) beginPinch();
       }
       return;
     }
     if (state.tool === 'build' && pointers.size === 1) updateBuildingPreview(e.clientX, e.clientY);
-    if (pointers.size === 2) {
-      const points = [...pointers.values()];
-      pinch = { distance: distance(points[0], points[1]), midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
-      pointerMoved = true;
-    }
+    if (pointers.size === 2) beginPinch();
   });
   canvas.addEventListener('pointermove', e => {
     if (!pointers.has(e.pointerId)) {
@@ -576,7 +580,7 @@
       pointerMoved = true;
       return;
     }
-    if (state.tool === 'road') { pointerMoved = true; return; }
+    if (state.tool === 'road') { if (pointerMoved) persist(); pointerMoved = true; return; }
     if (!cancelled && !pointerMoved && !wasPinch) {
       const now = performance.now(), double = now - lastTap.t < 340 && Math.hypot(lastTap.x - e.clientX, lastTap.y - e.clientY) < 24;
       clickMap(e.clientX, e.clientY, double); lastTap = { t: now, x: e.clientX, y: e.clientY };
