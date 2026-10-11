@@ -41,6 +41,18 @@ for asset in sorted((ROOT / 'assets').rglob('*')):
 if embedded_settlement_assets:
     manifest = '<script>globalThis.OrbitEmbeddedAssets = ' + json.dumps(embedded_settlement_assets) + ';</script>'
     html = html.replace('</head>', manifest + '</head>')
+worker_path = ROOT / 'src/workers/surfaceDetailWorker.js'
+worker_import = "importScripts('../data/worldgen.js', '../data/surfaceStyle.js', '../world.js',\n  '../rendering/surfaceMaterialMasks.js');"
+worker_source = worker_path.read_text()
+worker_sources = '\n'.join((ROOT / relative).read_text() for relative in (
+    'src/data/worldgen.js', 'src/data/surfaceStyle.js', 'src/world.js',
+    'src/rendering/surfaceMaterialMasks.js'))
+if worker_import not in worker_source:
+    raise ValueError('Surface detail worker imports changed; update its standalone bundle.')
+worker_source = worker_source.replace(worker_import, worker_sources)
+worker_data = json.dumps(worker_source).replace('</script', '<\\/script')
+html = html.replace('</head>', '<script>globalThis.OrbitSurfaceTerrainWorkerSource = ' +
+    worker_data + ';</script></head>')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)

@@ -89,7 +89,10 @@
   function prepareTerrain(planet, context = state.context) {
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
-      terrainTexture = renderer.createTerrainTexture(planet, terrainData);
+      terrainTexture = renderer.createTerrainTexture(planet, terrainData, {
+        skipContours: true,
+        retainMaterialMasks: true
+      });
       context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture, roadCostField: null });
     }
     const record = context.terrains.get(planet.id);
@@ -119,25 +122,49 @@
   }
   function prepareSurfaceDetail(planet, context = state.context) {
     const record = prepareTerrain(planet, context);
-    if (!record.detailTexture) {
+    if (!record.detailTexture && !record.detailPending && !record.detailFailed) {
       const detailFactor = Config.terrain.renderDetailFactor;
-      const detailedTerrain = World.createTerrain(planet.seed, record.data.width * detailFactor,
-        record.data.height * detailFactor, planet);
-      record.detailTexture = renderer.createTerrainTexture(planet, detailedTerrain, {
-        textureScale: (record.texture.logicalWidth || record.texture.width) * Config.terrain.renderTexturePixelRatio / detailedTerrain.width,
-        logicalWidth: record.texture.logicalWidth || record.texture.width,
-        logicalHeight: record.texture.logicalHeight || record.texture.height,
-        skipContours: true,
-        retainMaterialMasks: true
-      });
-      record.detailTerrain = detailedTerrain;
+      const detailedWidth = record.data.width * detailFactor;
+      const detailedHeight = record.data.height * detailFactor;
+      const textureScale = (record.texture.logicalWidth || record.texture.width) *
+        Config.terrain.renderTexturePixelRatio / detailedWidth;
+      const request = (record.detailRequest || 0) + 1;
+      record.detailRequest = request;
+      record.detailPending = true;
+      const startWhenIdle = () => {
+        if (record.detailRequest !== request) return;
+        if (cameraMoving()) {
+          requestAnimationFrame(startWhenIdle);
+          return;
+        }
+        renderer.createSurfaceDetail(planet, planet.seed, detailedWidth, detailedHeight, record.texture, {
+          textureScale,
+          logicalWidth: record.texture.logicalWidth || record.texture.width,
+          logicalHeight: record.texture.logicalHeight || record.texture.height
+        }).then(result => {
+          if (record.detailRequest !== request) return;
+          record.detailTerrain = result.terrain;
+          record.detailTexture = result.texture;
+          record.detailPending = false;
+        }).catch(error => {
+          if (record.detailRequest !== request) return;
+          record.detailPending = false;
+          if (error?.name === 'AbortError') return;
+          record.detailFailed = true;
+          console.warn('Le relief détaillé reste indisponible; la carte de base reste affichée.', error);
+        });
+      };
+      requestAnimationFrame(startWhenIdle);
     }
     return record;
   }
   function releaseSurfaceDetail(planet = state.planet, context = state.context) {
+    renderer.cancelSurfaceDetail();
     renderer.releaseSurfaceDetail();
     const record = planet && context?.terrains.get(planet.id);
     if (record) {
+      record.detailRequest = (record.detailRequest || 0) + 1;
+      record.detailPending = false;
       record.detailTexture = null;
       record.detailTerrain = null;
     }
@@ -954,7 +981,9 @@
     }
     completeMissions(now);
     state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
-    updateSceneContext(); renderUniverse(now);
+    updateSceneContext();
+    if (state.level === 'surface' && cameraMoving()) renderer.cancelSurfaceDetail();
+    renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     if (now - lastHUD > 350) { updateUI(); lastHUD = now; }
     requestAnimationFrame(frame);

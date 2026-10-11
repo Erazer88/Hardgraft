@@ -44,18 +44,6 @@
       return float(hashCell(cell, salt) & 0x00ffffffu) / 16777216.0;
     }
 
-    float channelAt(vec3 channels, int index) {
-      if (index == 0) return channels.r;
-      if (index == 1) return channels.g;
-      return channels.b;
-    }
-
-    float materialMask(vec3 group0, vec3 group1, vec3 group2, int material) {
-      if (material < 3) return channelAt(group0, material);
-      if (material < 6) return channelAt(group1, material - 3);
-      return channelAt(group2, material - 6);
-    }
-
     vec2 stochasticUv(vec2 coordinate, vec2 site, ivec2 cell, int material) {
       uint salt = uint(material + 1) * 0x9e3779b9u;
       float rotation = floor(randomCell(cell, salt) * 4.0);
@@ -76,13 +64,9 @@
       return texture(uBiomeTextures, vec3(uv, float(material))).rgb;
     }
 
-    vec3 sampleBiome(vec2 world, int material) {
-      vec2 coordinate = world / uTileWorldSize;
-      ivec2 cell = ivec2(floor(coordinate));
-      vec2 fraction = fract(coordinate);
-      const float seamWidth = 0.09;
-      float seamX = smoothstep(1.0 - seamWidth, 1.0, fraction.x);
-      float seamY = smoothstep(1.0 - seamWidth, 1.0, fraction.y);
+    vec3 sampleBiome(vec2 coordinate, ivec2 cell, vec2 fraction, vec2 seams, int material) {
+      float seamX = seams.x;
+      float seamY = seams.y;
       vec3 current = sampleBiomeSite(coordinate, cell, material);
       if (seamX > 0.0 && seamY > 0.0) {
         vec3 right = sampleBiomeSite(coordinate, cell + ivec2(1, 0), material);
@@ -97,6 +81,13 @@
       return current;
     }
 
+    void blendBiome(inout vec3 color, float coverage, vec2 coordinate,
+        ivec2 cell, vec2 fraction, vec2 seams, int material) {
+      if (coverage > 0.005) {
+        color = mix(color, sampleBiome(coordinate, cell, fraction, seams, material), coverage);
+      }
+    }
+
     void main() {
       vec2 screen = vec2(gl_FragCoord.x, uViewportSize.y - gl_FragCoord.y) / uPixelRatio;
       vec2 world = (screen - uMapOrigin) / uZoom;
@@ -104,16 +95,24 @@
       if (mapUv.x < 0.0 || mapUv.y < 0.0 || mapUv.x > 1.0 || mapUv.y > 1.0) discard;
 
       vec3 color = texture(uBaseColor, mapUv).rgb;
+      vec2 coordinate = world / uTileWorldSize;
+      ivec2 cell = ivec2(floor(coordinate));
+      vec2 fraction = fract(coordinate);
+      const float seamWidth = 0.09;
+      vec2 seams = vec2(smoothstep(1.0 - seamWidth, 1.0, fraction.x),
+        smoothstep(1.0 - seamWidth, 1.0, fraction.y));
       vec3 maskGroup0 = texture(uMaterialMasks, vec3(mapUv, 0.0)).rgb;
       vec3 maskGroup1 = texture(uMaterialMasks, vec3(mapUv, 1.0)).rgb;
       vec3 maskGroup2 = texture(uMaterialMasks, vec3(mapUv, 2.0)).rgb;
-      for (int material = 0; material < 9; material++) {
-        float coverage = materialMask(maskGroup0, maskGroup1, maskGroup2, material);
-        if (coverage > 0.005) {
-          vec3 textureColor = sampleBiome(world, material);
-          color = mix(color, textureColor, coverage);
-        }
-      }
+      blendBiome(color, maskGroup0.r, coordinate, cell, fraction, seams, 0);
+      blendBiome(color, maskGroup0.g, coordinate, cell, fraction, seams, 1);
+      blendBiome(color, maskGroup0.b, coordinate, cell, fraction, seams, 2);
+      blendBiome(color, maskGroup1.r, coordinate, cell, fraction, seams, 3);
+      blendBiome(color, maskGroup1.g, coordinate, cell, fraction, seams, 4);
+      blendBiome(color, maskGroup1.b, coordinate, cell, fraction, seams, 5);
+      blendBiome(color, maskGroup2.r, coordinate, cell, fraction, seams, 6);
+      blendBiome(color, maskGroup2.g, coordinate, cell, fraction, seams, 7);
+      blendBiome(color, maskGroup2.b, coordinate, cell, fraction, seams, 8);
       outputColor = vec4(color, 1.0);
     }
   `;
@@ -128,7 +127,7 @@
       depth: false,
       stencil: false,
       premultipliedAlpha: false,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
       powerPreference: 'high-performance'
     });
     if (!gl) return Object.freeze({ setMaterials() {}, draw() { return false; }, release() {} });
@@ -137,8 +136,11 @@
     let vertexArray = null;
     let locations = null;
     let biomeTexture = null;
+    let biomeUploadTexture = null;
+    let biomeUploadLayer = 0;
     let biomeImages = null;
     let activeSurface = null;
+    let pendingSurface = null;
     let contextLost = false;
     let disabled = false;
     let failedSurface = null;
@@ -217,26 +219,33 @@
 
     function uploadBiomeTextures() {
       if (contextLost || disabled || !biomeImages) return false;
+      if (biomeTexture) return true;
       const images = biomeImages;
       const width = images[0].naturalWidth || images[0].width;
       const height = images[0].naturalHeight || images[0].height;
       try {
-        if (biomeTexture) gl.deleteTexture(biomeTexture);
-        biomeTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D_ARRAY, biomeTexture);
-        configureSampler(gl.TEXTURE_2D_ARRAY, gl.MIRRORED_REPEAT, true);
+        if (!biomeUploadTexture) {
+          biomeUploadTexture = gl.createTexture();
+          biomeUploadLayer = 0;
+          gl.bindTexture(gl.TEXTURE_2D_ARRAY, biomeUploadTexture);
+          configureSampler(gl.TEXTURE_2D_ARRAY, gl.MIRRORED_REPEAT, false);
+          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_COUNT);
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D_ARRAY, biomeUploadTexture);
+        }
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        gl.texStorage3D(gl.TEXTURE_2D_ARRAY, Math.floor(Math.log2(Math.max(width, height))) + 1,
-          gl.RGB8, width, height, MATERIAL_COUNT);
-        for (let index = 0; index < images.length; index += 1) {
-          gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, index, width, height, 1,
-            gl.RGB, gl.UNSIGNED_BYTE, images[index]);
-        }
-        gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, biomeUploadLayer,
+          width, height, 1, gl.RGB, gl.UNSIGNED_BYTE, images[biomeUploadLayer]);
+        biomeUploadLayer += 1;
         if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas charger les textures de biome.');
+        if (biomeUploadLayer < images.length) return false;
+
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+        if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas finaliser les textures de biome.');
+        biomeTexture = biomeUploadTexture;
+        biomeUploadTexture = null;
         gl.useProgram(program);
         gl.uniform1i(locations.biomeTextures, 0);
         gl.uniform1i(locations.materialMasks, 1);
@@ -245,8 +254,9 @@
         gl.disable(gl.BLEND);
         return true;
       } catch (error) {
-        if (biomeTexture) gl.deleteTexture(biomeTexture);
-        biomeTexture = null;
+        if (biomeUploadTexture) gl.deleteTexture(biomeUploadTexture);
+        biomeUploadTexture = null;
+        biomeUploadLayer = 0;
         fail(error);
         return false;
       }
@@ -260,10 +270,12 @@
 
     function release() {
       deleteSurface(activeSurface);
+      deleteSurface(pendingSurface);
       activeSurface = null;
+      pendingSurface = null;
       failedSurface = null;
-      if (biomeTexture) gl.deleteTexture(biomeTexture);
-      biomeTexture = null;
+      // Biome atlases are shared across planets. Keep them resident so leaving
+      // and re-entering a surface does not trigger another large GPU upload.
       canvas.width = 1;
       canvas.height = 1;
     }
@@ -271,39 +283,65 @@
     function uploadSurface(key, baseCanvas, masks, seed) {
       if (!biomeTexture || !program || !baseCanvas) return false;
       if (activeSurface?.key === key) return true;
-      if (!masks) return false;
       if (failedSurface === key) return false;
-      deleteSurface(activeSurface);
-      activeSurface = null;
-      failedSurface = null;
-      const width = baseCanvas.width, height = baseCanvas.height;
-      if (!width || !height || width > gl.getParameter(gl.MAX_TEXTURE_SIZE) ||
-          height > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return false;
-      const maskTexture = gl.createTexture();
-      const baseTexture = gl.createTexture();
-      try {
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        gl.bindTexture(gl.TEXTURE_2D_ARRAY, maskTexture);
-        configureSampler(gl.TEXTURE_2D_ARRAY, gl.CLAMP_TO_EDGE, false);
-        gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_MASK_GROUPS);
-        for (let index = 0; index < MATERIAL_MASK_GROUPS; index += 1) {
-          const channels = masks[index];
-          if (!channels || channels.length !== width * height * 3) continue;
-          gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, index, width, height, 1,
-            gl.RGB, gl.UNSIGNED_BYTE, channels);
+      if (pendingSurface?.key !== key) {
+        deleteSurface(activeSurface);
+        deleteSurface(pendingSurface);
+        activeSurface = null;
+        pendingSurface = null;
+        failedSurface = null;
+        if (!masks) return false;
+        const width = baseCanvas.width, height = baseCanvas.height;
+        if (!width || !height || width > gl.getParameter(gl.MAX_TEXTURE_SIZE) ||
+            height > gl.getParameter(gl.MAX_TEXTURE_SIZE) ||
+            masks.length !== MATERIAL_MASK_GROUPS || masks.some(mask => mask.length !== width * height * 3)) return false;
+        const maskTexture = gl.createTexture();
+        const baseTexture = gl.createTexture();
+        try {
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+          gl.bindTexture(gl.TEXTURE_2D_ARRAY, maskTexture);
+          configureSampler(gl.TEXTURE_2D_ARRAY, gl.CLAMP_TO_EDGE, false);
+          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_MASK_GROUPS);
+          gl.bindTexture(gl.TEXTURE_2D, baseTexture);
+          // The base canvas is only magnified in the close-surface pass. Avoid
+          // building mipmaps that cost time and memory during the zoom.
+          configureSampler(gl.TEXTURE_2D, gl.CLAMP_TO_EDGE, false);
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+          if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas réserver la carte de relief.');
+          pendingSurface = { key, baseCanvas, masks, seed: seed >>> 0,
+            width, height, maskTexture, baseTexture, nextLayer: 0 };
+        } catch (error) {
+          gl.deleteTexture(maskTexture);
+          gl.deleteTexture(baseTexture);
+          failedSurface = key;
+          fail(error);
+          return false;
         }
+      }
 
-        gl.bindTexture(gl.TEXTURE_2D, baseTexture);
-        configureSampler(gl.TEXTURE_2D, gl.CLAMP_TO_EDGE, true);
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, baseCanvas);
-        gl.generateMipmap(gl.TEXTURE_2D);
+      const upload = pendingSurface;
+      try {
+        if (upload.nextLayer < MATERIAL_MASK_GROUPS) {
+          gl.bindTexture(gl.TEXTURE_2D_ARRAY, upload.maskTexture);
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+          gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, upload.nextLayer,
+            upload.width, upload.height, 1, gl.RGB, gl.UNSIGNED_BYTE, upload.masks[upload.nextLayer]);
+          upload.nextLayer += 1;
+          if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas charger les masques du relief.');
+          return false;
+        } else {
+          gl.bindTexture(gl.TEXTURE_2D, upload.baseTexture);
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, upload.baseCanvas);
+        }
         if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas charger la carte de relief.');
-        activeSurface = { key, maskTexture, baseTexture, seed: seed >>> 0 };
+        activeSurface = { key, maskTexture: upload.maskTexture,
+          baseTexture: upload.baseTexture, seed: upload.seed };
+        pendingSurface = null;
         return true;
       } catch (error) {
-        gl.deleteTexture(maskTexture);
-        gl.deleteTexture(baseTexture);
+        deleteSurface(upload);
+        pendingSurface = null;
         failedSurface = key;
         fail(error);
         return false;
@@ -357,7 +395,10 @@
       contextLost = true;
       disabled = true;
       activeSurface = null;
+      pendingSurface = null;
       biomeTexture = null;
+      biomeUploadTexture = null;
+      biomeUploadLayer = 0;
     });
 
     return Object.freeze({

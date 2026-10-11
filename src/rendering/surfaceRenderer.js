@@ -3,6 +3,7 @@
 
   const World = root.OrbitWorld, Config = root.OrbitConfig;
   const SurfaceStyle = root.OrbitSurfaceStyle;
+  const surfaceRendererScriptUrl = root.document?.currentScript?.src || '';
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
@@ -53,11 +54,105 @@
     let materialImagesReady = false;
     let detailContourCache = null;
     const materialIndices = Object.fromEntries(materialDefinitions.map((definition, index) => [definition.id, index]));
+    let detailWorker = null;
+    let detailWorkerUrl = null;
+    let detailWorkerDisabled = false;
+    let detailJobId = 0;
+    const detailJobs = new Map();
 
     function makeCanvas(width, height) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       return canvas;
+    }
+
+    function stopDetailWorker(error, disable = true) {
+      if (detailWorker) {
+        const worker = detailWorker;
+        detailWorker = null;
+        worker.onmessage = null;
+        worker.onerror = null;
+        worker.terminate();
+      }
+      if (detailWorkerUrl) root.URL.revokeObjectURL(detailWorkerUrl);
+      detailWorkerUrl = null;
+      for (const job of detailJobs.values()) job.reject(error);
+      detailJobs.clear();
+      if (disable) detailWorkerDisabled = true;
+    }
+
+    function cancelDetailWorker() {
+      if (!detailWorker || !detailJobs.size) return;
+      const error = new Error('Le calcul du relief a été interrompu pendant le déplacement.');
+      error.name = 'AbortError';
+      stopDetailWorker(error, false);
+    }
+
+    function createDetailWorker() {
+      if (detailWorker || detailWorkerDisabled || typeof root.Worker !== 'function') return detailWorker;
+      try {
+        let sourceUrl;
+        if (root.OrbitSurfaceTerrainWorkerSource && typeof root.Blob === 'function') {
+          detailWorkerUrl = root.URL.createObjectURL(new root.Blob(
+            [root.OrbitSurfaceTerrainWorkerSource], { type: 'text/javascript' }));
+          sourceUrl = detailWorkerUrl;
+        } else if (surfaceRendererScriptUrl) {
+          sourceUrl = new URL('../workers/surfaceDetailWorker.js', surfaceRendererScriptUrl).href;
+        } else {
+          sourceUrl = new URL('src/workers/surfaceDetailWorker.js', root.location.href).href;
+        }
+        detailWorker = new root.Worker(sourceUrl);
+        detailWorker.onmessage = event => {
+          const message = event.data || {};
+          if (message.type === 'ready') {
+            if (detailWorkerUrl) root.URL.revokeObjectURL(detailWorkerUrl);
+            detailWorkerUrl = null;
+            return;
+          }
+          const job = detailJobs.get(message.id);
+          if (!job) return;
+          detailJobs.delete(message.id);
+          if (message.error) job.reject(new Error(message.error));
+          else job.resolve({ terrain: message.terrain, masks: message.masks });
+        };
+        detailWorker.onerror = event => stopDetailWorker(new Error(
+          event.message || 'Impossible de préparer le relief détaillé en arrière-plan.'));
+        return detailWorker;
+      } catch (error) {
+        detailWorkerDisabled = true;
+        if (detailWorkerUrl) root.URL.revokeObjectURL(detailWorkerUrl);
+        detailWorkerUrl = null;
+        return null;
+      }
+    }
+
+    function generateSurfaceDetail(planet, seed, width, height, baseTexture, options = {}) {
+      const worker = createDetailWorker();
+      if (!worker) return Promise.reject(new Error('Le calcul du relief en arrière-plan est indisponible.'));
+      return new Promise((resolve, reject) => {
+        const id = ++detailJobId;
+        detailJobs.set(id, { resolve, reject });
+        try { worker.postMessage({ id, seed, width, height, planet }); }
+        catch (error) { detailJobs.delete(id); reject(error); }
+      }).then(({ terrain, masks }) => {
+        const baseCanvas = makeCanvas(terrain.width, terrain.height);
+        const baseContext = baseCanvas.getContext('2d');
+        baseContext.imageSmoothingEnabled = true;
+        baseContext.drawImage(baseTexture.baseColorCanvas || baseTexture,
+          0, 0, terrain.width, terrain.height);
+        const textureScale = options.textureScale || Config.terrain.textureScale;
+        return {
+          terrain,
+          texture: {
+            width: Math.round(terrain.width * textureScale),
+            height: Math.round(terrain.height * textureScale),
+            logicalWidth: options.logicalWidth || baseTexture.logicalWidth || baseTexture.width,
+            logicalHeight: options.logicalHeight || baseTexture.logicalHeight || baseTexture.height,
+            baseColorCanvas: baseCanvas,
+            materialMasks: masks
+          }
+        };
+      });
     }
 
     function createWaterDistanceField(terrain) {
@@ -377,10 +472,12 @@
       if (frame.zoom < 2 || typeof root.Path2D !== 'function') return;
       const { width, height, elevation } = terrain;
       const viewport = frame.viewport, top = frame.project(0, 0);
-      const detailFactor = Config.terrain.renderDetailFactor;
-      const subdivision = frame.zoom >= 3 ? 4 : 2;
-      const gridWidth = (width - 1) * subdivision + 1, gridHeight = (height - 1) * subdivision + 1;
-      const cellSize = Config.terrain.textureScale / detailFactor / subdivision;
+      const terrainFactor = frame.detailTerrainFactor || Config.terrain.renderDetailFactor;
+      // The terrain already has its final resolution; extra 2x/4x contour
+      // interpolation only multiplies per-frame geometry work.
+      const subdivision = 1;
+      const gridWidth = width, gridHeight = height;
+      const cellSize = Config.terrain.textureScale / terrainFactor;
       const minX = clamp(Math.floor((-top.x / frame.zoom) / cellSize) - 1, 0, gridWidth - 2);
       const maxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize) + 1, 0, gridWidth - 2);
       const minY = clamp(Math.floor((-top.y / frame.zoom) / cellSize) - 1, 0, gridHeight - 2);
@@ -391,22 +488,15 @@
       const visibleMaxY = clamp(Math.ceil(((viewport.height - top.y) / frame.zoom) / cellSize), 0, gridHeight - 2);
       const coversViewport = detailContourCache?.planetId === frame.planet.id &&
         detailContourCache.subdivision === subdivision &&
+        detailContourCache.terrainFactor === terrainFactor &&
+        detailContourCache.terrain === terrain &&
         visibleMinX >= detailContourCache.minX &&
         visibleMaxX <= detailContourCache.maxX && visibleMinY >= detailContourCache.minY &&
         visibleMaxY <= detailContourCache.maxY;
       if (!coversViewport && (!isCameraMoving || !isCameraMoving())) {
-        const sampleWidth = maxX - minX + 2, sampleHeight = maxY - minY + 2;
-        const samples = new Float32Array(sampleWidth * sampleHeight);
         let minimumElevation = Infinity, maximumElevation = -Infinity;
-        for (let y = 0; y < sampleHeight; y += 1) for (let x = 0; x < sampleWidth; x += 1) {
-          const sourceX = (minX + x) / subdivision, sourceY = (minY + y) / subdivision;
-          const x0 = Math.floor(sourceX), y0 = Math.floor(sourceY);
-          const x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(height - 1, y0 + 1);
-          const tx = sourceX - x0, ty = sourceY - y0;
-          const a = elevation[y0 * width + x0], b = elevation[y0 * width + x1];
-          const c = elevation[y1 * width + x0], d = elevation[y1 * width + x1];
-          const value = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-          samples[y * sampleWidth + x] = value;
+        for (let y = minY; y <= maxY + 1; y += 1) for (let x = minX; x <= maxX + 1; x += 1) {
+          const value = elevation[y * width + x];
           minimumElevation = Math.min(minimumElevation, value);
           maximumElevation = Math.max(maximumElevation, value);
         }
@@ -419,7 +509,7 @@
           const indexContour = !coastline && (level - 48) % 20 === 0;
           const contour = { level, path: new root.Path2D(),
             color: coastline ? '#e0c98b9c' : level < 102 ? '#9dd3df46' : indexContour ? '#20302265' : '#1e302544',
-            width: (coastline ? 1.15 : indexContour ? .85 : .56) / detailFactor };
+            width: (coastline ? 1.15 : indexContour ? .85 : .56) / terrainFactor };
           contourByIndex[index] = contour;
           contours.push(contour);
         }
@@ -427,9 +517,9 @@
         // Visit each visible cell once, then trace only the contour levels that
         // cross its local elevation range instead of rescanning it 40 times.
         for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
-          const index = (y - minY) * sampleWidth + x - minX;
-          const a = samples[index], b = samples[index + 1];
-          const d = samples[index + sampleWidth], e = samples[index + sampleWidth + 1];
+          const index = y * width + x;
+          const a = elevation[index], b = elevation[index + 1];
+          const d = elevation[index + width], e = elevation[index + width + 1];
           const cellMinimum = Math.min(a, b, d, e), cellMaximum = Math.max(a, b, d, e);
           const firstLevel = Math.max(0, Math.ceil((cellMinimum - 48) / 5));
           const lastLevel = Math.min(39, Math.floor((cellMaximum - 48) / 5));
@@ -462,7 +552,8 @@
             }
           }
         }
-        detailContourCache = { planetId: frame.planet.id, subdivision, minX, maxX, minY, maxY, contours };
+        detailContourCache = { planetId: frame.planet.id, terrain, terrainFactor,
+          subdivision, minX, maxX, minY, maxY, contours };
       }
       if (!detailContourCache || detailContourCache.planetId !== frame.planet.id) return;
       canvasContext.save();
@@ -502,9 +593,9 @@
 
     function makeSurfaceFrame(cam, planet, record) {
       const state = getState();
-      const useDetailedTexture = state.level === 'surface' && state.planet?.id === planet.id &&
-        cam.zoom >= 2 && record.detailTexture;
-      const terrainTexture = useDetailedTexture || record.texture;
+      const useSurfaceDetail = state.level === 'surface' && state.planet?.id === planet.id && cam.zoom >= 2;
+      const useDetailedTexture = useSurfaceDetail && record.detailTexture;
+      const terrainTexture = useDetailedTexture ? record.detailTexture : record.texture;
       return {
         context: canvasContext,
         camera: cam,
@@ -512,7 +603,10 @@
         planet,
         terrain: record.data,
         terrainTexture,
-        detailTerrain: useDetailedTexture ? record.detailTerrain : null,
+        detailTerrain: useSurfaceDetail ? (record.detailTerrain || record.data) : null,
+        detailTerrainFactor: record.detailTerrain ? Config.terrain.renderDetailFactor : 1,
+        fallbackTexture: record.texture,
+        surfaceDetail: useSurfaceDetail,
         terrainWidth: record.texture.logicalWidth || record.texture.width,
         terrainHeight: record.texture.logicalHeight || record.texture.height,
         state,
@@ -527,7 +621,7 @@
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
       const pixelRatio = canvasContext.canvas.width / frame.viewport.width;
-      const gpuRendered = frame.detailTerrain && frame.zoom >= 2 &&
+      const gpuRendered = frame.surfaceDetail && frame.zoom >= 2 &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
           baseCanvas: terrainTexture.baseColorCanvas,
@@ -542,11 +636,11 @@
           seed: World.hashSeed(String(frame.planet.seed) + ':stochastic-materials:v1')
         });
       if (gpuRendered) {
-        // The GPU texture replaces packed CPU masks; keep the baked canvas as a fallback.
-        terrainTexture.materialMasks = null;
+        // Keep the small base masks for instant re-entry; free the larger detail set.
+        if (terrainTexture !== frame.fallbackTexture) terrainTexture.materialMasks = null;
         canvasContext.drawImage(materialRenderer.canvas, 0, 0, frame.viewport.width, frame.viewport.height);
       } else {
-        canvasContext.drawImage(terrainTexture, top.x, top.y, width, height);
+        canvasContext.drawImage(frame.fallbackTexture || terrainTexture, top.x, top.y, width, height);
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       drawDetailContours(frame);
@@ -652,6 +746,8 @@
 
     return Object.freeze({
       createTerrainTexture,
+      createSurfaceDetail: generateSurfaceDetail,
+      cancelSurfaceDetail: cancelDetailWorker,
       drawPlanetTerrain,
       releaseDetail: () => materialRenderer.release()
     });

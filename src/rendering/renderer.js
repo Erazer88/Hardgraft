@@ -276,6 +276,8 @@
       render,
       prepareGalaxy,
       createTerrainTexture: surfaceRenderer.createTerrainTexture,
+      createSurfaceDetail: surfaceRenderer.createSurfaceDetail,
+      cancelSurfaceDetail: surfaceRenderer.cancelSurfaceDetail,
       releaseSurfaceDetail: surfaceRenderer.releaseDetail
     });
   }
