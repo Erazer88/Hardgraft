@@ -271,7 +271,13 @@
       ({ state, galaxy, home, contexts, visibleContexts, now } = scene);
       drawUniverse();
     }
-    return Object.freeze({ resize, render, prepareGalaxy, createTerrainTexture: surfaceRenderer.createTerrainTexture });
+    return Object.freeze({
+      resize,
+      render,
+      prepareGalaxy,
+      createTerrainTexture: surfaceRenderer.createTerrainTexture,
+      releaseSurfaceDetail: surfaceRenderer.releaseDetail
+    });
   }
   root.OrbitRenderer = Object.freeze({ create });
 })(globalThis);

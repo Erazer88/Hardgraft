@@ -17,7 +17,7 @@ cd /workspace/Hardgraft
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et JavaScript Canvas 2D ; aucune installation npm n'est requise.
+Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS, Canvas 2D et WebGL2 pour le rendu détaillé des surfaces ; aucune installation npm n'est requise. Les navigateurs sans WebGL2 conservent le rendu de carte intégré.
 
 ## Navigation
 

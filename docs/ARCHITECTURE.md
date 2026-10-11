@@ -34,6 +34,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/navigation/camera.js` | Projections, repères locaux, zoom et caméra de surface |
 | `src/rendering/renderer.js` | Orchestration du rendu de galaxie, des systèmes et des couches planétaires |
 | `src/rendering/surfaceRenderer.js` | Matières procédurales, éclairage du relief, sélection et labels planétaires |
+| `src/rendering/surfaceMaterialRenderer.js` | Échantillonnage WebGL2 continu des textures de biome, lié aux coordonnées du terrain avec filtrage stochastique |
 | `src/rendering/roadRenderer.js` | Traits terrestres, points maritimes et points d'intersection |
 | `src/rendering/settlementRenderer.js` | Rues secondaires et sprites de lotissements planétaires |
 | `src/rendering/buildingRenderer.js` | Empreintes, aperçus, ancres et cartes des bâtiments |
@@ -41,7 +42,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/ui/hud.js` | Sélection, télémétrie, menus et échelle |
 | `src/app.js` | Gestes, navigation, boucle de rendu et raccord entre modules |
 
-`index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`.
+`index.html` fixe l'ordre de chargement. `build.py` intègre ces mêmes scripts et `styles.css` dans les exports autonomes du dossier `dist/`. Le rendu de surface détaillé utilise WebGL2 pour rééchantillonner les matières à chaque image pendant le déplacement ; Canvas reste responsable du relief, des contours et des calques interactifs, et le terrain intégré sert de repli si WebGL2 est indisponible.
 
 Les rues résidentielles sont générées de façon déterministe à partir des axes terrestres achevés et des bâtiments industriels raccordés. Leur progression et leur rendu restent dans une couche séparée du réseau manuel, mais leurs tronçons déjà construits peuvent servir de points d'accroche pour une route tracée par le joueur. Les cul-de-sac finissent par un mini-rond-point, et les rues secondaires se construisent à une vitesse inférieure à l'axe principal.
 

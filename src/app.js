@@ -135,6 +135,7 @@
     return record;
   }
   function releaseSurfaceDetail(planet = state.planet, context = state.context) {
+    renderer.releaseSurfaceDetail();
     const record = planet && context?.terrains.get(planet.id);
     if (record) {
       record.detailTexture = null;

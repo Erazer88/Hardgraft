@@ -36,6 +36,7 @@
 
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, isCameraMoving, layers } = dependencies;
+    const materialRenderer = root.OrbitSurfaceMaterialRenderer.create();
     const materialDefinitions = [
       { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: 1 },
       { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: 1 },
@@ -213,6 +214,7 @@
         pending -= 1;
         if (pending > 0) return;
         materialImagesReady = true;
+        materialRenderer.setMaterials(materialDefinitions.map(definition => materialImages[definition.id]));
         for (const record of [...pendingMaterialTextures]) applyMaterialTextures(record);
       };
       for (const definition of materialDefinitions) {
@@ -609,13 +611,37 @@
     function drawTerrain(frame) {
       const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
-      const detailOverlay = drawDetailMaterialOverlay(frame, top);
-      const baseTexture = detailOverlay && terrainTexture.baseColorCanvas
-        ? terrainTexture.baseColorCanvas : terrainTexture;
       canvasContext.imageSmoothingEnabled = true;
-      canvasContext.drawImage(baseTexture, top.x, top.y, width, height);
-      if (detailOverlay) {
-        canvasContext.drawImage(detailOverlay, 0, 0, frame.viewport.width, frame.viewport.height);
+      const masks = terrainTexture.materialMasks;
+      const detailMaskLayers = masks && materialDefinitions.map(definition => masks[definition.id] || null);
+      const pixelRatio = canvasContext.canvas.width / frame.viewport.width;
+      const gpuRendered = frame.detailTerrain && frame.zoom >= 2 && detailMaskLayers &&
+        materialRenderer.draw({
+          detailTexture: terrainTexture,
+          baseCanvas: terrainTexture.baseColorCanvas,
+          materialMasks: detailMaskLayers,
+          viewport: frame.viewport,
+          pixelRatio,
+          top,
+          zoom: frame.zoom,
+          mapSize: { width: terrainWidth, height: terrainHeight },
+          tileWorldSize: (materialImages[materialDefinitions[0].id]?.naturalWidth || 1254) /
+            Config.terrain.materialTexturePixelsPerKm,
+          seed: World.hashSeed(String(frame.planet.seed) + ':stochastic-materials:v1')
+        });
+      if (gpuRendered) {
+        // The GPU mask layers replace nine full-size CPU alpha maps. The
+        // original baked canvas remains available as a fallback if WebGL is lost.
+        for (const definition of materialDefinitions) delete masks[definition.id];
+        canvasContext.drawImage(materialRenderer.canvas, 0, 0, frame.viewport.width, frame.viewport.height);
+      } else {
+        const detailOverlay = drawDetailMaterialOverlay(frame, top);
+        const baseTexture = detailOverlay && terrainTexture.baseColorCanvas
+          ? terrainTexture.baseColorCanvas : terrainTexture;
+        canvasContext.drawImage(baseTexture, top.x, top.y, width, height);
+        if (detailOverlay) {
+          canvasContext.drawImage(detailOverlay, 0, 0, frame.viewport.width, frame.viewport.height);
+        }
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       drawDetailContours(frame);
@@ -719,7 +745,11 @@
       canvasContext.restore();
     }
 
-    return Object.freeze({ createTerrainTexture, drawPlanetTerrain });
+    return Object.freeze({
+      createTerrainTexture,
+      drawPlanetTerrain,
+      releaseDetail: () => materialRenderer.release()
+    });
   }
 
   root.OrbitSurfaceRenderer = Object.freeze({ create });
