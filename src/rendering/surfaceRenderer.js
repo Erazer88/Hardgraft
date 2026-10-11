@@ -25,8 +25,8 @@
   const CLIMATE_LOOKUP = Array.from({ length: CLIMATE_LOOKUP_MAX - CLIMATE_LOOKUP_MIN + 1 }, (_, index) => {
     const temperature = CLIMATE_LOOKUP_MIN + index;
     let upper = CLIMATE_BANDS.findIndex(band => band.temperature >= temperature);
-    if (upper <= 0) return CLIMATE_BANDS[0].colors;
     if (upper < 0) return CLIMATE_BANDS.at(-1).colors;
+    if (upper === 0) return CLIMATE_BANDS[0].colors;
     const lowerBand = CLIMATE_BANDS[upper - 1], upperBand = CLIMATE_BANDS[upper];
     const mix = clamp((temperature - lowerBand.temperature) /
       (upperBand.temperature - lowerBand.temperature), 0, 1);
@@ -37,9 +37,15 @@
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
     const materialDefinitions = [
-      { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: .34 },
-      { id: 'alpine', src: 'assets/textures/terrain-alpine.webp', opacity: .36 },
-      { id: 'ocean', src: 'assets/textures/terrain-deep-ocean.webp', opacity: .34 }
+      { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: .28 },
+      { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: .34 },
+      { id: 'arid', src: 'assets/textures/terrain-arid-desert.webp', opacity: .32 },
+      { id: 'beach', src: 'assets/textures/terrain-coastal-sand.webp', opacity: .3 },
+      { id: 'alpine', src: 'assets/textures/terrain-alpine.webp', opacity: .34 },
+      { id: 'frozen', src: 'assets/textures/terrain-frozen.webp', opacity: .28 },
+      { id: 'volcanic', src: 'assets/textures/terrain-volcanic-basalt.webp', opacity: .4 },
+      { id: 'ocean', src: 'assets/textures/terrain-deep-ocean.webp', opacity: .32 },
+      { id: 'shelf', src: 'assets/textures/terrain-shallow-reef.webp', opacity: .25 }
     ];
     const materialImages = Object.create(null);
     const pendingMaterialTextures = new Set();
@@ -76,25 +82,50 @@
 
     function materialMask(record, materialId) {
       const { width, height, elevation, moisture, seaLevel } = record.terrain;
+      const coastDistance = record.coastDistance;
       const mask = makeCanvas(width, height), maskContext = mask.getContext('2d');
       const pixels = maskContext.createImageData(width, height);
       const averageTemperature = Number.isFinite(record.planet.temperature) ? record.planet.temperature : 18;
       const climate = SurfaceStyle.climate;
+      const frozenWorld = record.planet.kind === 'glacée';
+      const aridWorld = record.planet.kind === 'aride';
+      const volcanicWorld = record.planet.kind === 'volcanique';
       for (let i = 0; i < elevation.length; i += 1) {
         const value = elevation[i], aboveSea = value - seaLevel;
         const localTemperature = averageTemperature - Math.max(0, aboveSea) * SurfaceStyle.terrain.temperatureLapsePerElevation;
+        const snow = clamp((climate.snowlineStartTemperature - localTemperature + 2) / 14, 0, 1);
+        const humidity = moisture[i] / 255;
+        const vegetation = clamp((localTemperature - climate.vegetationTemperatureRange[0]) / 13, 0, 1) *
+          clamp((climate.vegetationTemperatureRange[1] - localTemperature) / 18, 0, 1);
+        const plain = transition(aboveSea, 3, 24) * (1 - transition(aboveSea, 84, 142));
         let alpha = 0;
         if (materialId === 'ocean' && value <= seaLevel) {
-          alpha = transition(seaLevel - value, 10, 62) * .88;
+          alpha = transition(seaLevel - value, 34, 78) * .88;
+        } else if (materialId === 'shelf' && value <= seaLevel) {
+          const shallow = 1 - transition(seaLevel - value, 8, 52);
+          const nearCoast = 1 - transition(coastDistance[i], 3, 30);
+          const warmWater = clamp((averageTemperature + 12) / 42, 0, 1);
+          alpha = shallow * (.22 + nearCoast * .78) * warmWater;
+        } else if (materialId === 'beach' && aboveSea > 0) {
+          alpha = (1 - transition(aboveSea, 1, 11)) * (1 - transition(snow, .08, .58));
         } else if (materialId === 'lowlands' && aboveSea > 0) {
-          const humidity = moisture[i] / 255;
-          const vegetation = clamp((localTemperature - climate.vegetationTemperatureRange[0]) / 13, 0, 1) *
-            clamp((climate.vegetationTemperatureRange[1] - localTemperature) / 18, 0, 1);
-          const plain = transition(aboveSea, 3, 24) * (1 - transition(aboveSea, 84, 142));
-          alpha = plain * (.12 + humidity * .88) * vegetation;
+          const forestMoisture = clamp((humidity - .18) / .55, 0, 1) *
+            (1 - transition(humidity, .68, .92));
+          alpha = plain * forestMoisture * vegetation;
+        } else if (materialId === 'wetlands' && aboveSea > 0) {
+          const waterlogged = clamp((humidity - .57) / .43, 0, 1);
+          alpha = plain * waterlogged * vegetation;
+        } else if (materialId === 'arid' && aboveSea > 0) {
+          const dryness = clamp((.63 - humidity) * 2.5, 0, 1);
+          const heat = clamp((localTemperature - 8) / 42, 0, 1);
+          const desert = aridWorld ? .96 : dryness * (.35 + heat * .65);
+          alpha = plain * desert * (1 - snow);
         } else if (materialId === 'alpine' && aboveSea > 0) {
-          const snow = clamp((climate.snowlineStartTemperature - localTemperature + 2) / 14, 0, 1);
-          alpha = transition(aboveSea, 52, 108) * (1 - transition(snow, .28, .7));
+          alpha = volcanicWorld ? 0 : transition(aboveSea, 52, 108) * (1 - transition(snow, .28, .7));
+        } else if (materialId === 'frozen' && aboveSea > 0) {
+          alpha = frozenWorld ? Math.max(snow, .74) : snow;
+        } else if (materialId === 'volcanic' && aboveSea > 0) {
+          alpha = volcanicWorld ? 1 : 0;
         }
         const pixel = i * 4;
         pixels.data[pixel] = pixels.data[pixel + 1] = pixels.data[pixel + 2] = 255;
@@ -254,7 +285,7 @@
       const textureContext = terrainTexture.getContext('2d');
       textureContext.imageSmoothingEnabled = true;
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
-      const materialRecord = { planet, terrain: terrainData, texture: terrainTexture, materialsApplied: false };
+      const materialRecord = { planet, terrain: terrainData, texture: terrainTexture, coastDistance, materialsApplied: false };
       if (materialImagesReady) applyMaterialTextures(materialRecord);
       else pendingMaterialTextures.add(materialRecord);
 

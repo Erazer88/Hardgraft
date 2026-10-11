@@ -76,12 +76,13 @@ dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 Le rendu interpole une palette de couleurs par température, altitude et
 humidité. L'éclairage directionnel est calculé depuis les pentes et la
 courbure du terrain ; un bruit albédo déterministe varie selon la graine du
-monde. Trois textures aériennes WebP, créées pour le projet, détaillent les
-plaines boisées, les montagnes alpines et les océans profonds. Le rendu les
-masque selon l'altitude, la neige et l'humidité, puis les multiplie à faible
-opacité pour garder les couleurs du biome sans voile. Les fonds marins passent
-du turquoise du plateau continental au bleu profond, et la neige apparaît selon
-la température locale et l'altitude.
+monde. Neuf textures aériennes WebP, créées pour le projet, détaillent les
+plaines boisées et marécageuses, les déserts, les plages, les montagnes et les
+glaciers, les terrains volcaniques, les hauts fonds coralliens et les océans
+profonds. Le rendu les masque selon l'altitude, la température, la neige,
+l'humidité et la profondeur, puis les multiplie à faible opacité pour garder les
+couleurs du biome sans voile. La palette climatique couvre aussi les surfaces
+au-delà de 180 °C.
 
 ## Départ viable et sauvegardes
 
