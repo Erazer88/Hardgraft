@@ -29,7 +29,7 @@
       description: 'Relie les quais maritimes au réseau de camions.',
       functions: { transfersShipTruck: true },
       footprint: { width: 36, height: 28 }, roadRequired: true,
-      roadPortOffset: { x: 0, y: 16 }, seaFacingOffset: { x: 0, y: -14 },
+      roadPortOffset: { x: 0, y: 16 }, seaFacingOffset: { x: 0, y: -24 },
       placementRules: { landOnly: true, coastRequired: true },
       preferredTerrain: ['coast', 'flat']
     },
@@ -39,7 +39,7 @@
       description: 'Extrait les ressources des grands fonds marins.',
       functions: { extractsOffshoreResources: true },
       footprint: { width: 46, height: 38 }, roadRequired: false,
-      marinePortOffset: { x: 0, y: -18 },
+      marinePortOffset: { x: 0, y: -24 },
       placementRules: { deepWaterOnly: true, deepWaterMargin: 10 },
       preferredTerrain: ['deep-water']
     },

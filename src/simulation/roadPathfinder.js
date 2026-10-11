@@ -75,7 +75,7 @@
     const startState = start.index * 9 + NONE;
     best[startState] = 0;
     const heap = new MinHeap(Math.min(4096, Math.max(64, stateCount)));
-    const minCost = Config.weights.roadReuse;
+    const minCost = Number.isFinite(field.minimumCost) ? field.minimumCost : Config.weights.roadReuse;
     const heuristic = index => {
       const x = index % field.width, y = Math.floor(index / field.width);
       return Math.hypot(goal.x - x, goal.y - y) * minCost;

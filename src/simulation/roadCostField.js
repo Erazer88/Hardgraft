@@ -40,6 +40,15 @@
       costs, blocked, elevations, water };
   }
 
+  function createMarine(base) {
+    const costs = new Float32Array(base.costs), blocked = new Uint8Array(base.blocked);
+    for (let index = 0; index < base.count; index++) {
+      blocked[index] = base.water[index] ? 0 : 1;
+      costs[index] = base.water[index] ? Config.marine.waterCost : Infinity;
+    }
+    return { ...base, costs, blocked, minimumCost: Config.marine.waterCost };
+  }
+
   function pointToCell(field, point) {
     return {
       x: clamp(Math.round(point.x / field.cellWorld), 0, field.width - 1),
@@ -119,5 +128,5 @@
     return { ...base, costs, blocked };
   }
 
-  root.OrbitRoadCostField = Object.freeze({ createBase, withNetwork, pointToCell, cellIndex });
+  root.OrbitRoadCostField = Object.freeze({ createBase, createMarine, withNetwork, pointToCell, cellIndex });
 })(globalThis);

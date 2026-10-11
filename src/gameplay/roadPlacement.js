@@ -26,6 +26,18 @@
     });
   }
 
+  function marinePair(from, to, buildings) {
+    const a = buildingFor(from, buildings), b = buildingFor(to, buildings);
+    return Boolean((a?.type === 'oil_platform' && b?.type === 'surface_port') ||
+      (b?.type === 'oil_platform' && a?.type === 'surface_port'));
+  }
+
+  function marineEndpoint(endpoint, buildings) {
+    const building = buildingFor(endpoint, buildings), point = building?.waterPort;
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    return { ...endpoint, point: { ...point }, connectionMode: 'marine' };
+  }
+
   function sameSegmentGap(network, from, to) {
     const a = from?.connection, b = to?.connection;
     if (a?.kind === 'segment' && b?.kind === 'segment' && a.id === b.id) {
@@ -58,17 +70,29 @@
   }
 
   function previewBetween({ network, from, to, terrain, baseField, buildings }) {
-    const problem = validateEndpoints({ network, from, to });
+    const fromBuilding = buildingFor(from, buildings), toBuilding = buildingFor(to, buildings);
+    const hasOilPlatform = fromBuilding?.type === 'oil_platform' || toBuilding?.type === 'oil_platform';
+    const isMarine = marinePair(from, to, buildings);
+    if (hasOilPlatform && !isMarine) {
+      return { connected: false, reason: 'Une plateforme pétrolière doit être reliée à un port de surface.' };
+    }
+    const routeFrom = isMarine ? marineEndpoint(from, buildings) : from;
+    const routeTo = isMarine ? marineEndpoint(to, buildings) : to;
+    if (!routeFrom || !routeTo) return { connected: false, reason: 'Point de raccordement maritime indisponible.' };
+    const problem = validateEndpoints({ network, from: routeFrom, to: routeTo });
     if (problem) return { connected: false, reason: problem };
-    const allowDeepWater = endpointIsPort(from, network, buildings) && endpointIsPort(to, network, buildings);
-    // The player already chose both junctions. Penalize the existing built
-    // road corridors so a new connector does not simply redraw the same line.
-    const field = CostField.withNetwork(baseField, network, buildings, [from.point, to.point], null,
-      { allowDeepWater, avoidExistingRoads: true, builtRoadsOnly: true });
-    const rawPath = Pathfinder.findPath(field, terrain, from.point, to.point);
-    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
+    const allowDeepWater = isMarine || (endpointIsPort(from, network, buildings) && endpointIsPort(to, network, buildings));
+    // Maritime routes use a water-only field, so their A* path is the shortest
+    // navigable route. Land routes avoid duplicating existing corridors.
+    const field = isMarine
+      ? CostField.createMarine(baseField)
+      : CostField.withNetwork(baseField, network, buildings, [routeFrom.point, routeTo.point], null,
+        { allowDeepWater, avoidExistingRoads: true, builtRoadsOnly: true });
+    const rawPath = Pathfinder.findPath(field, terrain, routeFrom.point, routeTo.point);
+    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings,
+      { allowDeepWater, waterOnly: isMarine });
     if (!route) return { connected: false, reason: 'Aucun tracé valide ne relie ces deux points.' };
-    return { connected: true, from, to, ...route };
+    return { connected: true, from: routeFrom, to: routeTo, routeType: isMarine ? 'marine' : 'land', ...route };
   }
 
   function copyNetwork(network) {
@@ -82,8 +106,11 @@
 
   function attachEndpoint(network, endpoint) {
     if (endpoint.kind === 'building') {
-      const existing = network.nodes.find(node => node.buildingId === endpoint.buildingId);
-      return existing || Network.addNode(network, { ...endpoint.point, type: 'building', buildingId: endpoint.buildingId });
+      const connectionMode = endpoint.connectionMode === 'marine' ? 'marine' : 'land';
+      const existing = network.nodes.find(node => node.buildingId === endpoint.buildingId &&
+        (node.connectionMode || 'land') === connectionMode);
+      return existing || Network.addNode(network, { ...endpoint.point,
+        type: connectionMode === 'marine' ? 'marine-port' : 'building', buildingId: endpoint.buildingId, connectionMode });
     }
     const target = Network.nearestConnection(network, endpoint.point);
     if (!target || target.distance > .05) return null;
@@ -94,14 +121,14 @@
     const route = preview?.connected ? preview : previewBetween({ network, from, to, terrain, baseField, buildings });
     if (!route.connected) return route;
     const draft = copyNetwork(network);
-    const fromNode = attachEndpoint(draft, from), toNode = attachEndpoint(draft, to);
+    const fromNode = attachEndpoint(draft, route.from || from), toNode = attachEndpoint(draft, route.to || to);
     if (!fromNode || !toNode) return { connected: false, reason: 'Une extrémité ne rejoint plus le réseau.' };
     if (fromNode.id === toNode.id) return { connected: false, reason: 'Les deux extrémités rejoignent déjà le même nœud.' };
     const segment = Network.addSegment(draft, { from: fromNode.id, to: toNode.id,
-      points: route.points, surfaceTypes: route.surfaceTypes });
+      points: route.points, surfaceTypes: route.surfaceTypes, routeType: route.routeType || 'land' });
     network.nextNodeId = draft.nextNodeId; network.nextSegmentId = draft.nextSegmentId;
     network.nodes = draft.nodes; network.segments = draft.segments;
-    return { connected: true, segment, points: route.points, surfaceTypes: route.surfaceTypes };
+    return { connected: true, segment, points: route.points, surfaceTypes: route.surfaceTypes, routeType: route.routeType || 'land' };
   }
 
   root.OrbitRoadPlacement = Object.freeze({ previewBetween, createBetween, config: Config });

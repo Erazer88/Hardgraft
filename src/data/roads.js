@@ -33,6 +33,7 @@
       buildingClearance: 2
     }),
     search: Object.freeze({ maxExpandedStates: 500000 }),
+    marine: Object.freeze({ waterCost: .65 }),
     network: Object.freeze({
       snapDistance: 6.5,
       minimumSameRouteSeparation: 48
@@ -68,6 +69,10 @@
       waterDotSpacingPx: 7,
       junctionColor: '#f2f4ef',
       junctionRadiusPx: 2.1,
+      marineColor: '#f2f4ef',
+      marineOpacity: .6,
+      marineWidthPx: 1.25,
+      marineDashPx: Object.freeze([6, 5]),
       constructionColor: '#f3b46b',
       constructionPulsePeriodMs: 1450,
       constructionPulseRadiusPx: 5.5,

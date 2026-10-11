@@ -115,6 +115,7 @@
       if (point.x < 0 || point.y < 0 || point.x > maxX || point.y > maxY) return false;
       const height = elevationAt(terrain, textureScale, point.x, point.y);
       const water = height <= terrain.seaLevel;
+      if (options.waterOnly && !water) return false;
       if (!options.allowDeepWater && height < terrain.seaLevel - rules.maxWaterDepth) return false;
       for (const building of buildings) {
         const footprint = Buildings.get(building.type)?.footprint;

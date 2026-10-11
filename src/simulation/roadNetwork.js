@@ -28,6 +28,7 @@
       id: `${network.planetId}:node:${network.nextNodeId++}`,
       type: properties.type || 'building',
       buildingId: properties.buildingId || null,
+      connectionMode: properties.connectionMode === 'marine' ? 'marine' : 'land',
       x: properties.x,
       y: properties.y
     };
@@ -77,6 +78,7 @@
       length,
       builtLength: Math.max(0, Math.min(length, Number.isFinite(properties.builtLength) ? properties.builtLength : 0)),
       roadClass: properties.roadClass || 'main',
+      routeType: properties.routeType === 'marine' ? 'marine' : 'land',
       constructionPrerequisite: constructionPrerequisite(properties.constructionPrerequisite, network)
     };
     network.segments.push(segment);
@@ -232,7 +234,8 @@
     if (target.t < 1e-7 && target.edgeIndex === 0) return from;
     if (target.t > 1 - 1e-7 && target.edgeIndex === segment.points.length - 2) return to;
 
-    const junction = addNode(network, { ...target.point, type: 'intersection' });
+    const junction = addNode(network, { ...target.point, type: 'intersection',
+      connectionMode: segment.routeType === 'marine' ? 'marine' : 'land' });
     const originalTo = segment.to;
     let leftPoints, rightPoints;
     let leftSurfaceTypes, rightSurfaceTypes;
@@ -262,6 +265,7 @@
     const rightLength = lengthOf(rightPoints);
     addSegment(network, { from: junction.id, to: originalTo, points: rightPoints,
       surfaceTypes: rightSurfaceTypes, roadClass: segment.roadClass,
+      routeType: segment.routeType,
       constructionPrerequisite: segment.constructionPrerequisite,
       builtLength: Math.max(0, Math.min(rightLength, previousBuiltLength - segment.length)) });
     return junction;
@@ -286,7 +290,8 @@
       if (!saved || typeof saved.id !== 'string' || !finitePoint(saved) || seenNodes.has(saved.id)) continue;
       seenNodes.add(saved.id);
       network.nodes.push({ id: saved.id, type: typeof saved.type === 'string' ? saved.type : 'building',
-        buildingId: typeof saved.buildingId === 'string' ? saved.buildingId : null, x: saved.x, y: saved.y });
+        buildingId: typeof saved.buildingId === 'string' ? saved.buildingId : null,
+        connectionMode: saved.connectionMode === 'marine' ? 'marine' : 'land', x: saved.x, y: saved.y });
       const suffix = Number(saved.id.split(':node:').pop());
       if (Number.isInteger(suffix)) network.nextNodeId = Math.max(network.nextNodeId, suffix + 1);
     }
@@ -312,6 +317,7 @@
         surfaceTypes, length,
         builtLength: Number.isFinite(saved.builtLength) ? Math.max(0, Math.min(length, saved.builtLength)) : length,
         roadClass: typeof saved.roadClass === 'string' ? saved.roadClass : 'standard',
+        routeType: saved.routeType === 'marine' ? 'marine' : 'land',
         constructionPrerequisite: prerequisite });
       const suffix = Number(saved.id.split(':road:').pop());
       if (Number.isInteger(suffix)) network.nextSegmentId = Math.max(network.nextSegmentId, suffix + 1);

@@ -39,6 +39,26 @@
     ctx.beginPath();
   }
 
+  function marineRun(frame, segment, opacity = Style.marineOpacity) {
+    const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
+    const ctx = frame.context;
+    let remaining = Number.isFinite(segment.builtLength)
+      ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length;
+    if (remaining <= 0) return;
+    ctx.save(); ctx.strokeStyle = Style.marineColor; ctx.globalAlpha = opacity;
+    ctx.lineWidth = Style.marineWidthPx; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash(Style.marineDashPx); ctx.beginPath(); ctx.moveTo(projected[0].x, projected[0].y);
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i], length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (length <= 1e-8) continue;
+      const ratio = Math.min(1, remaining / length), start = projected[i - 1], end = projected[i];
+      ctx.lineTo(start.x + (end.x - start.x) * ratio, start.y + (end.y - start.y) * ratio);
+      remaining -= length * ratio;
+      if (ratio < 1 || remaining <= 1e-8) break;
+    }
+    ctx.stroke(); ctx.restore();
+  }
+
   function reachesNode(segment, nodeId) {
     const builtLength = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length;
     if (segment.from === nodeId) return builtLength > 1e-5;
@@ -122,7 +142,8 @@
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = Style.landOpacity;
       for (const segment of network.segments) {
         if (segment.points?.length < 2 || !visible(frame, segment)) continue;
-        roadRuns(frame, segment);
+        if (segment.routeType === 'marine') marineRun(frame, segment);
+        else roadRuns(frame, segment);
         drawConstructionHead(frame, segment);
       }
       ctx.restore();
@@ -140,6 +161,10 @@
     if (preview?.points?.length >= 2) {
       const length = preview.points.slice(1).reduce((sum, point, index) =>
         sum + Math.hypot(point.x - preview.points[index].x, point.y - preview.points[index].y), 0);
+      if (preview.routeType === 'marine') {
+        marineRun(frame, { points: preview.points, length, builtLength: length }, Style.marineOpacity);
+        return;
+      }
       const opacity = Number.isFinite(preview.opacity) ? preview.opacity : .52;
       const color = preview.valid ? Style.landColor : (preview.color || Style.landColor);
       const lineWidth = Number.isFinite(preview.lineWidth) ? preview.lineWidth : Style.landWidthPx;

@@ -308,9 +308,11 @@
     const building = [...state.surfaceBuildings].reverse().find(candidate => {
       if (candidate.planetId !== state.planet.id) return false;
       const definition = BuildingData.get(candidate.type);
-      return Boolean(definition?.roadRequired && buildingHit(frame, candidate, definition, screenX, screenY));
+      return Boolean((definition?.roadRequired || candidate.type === 'oil_platform') &&
+        buildingHit(frame, candidate, definition, screenX, screenY));
     });
-    if (building) return { kind: 'building', buildingId: building.id, point: { ...(building.roadPort || { x: building.x, y: building.y }) } };
+    if (building) return { kind: 'building', buildingId: building.id,
+      point: { ...(building.roadPort || building.waterPort || { x: building.x, y: building.y }) } };
 
     const network = state.roadNetworks[state.planet.id];
     if (!network?.nodes.length) return null;
@@ -350,7 +352,8 @@
       const preview = RoadPlacement.previewBetween(roadRouteParameters(roadDrag.from, target));
       state.roadPreview = preview.connected
         ? { points: preview.points, surfaceTypes: preview.surfaceTypes, valid: true, snapped: true,
-          opacity: RoadPlacement.config.interaction.previewOpacity,
+          routeType: preview.routeType,
+          opacity: preview.routeType === 'marine' ? RoadPlacement.config.render.marineOpacity : RoadPlacement.config.interaction.previewOpacity,
           fromPoint: roadDrag.from.point, toPoint: target.point }
         : { points: [roadDrag.from.point, target.point], surfaceTypes: [], valid: false, snapped: true,
           opacity: RoadPlacement.config.interaction.freePreviewOpacity,
