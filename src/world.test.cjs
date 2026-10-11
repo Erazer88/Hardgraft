@@ -67,13 +67,13 @@ test('system population is deterministic, configurable, and mostly ordinary', ()
       assert.ok(planet.name && !planet.name.includes('undefined'));
       assert.ok(planet.orbit - planet.radius > model.star.radius);
       assert.ok(planet.orbit + planet.radius < model.extent);
-      for (const key of ['temperature', 'pressure', 'gravity', 'geology', 'water', 'surfaceWater', 'habitability', 'distanceAU']) {
+      for (const key of ['temperature', 'pressure', 'gravity', 'geology', 'water', 'surfaceWater', 'terrainWater', 'habitability', 'distanceAU']) {
         assert.ok(Number.isFinite(planet[key]), key + ' is finite');
       }
       assert.ok(planet.water >= 0 && planet.water <= 1 && planet.surfaceWater <= planet.water);
       assert.ok(planet.habitability >= 0 && planet.habitability <= 1);
       if (planet.kind === 'gazeuse') {
-        assert.equal(planet.surfaceWater, 0); assert.equal(planet.habitability, 0);
+        assert.equal(planet.surfaceWater, 0); assert.equal(planet.terrainWater, 0); assert.equal(planet.habitability, 0);
       }
       if (i) {
         const previous = model.planets[i - 1];
@@ -138,10 +138,14 @@ test('the natal system always provides a temperate candidate, water and basic de
     assert.ok(planet.resources.water > .3);
     if (i < 6) {
       const terrain = world.createTerrain(planet.seed, 96, 72, planet);
-      assert.deepEqual([...new Set(terrain.resources.map(item => item.id))].sort(), ['carbon', 'copper', 'iron', 'silicon']);
+      const landResources = terrain.resources.filter(item => !item.marine);
+      const oilFields = terrain.resources.filter(item => item.marine);
+      assert.deepEqual([...new Set(landResources.map(item => item.id))].sort(), ['carbon', 'copper', 'iron', 'silicon']);
+      assert.ok(oilFields.length >= 1);
       const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
       assert.ok(Math.abs(water - planet.surfaceWater) < .04);
-      assert.ok(terrain.resources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
+      assert.ok(landResources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
+      assert.ok(oilFields.every(item => terrain.elevation[item.y * terrain.width + item.x] <= terrain.seaLevel - 12));
     }
   }
 });
@@ -177,9 +181,40 @@ test('terrain contains coherent water, land, and reachable resources for differe
     assert.ok(terrain.resources.length >= 4);
     for (const resource of terrain.resources) {
       assert.ok(resource.x >= 0 && resource.x < terrain.width && resource.y >= 0 && resource.y < terrain.height);
-      assert.ok(terrain.elevation[resource.y * terrain.width + resource.x] > terrain.seaLevel);
+      assert.ok(resource.radius > 0);
+      const altitude = terrain.elevation[resource.y * terrain.width + resource.x];
+      if (resource.marine) assert.ok(altitude <= terrain.seaLevel - 12);
+      else assert.ok(altitude > terrain.seaLevel);
     }
   }
   assert.notDeepEqual(Array.from(world.createTerrain('one', 80, 60).elevation),
     Array.from(world.createTerrain('two', 80, 60).elevation));
+});
+
+test('oceanic profiles create sparse broad mineral fields and offshore oil deposits', () => {
+  const planet = { surfaceWater: .74, temperature: 18, seed: 412, resources: { iron: .7 } };
+  const terrain = world.createTerrain('oceanic-world', 480, 360, planet);
+  const repeated = world.createTerrain('oceanic-world', 480, 360, planet);
+  const minerals = terrain.resources.filter(resource => !resource.marine);
+  const oil = terrain.resources.filter(resource => resource.marine);
+  assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));
+  assert.ok(minerals.length >= 4 && minerals.length < 16);
+  assert.ok(minerals.every(resource => resource.radius >= 12));
+  assert.ok(oil.length >= 2 && oil.length <= 4);
+  assert.ok(oil.every(resource => resource.id === 'oil' && resource.radius > 16));
+  const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
+  assert.ok(water > .70 && water < .78);
+});
+
+test('non-natal planets are biased toward island and ocean coverage without changing the natal world', () => {
+  const galaxy = world.createGalaxy('ocean-world-distribution'), oceanCoverage = [];
+  for (const star of galaxy.systems.slice(0, 80)) {
+    const system = world.createSystem(galaxy.seed, star.id, galaxy);
+    for (const planet of system.planets) if (!planet.startingCandidate && planet.kind !== 'gazeuse') {
+      oceanCoverage.push(planet.terrainWater);
+    }
+  }
+  assert.ok(oceanCoverage.filter(water => water > .56).length / oceanCoverage.length > .2);
+  const natal = world.createSystem(galaxy.seed, galaxy.homeId, galaxy).planets.find(planet => planet.startingCandidate);
+  assert.ok(natal.surfaceWater > .3 && natal.surfaceWater < .65);
 });

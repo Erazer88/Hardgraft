@@ -167,7 +167,8 @@
       const outsideX = Math.max(0, Math.abs(localX) - halfWidth);
       const outsideY = Math.max(0, Math.abs(localY) - halfHeight);
       const distance = Math.hypot(outsideX, outsideY);
-      return distance <= margin ? { resource, distance } : null;
+      const fieldRadius = Math.max(0, resource.radius || 0) * textureScale;
+      return distance <= margin + fieldRadius ? { resource, distance } : null;
     }).filter(Boolean).sort((a, b) => a.distance - b.distance)[0]?.resource || null;
   }
 

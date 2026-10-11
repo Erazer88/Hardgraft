@@ -3,7 +3,7 @@
   // Relative weights, visual orbital units, and approximate physical parameters.
   // Changing this table changes generated worlds for the same universe seed.
   root.OrbitWorldgenData = {
-    version: 2,
+    version: 3,
     stars: [
       { type: 'M', color: '#cb937a', weight: .36, size: .7, mass: .3, luminosity: .02 },
       { type: 'K', color: '#dcc498', weight: .28, size: .85, mass: .7, luminosity: .25 },
@@ -27,12 +27,25 @@
     wreckChance: .12,
     planets: { solidRadius: [9, 17], gasRadius: [20, 29],
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
-      greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86 },
+      greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
+    terrain: {
+      genericWater: [.30, .46], islandWaterThreshold: .56,
+      continentalMassCount: [2, 3], islandMassCount: [4, 7],
+      continentalMassRadius: [.20, .39], islandMassRadius: [.12, .25],
+      frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
+      relief: { fineScale: 32, fineAmplitude: 6, microScale: 72, microAmplitude: 2.6 },
+      deposits: { minimum: 4, maximum: 12, cellsPerDeposit: 14000,
+        spacingRatio: .115, radiusRatio: [.034, .052] },
+      offshoreOil: { minimumWater: .18, fieldsPerWaterFraction: 5,
+        minimumFields: 1, maximumFields: 4, depthBelowSea: 12,
+        spacingRatio: .13, radiusRatio: [.052, .078] }
+    },
     colors: { tellurique: '#90a58b', océanique: '#6097ad', aride: '#bd9c77',
       glacée: '#99b5c6', volcanique: '#b9846d', gazeuse: '#b4aa92' },
     deposits: [
       { id: 'iron', type: 'fer' }, { id: 'copper', type: 'cuivre' },
       { id: 'silicon', type: 'silice' }, { id: 'carbon', type: 'carbone' }
-    ]
+    ],
+    marineDeposits: [{ id: 'oil', type: 'pétrole' }]
   };
 })(globalThis);

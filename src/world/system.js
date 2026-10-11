@@ -62,14 +62,24 @@
       const coldness = clamp((orbit / habitableOrbit - 1) / 2, 0, 1);
       const gasProbability = settings.planets.gasChance[0] + coldness * (settings.planets.gasChance[1] - settings.planets.gasChance[0]);
       const gas = !candidate && ((natal && i === count - 1) || random() < gasProbability);
+      const pressure = candidate ? range(random, settings.home.pressure) :
+        Math.exp(range(random, settings.planets.pressure.map(Math.log)));
+      const rawWater = range(random, candidate ? settings.home.water : settings.planets.water);
+      const waterRange = settings.planets.water[1] - settings.planets.water[0];
+      const oceanBias = candidate || waterRange <= 0 ? rawWater : settings.planets.water[0] +
+        Math.pow(clamp((rawWater - settings.planets.water[0]) / waterRange, 0, 1),
+          settings.planets.oceanCoverageExponent) * waterRange;
       const traits = {
-        pressure: candidate ? range(random, settings.home.pressure) :
-          Math.exp(range(random, settings.planets.pressure.map(Math.log))),
-        water: candidate ? range(random, settings.home.water) : clamp(range(random, settings.planets.water) + coldness * settings.planets.iceBonus, 0, .95),
+        pressure,
+        water: candidate ? oceanBias : clamp(oceanBias + coldness * settings.planets.iceBonus, 0, .95),
         gravity: range(random, candidate ? settings.home.gravity : settings.planets.gravity),
         geology: candidate ? range(random, settings.home.geology) : random()
       };
       const climate = environment(star, distanceAU, traits, settings);
+      const iceCoverage = clamp((settings.terrain.frozenWaterStartTemperature - climate.temperature) /
+        (settings.terrain.frozenWaterStartTemperature - settings.terrain.frozenWaterFullTemperature), 0, 1);
+      const terrainWater = gas ? 0 : Math.max(climate.surfaceWater,
+        traits.water * iceCoverage * settings.terrain.frozenWaterRetention);
       const kind = gas ? 'gazeuse' : climate.temperature < -35 ? 'glacée' :
         climate.temperature > 180 && traits.geology > .65 ? 'volcanique' :
           climate.surfaceWater > .65 ? 'océanique' :
@@ -84,6 +94,7 @@
         phase: random() * TAU, speed: .05 * Math.sqrt(star.mass) * Math.pow(220 / orbit, 1.5),
         kind, color: settings.colors[kind], ...climate,
         surfaceWater: gas ? 0 : climate.surfaceWater, habitability: gas ? 0 : climate.habitability,
+        terrainWater,
         resources, startingCandidate: candidate,
         seed: World.hashSeed(String(seed) + ':' + systemId + ':terrain:' + i) };
     });

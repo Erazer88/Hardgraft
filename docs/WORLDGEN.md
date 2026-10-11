@@ -1,4 +1,4 @@
-# Génération v2 — Agent 01
+# Génération des systèmes et terrains v3 — Agent 01
 
 ## Périmètre et fichiers
 
@@ -59,10 +59,23 @@ liquide jouable ni habitabilité de surface. `resources` contient des indices
 d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
 `createTerrain(seed, width, height, planet)` utilise la couverture d'eau du
-profil. L'appel historique sans profil reste accepté. Les gisements possèdent
-un identifiant stable (`iron`, `copper`, `silicon`, `carbon`), leur libellé, leur
-position et leur abondance. L'eau est représentée par les étendues liquides et
-la propriété de la planète ; l’exploitation des ressources n’est pas présente dans le prototype actuel.
+profil, ou la couverture totale eau/glace dans `terrainWater` pour les mondes
+froids. Les planètes riches en eau utilisent plusieurs masses terrestres plus
+petites pour produire des archipels ; les mondes tempérés natals conservent leur
+profil de départ viable. Le relief ajoute deux fréquences de détail configurées
+dans `OrbitWorldgenData.terrain`.
+
+Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont moins nombreux
+qu'avant et possèdent un rayon déterministe en cellules de terrain. Les champs
+marins de pétrole sont également générés en eau profonde, et les plateformes
+pétrolières doivent être posées dans leur zone. Les marqueurs de ressource sont
+dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
+
+Le rendu interpole une palette de couleurs par température, altitude et
+humidité. Une texture de relief NASA Blue Marble, téléchargée depuis le miroir
+`regar007/EarthTextureStreamingResources`, ne sert qu'à produire un détail
+monochrome discret ; son attribution est conservée sous
+`assets/textures/ATTRIBUTION.txt`.
 
 ## Départ viable et sauvegardes
 

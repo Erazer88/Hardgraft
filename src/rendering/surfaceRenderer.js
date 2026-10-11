@@ -7,16 +7,32 @@
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
 
-  const PALETTE = [
-    [0, '#101f2c'], [68, '#182d37'], [88, '#2a3c3f'], [98, '#505b52'],
-    [103, '#aaa58d'], [109, '#7b826d'], [125, '#68745f'], [143, '#586851'],
-    [159, '#47594a'], [177, '#505a4e'], [192, '#666a5b'], [209, '#7c7d6a'],
-    [230, '#9d967e'], [246, '#b9ad91']
-  ];
-
   function hexRGB(hex) {
     return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
   }
+
+  function mixRGB(first, second, amount) {
+    return first.map((channel, index) => channel + (second[index] - channel) * amount);
+  }
+
+  const CLIMATE_FIELDS = ['sea', 'shore', 'lowland', 'upland', 'highland', 'snow', 'dry'];
+  const CLIMATE_BANDS = SurfaceStyle.climate.temperatureBands.map(band => ({
+    temperature: band.temperature,
+    colors: Object.fromEntries(CLIMATE_FIELDS.map(field => [field, hexRGB(band[field])]))
+  }));
+  const CLIMATE_LOOKUP_MIN = CLIMATE_BANDS[0].temperature;
+  const CLIMATE_LOOKUP_MAX = CLIMATE_BANDS.at(-1).temperature;
+  const CLIMATE_LOOKUP = Array.from({ length: CLIMATE_LOOKUP_MAX - CLIMATE_LOOKUP_MIN + 1 }, (_, index) => {
+    const temperature = CLIMATE_LOOKUP_MIN + index;
+    let upper = CLIMATE_BANDS.findIndex(band => band.temperature >= temperature);
+    if (upper <= 0) return CLIMATE_BANDS[0].colors;
+    if (upper < 0) return CLIMATE_BANDS.at(-1).colors;
+    const lowerBand = CLIMATE_BANDS[upper - 1], upperBand = CLIMATE_BANDS[upper];
+    const mix = clamp((temperature - lowerBand.temperature) /
+      (upperBand.temperature - lowerBand.temperature), 0, 1);
+    return Object.fromEntries(CLIMATE_FIELDS.map(field => [field,
+      lowerBand.colors[field].map((channel, i) => channel + (upperBand.colors[field][i] - channel) * mix)]));
+  });
 
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, layers } = dependencies;
@@ -27,28 +43,90 @@
       return canvas;
     }
 
+    let reliefDetailTexture = null;
+    function makeReliefDetailTexture(image) {
+      const size = 256, sample = makeCanvas(size, size), sampleContext = sample.getContext('2d');
+      sampleContext.drawImage(image, 0, 0, size, size);
+      const source = sampleContext.getImageData(0, 0, size, size).data;
+      const integralSize = size + 1, integral = new Float64Array(integralSize * integralSize);
+      for (let y = 1; y <= size; y += 1) {
+        let rowSum = 0;
+        for (let x = 1; x <= size; x += 1) {
+          const index = ((y - 1) * size + x - 1) * 4;
+          rowSum += source[index] * .2126 + source[index + 1] * .7152 + source[index + 2] * .0722;
+          integral[y * integralSize + x] = integral[(y - 1) * integralSize + x] + rowSum;
+        }
+      }
+      const texture = makeCanvas(size, size), textureContext = texture.getContext('2d');
+      const output = textureContext.createImageData(size, size), radius = 7;
+      for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+        const x0 = Math.max(0, x - radius), x1 = Math.min(size, x + radius + 1);
+        const y0 = Math.max(0, y - radius), y1 = Math.min(size, y + radius + 1);
+        const total = integral[y1 * integralSize + x1] - integral[y0 * integralSize + x1] -
+          integral[y1 * integralSize + x0] + integral[y0 * integralSize + x0];
+        const mean = total / ((x1 - x0) * (y1 - y0));
+        const sourceIndex = (y * size + x) * 4;
+        const luma = source[sourceIndex] * .2126 + source[sourceIndex + 1] * .7152 + source[sourceIndex + 2] * .0722;
+        const value = clamp(128 + (luma - mean) * 2.2, 72, 184);
+        const outputIndex = sourceIndex;
+        output.data[outputIndex] = output.data[outputIndex + 1] = output.data[outputIndex + 2] = value;
+        output.data[outputIndex + 3] = 255;
+      }
+      textureContext.putImageData(output, 0, 0);
+      return texture;
+    }
+
+    if (typeof root.Image === 'function') {
+      const image = new root.Image();
+      image.onload = () => { reliefDetailTexture = makeReliefDetailTexture(image); };
+      image.src = 'assets/textures/blue-marble-relief-source.jpg';
+    }
+
     function dot(context, x, y, radius, color) {
       context.fillStyle = color; context.beginPath(); context.arc(x, y, Math.max(.1, radius), 0, TAU); context.fill();
     }
 
     function createTerrainTexture(planet, terrainData) {
-      const { width, height, elevation, moisture } = terrainData;
+      const { width, height, elevation, moisture, seaLevel } = terrainData;
       const textureScale = Config.terrain.textureScale;
       const rawCanvas = makeCanvas(width, height), rawContext = rawCanvas.getContext('2d'), image = rawContext.createImageData(width, height);
-      const palette = PALETTE.map(([threshold, hex]) => [threshold, hexRGB(hex)]);
+      const averageTemperature = Number.isFinite(planet.temperature) ? planet.temperature : 18;
+      const lapseRate = SurfaceStyle.terrain.temperatureLapsePerElevation;
+      const climate = SurfaceStyle.climate;
       for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
         const index = y * width + x, value = elevation[index];
-        let rgb = palette[0][1]; for (const entry of palette) if (value >= entry[0]) rgb = entry[1];
+        const localTemperature = averageTemperature - Math.max(0, value - seaLevel) * lapseRate;
+        const climateIndex = clamp(Math.round(localTemperature) - CLIMATE_LOOKUP_MIN,
+          0, CLIMATE_LOOKUP.length - 1);
+        const colors = CLIMATE_LOOKUP[climateIndex];
+        const altitude = clamp((value - seaLevel - 4) / 145, 0, 1);
+        let rgb;
+        if (value <= seaLevel) {
+          const depth = ease(clamp((seaLevel - value) / 22, 0, 1));
+          rgb = mixRGB(colors.shore, colors.sea, depth);
+          const ice = clamp((climate.snowlineStartTemperature - localTemperature) / climate.snowlineRange, 0, .9);
+          rgb = mixRGB(rgb, colors.snow, ice);
+        } else {
+          const upland = ease(clamp(altitude / .65, 0, 1));
+          const highland = ease(clamp((altitude - .48) / .52, 0, 1));
+          rgb = mixRGB(colors.lowland, colors.upland, upland);
+          rgb = mixRGB(rgb, colors.highland, highland);
+          const coast = 1 - ease(clamp((value - seaLevel - 1) / 12, 0, 1));
+          rgb = mixRGB(rgb, colors.shore, coast * .58);
+          const humidity = moisture[index] / 255;
+          const vegetationRange = climate.vegetationTemperatureRange;
+          const vegetation = clamp((localTemperature - vegetationRange[0]) / 13, 0, 1) *
+            clamp((vegetationRange[1] - localTemperature) / 18, 0, 1);
+          const dryness = clamp((.58 - humidity) * 1.9, 0, 1) * vegetation;
+          rgb = mixRGB(rgb, colors.dry, dryness * climate.drySoilBlend);
+          const alpineSnow = clamp((value - 214) / 28, 0, .8);
+          const temperatureSnow = clamp((climate.snowlineStartTemperature - localTemperature) /
+            climate.snowlineRange, 0, 1);
+          rgb = mixRGB(rgb, colors.snow, Math.max(alpineSnow, temperatureSnow * altitude));
+        }
         const dx = elevation[y * width + Math.min(width - 1, x + 1)] - elevation[y * width + Math.max(0, x - 1)];
         const dy = elevation[Math.min(height - 1, y + 1) * width + x] - elevation[Math.max(0, y - 1) * width + x];
-        const shade = clamp((-dx * 1.5 - dy * 1.8), -30, 25);
-        if (value > 109 && value < 209) {
-          const humidity = (moisture[index] - 128) / 255;
-          rgb = [rgb[0] - humidity * 7, rgb[1] + humidity * 10, rgb[2] + humidity * 5];
-        }
-        if (planet.kind === 'aride') rgb = [rgb[0] + 14, rgb[1] - 4, rgb[2] - 10];
-        if (planet.kind === 'glacée' && value > 105) rgb = [rgb[0] + 26, rgb[1] + 31, rgb[2] + 32];
-        if (planet.kind === 'volcanique' && value > 109) rgb = [rgb[0] + 8, rgb[1] - 13, rgb[2] - 14];
+        const shade = clamp((-dx * 1.1 - dy * 1.45), -32, 27);
         for (let channel = 0; channel < 3; channel++) image.data[index * 4 + channel] = clamp(rgb[channel] + shade, 0, 255);
         image.data[index * 4 + 3] = 255;
       }
@@ -138,8 +216,16 @@
 
     function drawTerrain(frame) {
       const { terrainTexture } = frame, top = frame.project(0, 0);
+      const width = terrainTexture.width * frame.zoom, height = terrainTexture.height * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
-      canvasContext.drawImage(terrainTexture, top.x, top.y, terrainTexture.width * frame.zoom, terrainTexture.height * frame.zoom);
+      canvasContext.drawImage(terrainTexture, top.x, top.y, width, height);
+      if (reliefDetailTexture) {
+        canvasContext.save();
+        canvasContext.globalAlpha = SurfaceStyle.terrain.reliefTextureOpacity;
+        canvasContext.globalCompositeOperation = 'soft-light';
+        canvasContext.drawImage(reliefDetailTexture, top.x, top.y, width, height);
+        canvasContext.restore();
+      }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       const bottom = frame.project(terrainTexture.width, terrainTexture.height);
       canvasContext.strokeStyle = SurfaceStyle.terrain.edgeColor;
@@ -147,12 +233,17 @@
       canvasContext.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
     }
 
+    function resourceMarkerRadius(resource, marker = SurfaceStyle.resources) {
+      return clamp((resource.radius || 10) * marker.markerRadiusPerTerrainCellPx,
+        marker.markerRadiusMinPx, marker.markerRadiusMaxPx);
+    }
+
     function drawGeologicalOverlays(frame) {
-      if (frame.zoom < SurfaceStyle.lod.terrainDetailsZoom) return;
       const marker = SurfaceStyle.resources;
       for (const resource of frame.terrain.resources) {
         const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
-        const radius = marker.markerRadiusBasePx + marker.markerRadiusPerZoom * frame.zoom;
+        const radius = resourceMarkerRadius(resource, marker);
+        const hatchColor = resource.marine ? marker.marineHatchColor : marker.hatchColor;
         if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
         canvasContext.save(); canvasContext.beginPath();
         canvasContext.ellipse(p.x, p.y, radius * marker.ellipseXRatio, radius * marker.ellipseYRatio, marker.ellipseAngleRadians, 0, TAU);
@@ -160,9 +251,22 @@
         for (let i = -radius * 2; i < radius * 2; i += marker.hatchSpacingPx) {
           dependencies.drawLine(canvasContext,
             [{ x: p.x + i - radius, y: p.y + radius }, { x: p.x + i + radius, y: p.y - radius }],
-            marker.hatchColor, marker.hatchWidthPx);
+            hatchColor, marker.hatchWidthPx);
         }
         canvasContext.restore();
+        if (resource.marine) {
+          canvasContext.save();
+          canvasContext.strokeStyle = marker.marineOutlineColor;
+          canvasContext.lineWidth = .8;
+          canvasContext.setLineDash([2, 2]);
+          canvasContext.beginPath();
+          canvasContext.ellipse(p.x, p.y, radius * marker.ellipseXRatio, radius * marker.ellipseYRatio,
+            marker.ellipseAngleRadians, 0, TAU);
+          canvasContext.stroke();
+          canvasContext.setLineDash([]);
+          dot(canvasContext, p.x, p.y, 1.15, marker.marineDotColor);
+          canvasContext.restore();
+        }
       }
     }
 
@@ -185,7 +289,7 @@
         for (const resource of frame.terrain.resources) {
           const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
           if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-          const radius = marker.markerRadiusBasePx + marker.markerRadiusPerZoom * frame.zoom;
+          const radius = resourceMarkerRadius(resource, marker);
           dependencies.drawLabel(canvasContext, resource.type.toUpperCase(),
             p.x + radius + marker.labelOffsetXPx, p.y, marker.labelColor, marker.labelSizePx);
         }

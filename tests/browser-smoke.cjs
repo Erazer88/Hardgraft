@@ -395,6 +395,7 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   if (mobile) await cdp.screenshot('mobile-startup.png');
 
   await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
+  await cdp.evaluate('document.querySelector("#reveal-toggle").checked = false; document.querySelector("#reveal-toggle").dispatchEvent(new Event("change"))');
   await cdp.evaluate('window.OrbitalDebug.focusHome()');
   await settle(cdp, `${name} home camera settles`);
   const initial = await cdp.evaluate(stateExpression);

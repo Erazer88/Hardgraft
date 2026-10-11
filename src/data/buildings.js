@@ -37,10 +37,10 @@
       id: 'oil_platform', label: 'PLATEFORME PÉTROLIÈRE', shortLabel: 'PP', category: 'resource', icon: 'oil-platform',
       sprite: 'assets/buildings/oil-platform.webp',
       description: 'Extrait les ressources des grands fonds marins.',
-      functions: { extractsOffshoreResources: true },
+      functions: { extractsOffshoreResources: true }, extracts: ['oil'],
       footprint: { width: 46, height: 38 }, roadRequired: false,
       marinePortOffset: { x: 0, y: -24 },
-      placementRules: { deepWaterOnly: true, deepWaterMargin: 10 },
+      placementRules: { deepWaterOnly: true, deepWaterMargin: 10, requiresDeposit: true, depositMargin: 12 },
       preferredTerrain: ['deep-water']
     },
     storage: {

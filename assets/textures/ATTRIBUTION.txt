@@ -1,0 +1,10 @@
+blue-marble-relief-source.jpg
+
+Source: https://github.com/regar007/EarthTextureStreamingResources/blob/master/sphere_earth_textures/A1/0-0-0.jpg
+The repository README identifies these Blue Marble tiles as data from NASA Visible Earth.
+Blue Marble Next Generation: Reto Stöckli, NASA Earth Observatory, NASA Goddard Space Flight Center.
+Credit: NASA Earth Observatory.
+
+The downloaded Blue Marble imagery is a NASA Earth Observatory public-domain work.
+The mirror repository is distributed under the MIT License; its README credits the NASA source.
+This project uses the image only as a subtle relief-detail source, not as a map of the generated planet.

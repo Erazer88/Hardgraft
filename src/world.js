@@ -162,14 +162,22 @@
     const random = rng(terrainSeed);
     const offsetX = random() * 80 + 8, offsetY = random() * 80 + 8;
     const aspect = width / height;
-    const continentCount = 2 + Math.floor(random() * 2);
+    const settings = root.OrbitWorldgenData.terrain;
+    const waterFraction = clamp(planet?.terrainWater ?? planet?.surfaceWater ??
+      (settings.genericWater[0] + random() * (settings.genericWater[1] - settings.genericWater[0])),
+    0, root.OrbitWorldgenData.planets.maxSurfaceWater);
+    const islandWorld = waterFraction >= settings.islandWaterThreshold;
+    const massCount = islandWorld ? settings.islandMassCount : settings.continentalMassCount;
+    const massRadius = islandWorld ? settings.islandMassRadius : settings.continentalMassRadius;
+    const continentCount = massCount[0] + Math.floor(random() * (massCount[1] - massCount[0] + 1));
     const continents = [];
     for (let i = 0; i < continentCount; i += 1) {
+      const radiusX = massRadius[0] + random() * (massRadius[1] - massRadius[0]);
       continents.push({
         x: 0.15 + random() * 0.7,
         y: 0.12 + random() * 0.76,
-        radiusX: 0.20 + random() * 0.19,
-        radiusY: 0.20 + random() * 0.18
+        radiusX,
+        radiusY: radiusX * (0.78 + random() * 0.44)
       });
     }
     const raw = new Float32Array(width * height);
@@ -182,6 +190,10 @@
         const nx = x / Math.max(1, width - 1);
         const broad = fbm(offsetX + nx * 3.3 * aspect, offsetY + ny * 3.3, terrainSeed, 4);
         const detail = fbm(offsetX + nx * 15 * aspect, offsetY + ny * 15, terrainSeed ^ 0x5a6a4f29, 4);
+        const fine = fbm(offsetX + nx * settings.relief.fineScale * aspect,
+          offsetY + ny * settings.relief.fineScale, terrainSeed ^ 0x29f1483b, 3);
+        const micro = fbm(offsetX + nx * settings.relief.microScale * aspect,
+          offsetY + ny * settings.relief.microScale, terrainSeed ^ 0x74a1d2c7, 2);
         let continental = 0;
         for (const continent of continents) {
           const dx = (nx - continent.x) / continent.radiusX;
@@ -191,6 +203,7 @@
         const ridge = 1 - Math.abs(fbm(offsetX + nx * 7 * aspect, offsetY + ny * 7, terrainSeed ^ 0x3482f129, 3));
         const ridgeMask = clamp((broad + continental * 0.9 - 0.53) * 2.1, 0, 1);
         const altitude = clamp(52 + continental * 120 + broad * 52 + detail * 16 +
+          fine * settings.relief.fineAmplitude + micro * settings.relief.microAmplitude +
           Math.pow(ridge, 5) * ridgeMask * 80, 0, 255);
         const index = y * width + x;
         raw[index] = altitude;
@@ -201,8 +214,6 @@
       }
     }
 
-    // Vary the ocean coverage while retaining usable land for every map.
-    const waterFraction = clamp(planet?.surfaceWater ?? (0.30 + random() * 0.16), 0, root.OrbitWorldgenData.planets.maxSurfaceWater);
     const targetWater = raw.length * waterFraction;
     let cumulative = 0, rawSeaLevel = 0;
     for (; rawSeaLevel < 255; rawSeaLevel += 1) {
@@ -217,19 +228,48 @@
 
     const resources = [];
     const resourceTypes = root.OrbitWorldgenData.deposits;
+    const depositSettings = settings.deposits;
     let attempts = 0;
-    const requestedResources = Math.max(4, Math.min(24, Math.floor(raw.length / 4500)));
-    while (resources.length < requestedResources && attempts < 500) {
+    const landFactor = clamp((1 - waterFraction) / 0.55, 0.55, 1);
+    const requestedResources = Math.max(depositSettings.minimum, Math.min(depositSettings.maximum,
+      Math.floor(raw.length / depositSettings.cellsPerDeposit * landFactor)));
+    const depositSpacing = Math.min(width, height) * depositSettings.spacingRatio;
+    while (resources.filter(resource => !resource.marine).length < requestedResources && attempts < 800) {
       attempts += 1;
       const x = Math.floor(random() * width), y = Math.floor(random() * height);
       const altitude = elevation[y * width + x];
       if (altitude <= seaLevel + 10) continue;
-      if (resources.some(resource => Math.hypot(resource.x - x, resource.y - y) < Math.min(width, height) * 0.09)) continue;
+      if (resources.some(resource => !resource.marine &&
+          Math.hypot(resource.x - x, resource.y - y) < depositSpacing)) continue;
       // A natal candidate has at least one accessible deposit of each basic
       // solid resource. Water is represented by its sea and water abundance.
-      const definition = planet?.startingCandidate && resources.length < resourceTypes.length ? resourceTypes[resources.length] :
+      const landResourceCount = resources.filter(resource => !resource.marine).length;
+      const definition = planet?.startingCandidate && landResourceCount < resourceTypes.length ? resourceTypes[landResourceCount] :
         resourceTypes[Math.floor(random() * resourceTypes.length)];
-      resources.push({ ...definition, x, y, abundance: planet?.resources?.[definition.id] ?? .5 });
+      const radius = Math.max(6, Math.min(width, height) * (depositSettings.radiusRatio[0] +
+        random() * (depositSettings.radiusRatio[1] - depositSettings.radiusRatio[0])));
+      resources.push({ ...definition, x, y, radius, marine: false,
+        abundance: planet?.resources?.[definition.id] ?? .5 });
+    }
+
+    const oilSettings = settings.offshoreOil;
+    if (waterFraction >= oilSettings.minimumWater) {
+      const oilDefinition = root.OrbitWorldgenData.marineDeposits[0];
+      const oilCount = Math.max(oilSettings.minimumFields, Math.min(oilSettings.maximumFields,
+        Math.round(waterFraction * oilSettings.fieldsPerWaterFraction)));
+      const oilSpacing = Math.min(width, height) * oilSettings.spacingRatio;
+      let oilAttempts = 0;
+      while (resources.filter(resource => resource.marine).length < oilCount && oilAttempts < 1800) {
+        oilAttempts += 1;
+        const x = Math.floor(random() * width), y = Math.floor(random() * height);
+        if (elevation[y * width + x] > seaLevel - oilSettings.depthBelowSea) continue;
+        if (resources.some(resource => resource.marine &&
+            Math.hypot(resource.x - x, resource.y - y) < oilSpacing)) continue;
+        const radius = Math.max(8, Math.min(width, height) * (oilSettings.radiusRatio[0] +
+          random() * (oilSettings.radiusRatio[1] - oilSettings.radiusRatio[0])));
+        resources.push({ ...oilDefinition, x, y, radius, marine: true,
+          abundance: planet?.resources?.oil ?? (0.55 + random() * 0.4) });
+      }
     }
     return { width, height, elevation, moisture, seaLevel, resources };
   }
