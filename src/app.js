@@ -124,6 +124,7 @@
       const detailedTerrain = World.createTerrain(planet.seed, record.data.width * detailFactor,
         record.data.height * detailFactor, planet);
       record.detailTexture = renderer.createTerrainTexture(planet, detailedTerrain, {
+        textureScale: (record.texture.logicalWidth || record.texture.width) * Config.terrain.renderTexturePixelRatio / detailedTerrain.width,
         logicalWidth: record.texture.logicalWidth || record.texture.width,
         logicalHeight: record.texture.logicalHeight || record.texture.height,
         skipContours: true
@@ -964,6 +965,15 @@
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
       planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
+    getSurfaceDetailMetrics: () => {
+      const record = state.planet && state.context?.terrains.get(state.planet.id);
+      if (!record?.detailTerrain || !record.detailTexture) return null;
+      return { baseWidth: record.data.width, baseHeight: record.data.height,
+        detailWidth: record.detailTerrain.width, detailHeight: record.detailTerrain.height,
+        textureWidth: record.detailTexture.width, textureHeight: record.detailTexture.height,
+        logicalWidth: record.detailTexture.logicalWidth, logicalHeight: record.detailTexture.logicalHeight,
+        surfaceZoom: localCamera(surfaceFrame(state.planet), state.camera).zoom };
+    },
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),

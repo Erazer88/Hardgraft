@@ -137,7 +137,7 @@
     }
 
     function drawMaterialSample(record, definition, image, sampleCanvas) {
-      const scale = Config.terrain.textureScale;
+      const scale = record.textureScale || Config.terrain.textureScale;
       const width = record.terrain.width * scale, height = record.terrain.height * scale;
       const sampleContext = sampleCanvas.getContext('2d');
       sampleContext.clearRect(0, 0, width, height);
@@ -304,7 +304,7 @@
       textureContext.drawImage(rawCanvas, 0, 0, terrainTexture.width, terrainTexture.height);
       const materialRecord = {
         planet, terrain: terrainData, texture: terrainTexture, coastDistance, rawCanvas,
-        materialsApplied: false, drawDetails: null
+        textureScale, materialsApplied: false, drawDetails: null
       };
       function drawDetails(context) {
         // The active high-resolution map draws its contour lines directly in
@@ -383,9 +383,9 @@
         visibleMaxX <= detailContourCache.maxX && visibleMinY >= detailContourCache.minY &&
         visibleMaxY <= detailContourCache.maxY;
       if (!coversViewport && (!isCameraMoving || !isCameraMoving())) {
-        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103];
         const sampleWidth = maxX - minX + 2, sampleHeight = maxY - minY + 2;
         const samples = new Float32Array(sampleWidth * sampleHeight);
+        let minimumElevation = Infinity, maximumElevation = -Infinity;
         for (let y = 0; y < sampleHeight; y += 1) for (let x = 0; x < sampleWidth; x += 1) {
           const sourceX = (minX + x) / subdivision, sourceY = (minY + y) / subdivision;
           const x0 = Math.floor(sourceX), y0 = Math.floor(sourceY);
@@ -393,8 +393,13 @@
           const tx = sourceX - x0, ty = sourceY - y0;
           const a = elevation[y0 * width + x0], b = elevation[y0 * width + x1];
           const c = elevation[y1 * width + x0], d = elevation[y1 * width + x1];
-          samples[y * sampleWidth + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+          const value = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+          samples[y * sampleWidth + x] = value;
+          minimumElevation = Math.min(minimumElevation, value);
+          maximumElevation = Math.max(maximumElevation, value);
         }
+        const contourLevels = [...Array.from({ length: 40 }, (_, i) => 48 + i * 5), 103]
+          .filter(level => minimumElevation < level && maximumElevation >= level);
         const contours = contourLevels.map(level => {
           const path = new root.Path2D();
           for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {

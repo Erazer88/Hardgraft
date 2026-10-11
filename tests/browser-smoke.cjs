@@ -321,8 +321,19 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await cdp.tapAt(planetPoint, mobile);
   await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
   await settle(cdp, `${name} surface camera settles before close terrain zoom`);
+  const detail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
+  assert.ok(detail, `${name} active surface builds its high-resolution terrain`);
+  assert.equal(detail.detailWidth, detail.baseWidth * 4, `${name} terrain detail has four times the horizontal samples`);
+  assert.equal(detail.detailHeight, detail.baseHeight * 4, `${name} terrain detail has four times the vertical samples`);
+  const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
+  assert.equal(detail.textureWidth, detail.logicalWidth * pixelRatio, `${name} high-resolution texture keeps the established map extent`);
+  assert.equal(detail.textureHeight, detail.logicalHeight * pixelRatio, `${name} high-resolution texture keeps the established map extent`);
   await zoomStep(cdp, 2, { x: planetPoint.x, y: planetPoint.y });
   assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} close terrain keeps surface detail`);
+  const highDetailFactor = Math.max(1.01, 2.6 / (detail.surfaceZoom * 2));
+  await zoomStep(cdp, highDetailFactor, { x: planetPoint.x, y: planetPoint.y });
+  const zoomedDetail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
+  assert.ok(zoomedDetail.surfaceZoom >= 2, `${name} screenshot reaches the high-resolution terrain renderer`);
   await cdp.screenshot(`${name}-terrain-close.png`);
   await checkTerrainZoomLimit(cdp, name);
   assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
