@@ -21,9 +21,6 @@
     terrain: Object.freeze({
       edgeColor: '#a9b9ad40',
       edgeWidthPx: 1,
-      reliefTextureOpacity: .28,
-      materialTextureScale: 2,
-      materialTextureOpacity: .56,
       shelfDepthCells: 72,
       shelfDistanceCells: 26,
       temperatureLapsePerElevation: .17,
@@ -33,14 +30,14 @@
     }),
     climate: Object.freeze({
       temperatureBands: Object.freeze([
-        { temperature: -60, sea: '#527282', shore: '#bac5bd', lowland: '#7f8982', upland: '#929c97', highland: '#b4bebc', snow: '#e2e9e7', dry: '#9d9483' },
-        { temperature: -20, sea: '#315d73', shore: '#b8c1b4', lowland: '#727f70', upland: '#828c83', highland: '#afb9b2', snow: '#e2e7e0', dry: '#a3987d' },
-        { temperature: 5, sea: '#1b4055', shore: '#b8ac8b', lowland: '#536b4e', upland: '#73775d', highland: '#a49f89', snow: '#dbddd4', dry: '#a49170' },
-        { temperature: 20, sea: '#173a50', shore: '#c0b18f', lowland: '#49694b', upland: '#737556', highland: '#a19881', snow: '#e1e0d7', dry: '#ad926b' },
-        { temperature: 35, sea: '#16364d', shore: '#baa37a', lowland: '#72754f', upland: '#837459', highland: '#a59377', snow: '#e6dfd2', dry: '#b08c63' },
-        { temperature: 55, sea: '#182f44', shore: '#b58e65', lowland: '#91714d', upland: '#9a7956', highland: '#b09b7f', snow: '#ece2cc', dry: '#bb8b5c' },
-        { temperature: 100, sea: '#1b2d3d', shore: '#b67b57', lowland: '#9a664b', upland: '#a5795b', highland: '#bc9d7f', snow: '#e9d8bc', dry: '#c38255' },
-        { temperature: 180, sea: '#222d39', shore: '#8e5443', lowland: '#6b4b43', upland: '#886257', highland: '#a58a75', snow: '#d5c5ae', dry: '#985740' }
+        { temperature: -60, sea: '#294e68', shore: '#c6d6d2', lowland: '#637b78', upland: '#82928a', highland: '#aeb9b5', snow: '#f2f5f1', dry: '#a49b88' },
+        { temperature: -20, sea: '#174462', shore: '#c9c8a8', lowland: '#496b54', upland: '#70816e', highland: '#a0aaa0', snow: '#f1f3eb', dry: '#ad9a70' },
+        { temperature: 5, sea: '#0d3450', shore: '#d8bd86', lowland: '#37643f', upland: '#6b714c', highland: '#8e8b7a', snow: '#eff2eb', dry: '#b49360' },
+        { temperature: 20, sea: '#071f3b', shore: '#d7b879', lowland: '#30623a', upland: '#687146', highland: '#888374', snow: '#f4f5ef', dry: '#b2844f' },
+        { temperature: 35, sea: '#09243e', shore: '#d1aa6e', lowland: '#5e6938', upland: '#77704a', highland: '#93836e', snow: '#f0eee5', dry: '#b88a52' },
+        { temperature: 55, sea: '#102c43', shore: '#c99966', lowland: '#816447', upland: '#92704f', highland: '#a78b6d', snow: '#eee5d3', dry: '#bd8956' },
+        { temperature: 100, sea: '#1a2c40', shore: '#b87955', lowland: '#966044', upland: '#a47655', highland: '#b89472', snow: '#ead9c0', dry: '#c17d4e' },
+        { temperature: 180, sea: '#242d3a', shore: '#945342', lowland: '#70453c', upland: '#8e5e50', highland: '#ad8870', snow: '#ddcbb5', dry: '#a25a41' }
       ]),
       vegetationTemperatureRange: [-8, 42],
       drySoilBlend: .52,

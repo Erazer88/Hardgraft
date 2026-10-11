@@ -74,13 +74,11 @@ pétrolières doivent être posées dans leur zone. Les marqueurs de ressource s
 dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 
 Le rendu interpole une palette de couleurs par température, altitude et
-humidité. Il accentue les hauts fonds près des côtes et superpose trois textures
-CC0 de Poly Haven aux plages, plaines tempérées et reliefs élevés. Les sources
-sont converties en WebP, intégrées à l'export autonome et masquées selon la
-géographie et l'humidité de chaque monde. Une texture de relief NASA Blue Marble,
-téléchargée depuis le miroir `regar007/EarthTextureStreamingResources`, fournit
-un détail monochrome discret. Les attributions et sources sont conservées sous
-`assets/textures/ATTRIBUTION.txt`.
+humidité. L'éclairage directionnel est calculé depuis les pentes et la
+courbure du terrain ; un bruit albédo déterministe varie selon la graine du
+monde. Les fonds marins passent du turquoise du plateau continental au bleu
+profond, et la neige apparaît selon la température locale et l'altitude. Les
+textures sont générées par le code de rendu, sans image de surface externe.
 
 ## Départ viable et sauvegardes
 

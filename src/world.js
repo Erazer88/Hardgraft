@@ -225,11 +225,12 @@
           const dy = (warpedY - landform.y) / landform.radiusY;
           continental = Math.max(continental, Math.exp(-(dx * dx + dy * dy) * 0.75));
         }
-        const ridge = 1 - Math.abs(fbm(offsetX + warpedX * 7 * aspect, offsetY + warpedY * 7, terrainSeed ^ 0x3482f129, 3));
+        const ridge = 1 - Math.abs(fbm(offsetX + warpedX * settings.relief.ridgeScale * aspect,
+          offsetY + warpedY * settings.relief.ridgeScale, terrainSeed ^ 0x3482f129, 3));
         const ridgeMask = clamp((broad + continental * 0.9 - 0.53) * 2.1, 0, 1);
         const altitude = clamp(52 + continental * 120 + broad * 52 + detail * 16 +
           fine * settings.relief.fineAmplitude + micro * settings.relief.microAmplitude +
-          Math.pow(ridge, 5) * ridgeMask * 80, 0, 255);
+          Math.pow(ridge, settings.relief.ridgePower) * ridgeMask * settings.relief.ridgeAmplitude, 0, 255);
         const index = y * width + x;
         raw[index] = altitude;
         histogram[Math.round(altitude)] += 1;

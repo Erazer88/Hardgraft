@@ -29,7 +29,7 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 2,
+      version: 3,
       genericWater: [.30, .46], islandWaterThreshold: .56,
       continentalMassCount: [2, 4], islandMassCount: [6, 10],
       continentalMassRadius: [.20, .39], islandMassRadius: [.10, .23],
@@ -37,7 +37,7 @@
         isletRadius: [.012, .038], parentDistance: [1.15, 2.2] },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       relief: { warpScale: 2.2, warpStrength: .035, fineScale: 40, fineAmplitude: 8,
-        microScale: 92, microAmplitude: 3.8 },
+        microScale: 92, microAmplitude: 3.8, ridgeScale: 7, ridgePower: 3.2, ridgeAmplitude: 94 },
       deposits: { minimum: 4, maximum: 12, cellsPerDeposit: 14000,
         spacingRatio: .115, radiusRatio: [.034, .052] },
       offshoreOil: { minimumWater: .18, fieldsPerWaterFraction: 5,

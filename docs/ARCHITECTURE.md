@@ -13,7 +13,6 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/data/surfaceStyle.js` | Contrat visuel de la carte planétaire et niveaux de détail |
 | `assets/buildings/*.webp` | Sprites transparents des bâtiments planétaires |
 | `assets/settlements/*.webp` | Maisons et modules transparents de villages et de villes |
-| `assets/textures/*.webp` | Textures de surface CC0, intégrées dans les exports autonomes |
 | `src/world.js` | Galaxies, positions orbitales et terrains procéduraux |
 | `src/world/system.js` | Assemblage des systèmes et caractéristiques planétaires |
 | `src/simulation/simulation.js` | Horloge orbitale |
@@ -33,7 +32,7 @@ Cette note décrit les modules actuellement chargés par `index.html`. Le protot
 | `src/storage/save.js` | Sauvegarde locale de l'exploration, de l'inventaire, des bâtiments, du réseau et de la vue |
 | `src/navigation/camera.js` | Projections, repères locaux, zoom et caméra de surface |
 | `src/rendering/renderer.js` | Orchestration du rendu de galaxie, des systèmes et des couches planétaires |
-| `src/rendering/surfaceRenderer.js` | Textures et couches de terrain, relief, sélection et labels planétaires |
+| `src/rendering/surfaceRenderer.js` | Matières procédurales, éclairage du relief, sélection et labels planétaires |
 | `src/rendering/roadRenderer.js` | Traits terrestres, points maritimes et points d'intersection |
 | `src/rendering/settlementRenderer.js` | Rues secondaires et sprites de lotissements planétaires |
 | `src/rendering/buildingRenderer.js` | Empreintes, aperçus, ancres et cartes des bâtiments |
