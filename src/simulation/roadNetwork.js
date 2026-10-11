@@ -38,6 +38,24 @@
   function nodeById(network, id) { return network.nodes.find(node => node.id === id) || null; }
   function segmentById(network, id) { return network.segments.find(segment => segment.id === id) || null; }
 
+  function distanceAlongSegment(network, segmentId, firstPoint, secondPoint) {
+    const segment = segmentById(network, segmentId);
+    if (!segment || !finitePoint(firstPoint) || !finitePoint(secondPoint)) return Infinity;
+    function measure(point) {
+      let travelled = 0, best = Infinity, bestMeasure = 0;
+      for (let i = 1; i < segment.points.length; i++) {
+        const a = segment.points[i - 1], b = segment.points[i];
+        const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+        const t = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared)) : 0;
+        const projection = { x: a.x + dx * t, y: a.y + dy * t }, error = distance(point, projection);
+        if (error < best) { best = error; bestMeasure = travelled + Math.sqrt(lengthSquared) * t; }
+        travelled += Math.sqrt(lengthSquared);
+      }
+      return bestMeasure;
+    }
+    return Math.abs(measure(firstPoint) - measure(secondPoint));
+  }
+
   function addSegment(network, properties) {
     if (!network || !nodeById(network, properties.from) || !nodeById(network, properties.to)) {
       throw new TypeError('Road segment endpoints must exist in the network');
@@ -84,6 +102,41 @@
       const projection = { x: a.x + dx * t, y: a.y + dy * t };
       consider({ kind: 'segment', id: segment.id, segment, edgeIndex: i - 1, t,
         point: projection, distance: distance(point, projection) });
+    }
+    return best;
+  }
+
+  function nearestBuiltConnection(network, point, accepts = null) {
+    if (!network || !finitePoint(point)) return null;
+    let best = null;
+    function consider(candidate) {
+      if (accepts && !accepts(candidate)) return;
+      if (!best || candidate.distance < best.distance - 1e-7 ||
+          (Math.abs(candidate.distance - best.distance) <= 1e-7 && candidate.kind === 'node' && best.kind !== 'node') ||
+          (Math.abs(candidate.distance - best.distance) <= 1e-7 && candidate.kind === best.kind && candidate.id < best.id)) best = candidate;
+    }
+    for (const node of network.nodes) {
+      const reached = network.segments.some(segment => {
+        const built = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length;
+        return (segment.from === node.id && built > 1e-5) ||
+          (segment.to === node.id && built >= segment.length - 1e-5);
+      });
+      if (reached) consider({ kind: 'node', id: node.id, node, point: copyPoint(node), distance: distance(point, node) });
+    }
+    for (const segment of network.segments) {
+      let remaining = Number.isFinite(segment.builtLength) ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length;
+      for (let i = 1; i < segment.points.length && remaining > 1e-7; i++) {
+        const a = segment.points[i - 1], b = segment.points[i], dx = b.x - a.x, dy = b.y - a.y;
+        const edgeLength = Math.hypot(dx, dy);
+        if (edgeLength <= 1e-9) continue;
+        const builtRatio = Math.min(1, remaining / edgeLength), builtEnd = { x: a.x + dx * builtRatio, y: a.y + dy * builtRatio };
+        const builtX = builtEnd.x - a.x, builtY = builtEnd.y - a.y, lengthSquared = builtX * builtX + builtY * builtY;
+        const tBuilt = lengthSquared ? Math.max(0, Math.min(1, ((point.x - a.x) * builtX + (point.y - a.y) * builtY) / lengthSquared)) : 0;
+        const projection = { x: a.x + builtX * tBuilt, y: a.y + builtY * tBuilt };
+        consider({ kind: 'segment', id: segment.id, segment, edgeIndex: i - 1,
+          t: tBuilt * builtRatio, point: projection, distance: distance(point, projection) });
+        remaining -= edgeLength * builtRatio;
+      }
     }
     return best;
   }
@@ -209,6 +262,7 @@
     const rightLength = lengthOf(rightPoints);
     addSegment(network, { from: junction.id, to: originalTo, points: rightPoints,
       surfaceTypes: rightSurfaceTypes, roadClass: segment.roadClass,
+      constructionPrerequisite: segment.constructionPrerequisite,
       builtLength: Math.max(0, Math.min(rightLength, previousBuiltLength - segment.length)) });
     return junction;
   }
@@ -266,5 +320,6 @@
   }
 
   root.OrbitRoadNetwork = Object.freeze({ create, addNode, addSegment, nodeById, segmentById,
-    nearestConnection, firstContact, connectToTarget, replaceSegmentPoints, restore, lengthOf });
+    nearestConnection, firstContact, connectToTarget, replaceSegmentPoints, restore, lengthOf,
+    nearestBuiltConnection, distanceAlongSegment });
 })(globalThis);

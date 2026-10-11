@@ -173,25 +173,30 @@
       $('scan-button').disabled = level !== 'galaxy';
       $('build-button').hidden = level !== 'surface';
       $('build-button').disabled = level !== 'surface';
+      $('road-button').hidden = level !== 'surface';
+      $('road-button').disabled = level !== 'surface';
       $('build-button').setAttribute('aria-expanded', String(state.buildMenuOpen));
       $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
+      $('road-button').setAttribute('aria-pressed', String(state.tool === 'road'));
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');
       $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
+      $('road-button').classList.toggle('active', state.tool === 'road');
       const constructing = (state.surfaceBuildings || []).filter(building =>
         building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
       const placementLabel = BuildingData.get(state.placement?.type)?.label || 'BÂTIMENT';
       const buildingWord = constructing > 1 ? 'INFRASTRUCTURES' : 'INFRASTRUCTURE';
       $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
         state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'build' ?
+          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'road' ? 'TRACÉ ROUTIER MANUEL' : state.tool === 'build' ?
             `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
               constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
       $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
         level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'build' ?
+          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'road' ?
+            'Glisser · Bâtiment ou route → bâtiment ou route' : state.tool === 'build' ?
             `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
               'Choisir une infrastructure à poser' :
               'Glisser · Inspecter le relief · Pincer pour zoomer';

@@ -23,6 +23,12 @@
   const viewport = { width: W, height: H };
   const pointers = new Map();
   const contexts = new Map();
+  let roadDrag = null;
+
+  function cancelRoadDrag() {
+    roadDrag = null;
+    state.roadPreview = null;
+  }
 
   function stored() { try { return Save.load(localStorage); } catch (_) { return null; } }
   function persist() {
@@ -114,6 +120,8 @@
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = []; state.roadNetworks = {};
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
+    state.roadPreview = null;
+    cancelRoadDrag();
     state.tool = 'pan';
     terrainData = null; terrainTexture = null;
     contexts.clear();
@@ -198,6 +206,7 @@
     }
     if (previousLevel !== state.level) {
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
+      cancelRoadDrag();
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -218,6 +227,7 @@
   }
 
   function clearSelection() {
+    cancelRoadDrag();
     state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     $('inspector').hidden = true; $('toast').classList.remove('visible');
   }
@@ -244,23 +254,14 @@
       resourceId: preview.resourceId,
       constructionState: 'constructing', constructionProgress: 0, status: 'building' });
     state.surfaceBuildings.push(building);
-    let routeMessage = '';
-    if (definition.roadRequired) {
-      const planetId = state.planet.id;
-      const network = state.roadNetworks[planetId] || (state.roadNetworks[planetId] = RoadNetwork.create(planetId));
-      const record = prepareTerrain(state.planet);
-      record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
-      const route = RoadPlacement.connectBuilding({ network, building, definition, terrain: record.data,
-        baseField: record.roadCostField, buildings: state.surfaceBuildings });
-      routeMessage = route.connected ? ' Route en construction vers le réseau.' : route.root ? ' Point de départ du réseau routier.' :
-        route.reason === 'no-valid-route' ? ' Aucune route valide vers le réseau n’a été trouvée.' : '';
-    }
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
-    toast(`${definition.label} posé. Assemblage en cours.${routeMessage}`); updateUI(); persist();
+    const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
+    toast(`${definition.label} posé. Assemblage en cours.${routeHint}`); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface') return;
+    cancelRoadDrag();
     state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
     $('inspector').hidden = true;
     updateBuildingPreview(W / 2, H / 2, type);
@@ -268,6 +269,7 @@
     updateUI();
   }
   function selectSurfaceBuilding(building) {
+    cancelRoadDrag();
     state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     state.selected = { kind: 'building', ...building };
     hud.showSelection(state.selected, { state }); updateUI();
@@ -298,6 +300,73 @@
     cardX = Math.max(8, Math.min(W - width - 8, cardX));
     cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
     return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
+  }
+
+  function roadEndpointAt(screenX, screenY) {
+    if (state.level !== 'surface' || !state.planet || !terrainData) return null;
+    const frame = surfaceFrame();
+    const building = [...state.surfaceBuildings].reverse().find(candidate => {
+      if (candidate.planetId !== state.planet.id) return false;
+      const definition = BuildingData.get(candidate.type);
+      return Boolean(definition?.roadRequired && buildingHit(frame, candidate, definition, screenX, screenY));
+    });
+    if (building) return { kind: 'building', buildingId: building.id, point: { ...(building.roadPort || { x: building.x, y: building.y }) } };
+
+    const network = state.roadNetworks[state.planet.id];
+    if (!network?.nodes.length) return null;
+    const world = unproject(screenX, screenY);
+    const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
+    const connection = RoadNetwork.nearestBuiltConnection(network, position);
+    if (!connection) return null;
+    const screenPoint = project(frame.x + connection.point.x * frame.scale, frame.y + connection.point.y * frame.scale);
+    if (Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY) > RoadPlacement.config.interaction.roadSnapRadiusPx) return null;
+    const target = connection.kind === 'node'
+      ? { kind: 'node', id: connection.id }
+      : { kind: 'segment', id: connection.id, edgeIndex: connection.edgeIndex, t: connection.t };
+    return { kind: 'road', point: { ...connection.point }, connection: target };
+  }
+
+  function roadRouteParameters(from, to) {
+    const planetId = state.planet.id, network = state.roadNetworks[planetId] || RoadNetwork.create(planetId);
+    const record = prepareTerrain(state.planet);
+    record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
+    return { planetId, network, from, to, terrain: record.data,
+      baseField: record.roadCostField, buildings: state.surfaceBuildings };
+  }
+
+  function updateRoadPreview(screenX, screenY, force = false) {
+    if (!roadDrag || state.level !== 'surface') return;
+    const now = performance.now();
+    if (!force && now - roadDrag.lastPreviewAt < RoadPlacement.config.interaction.previewIntervalMs) return;
+    roadDrag.lastPreviewAt = now;
+    const target = roadEndpointAt(screenX, screenY);
+    roadDrag.target = target;
+    if (!target) { state.roadPreview = null; return; }
+    const params = roadRouteParameters(roadDrag.from, target);
+    const preview = RoadPlacement.previewBetween(params);
+    state.roadPreview = preview.connected
+      ? { points: preview.points, surfaceTypes: preview.surfaceTypes, valid: true,
+        opacity: RoadPlacement.config.interaction.previewOpacity,
+        fromPoint: roadDrag.from.point, toPoint: target.point }
+      : { valid: false, opacity: RoadPlacement.config.interaction.previewOpacity,
+        fromPoint: roadDrag.from.point, toPoint: target.point, reason: preview.reason };
+    roadDrag.preview = preview;
+  }
+
+  function finishRoadDrag(screenX, screenY, cancelled = false) {
+    const drag = roadDrag;
+    cancelRoadDrag();
+    if (!drag || cancelled || !pointerMoved) { updateUI(); return; }
+    const target = roadEndpointAt(screenX, screenY);
+    if (!target) { toast('Relâchez sur un bâtiment ou sur une route existante.'); updateUI(); return; }
+    const params = roadRouteParameters(drag.from, target);
+    const preview = RoadPlacement.previewBetween(params);
+    if (!preview.connected) { toast(preview.reason); updateUI(); return; }
+    const result = RoadPlacement.createBetween({ ...params, preview });
+    if (!result.connected) { toast(result.reason); updateUI(); return; }
+    state.roadNetworks[params.planetId] = params.network;
+    toast('Route ajoutée. Sa construction commence progressivement.');
+    updateUI(); persist();
   }
   function enterSystem() {
     if (state.level !== 'galaxy') return;
@@ -377,6 +446,7 @@
 
   function clickMap(x, y, doubleClick = false) {
     if ($('menu-dialog').open) return;
+    if (state.tool === 'road') return;
     const point = unproject(x, y);
     if (state.level === 'galaxy') {
       if (state.tool === 'scan') { scanAt(point); return; }
@@ -428,6 +498,16 @@
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
+    if (state.tool === 'road') {
+      if (pointers.size === 1) {
+        const from = roadEndpointAt(e.clientX, e.clientY);
+        roadDrag = from ? { pointerId: e.pointerId, from,
+          startScreen: { x: e.clientX, y: e.clientY }, lastPreviewAt: -Infinity, target: null, preview: null } : null;
+      } else {
+        cancelRoadDrag(); pointerMoved = true;
+      }
+      return;
+    }
     if (state.tool === 'build' && pointers.size === 1) updateBuildingPreview(e.clientX, e.clientY);
     if (pointers.size === 2) {
       const points = [...pointers.values()];
@@ -453,6 +533,9 @@
     } else if (pointers.size === 1 && state.tool === 'build') {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       updateBuildingPreview(e.clientX, e.clientY);
+    } else if (pointers.size === 1 && state.tool === 'road') {
+      if (roadDrag && Math.hypot(e.clientX - roadDrag.startScreen.x, e.clientY - roadDrag.startScreen.y) > 5) pointerMoved = true;
+      if (roadDrag && pointerMoved) updateRoadPreview(e.clientX, e.clientY);
     } else if (pointers.size === 1) {
       if (Math.hypot(e.clientX - previous.x, e.clientY - previous.y) > 5) pointerMoved = true;
       if (pointerMoved) {
@@ -467,6 +550,12 @@
     const wasPinch = pinch !== null;
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
+    if (roadDrag?.pointerId === e.pointerId) {
+      finishRoadDrag(e.clientX, e.clientY, cancelled);
+      pointerMoved = true;
+      return;
+    }
+    if (state.tool === 'road') { pointerMoved = true; return; }
     if (!cancelled && !pointerMoved && !wasPinch) {
       const now = performance.now(), double = now - lastTap.t < 340 && Math.hypot(lastTap.x - e.clientX, lastTap.y - e.clientY) < 24;
       clickMap(e.clientX, e.clientY, double); lastTap = { t: now, x: e.clientX, y: e.clientY };
@@ -480,9 +569,18 @@
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
   $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
+  $('pan-button').onclick = () => { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
+  $('road-button').onclick = () => {
+    if (state.level !== 'surface') return;
+    cancelRoadDrag(); state.placement = null; state.buildMenuOpen = false;
+    state.tool = state.tool === 'road' ? 'pan' : 'road'; state.selected = null;
+    $('inspector').hidden = true;
+    if (state.tool === 'road') toast('Glissez d’un bâtiment ou d’une route vers une autre extrémité.');
+    updateUI();
+  };
   $('build-button').onclick = () => {
     if (state.level !== 'surface') return;
+    cancelRoadDrag();
     if (state.tool === 'build') { state.tool = 'pan'; state.placement = null; }
     else state.buildMenuOpen = !state.buildMenuOpen;
     if (state.buildMenuOpen) { state.tool = 'pan'; state.placement = null; state.selected = null; $('inspector').hidden = true; }
@@ -493,7 +591,7 @@
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
-  $('scan-button').onclick = () => { state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
+  $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
@@ -579,7 +677,7 @@
     if (e.key === 'Escape') {
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
-      else if (state.tool !== 'pan') { state.tool = 'pan'; state.placement = null; updateUI(); }
+      else if (state.tool !== 'pan') { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }
       else back();
     }

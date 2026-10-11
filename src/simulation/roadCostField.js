@@ -68,18 +68,27 @@
         const index = y * base.width + x;
         if (blocked[index]) continue;
         const distance = Math.hypot(ox, oy);
-        if (distance <= .01) costs[index] = Math.min(costs[index], roadCost);
+        if (options.avoidExistingRoads) {
+          if (distance <= .01) costs[index] = Math.max(costs[index], Config.weights.manualRoadCenterCost);
+          else if (distance <= influence + .35) costs[index] = Math.max(costs[index], Config.weights.manualRoadInfluenceCost);
+        } else if (distance <= .01) costs[index] = Math.min(costs[index], roadCost);
         else if (distance <= influence + .35) costs[index] = Math.min(costs[index], nearCost);
       }
     }
     for (const segment of network?.segments || []) {
       if (segment.id === skipSegmentId) continue;
+      let remaining = options.builtRoadsOnly && Number.isFinite(segment.builtLength)
+        ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length;
       for (let i = 1; i < segment.points.length; i++) {
         const a = segment.points[i - 1], b = segment.points[i];
-        const length = Math.hypot(b.x - a.x, b.y - a.y), count = Math.max(1, Math.ceil(length / (base.cellWorld * .45)));
+        const fullLength = Math.hypot(b.x - a.x, b.y - a.y);
+        if (fullLength <= 1e-8 || remaining <= 1e-7) continue;
+        const ratio = Math.min(1, remaining / fullLength), length = fullLength * ratio;
+        const count = Math.max(1, Math.ceil(length / (base.cellWorld * .45)));
         for (let j = 0; j <= count; j++) {
-          const t = j / count; markRoad({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+          const t = j / count * ratio; markRoad({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
         }
+        remaining -= length;
       }
     }
 
@@ -104,7 +113,8 @@
     for (const endpoint of endpoints) {
       const { index } = cellIndex(base, endpoint);
       blocked[index] = 0;
-      costs[index] = Number.isFinite(costs[index]) ? Math.max(Config.weights.roadReuse, costs[index]) : Config.weights.landBase;
+      costs[index] = options.avoidExistingRoads ? base.costs[index] :
+        Number.isFinite(costs[index]) ? Math.max(Config.weights.roadReuse, costs[index]) : Config.weights.landBase;
     }
     return { ...base, costs, blocked };
   }

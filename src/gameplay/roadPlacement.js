@@ -3,148 +3,106 @@
 
   const Config = root.OrbitRoadConfig, Network = root.OrbitRoadNetwork;
   const CostField = root.OrbitRoadCostField, Pathfinder = root.OrbitRoadPathfinder, Geometry = root.OrbitRoadGeometry;
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  function isPortNode(node, buildings) {
-    return Boolean(node && buildings.find(building => building.id === node.buildingId)?.type === 'surface_port');
+  function buildingFor(endpoint, buildings) {
+    return endpoint?.kind === 'building' ? buildings.find(building => building.id === endpoint.buildingId) || null : null;
   }
 
-  function portRoute(fromPort, toPort) { return Boolean(fromPort && toPort); }
-
-  function isPortConnection(candidate, buildings, network) {
-    if (!candidate) return false;
-    if (candidate.kind === 'node') return isPortNode(candidate.node, buildings);
-    const endpoints = [Network.nodeById(network, candidate.segment.from), Network.nodeById(network, candidate.segment.to)];
-    return Boolean(candidate.segment.surfaceTypes?.some(Boolean) && endpoints.some(node => isPortNode(node, buildings)));
-  }
-
-  function sameTarget(a, b) { return Boolean(a && b && a.kind === b.kind && a.id === b.id); }
-
-  function pointAtDistance(points, targetDistance) {
-    let travelled = 0;
-    for (let edgeIndex = 0; edgeIndex < points.length - 1; edgeIndex++) {
-      const a = points[edgeIndex], b = points[edgeIndex + 1];
-      const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
-      if (length <= 1e-9) continue;
-      if (travelled + length < targetDistance) { travelled += length; continue; }
-      const t = Math.max(0, Math.min(1, (targetDistance - travelled) / length));
-      return { point: { x: a.x + dx * t, y: a.y + dy * t }, edgeIndex, t,
-        tangent: { x: dx / length, y: dy / length } };
+  function endpointIsPort(endpoint, network, buildings) {
+    const building = buildingFor(endpoint, buildings);
+    if (building) return building.type === 'surface_port';
+    const connection = endpoint?.connection;
+    if (!connection) return false;
+    if (connection.kind === 'node') {
+      const node = Network.nodeById(network, connection.id);
+      return Boolean(node && buildings.find(item => item.id === node.buildingId)?.type === 'surface_port');
     }
-    return null;
+    const segment = Network.segmentById(network, connection.id);
+    if (!segment?.surfaceTypes?.some(Boolean)) return false;
+    return [segment.from, segment.to].some(id => {
+      const node = Network.nodeById(network, id);
+      return Boolean(node && buildings.find(item => item.id === node.buildingId)?.type === 'surface_port');
+    });
   }
 
-  function isEligibleBranchAxis(candidate, primaryTarget, departure, branchConfig) {
-    if (!candidate || !candidate.point || sameTarget(candidate, primaryTarget)) return false;
-    const targetDistance = Math.hypot(candidate.point.x - departure.point.x, candidate.point.y - departure.point.y);
-    const axisSeparation = Math.hypot(candidate.point.x - primaryTarget.point.x, candidate.point.y - primaryTarget.point.y);
-    if (targetDistance < branchConfig.minimumLength || targetDistance > branchConfig.maximumTargetDistance ||
-        axisSeparation < branchConfig.minimumAxisSeparation) return false;
-    const dx = candidate.point.x - departure.point.x, dy = candidate.point.y - departure.point.y;
-    const length = Math.hypot(dx, dy);
-    if (!length) return false;
-    const cosine = Math.max(-1, Math.min(1, (departure.tangent.x * dx + departure.tangent.y * dy) / length));
-    const angleDegrees = Math.acos(cosine) * 180 / Math.PI;
-    return angleDegrees >= branchConfig.minimumAngleDegrees &&
-      angleDegrees <= 180 - branchConfig.minimumAngleDegrees;
-  }
-
-  function planSecondaryBranch({ network, primaryRoute, primaryTarget, terrain, baseField, buildings, definition }) {
-    const branchConfig = Config.network.secondaryBranch;
-    if (!branchConfig || Network.lengthOf(primaryRoute.points) < branchConfig.offsetFromPort + branchConfig.minimumMainRun) return null;
-    const departure = pointAtDistance(primaryRoute.points, branchConfig.offsetFromPort);
-    if (!departure) return null;
-    const eligible = candidate => isEligibleBranchAxis(candidate, primaryTarget, departure, branchConfig);
-    const target = Network.nearestConnection(network, departure.point, null, eligible);
-    if (!target) return null;
-    const allowDeepWater = definition.id === 'surface_port' && isPortConnection(target, buildings, network);
-    const field = CostField.withNetwork(baseField, network, buildings, [departure.point, target.point], null, { allowDeepWater });
-    const rawPath = Pathfinder.findPath(field, terrain, departure.point, target.point);
-    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
-    if (!route) return null;
-
-    const acceptsContact = candidate => eligible(candidate) &&
-      (!allowDeepWater || isPortConnection(candidate, buildings, network));
-    const contact = Network.firstContact(network, route.points, Config.network.snapDistance, acceptsContact);
-    if (contact && Geometry.valid(contact.points, terrain, baseField.textureScale, buildings, { allowDeepWater }) &&
-        Network.lengthOf(contact.points) >= branchConfig.minimumLength) {
-      route.points = contact.points;
-      route.surfaceTypes = Geometry.surfaceTypes(contact.points, terrain, baseField.textureScale);
-      return { departure, target: contact.target, points: route.points, surfaceTypes: route.surfaceTypes };
+  function sameSegmentGap(network, from, to) {
+    const a = from?.connection, b = to?.connection;
+    if (a?.kind === 'segment' && b?.kind === 'segment' && a.id === b.id) {
+      return Network.distanceAlongSegment(network, a.id, from.point, to.point);
     }
-    if (Network.lengthOf(route.points) < branchConfig.minimumLength) return null;
-    return { departure, target, points: route.points, surfaceTypes: route.surfaceTypes };
-  }
-
-  function connectBuilding({ network, building, definition, terrain, baseField, buildings }) {
-    if (!definition?.roadRequired) return { connected: false, reason: 'no-road-required' };
-    const port = building.roadPort || { x: building.x, y: building.y };
-    let target = Network.nearestConnection(network, port);
-    if (!target) {
-      const node = Network.addNode(network, { ...port, type: 'building', buildingId: building.id });
-      return { connected: false, root: true, node };
-    }
-
-    const allowDeepWater = definition.id === 'surface_port' && isPortConnection(target, buildings, network);
-    const field = CostField.withNetwork(baseField, network, buildings, [port, target.point], null, { allowDeepWater });
-    const rawPath = Pathfinder.findPath(field, terrain, port, target.point);
-    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
-    if (!route) return { connected: false, reason: 'no-valid-route' };
-
-    const acceptContact = allowDeepWater ? candidate => isPortConnection(candidate, buildings, network) : null;
-    const contact = Network.firstContact(network, route.points, Config.network.snapDistance, acceptContact);
-    if (contact && Geometry.valid(contact.points, terrain, baseField.textureScale, buildings, { allowDeepWater })) {
-      target = contact.target;
-      route.points = contact.points;
-      route.surfaceTypes = Geometry.surfaceTypes(contact.points, terrain, baseField.textureScale);
-    }
-
-    const secondary = planSecondaryBranch({ network, primaryRoute: route, primaryTarget: target,
-      terrain, baseField, buildings, definition });
-    const targetNode = Network.connectToTarget(network, target);
-    if (!targetNode) return { connected: false, reason: 'target-lost' };
-    const fromNode = Network.addNode(network, { ...port, type: 'building', buildingId: building.id });
-    const segment = Network.addSegment(network, { from: fromNode.id, to: targetNode.id,
-      points: route.points, surfaceTypes: route.surfaceTypes });
-    let secondarySegment = null, branchNode = null;
-    if (secondary) {
-      const secondaryTargetNode = Network.connectToTarget(network, secondary.target);
-      if (secondaryTargetNode) {
-        branchNode = Network.connectToTarget(network, { kind: 'segment', id: segment.id,
-          edgeIndex: secondary.departure.edgeIndex, t: secondary.departure.t, point: secondary.departure.point });
-        if (branchNode) secondarySegment = Network.addSegment(network, { from: branchNode.id, to: secondaryTargetNode.id,
-          points: secondary.points, surfaceTypes: secondary.surfaceTypes, roadClass: 'secondary',
-          constructionPrerequisite: { fromNodeId: fromNode.id, toNodeId: branchNode.id } });
+    if (a?.kind === 'node' && b?.kind === 'segment') {
+      const segment = Network.segmentById(network, b.id), node = Network.nodeById(network, a.id);
+      if (segment && node && (segment.from === node.id || segment.to === node.id)) {
+        return Network.distanceAlongSegment(network, b.id, node, to.point);
       }
     }
-    return { connected: true, node: fromNode, target: targetNode, segment, secondarySegment,
-      branchNode, points: route.points, secondaryPoints: secondarySegment?.points || null };
+    if (b?.kind === 'node' && a?.kind === 'segment') return sameSegmentGap(network, to, from);
+    if (a?.kind === 'node' && b?.kind === 'node' && a.id === b.id) return 0;
+    return Infinity;
   }
 
-  function modifySegment({ network, segmentId, terrain, baseField, buildings }) {
-    const segment = Network.segmentById(network, segmentId);
-    if (!segment) return { changed: false, reason: 'segment-not-found' };
-    const from = Network.nodeById(network, segment.from), to = Network.nodeById(network, segment.to);
-    if (!from || !to) return { changed: false, reason: 'endpoint-not-found' };
-    const allowDeepWater = portRoute(isPortNode(from, buildings), isPortNode(to, buildings));
-    const field = CostField.withNetwork(baseField, network, buildings, [from, to], segmentId, { allowDeepWater });
-    const rawPath = Pathfinder.findPath(field, terrain, from, to);
-    const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
-    if (!route) return { changed: false, reason: 'no-valid-route' };
-    Network.replaceSegmentPoints(network, segmentId, route.points, route.surfaceTypes);
-    return { changed: true, segment };
+  function validateEndpoints({ network, from, to }) {
+    if (!from?.point || !to?.point || ![from.point.x, from.point.y, to.point.x, to.point.y].every(Number.isFinite)) {
+      return 'Choisissez deux extrémités valides.';
+    }
+    if (from.kind === 'building' && to.kind === 'building' && from.buildingId === to.buildingId) {
+      return 'Choisissez deux bâtiments différents.';
+    }
+    if (distance(from.point, to.point) < 1) return 'Les deux extrémités sont trop proches.';
+    const gap = sameSegmentGap(network, from, to);
+    if (gap < Config.network.minimumSameRouteSeparation) {
+      return `Écartez les deux points d’au moins ${Config.network.minimumSameRouteSeparation} km sur cette route.`;
+    }
+    return '';
   }
 
-  function createBetween({ network, from, to, terrain, baseField, buildings }) {
-    if (!from || !to || from.id === to.id) return { connected: false, reason: 'invalid-endpoints' };
-    const allowDeepWater = portRoute(isPortNode(from, buildings), isPortNode(to, buildings));
-    const field = CostField.withNetwork(baseField, network, buildings, [from, to], null, { allowDeepWater });
-    const rawPath = Pathfinder.findPath(field, terrain, from, to);
+  function previewBetween({ network, from, to, terrain, baseField, buildings }) {
+    const problem = validateEndpoints({ network, from, to });
+    if (problem) return { connected: false, reason: problem };
+    const allowDeepWater = endpointIsPort(from, network, buildings) && endpointIsPort(to, network, buildings);
+    // The player already chose both junctions. Penalize the existing built
+    // road corridors so a new connector does not simply redraw the same line.
+    const field = CostField.withNetwork(baseField, network, buildings, [from.point, to.point], null,
+      { allowDeepWater, avoidExistingRoads: true, builtRoadsOnly: true });
+    const rawPath = Pathfinder.findPath(field, terrain, from.point, to.point);
     const route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
-    if (!route) return { connected: false, reason: 'no-valid-route' };
-    const segment = Network.addSegment(network, { from: from.id, to: to.id,
+    if (!route) return { connected: false, reason: 'Aucun tracé valide ne relie ces deux points.' };
+    return { connected: true, from, to, ...route };
+  }
+
+  function copyNetwork(network) {
+    return { ...network,
+      nodes: network.nodes.map(node => ({ ...node })),
+      segments: network.segments.map(segment => ({ ...segment,
+        points: segment.points.map(point => ({ ...point })),
+        surfaceTypes: segment.surfaceTypes.slice(),
+        constructionPrerequisite: segment.constructionPrerequisite ? { ...segment.constructionPrerequisite } : null })) };
+  }
+
+  function attachEndpoint(network, endpoint) {
+    if (endpoint.kind === 'building') {
+      const existing = network.nodes.find(node => node.buildingId === endpoint.buildingId);
+      return existing || Network.addNode(network, { ...endpoint.point, type: 'building', buildingId: endpoint.buildingId });
+    }
+    const target = Network.nearestConnection(network, endpoint.point);
+    if (!target || target.distance > .05) return null;
+    return Network.connectToTarget(network, target);
+  }
+
+  function createBetween({ network, from, to, terrain, baseField, buildings, preview = null }) {
+    const route = preview?.connected ? preview : previewBetween({ network, from, to, terrain, baseField, buildings });
+    if (!route.connected) return route;
+    const draft = copyNetwork(network);
+    const fromNode = attachEndpoint(draft, from), toNode = attachEndpoint(draft, to);
+    if (!fromNode || !toNode) return { connected: false, reason: 'Une extrémité ne rejoint plus le réseau.' };
+    if (fromNode.id === toNode.id) return { connected: false, reason: 'Les deux extrémités rejoignent déjà le même nœud.' };
+    const segment = Network.addSegment(draft, { from: fromNode.id, to: toNode.id,
       points: route.points, surfaceTypes: route.surfaceTypes });
-    return { connected: true, segment, points: route.points };
+    network.nextNodeId = draft.nextNodeId; network.nextSegmentId = draft.nextSegmentId;
+    network.nodes = draft.nodes; network.segments = draft.segments;
+    return { connected: true, segment, points: route.points, surfaceTypes: route.surfaceTypes };
   }
 
-  root.OrbitRoadPlacement = Object.freeze({ connectBuilding, modifySegment, createBetween, config: Config });
+  root.OrbitRoadPlacement = Object.freeze({ previewBetween, createBetween, config: Config });
 })(globalThis);

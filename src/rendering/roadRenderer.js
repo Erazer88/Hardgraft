@@ -3,7 +3,7 @@
 
   const Style = root.OrbitRoadConfig.render;
 
-  function roadRuns(frame, segment) {
+  function roadRuns(frame, segment, opacity = 1) {
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
     let landOpen = false, waterOpen = false, waterProgress = Style.waterDotSpacingPx / 2;
@@ -25,7 +25,7 @@
       if (isWater) {
         if (landOpen) { ctx.stroke(); ctx.beginPath(); landOpen = false; }
         if (!waterOpen) waterProgress = Style.waterDotSpacingPx / 2;
-        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress);
+        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity);
         waterOpen = true;
       } else {
         waterOpen = false; waterProgress = Style.waterDotSpacingPx / 2;
@@ -55,10 +55,10 @@
     return false;
   }
 
-  function drawWaterDots(ctx, a, b, progress) {
+  function drawWaterDots(ctx, a, b, progress, opacity = 1) {
     const length = Math.hypot(b.x - a.x, b.y - a.y), spacing = Style.waterDotSpacingPx;
     if (length < .1) return progress;
-    ctx.save(); ctx.fillStyle = Style.waterColor; ctx.globalAlpha = Style.waterOpacity;
+    ctx.save(); ctx.fillStyle = Style.waterColor; ctx.globalAlpha = Style.waterOpacity * opacity;
     for (; progress < length; progress += spacing) {
       const t = progress / length;
       const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
@@ -82,23 +82,34 @@
 
   function render(frame) {
     const network = frame.state.roadNetworks?.[frame.planet.id];
-    if (!network) return;
     const ctx = frame.context;
-    ctx.save(); ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = Style.landOpacity;
-    for (const segment of network.segments) {
-      if (segment.points?.length < 2 || !visible(frame, segment)) continue;
-      roadRuns(frame, segment);
+    if (network) {
+      ctx.save(); ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = Style.landOpacity;
+      for (const segment of network.segments) {
+        if (segment.points?.length < 2 || !visible(frame, segment)) continue;
+        roadRuns(frame, segment);
+      }
+      ctx.restore();
+      ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
+      for (const node of network.nodes) {
+        if (node.type !== 'intersection' || !reachedIntersection(network, node)) continue;
+        const point = frame.project(node.x, node.y);
+        if (point.x < -4 || point.y < -4 || point.x > frame.viewport.width + 4 || point.y > frame.viewport.height + 4) continue;
+        ctx.beginPath(); ctx.arc(point.x, point.y, Style.junctionRadiusPx, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.restore();
-    ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
-    for (const node of network.nodes) {
-      if (node.type !== 'intersection' || !reachedIntersection(network, node)) continue;
-      const point = frame.project(node.x, node.y);
-      if (point.x < -4 || point.y < -4 || point.x > frame.viewport.width + 4 || point.y > frame.viewport.height + 4) continue;
-      ctx.beginPath(); ctx.arc(point.x, point.y, Style.junctionRadiusPx, 0, Math.PI * 2); ctx.fill();
+
+    const preview = frame.state.roadPreview;
+    if (preview?.valid && preview.points?.length >= 2) {
+      const length = preview.points.slice(1).reduce((sum, point, index) =>
+        sum + Math.hypot(point.x - preview.points[index].x, point.y - preview.points[index].y), 0);
+      ctx.save(); ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = preview.opacity || .52;
+      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, preview.opacity || .52);
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
   }
 
   root.OrbitRoadRenderer = Object.freeze({ render });

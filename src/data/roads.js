@@ -23,6 +23,8 @@
       marineWaterMultiplier: 64,
       roadReuse: .02,
       nearRoad: .055,
+      manualRoadCenterCost: 8,
+      manualRoadInfluenceCost: 2.4,
       roadInfluenceCells: 3,
       valleyRadiusCells: 6
     }),
@@ -33,14 +35,12 @@
     search: Object.freeze({ maxExpandedStates: 500000 }),
     network: Object.freeze({
       snapDistance: 6.5,
-      secondaryBranch: Object.freeze({
-        offsetFromPort: 32,
-        minimumMainRun: 26,
-        minimumLength: 26,
-        minimumAxisSeparation: 36,
-        maximumTargetDistance: 220,
-        minimumAngleDegrees: 35
-      })
+      minimumSameRouteSeparation: 48
+    }),
+    interaction: Object.freeze({
+      roadSnapRadiusPx: 18,
+      previewIntervalMs: 85,
+      previewOpacity: .52
     }),
     construction: Object.freeze({
       speedByClass: Object.freeze({ main: 22, secondary: 8 })

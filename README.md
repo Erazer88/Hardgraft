@@ -29,6 +29,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Jav
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de relief, les coordonnées et l'altitude. Les gisements restent des éléments naturels générés, sans extraction active.
 - En surface, le bouton usine active un aperçu de placement. Déplacez-le sur la terre ferme et touchez pour lancer l'assemblage ; Échap annule le mode. Les usines se sélectionnent en touchant leur empreinte. L'éditeur intérieur des blocs viendra dans une étape suivante.
+- Le bouton route active le tracé manuel : faites glisser depuis un bâtiment ou une route jusqu'à un autre bâtiment ou point de route. Une prévisualisation topographique semi-transparente apparaît pendant le geste, puis la route se construit progressivement après relâchement.
 - Le menu permet de reprendre l'exploration, de réinitialiser la progression avec la même graine, de saisir une autre graine ou d'afficher tous les systèmes.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 
@@ -42,7 +43,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Des cartes planétaires reproductibles avec continents, océans, côtes, ombrage, courbes de niveau et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
-La pose de bâtiments et les routes planétaires constituent encore un outil de test ; les routes se construisent progressivement et leur avancement est sauvegardé. Les blocs internes, les flux de ressources et le transport logistique ne sont pas encore simulés.
+La pose de bâtiments et les routes planétaires constituent encore un outil de test ; la création des routes est manuelle, leur construction progressive et leur avancement sont sauvegardés. Les blocs internes, les flux de ressources et le transport logistique ne sont pas encore simulés.
 
 ## Vérification manuelle
 
