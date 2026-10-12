@@ -130,7 +130,7 @@ class CDP {
 async function launchChrome(profile) {
   const child = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
-    '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--enable-unsafe-swiftshader', '--no-first-run', '--no-default-browser-check',
     '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
     `--user-data-dir=${profile}`, 'about:blank',
   ], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -298,6 +298,8 @@ async function checkTerrainZoomLimit(cdp, name) {
 }
 
 async function checkContinuousZoom(cdp, name, mobile) {
+  const gpuBaseline = await cdp.evaluate(`({ draws: window.__terrainGpuStats.draws,
+    uploads: window.__terrainGpuStats.storage.length })`);
   await cdp.evaluate('window.OrbitalDebug.focusHome()');
   await settle(cdp, `${name} home camera settles before continuous zoom`);
   await cdp.evaluate('window.OrbitalDebug.setPause(true)');
@@ -321,8 +323,13 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await cdp.tapAt(planetPoint, mobile);
   await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
   await settle(cdp, `${name} surface camera settles before close terrain zoom`);
+  await cdp.until('window.OrbitalDebug.getSurfaceDetailMetrics()',
+    `${name} background worker finishes the high-resolution terrain`, 15000);
   const detail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
   assert.ok(detail, `${name} active surface builds its high-resolution terrain`);
+  const gpuReady = `window.__terrainGpuStats.draws > ${gpuBaseline.draws} &&
+    window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}).some(upload =>
+      upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3)`;
   assert.equal(detail.detailWidth, detail.baseWidth * 4, `${name} terrain detail has four times the horizontal samples`);
   assert.equal(detail.detailHeight, detail.baseHeight * 4, `${name} terrain detail has four times the vertical samples`);
   const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
@@ -334,6 +341,7 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await zoomStep(cdp, highDetailFactor, { x: planetPoint.x, y: planetPoint.y });
   const zoomedDetail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
   assert.ok(zoomedDetail.surfaceZoom >= 2, `${name} screenshot reaches the high-resolution terrain renderer`);
+  await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
   await cdp.screenshot(`${name}-terrain-close.png`);
   await checkTerrainZoomLimit(cdp, name);
   assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
@@ -562,6 +570,23 @@ async function main() {
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Network.enable');
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
+      globalThis.__terrainGpuStats = { draws: 0, storage: [] };
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, options) {
+        const context = originalGetContext.call(this, type, options);
+        if (type !== 'webgl2' || !context) return context;
+        const stats = globalThis.__terrainGpuStats;
+        const originalDrawArrays = context.drawArrays.bind(context);
+        context.drawArrays = (...args) => { stats.draws += 1; return originalDrawArrays(...args); };
+        const originalTexStorage3D = context.texStorage3D.bind(context);
+        context.texStorage3D = (target, levels, format, width, height, depth) => {
+          stats.storage.push({ width, height, depth });
+          return originalTexStorage3D(target, levels, format, width, height, depth);
+        };
+        return context;
+      };
+    ` });
     await runViewport(cdp, { name: 'mobile', width: 390, height: 844, mobile: true }, runtimeErrors);
     await runViewport(cdp, { name: 'desktop', width: 1440, height: 900, mobile: false }, runtimeErrors);
     assert.deepEqual(externalRequests, [], 'App makes no requests to external network resources');

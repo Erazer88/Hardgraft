@@ -16,6 +16,8 @@
   const FRAGMENT_SHADER = `#version 300 es
     precision highp float;
     precision highp int;
+    precision highp sampler2D;
+    precision highp sampler2DArray;
 
     uniform sampler2DArray uBiomeTextures;
     uniform sampler2DArray uMaterialMasks;
