@@ -91,3 +91,26 @@ body[data-level="surface"] .corner-note{display:none}
   body[data-level="surface"] .view-heading{display:none}
   #menu-dialog{inset:calc(56px + var(--safe-top)) calc(var(--edge) + var(--safe-right)) auto auto;width:min(430px,calc(100% - 16px - var(--safe-left) - var(--safe-right)));max-height:calc(100dvh - 72px - var(--safe-top) - var(--safe-bottom))}
 }
+
+/* Mobile landscape: short corner panels and one row of tools. */
+@media(orientation:landscape) and (max-height:600px){
+  .telemetry{width:188px;padding:10px 12px}
+  .telemetry-heading{font-size:8px;letter-spacing:1.2px;padding-bottom:8px}
+  .telemetry-row{margin-top:8px;font-size:14px}
+  .telemetry-row .label,.telemetry-row.secondary{font-size:8px}
+  .telemetry-row.secondary{margin-top:6px}
+  .header-actions{gap:6px}
+  .header-actions .icon-button,#fullscreen-button{min-width:40px;height:40px}
+  .breadcrumb,body[data-level="surface"] .breadcrumb{top:calc(104px + var(--safe-top));font-size:8px;max-width:calc(100% - 16px - var(--safe-left) - var(--safe-right))}
+  .view-heading,.corner-note,.gesture-hint{display:none}
+  .toolbox{display:flex;padding:3px;gap:0}
+  .tool-button{width:44px;height:44px}
+  .scale-controls{flex-direction:row;gap:8px}
+  .scale-controls .icon-button{width:44px;min-width:44px;height:44px}
+  .scale-legend{position:static;width:64px}
+  .game-version{top:auto;bottom:calc(var(--edge) + var(--safe-bottom));left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));font-size:8px}
+  .inspector,.inspector.building-panel,.build-menu{bottom:calc(68px + var(--safe-bottom));width:min(340px,calc(100% - 16px - var(--safe-left) - var(--safe-right)));max-height:calc(100dvh - 158px - var(--safe-top) - var(--safe-bottom));overflow:auto}
+  .toast{bottom:calc(68px + var(--safe-bottom))}
+  .menu-card{padding:18px 24px}
+  #menu-dialog{inset:calc(56px + var(--safe-top)) calc(var(--edge) + var(--safe-right)) auto auto;max-height:calc(100dvh - 64px - var(--safe-top) - var(--safe-bottom))}
+}

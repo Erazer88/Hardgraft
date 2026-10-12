@@ -228,16 +228,13 @@
     if (state.level === 'system') return systemCamera();
     return surfaceCamera();
   }
-  function surfaceCamera(planet = state.planet, showOverview = false) {
+  function surfaceCamera(planet = state.planet) {
     const record = prepareTerrain(planet);
     const width = record.texture.logicalWidth || record.texture.width;
     const height = record.texture.logicalHeight || record.texture.height;
-    // In mobile portrait, keep the terrain edge to edge even when recentering
-    // or requesting an overview. Pan and pinch still reach the rest of the map.
-    const portrait = W <= 600 && H > W;
-    const zoom = showOverview && !portrait
-      ? Math.min((W - 30) / width, (H - 200) / height)
-      : Math.max(W / width, H / height) * 1.08;
+    // Fill both screen dimensions, including wide mobile landscape displays.
+    // Keep world proportions intact; pan and pinch reach the rest of the map.
+    const zoom = Math.max(W / width, H / height) * 1.08;
     return worldCamera(surfaceFrame(planet), { x: width / 2, y: height / 2, zoom });
   }
   function resetCamera(immediate = false) { const cam = homeCamera(); focusCamera(cam.x, cam.y, cam.zoom, immediate); }
@@ -699,7 +696,7 @@
       focusCamera(camera.x, camera.y, camera.zoom);
     } else {
       followPlanet(state.planet);
-      const camera = surfaceCamera(state.planet, true);
+      const camera = surfaceCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
     }
     persist();

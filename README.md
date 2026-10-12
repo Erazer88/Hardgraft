@@ -1,6 +1,6 @@
 # Néréide — Atlas orbital
 
-Prototype mobile de navigation spatiale. Explorez une galaxie procédurale, zoomez dans ses systèmes, observez les orbites et examinez les cartes topographiques des planètes. La première étape de construction planétaire permet de poser une usine test sur le terrain.
+Prototype mobile de navigation spatiale, optimisé pour le paysage. Explorez une galaxie procédurale, zoomez dans ses systèmes, observez les orbites et examinez les cartes topographiques des planètes. La première étape de construction planétaire permet de poser une usine test sur le terrain.
 
 Les références de direction artistique sont dans [docs/images](docs/images). Les règles complètes du jeu fournies par l'utilisateur sont conservées dans [docs/reference](docs/reference) pour guider les prochaines étapes.
 
@@ -25,7 +25,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS, Canva
 - Zoomer sur une étoile pour voir son système, puis sur une planète pour afficher son relief dans la même scène.
 - Toucher une étoile puis **Zoomer sur le système**, ou double-toucher, pour recentrer la vue.
 - Toucher une planète puis **Zoomer sur la surface** pour la centrer. Les géantes gazeuses n'ont pas de surface solide.
-- Le retour et le fil d'Ariane remontent d'un niveau. Le bouton de cadrage montre la carte entière ; la cible recentre la vue.
+- Le retour et le fil d'Ariane remontent d'un niveau. Sur une planète, le bouton de cadrage remplit l'écran avec le terrain, sans bandes vides sur les côtés ; glisser permet d'explorer le reste de la carte. La cible recentre la vue.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de relief, les coordonnées et l'altitude. Les gisements restent des éléments naturels générés, sans extraction active.
 - En surface, le catalogue affiche les stocks et le coût de chaque infrastructure. Les matériaux sont débités au lancement de l'assemblage ; toucher un bâtiment puis **Démolir** rembourse le taux indiqué. L'inventaire initial est limité : extraction et production ne sont pas encore actives.
