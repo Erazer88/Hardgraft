@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { readFileSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
@@ -68,14 +68,75 @@ test('secondary road budget and geometry stay local to the production building',
   }
 
   assert.ok(result.settlement.roads.length >= 3, 'one connected producer should generate several feeder routes');
+  assert.ok(result.settlement.neighborhoods.length >= 1);
   assert.ok(result.settlement.roads.reduce((sum, road) => sum + road.length, 0) <=
     metrics.secondaryTargetLength + 1e-6);
+  assert.ok(result.settlement.roads.every(road => road.neighborhoodId && road.fromNode && road.toNode));
+  assert.ok(result.settlement.roads.some(road => road.roadClass === 'collector'));
+  assert.ok(result.settlement.roads.some(road => road.roadClass === 'local'));
+  const connector = result.settlement.roads.find(road => road.type === 'connector');
+  assert.ok(connector,
+    'a neighborhood should form a connected local loop when a suitable tie exists');
+  assert.equal(connector.fromNode.kind, 'street');
+  assert.equal(connector.toNode.kind, 'street');
   const factory = setup.buildings[0];
   for (const road of result.settlement.roads) {
     assert.ok(road.length <= context.OrbitSettlementConfig.growth.secondaryRoadMaxLength);
     assert.ok(road.points.every(point => Math.hypot(point.x - factory.x, point.y - factory.y) <=
       context.OrbitSettlementConfig.growth.productionRoadInfluenceRadius + 1e-6));
   }
+  assert.deepEqual([...new Set(result.settlement.houses.map(house => house.asset))].sort(), [
+    'assets/settlements/maison_01.webp', 'assets/settlements/maison_02.webp', 'assets/settlements/maison_03.webp'
+  ]);
+  assert.ok(result.settlement.houses.every(house => house.neighborhoodId));
+  assert.ok(result.settlement.districts.some(district => district.asset.endsWith('carrefour_T.webp')));
+});
+
+test('district topology selects every village and city road model', () => {
+  const simulation = context.OrbitSettlementSimulation;
+  const expected = [];
+  for (const asset of [...simulation.modelAssets.houses, ...simulation.modelAssets.districts]) {
+    assert.ok(existsSync(resolve(__dirname, '..', asset)), `missing settlement model ${asset}`);
+  }
+  for (const urban of [false, true]) for (const degree of [2, 3, 4]) {
+    const asset = simulation.districtAssetForTopology(degree, urban);
+    expected.push(asset);
+    assert.ok(simulation.modelAssets.districts.includes(asset));
+  }
+  assert.equal(new Set(expected).size, 6);
+  assert.equal(simulation.modelAssets.houses.length, 3);
+});
+
+test('four-way road junctions use the city crossing model', () => {
+  const setup = options(false), center = { id: 'junction-0', x: 375, y: 150 };
+  const ends = [{ id: 'junction-n', x: 375, y: 50 }, { id: 'junction-e', x: 475, y: 150 },
+    { id: 'junction-s', x: 375, y: 250 }, { id: 'junction-w', x: 275, y: 150 }];
+  setup.network = { nodes: [center, ...ends], segments: ends.map((end, index) => ({
+    id: `spoke-${index}`, routeId: `spoke-${index}`, from: center.id, to: end.id,
+    routeType: 'land', roadClass: 'main', points: [center, end], length: 100, builtLength: 100
+  })) };
+  const settlement = context.OrbitSettlementSimulation.grow(
+    context.OrbitSettlementSimulation.create(setup.planetId), setup).settlement;
+  const crossing = settlement.districts.find(district => district.id === 'main-junction:junction-0');
+  assert.ok(crossing);
+  assert.equal(crossing.degree, 4);
+  assert.ok(crossing.asset.endsWith('ville_carrefour_croix.webp'));
+});
+
+test('older settlement saves migrate their roads into neighborhood nodes without losing construction', () => {
+  const setup = options(true), settlement = context.OrbitSettlementSimulation.create(setup.planetId);
+  settlement.version = 7;
+  settlement.generatedStage = 1;
+  settlement.roads.push({ id: 'planet-1:settlement-road:1', type: 'branch', routeId: 'main-1',
+    points: [{ x: 100, y: 150 }, { x: 110, y: 205 }],
+    anchor: { x: 100, y: 150 }, endpoint: { x: 110, y: 205 }, length: 56, builtLength: 20 });
+
+  const result = context.OrbitSettlementSimulation.grow(settlement, setup).settlement;
+  assert.equal(result.roads.length, 1);
+  assert.ok(result.roads[0].neighborhoodId);
+  assert.equal(result.roads[0].builtLength, 20);
+  assert.ok(result.neighborhoods.some(neighborhood => neighborhood.roadIds.includes(result.roads[0].id)));
+  assert.ok(result.houses.every(house => house.neighborhoodId === result.roads[0].neighborhoodId));
 });
 
 test('secondary road construction speed is five times the former 4.2 km/s rate', () => {

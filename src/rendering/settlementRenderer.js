@@ -78,7 +78,8 @@
       const road = roadById.get(district.roadId);
       const ready = district.mainRoadAsset ? completeMainRoutes.has(district.routeId) :
         road && road.builtLength >= district.roadDistance;
-      if (ready) drawAsset(frame, district, Style.districtWidthWorld, Style.spriteOpacity, true);
+      if (ready) drawAsset(frame, district, district.widthWorld || Style.districtWidthWorld,
+        Style.spriteOpacity, true);
     }
     for (const house of settlement.houses || []) {
       const road = roadById.get(house.roadId);

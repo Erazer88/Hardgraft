@@ -148,13 +148,21 @@ test('settlement saves use compact asset keys and restore buildings, routes and 
   const roadId = 'planet-1:settlement-road:1';
   settlement.roads.push({ id: roadId, type: 'branch', stage: 1, routeId: 'road-1',
     anchor: { x: 40, y: 35 }, endpoint: { x: 80, y: 50 }, parentRoadId: null,
-    connectsToRoadId: null, points: [{ x: 40, y: 35 }, { x: 80, y: 50 }], length: 42.72, builtLength: 12 });
+    connectsToRoadId: null, roadClass: 'collector', neighborhoodId: 'neighborhood-1',
+    startHostId: 'main-1', startHostKind: 'main', startHostRouteId: 'road-1', startHostMeasure: 20,
+    fromNode: { kind: 'main', hostId: 'main-1', measure: 20, x: 40, y: 35 },
+    toNode: { kind: 'neighborhood', neighborhoodId: 'neighborhood-1', x: 80, y: 50 },
+    tangent: { x: .9, y: .4 }, points: [{ x: 40, y: 35 }, { x: 80, y: 50 }], length: 42.72, builtLength: 12 });
   const houseAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/maison_01.webp');
   const districtAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/village_ligne_droite.webp');
   settlement.houses = Array.from({ length: 100 }, (_, index) => ({ id: `house-${index + 1}`, roadId,
+    neighborhoodId: 'neighborhood-1',
     roadDistance: index + 1, x: 50 + index, y: 39, rotation: .2, asset: houseAsset }));
   settlement.districts.push({ id: 'district-1', roadId, routeId: 'road-1', mainRoadAsset: false,
-    roadDistance: 20, x: 60, y: 42, rotation: .3, variant: 1, asset: districtAsset });
+    kind: 'center', neighborhoodId: 'neighborhood-1', roadDistance: 20,
+    x: 60, y: 42, rotation: .3, variant: 1, asset: districtAsset });
+  settlement.neighborhoods.push({ id: 'neighborhood-1', productionBuildingId: 'factory-1',
+    x: 80, y: 50, routeId: 'road-1', collectorRoadId: roadId, roadIds: [roadId] });
   state.surfaceSettlements['planet-1'] = settlement;
 
   let stored;
@@ -173,6 +181,9 @@ test('settlement saves use compact asset keys and restore buildings, routes and 
   assert.equal(restored.surfaceSettlements['planet-1'].houses.length, 100);
   assert.equal(restored.surfaceSettlements['planet-1'].houses[0].asset, 'assets/settlements/maison_01.webp');
   assert.equal(restored.surfaceSettlements['planet-1'].districts.length, 1);
+  assert.equal(restored.surfaceSettlements['planet-1'].roads[0].roadClass, 'collector');
+  assert.equal(restored.surfaceSettlements['planet-1'].roads[0].toNode.neighborhoodId, 'neighborhood-1');
+  assert.equal(restored.surfaceSettlements['planet-1'].neighborhoods[0].collectorRoadId, roadId);
 
   const legacy = plain(saved);
   legacy.version = 6;

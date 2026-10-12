@@ -7,9 +7,11 @@
       maxStages: 48,
       roadLengthPerStage: 320,
       secondaryRoadLengthPerStage: 150,
-      // Give each connected land producer room for several short feeder roads.
-      secondaryRoadLengthPerProductionBuilding: 260,
+      // Budget a small connected collector/local-street network per producer.
+      secondaryRoadLengthPerProductionBuilding: 300,
       productionRoadInfluenceRadius: 180,
+      neighborhoodAttachmentRadius: 130,
+      neighborhoodStreetRadius: 118,
       secondaryRoadMaxLength: 150,
       productionAnchorOffsets: Object.freeze([50, 95, 140]),
       initialRouteStages: 2,
@@ -23,21 +25,16 @@
       branchMaxLength: 110,
       maxGeneratedRoadLength: 650,
       connectorChance: .62,
-      connectorMinSpan: 140,
-      connectorMaxSpan: 440,
+      connectorMinSpan: 48,
+      connectorMaxSpan: 132,
       secondaryCandidateWeight: 2.1,
       branchCandidateFractions: Object.freeze([.15, .3, .45, .6, .75, .9]),
       pathRetries: 5,
-      cityStage: 5,
-      districtMinMainRoadLength: 260,
-      districtMinPlacementSegmentLength: 90,
-      districtRouteChance: .12,
-      districtMinSpacing: 220,
-      houseStartDistance: 54,
+      houseStartDistance: 18,
       houseMinSpacing: 15,
       houseMaxSpacing: 19,
       houseSideOffset: 5.8,
-      districtSideOffset: 7.5
+      districtJunctionSnapDistance: 12
     }),
     construction: Object.freeze({ secondarySpeed: 21 }),
     render: Object.freeze({
@@ -46,7 +43,7 @@
       secondaryOpacity: .68,
       secondaryWidthPx: 1.1,
       houseWidthWorld: 10,
-      districtWidthWorld: 10,
+      districtWidthWorld: 18,
       spriteOpacity: .93,
       cullMarginPx: 40
     })

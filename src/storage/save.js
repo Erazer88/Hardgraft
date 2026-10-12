@@ -18,19 +18,33 @@
         generatedStage: settlement.generatedStage,
         roads: (settlement.roads || []).map(road => ({
           id: road.id, type: road.type, stage: road.stage, routeId: road.routeId,
+          roadClass: road.roadClass, neighborhoodId: road.neighborhoodId,
           anchor: road.anchor, endpoint: road.endpoint, parentRoadId: road.parentRoadId,
-          connectsToRoadId: road.connectsToRoadId, points: road.points, length: road.length,
-          builtLength: road.builtLength
+          connectsToRoadId: road.connectsToRoadId, startHostId: road.startHostId,
+          startHostKind: road.startHostKind, startHostRouteId: road.startHostRouteId,
+          startHostMeasure: road.startHostMeasure, endHostId: road.endHostId,
+          endHostKind: road.endHostKind, endHostRouteId: road.endHostRouteId,
+          endHostMeasure: road.endHostMeasure, fromNode: road.fromNode, toNode: road.toNode,
+          tangent: road.tangent, endTangent: road.endTangent,
+          points: road.points, length: road.length, builtLength: road.builtLength
         })),
         houses: (settlement.houses || []).map(house => ({
-          id: house.id, roadId: house.roadId, roadDistance: house.roadDistance,
+          id: house.id, roadId: house.roadId, neighborhoodId: house.neighborhoodId,
+          roadDistance: house.roadDistance,
           x: house.x, y: house.y, rotation: house.rotation, asset: compactAsset(house.asset)
         })),
         districts: (settlement.districts || []).map(district => ({
           id: district.id, roadId: district.roadId, routeId: district.routeId,
-          mainRoadAsset: district.mainRoadAsset, roadDistance: district.roadDistance,
+          mainRoadAsset: district.mainRoadAsset, kind: district.kind,
+          neighborhoodId: district.neighborhoodId, degree: district.degree,
+          roadDistance: district.roadDistance, widthWorld: district.widthWorld,
           x: district.x, y: district.y, rotation: district.rotation,
           variant: district.variant, asset: compactAsset(district.asset)
+        })),
+        neighborhoods: (settlement.neighborhoods || []).map(neighborhood => ({
+          id: neighborhood.id, productionBuildingId: neighborhood.productionBuildingId,
+          x: neighborhood.x, y: neighborhood.y, routeId: neighborhood.routeId,
+          collectorRoadId: neighborhood.collectorRoadId, roadIds: neighborhood.roadIds
         }))
       }];
     }));
