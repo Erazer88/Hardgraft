@@ -10,6 +10,6 @@
     simulation: Object.freeze({ maxFrameSeconds: .05 }),
     exploration: Object.freeze({ initialRadius: 590, scanRadius: 680, durationMs: 1900, detectionRatio: .84 }),
     terrain: Object.freeze({ width: 480, height: 360, textureScale: 3, renderDetailFactor: 4,
-      renderTexturePixelRatio: 2, materialTexturePixelsPerKm: 2.8, maxLocalZoom: 4 })
+      renderTexturePixelRatio: 2, materialTexturePixelsPerKm: 3.4, maxLocalZoom: 4 })
   });
 })(globalThis);
