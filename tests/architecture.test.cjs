@@ -6,8 +6,9 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js', 'data/settlements.js',
-  'simulation/simulation.js', 'simulation/inventory.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
+for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/resources.js', 'data/buildings.js',
+  'data/roads.js', 'data/settlements.js', 'simulation/simulation.js', 'simulation/inventory.js',
+  'simulation/buildings.js', 'simulation/construction.js', 'simulation/roadNetwork.js',
   'simulation/settlements.js', 'gameplay/exploration.js', 'state.js', 'storage/save.js',
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
@@ -37,6 +38,41 @@ test('simulation clock advances explicitly and pauses cleanly', () => {
   close(simulation.time, .5);
   for (const invalid of [-1, NaN, Infinity]) assert.throws(() => Simulation.advance(simulation, invalid));
   close(simulation.time, .5);
+});
+
+test('infinite mineral setting bypasses construction costs without spending or refunding minerals', () => {
+  const settings = context.OrbitDeveloperSettings, Inventory = context.OrbitInventory;
+  const inventory = Inventory.create();
+  const mineralCost = { iron: 35, copper: 16, silicon: 8, carbon: 2 };
+  try {
+    assert.equal(Inventory.canAfford(inventory, mineralCost), false);
+    assert.deepEqual(plain(Inventory.missing(inventory, mineralCost)), [
+      { id: 'iron', amount: 35 }, { id: 'copper', amount: 16 },
+      { id: 'silicon', amount: 8 }, { id: 'carbon', amount: 2 }
+    ]);
+
+    settings.set('infiniteMinerals', true);
+    assert.equal(Inventory.canAfford(inventory, mineralCost), true);
+    assert.deepEqual(plain(Inventory.missing(inventory, mineralCost)), []);
+    assert.deepEqual(plain(Inventory.chargeableCost(mineralCost)), {});
+    assert.equal(Inventory.isInfinite('iron'), true);
+    assert.equal(Inventory.isInfinite('water'), false);
+    assert.deepEqual(plain(Inventory.missing(inventory, { iron: 1, water: 2 })), [
+      { id: 'water', amount: 2 }
+    ]);
+
+    const building = { type: 'factory', constructionState: 'planned' };
+    assert.equal(context.OrbitConstruction.start(building, inventory).started, true);
+    assert.deepEqual(plain(building.costPaid), {});
+    assert.deepEqual(plain(inventory), {});
+    assert.deepEqual(plain(context.OrbitConstruction.demolish(building, inventory)), {});
+    assert.deepEqual(plain(inventory), {});
+
+    settings.set('infiniteMinerals', false);
+    assert.equal(Inventory.canAfford(inventory, mineralCost), false);
+  } finally {
+    settings.reset();
+  }
 });
 
 test('seed normalization preserves existing numeric and textual behaviour', () => {

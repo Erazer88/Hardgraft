@@ -42,6 +42,12 @@
       id: 'depositOilColor', type: 'color', group: 'Gisements',
       label: 'Pétrole', help: 'Couleur des hachures, du contour lumineux et du nom.',
       defaultValue: '#ffbd43'
+    }),
+    Object.freeze({
+      id: 'infiniteMinerals', type: 'checkbox', group: 'Ressources',
+      label: 'Minerais infinis',
+      help: 'Les constructions ne consomment pas de fer, cuivre, silice ou carbone.',
+      defaultValue: false
     })
   ]);
   const byId = new Map(definitions.map(definition => [definition.id, definition]));

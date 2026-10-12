@@ -1,6 +1,8 @@
 (function (root) {
   'use strict';
 
+  const MINERAL_IDS = new Set(['iron', 'copper', 'silicon', 'carbon']);
+
   function isAmountMap(value) {
     return Boolean(value && typeof value === 'object' && !Array.isArray(value));
   }
@@ -17,9 +19,19 @@
       .filter(([id, amount]) => id.trim() && Number.isFinite(amount) && amount > 0));
   }
 
-  function missing(inventory, cost) {
+  function isInfinite(id) {
+    return MINERAL_IDS.has(id) && root.OrbitDeveloperSettings?.get('infiniteMinerals') === true;
+  }
+
+  function chargeableCost(cost) {
     if (!validEntries(cost)) return null;
-    return Object.entries(cost).flatMap(([id, amount]) => {
+    return Object.fromEntries(Object.entries(cost).filter(([id]) => !isInfinite(id)));
+  }
+
+  function missing(inventory, cost) {
+    const chargeable = chargeableCost(cost);
+    if (chargeable === null) return null;
+    return Object.entries(chargeable).flatMap(([id, amount]) => {
       const available = Number.isFinite(inventory?.[id]) && inventory[id] > 0 ? inventory[id] : 0;
       return available + 1e-9 >= amount ? [] : [{ id, amount: amount - available }];
     });
@@ -30,8 +42,9 @@
   }
 
   function consume(inventory, cost) {
-    if (!canAfford(inventory, cost)) return false;
-    for (const [id, amount] of Object.entries(cost)) {
+    const chargeable = chargeableCost(cost);
+    if (chargeable === null || !canAfford(inventory, cost)) return false;
+    for (const [id, amount] of Object.entries(chargeable)) {
       const remaining = inventory[id] - amount;
       if (remaining <= 1e-9) delete inventory[id];
       else inventory[id] = remaining;
@@ -49,5 +62,5 @@
     return inventory;
   }
 
-  root.OrbitInventory = Object.freeze({ create, canAfford, missing, consume, add });
+  root.OrbitInventory = Object.freeze({ create, canAfford, missing, consume, add, isInfinite, chargeableCost });
 })(globalThis);

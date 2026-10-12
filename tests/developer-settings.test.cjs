@@ -20,6 +20,8 @@ test('developer settings add deposit controls without discarding saved contour p
   assert.equal(settings.get('overviewContourColor'), '#abcdef');
   assert.equal(settings.get('overviewContourOpacity'), 42);
   assert.equal(settings.get('depositMarkerSizePercent'), 100);
+  assert.equal(settings.get('infiniteMinerals'), false);
+  assert.equal(settings.definitions.find(definition => definition.id === 'infiniteMinerals').type, 'checkbox');
   assert.deepEqual(Array.from(settings.definitions)
     .filter(definition => definition.id.endsWith('Color') && definition.id.startsWith('deposit'))
     .map(definition => definition.id).sort(), [
@@ -35,16 +37,21 @@ test('deposit size and colors validate, persist, notify controls, and reset to d
   assert.equal(settings.set('depositMarkerSizePercent', 300), 200);
   assert.equal(settings.set('depositIronColor', '#F012aB'), '#f012ab');
   assert.equal(settings.set('depositSiliconColor', 'blue'), '#58efff');
-  assert.deepEqual(changes, [['depositMarkerSizePercent', 200], ['depositIronColor', '#f012ab']]);
+  assert.equal(settings.set('infiniteMinerals', true), true);
+  assert.deepEqual(changes, [['depositMarkerSizePercent', 200], ['depositIronColor', '#f012ab'],
+    ['infiniteMinerals', true]]);
   assert.equal(readStored().depositMarkerSizePercent, 200);
   assert.equal(readStored().depositIronColor, '#f012ab');
+  assert.equal(readStored().infiniteMinerals, true);
 
   settings.reset();
   assert.equal(settings.get('depositMarkerSizePercent'), 100);
   assert.equal(settings.get('depositIronColor'), '#ffdb45');
+  assert.equal(settings.get('infiniteMinerals'), false);
   assert.equal(readStored().depositMarkerSizePercent, 100);
-  assert.deepEqual(changes.slice(-8).map(([id]) => id).sort(), [
+  assert.equal(readStored().infiniteMinerals, false);
+  assert.deepEqual(changes.slice(-9).map(([id]) => id).sort(), [
     'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePercent', 'depositOilColor',
-    'depositSiliconColor', 'overviewContourColor', 'overviewContourOpacity'
+    'depositSiliconColor', 'infiniteMinerals', 'overviewContourColor', 'overviewContourOpacity'
   ].sort());
 });

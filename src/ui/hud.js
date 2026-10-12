@@ -200,7 +200,7 @@
           ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
       $('resource-stock').textContent = `STOCK · ${ResourceData.catalog()
-        .map(resource => `${resource.label} ${fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
+        .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
       $('build-menu-title').textContent = orbitalHubRequired ? 'HUB ORBITAL REQUIS' : 'INFRASTRUCTURES';
       $('build-menu-hint').hidden = !orbitalHubRequired;
       $('back-button').disabled = level === 'galaxy';

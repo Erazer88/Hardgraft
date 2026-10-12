@@ -447,10 +447,26 @@ async function checkDeveloperDepositSettings(cdp, name) {
   const controls = await cdp.evaluate(`(() => ({
     size: document.querySelector('#developer-setting-depositMarkerSizePercent')?.value,
     iron: document.querySelector('#developer-setting-depositIronColor')?.value,
-    oil: document.querySelector('#developer-setting-depositOilColor')?.value
+    oil: document.querySelector('#developer-setting-depositOilColor')?.value,
+    infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked
   }))()`);
-  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43' },
-    `${name} developer panel exposes default deposit size and color controls`);
+  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43', infiniteMinerals: false },
+    `${name} developer panel exposes deposit controls and disables infinite minerals by default`);
+
+  const infiniteMinerals = await cdp.evaluate(`(() => {
+    const setting = document.querySelector('#developer-setting-infiniteMinerals');
+    setting.checked = true; setting.dispatchEvent(new Event('input', { bubbles: true }));
+    const stock = {};
+    const cost = { iron: 35, copper: 16, silicon: 8, carbon: 2 };
+    const missing = window.OrbitInventory.missing(stock, cost);
+    const consumed = window.OrbitInventory.consume(stock, cost);
+    return { enabled: window.OrbitDeveloperSettings.get('infiniteMinerals'), missing,
+      consumed, stock, waterStillFinite: !window.OrbitInventory.isInfinite('water') };
+  })()`);
+  assert.deepEqual(infiniteMinerals, { enabled: true, missing: [], consumed: true,
+    stock: {}, waterStillFinite: true }, `${name} infinite minerals bypass and do not consume mineral costs`);
+  await cdp.until('document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
+    `${name} infinite mineral stock display`);
 
   const scalesWithZoom = await cdp.evaluate(`(() => ({
     zoomedOut: window.OrbitalDebug.getResourceRenderStyle('iron', 40, .5),
@@ -475,6 +491,10 @@ async function checkDeveloperDepositSettings(cdp, name) {
   assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron", 40, 2)'),
     { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' },
     `${name} reset restores the default deposit appearance`);
+  assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
+    `${name} developer reset disables infinite minerals`);
+  await cdp.until('!document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
+    `${name} finite mineral stock display after reset`);
   await cdp.click('#developer-tools-close');
 }
 

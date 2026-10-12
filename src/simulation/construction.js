@@ -14,7 +14,7 @@
     const missing = Inventory.missing(inventory, cost);
     if (missing === null || missing.length) return { started: false, missing };
     if (!Inventory.consume(inventory, cost)) return { started: false, missing: Inventory.missing(inventory, cost) };
-    building.costPaid = { ...cost };
+    building.costPaid = Inventory.chargeableCost(cost);
     building.constructionDurationSeconds = definition.constructionDurationSeconds || defaultDurationSeconds;
     building.demolitionRefundRate = definition.demolitionRefundRate ?? 1;
     building.constructionProgress = 0;

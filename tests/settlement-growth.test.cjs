@@ -92,6 +92,55 @@ test('secondary road budget and geometry stay local to the production building',
   assert.ok(result.settlement.districts.some(district => district.asset.endsWith('carrefour_T.webp')));
 });
 
+test('neighborhood road growth stays deterministic and land-bound across relief profiles and seeds', () => {
+  const profiles = [
+    { seed: 41, elevationAt: () => 110, seaLevel: 0 },
+    { seed: 'rolling-reef', elevationAt: (x, y) => 105 + Math.round(32 *
+      (1 + Math.sin(x * .19) * Math.cos(y * .13))), seaLevel: 0 },
+    { seed: 912, elevationAt: (x, y) => x > 60 && y > 28 && y < 70
+      ? 70 : 105 + Math.round(48 * Math.abs(Math.sin((x + y) * .11))), seaLevel: 90 }
+  ];
+
+  for (const profile of profiles) {
+    const setup = options(true);
+    setup.seed = profile.seed;
+    setup.terrain.seaLevel = profile.seaLevel;
+    for (let y = 0; y < setup.terrain.height; y++) for (let x = 0; x < setup.terrain.width; x++) {
+      setup.terrain.elevation[y * setup.terrain.width + x] = profile.elevationAt(x, y);
+    }
+    setup.baseField = context.OrbitRoadCostField.createBase(setup.terrain, 3);
+
+    const generate = () => {
+      let settlement = context.OrbitSettlementSimulation.create(setup.planetId);
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const previousCount = settlement.roads.length;
+        settlement = context.OrbitSettlementSimulation.grow(settlement, setup).settlement;
+        if (settlement.roads.length === previousCount) break;
+        for (const road of settlement.roads) road.builtLength = road.length;
+      }
+      return settlement;
+    };
+    const first = generate(), repeated = generate();
+    const signature = settlement => JSON.stringify({
+      roads: settlement.roads.map(road => ({ type: road.type, roadClass: road.roadClass,
+        points: road.points, fromNode: road.fromNode, toNode: road.toNode })),
+      houses: settlement.houses.map(house => ({ x: house.x, y: house.y, asset: house.asset }))
+    });
+
+    assert.ok(first.roads.length > 0, `seed ${profile.seed} creates local roads`);
+    assert.equal(signature(first), signature(repeated), `seed ${profile.seed} reproduces the same neighborhood`);
+    const producer = setup.buildings[0];
+    for (const road of first.roads) {
+      assert.ok(road.points.every(point => Math.hypot(point.x - producer.x, point.y - producer.y) <=
+        context.OrbitSettlementConfig.growth.productionRoadInfluenceRadius + 1e-6),
+      `seed ${profile.seed} keeps roads inside the production area`);
+      assert.ok(road.points.every(point => context.OrbitRoadGeometry.elevationAt(
+        setup.terrain, 3, point.x, point.y) > setup.terrain.seaLevel),
+      `seed ${profile.seed} does not route local streets through water`);
+    }
+  }
+});
+
 test('district topology selects every village and city road model', () => {
   const simulation = context.OrbitSettlementSimulation;
   const expected = [];
