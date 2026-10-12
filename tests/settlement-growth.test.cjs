@@ -56,14 +56,32 @@ test('secondary roads require a connected land producer instead of growing into 
 test('secondary road budget and geometry stay local to the production building', () => {
   const setup = options(true), settlement = context.OrbitSettlementSimulation.create(setup.planetId);
   const metrics = context.OrbitSettlementSimulation.growthMetrics(setup.network, setup.buildings, settlement);
-  assert.equal(metrics.secondaryTargetLength, Math.min(
-    metrics.primaryLength * context.OrbitSettlementConfig.growth.maxSecondaryToPrimaryRatio,
-    context.OrbitSettlementConfig.growth.secondaryRoadLengthPerProductionBuilding));
+  assert.equal(metrics.secondaryTargetLength,
+    context.OrbitSettlementConfig.growth.secondaryRoadLengthPerProductionBuilding);
 
-  const result = context.OrbitSettlementSimulation.grow(settlement, setup);
-  assert.equal(result.settlement.roads.length, 1);
-  const road = result.settlement.roads[0], factory = setup.buildings[0];
-  assert.ok(road.length <= context.OrbitSettlementConfig.growth.secondaryRoadMaxLength);
-  assert.ok(road.points.every(point => Math.hypot(point.x - factory.x, point.y - factory.y) <=
-    context.OrbitSettlementConfig.growth.productionRoadInfluenceRadius + 1e-6));
+  let result = context.OrbitSettlementSimulation.grow(settlement, setup);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    for (const road of result.settlement.roads) road.builtLength = road.length;
+    const previousCount = result.settlement.roads.length;
+    result = context.OrbitSettlementSimulation.grow(result.settlement, setup);
+    if (result.settlement.roads.length === previousCount) break;
+  }
+
+  assert.ok(result.settlement.roads.length >= 3, 'one connected producer should generate several feeder routes');
+  assert.ok(result.settlement.roads.reduce((sum, road) => sum + road.length, 0) <=
+    metrics.secondaryTargetLength + 1e-6);
+  const factory = setup.buildings[0];
+  for (const road of result.settlement.roads) {
+    assert.ok(road.length <= context.OrbitSettlementConfig.growth.secondaryRoadMaxLength);
+    assert.ok(road.points.every(point => Math.hypot(point.x - factory.x, point.y - factory.y) <=
+      context.OrbitSettlementConfig.growth.productionRoadInfluenceRadius + 1e-6));
+  }
+});
+
+test('secondary road construction speed is five times the former 4.2 km/s rate', () => {
+  const settlement = context.OrbitSettlementSimulation.create('planet-1');
+  settlement.roads.push({ id: 'test-road', length: 100, builtLength: 0 });
+  assert.equal(context.OrbitSettlementConfig.construction.secondarySpeed, 21);
+  context.OrbitSettlementSimulation.advance({ 'planet-1': settlement }, 1);
+  assert.equal(settlement.roads[0].builtLength, 21);
 });

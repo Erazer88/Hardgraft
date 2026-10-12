@@ -105,8 +105,8 @@
     const productionBuildings = connectedRoadProducers(network, buildings);
     const secondaryLength = (settlement?.roads || []).filter(isComplete)
       .reduce((sum, road) => sum + road.length, 0);
-    const secondaryTargetLength = Math.min(primaryLength * Config.growth.maxSecondaryToPrimaryRatio,
-      productionBuildings.length * Config.growth.secondaryRoadLengthPerProductionBuilding);
+    const secondaryTargetLength =
+      productionBuildings.length * Config.growth.secondaryRoadLengthPerProductionBuilding;
     const activityScore = connectedIndustry.size +
       Math.floor(completedLength / Config.growth.roadLengthPerStage) +
       Math.floor(secondaryLength / Config.growth.secondaryRoadLengthPerStage);

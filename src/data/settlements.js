@@ -7,10 +7,8 @@
       maxStages: 48,
       roadLengthPerStage: 320,
       secondaryRoadLengthPerStage: 150,
-      // Local feeder roads are budgeted per connected land producer, with a
-      // quarter of primary mileage as a hard ceiling for unusually dense sites.
-      secondaryRoadLengthPerProductionBuilding: 130,
-      maxSecondaryToPrimaryRatio: .25,
+      // Give each connected land producer room for several short feeder roads.
+      secondaryRoadLengthPerProductionBuilding: 260,
       productionRoadInfluenceRadius: 180,
       secondaryRoadMaxLength: 150,
       productionAnchorOffsets: Object.freeze([50, 95, 140]),
@@ -28,7 +26,7 @@
       connectorMinSpan: 140,
       connectorMaxSpan: 440,
       secondaryCandidateWeight: 2.1,
-      branchCandidateFractions: Object.freeze([.32, .5, .68]),
+      branchCandidateFractions: Object.freeze([.15, .3, .45, .6, .75, .9]),
       pathRetries: 5,
       cityStage: 5,
       districtMinMainRoadLength: 260,
@@ -41,7 +39,7 @@
       houseSideOffset: 5.8,
       districtSideOffset: 7.5
     }),
-    construction: Object.freeze({ secondarySpeed: 4.2 }),
+    construction: Object.freeze({ secondarySpeed: 21 }),
     render: Object.freeze({
       minZoom: .075,
       secondaryColor: '#c4cdc5',
