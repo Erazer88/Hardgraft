@@ -63,8 +63,8 @@
     if (frame.zoom < Style.minZoom) return;
     const settlement = frame.state.surfaceSettlements?.[frame.planet.id];
     if (!settlement) return;
-    const showRoads = frame.showSurfaceRoads !== false;
-    const showHouses = frame.showSurfaceHouses !== false;
+    const showRoads = Style.showSecondaryRoads && frame.showSurfaceRoads !== false;
+    const showHouses = Style.showHouses && frame.showSurfaceHouses !== false;
     const roads = settlement.roads || [], network = frame.state.roadNetworks?.[frame.planet.id];
     const roadById = new Map([...roads, ...(network?.segments || [])].map(road => [road.id, road]));
     const routeGroups = new Map();

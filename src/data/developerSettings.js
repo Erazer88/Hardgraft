@@ -15,7 +15,7 @@
     }),
     Object.freeze({
       id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',
-      label: 'Routes', help: 'Affiche les routes manuelles, maritimes et secondaires des quartiers.',
+      label: 'Routes', help: 'Affiche les routes posées manuellement. Les rues secondaires des quartiers sont temporairement masquées.',
       defaultValue: true
     }),
     Object.freeze({

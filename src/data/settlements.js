@@ -38,6 +38,9 @@
     }),
     construction: Object.freeze({ secondarySpeed: 21 }),
     render: Object.freeze({
+      // Temporary display switches; settlement generation and saved data stay active.
+      showSecondaryRoads: false,
+      showHouses: false,
       minZoom: .075,
       secondaryColor: '#c4cdc5',
       secondaryOpacity: .68,
