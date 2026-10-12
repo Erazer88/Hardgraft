@@ -94,7 +94,6 @@
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
       terrainTexture = renderer.createTerrainTexture(planet, terrainData, {
-        skipContours: true,
         retainMaterialMasks: true
       });
       context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture, roadCostField: null });

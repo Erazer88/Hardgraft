@@ -29,6 +29,18 @@ test('developer settings add deposit controls without discarding saved contour p
   ]);
 });
 
+test('contour color and opacity controls are described for every zoom level', () => {
+  const { settings } = loadSettings();
+  const color = settings.definitions.find(definition => definition.id === 'overviewContourColor');
+  const opacity = settings.definitions.find(definition => definition.id === 'overviewContourOpacity');
+  assert.equal(settings.get('overviewContourColor'), '#ffffff');
+  assert.equal(settings.get('overviewContourOpacity'), 67);
+  assert.equal(color.group, 'Courbes de relief');
+  assert.equal(opacity.group, color.group);
+  assert.match(color.help, /toutes les échelles/);
+  assert.match(opacity.help, /toutes les échelles/);
+});
+
 test('deposit size and colors validate, persist, notify controls, and reset to defaults', () => {
   const { settings, readStored } = loadSettings();
   const changes = [];

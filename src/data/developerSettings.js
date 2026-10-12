@@ -4,13 +4,13 @@
   const storageKey = 'nereide-atlas-dev-settings-v1';
   const definitions = Object.freeze([
     Object.freeze({
-      id: 'overviewContourColor', type: 'color', group: 'Courbes au dézoom',
-      label: 'Couleur des courbes', help: 'Teinte des lignes de relief visibles à moyenne et grande échelle.',
-      defaultValue: '#e2e8ea'
+      id: 'overviewContourColor', type: 'color', group: 'Courbes de relief',
+      label: 'Couleur des courbes', help: 'Teinte des lignes de relief à toutes les échelles.',
+      defaultValue: '#ffffff'
     }),
     Object.freeze({
-      id: 'overviewContourOpacity', type: 'range', group: 'Courbes au dézoom',
-      label: 'Opacité', help: 'Intensité des courbes de relief éloignées.',
+      id: 'overviewContourOpacity', type: 'range', group: 'Courbes de relief',
+      label: 'Opacité', help: 'Intensité des lignes de relief à toutes les échelles.',
       defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
     }),
     Object.freeze({
