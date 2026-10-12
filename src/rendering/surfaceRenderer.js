@@ -980,7 +980,10 @@
       const frame = surfaceFrame(planet, context), style = SurfaceStyle.terrain;
       const open = ease(clamp((radius - style.globeRevealStartRadiusPx) /
         (style.globeRevealEndRadiusPx - style.globeRevealStartRadiusPx), 0, 1));
-      const width = radius * 2 * (1 + open * style.mapExpansionRatio), height = radius * 2;
+      const textureWidth = record.texture.logicalWidth || record.texture.width;
+      const textureHeight = record.texture.logicalHeight || record.texture.height;
+      const mapAspect = textureWidth / textureHeight;
+      const width = radius * 2 * (1 + open * (mapAspect - 1)), height = radius * 2;
       canvasContext.save(); canvasContext.beginPath();
       canvasContext.roundRect(center.x - width / 2, center.y - height / 2, width, height, Math.max(0, radius * (1 - open)));
       canvasContext.clip();

@@ -25,8 +25,7 @@
       shelfDistanceCells: 26,
       temperatureLapsePerElevation: .17,
       globeRevealStartRadiusPx: 50,
-      globeRevealEndRadiusPx: 150,
-      mapExpansionRatio: 1 / 3
+      globeRevealEndRadiusPx: 150
     }),
     climate: Object.freeze({
       temperatureBands: Object.freeze([

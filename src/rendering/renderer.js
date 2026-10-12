@@ -2,6 +2,7 @@
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera;
   const SurfaceStyle = root.OrbitSurfaceStyle;
+  const surfaceAspect = root.OrbitConfig.terrain.width / root.OrbitConfig.terrain.height;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -207,7 +208,7 @@
       for (const planet of system.planets) {
         const pos = World.planetPosition(planet, state.simulation.time), p = project(pos.x, pos.y, cam);
         const radius = Math.max(1.1, planet.radius * cam.zoom);
-        if (p.x + radius * 1.4 < 0 || p.x - radius * 1.4 > W || p.y + radius < 0 || p.y - radius > H) continue;
+        if (p.x + radius * surfaceAspect < 0 || p.x - radius * surfaceAspect > W || p.y + radius < 0 || p.y - radius > H) continue;
         dot(ctx, p.x, p.y, radius, '#102230'); circle(ctx, p.x, p.y, radius, planet.color, 1);
         if (radius > 4 && radius < 90) {
           ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, radius - .5, 0, TAU); ctx.clip();

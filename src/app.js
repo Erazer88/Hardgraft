@@ -12,6 +12,7 @@
   const SettlementSimulation = globalThis.OrbitSettlementSimulation;
   const SettlementConfig = globalThis.OrbitSettlementConfig;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
+  const surfaceAspect = Config.terrain.width / Config.terrain.height;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const pointers = new Map();
@@ -312,12 +313,12 @@
         if (planet && !context.model.planets.some(p => p.id === planet.id)) planet = nearest;
         const isVisible = p => {
           const position = planetWorldPosition(p, context), point = project(position.x, position.y), r = p.radius * localZoom;
-          return point.x + r * 1.4 >= 0 && point.x - r * 1.4 <= W && point.y + r >= 0 && point.y - r <= H;
+          return point.x + r * surfaceAspect >= 0 && point.x - r * surfaceAspect <= W && point.y + r >= 0 && point.y - r <= H;
         };
         if (nearest && planet && !isVisible(planet) && isVisible(nearest)) planet = nearest;
         if (planet && planet.kind !== 'gazeuse') {
           const pp = planetWorldPosition(planet, context), point = project(pp.x, pp.y), r = planet.radius * localZoom;
-          const visible = point.x + r * 1.4 >= 0 && point.x - r * 1.4 <= W && point.y + r >= 0 && point.y - r <= H;
+          const visible = point.x + r * surfaceAspect >= 0 && point.x - r * surfaceAspect <= W && point.y + r >= 0 && point.y - r <= H;
           if (visible && r > 18) {
             state.focusPlanet = planet; prepareTerrain(planet, context);
             if (r > 45) followPlanet(planet, context);
