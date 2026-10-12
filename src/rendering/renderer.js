@@ -285,6 +285,7 @@
       createTerrainTexture: surfaceRenderer.createTerrainTexture,
       createSurfaceDetail: surfaceRenderer.createSurfaceDetail,
       cancelSurfaceDetail: surfaceRenderer.cancelSurfaceDetail,
+      getResourceRenderStyle: surfaceRenderer.getResourceRenderStyle,
       releaseSurfaceDetail: surfaceRenderer.releaseDetail
     });
   }

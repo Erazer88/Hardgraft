@@ -45,9 +45,7 @@
       snowlineRange: 18
     }),
     resources: Object.freeze({
-      markerRadiusMinPx: 11,
-      markerRadiusMaxPx: 54,
-      markerRadiusWorldScale: .45,
+      markerRadiusPx: 32,
       ellipseXRatio: 1.28,
       ellipseYRatio: .78,
       ellipseAngleRadians: -.45,

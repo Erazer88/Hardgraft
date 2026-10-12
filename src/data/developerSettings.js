@@ -12,6 +12,36 @@
       id: 'overviewContourOpacity', type: 'range', group: 'Courbes au dézoom',
       label: 'Opacité', help: 'Intensité des courbes de relief éloignées.',
       defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
+    }),
+    Object.freeze({
+      id: 'depositMarkerSizePx', type: 'range', group: 'Gisements',
+      label: 'Taille des gisements', help: 'Rayon visuel constant à tous les niveaux de zoom.',
+      defaultValue: 32, min: 8, max: 64, step: 1, unit: ' px'
+    }),
+    Object.freeze({
+      id: 'depositIronColor', type: 'color', group: 'Gisements',
+      label: 'Fer', help: 'Couleur des hachures, du contour lumineux et du nom.',
+      defaultValue: '#ffdb45'
+    }),
+    Object.freeze({
+      id: 'depositCopperColor', type: 'color', group: 'Gisements',
+      label: 'Cuivre', help: 'Couleur des hachures, du contour lumineux et du nom.',
+      defaultValue: '#ff9d3d'
+    }),
+    Object.freeze({
+      id: 'depositSiliconColor', type: 'color', group: 'Gisements',
+      label: 'Silicium', help: 'Couleur des hachures, du contour lumineux et du nom.',
+      defaultValue: '#58efff'
+    }),
+    Object.freeze({
+      id: 'depositCarbonColor', type: 'color', group: 'Gisements',
+      label: 'Carbone', help: 'Couleur des hachures, du contour lumineux et du nom.',
+      defaultValue: '#c6f34a'
+    }),
+    Object.freeze({
+      id: 'depositOilColor', type: 'color', group: 'Gisements',
+      label: 'Pétrole', help: 'Couleur des hachures, du contour lumineux et du nom.',
+      defaultValue: '#ffbd43'
     })
   ]);
   const byId = new Map(definitions.map(definition => [definition.id, definition]));

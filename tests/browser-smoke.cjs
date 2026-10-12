@@ -440,6 +440,34 @@ async function checkSystemVariety(cdp, name, mobile) {
   process.stdout.write(`PASS ${name}: empty, single-planet, gas-only and rich systems, overview and return\n`);
 }
 
+async function checkDeveloperDepositSettings(cdp, name) {
+  await cdp.click('#menu-button');
+  await cdp.click('#developer-tools-button');
+  await cdp.until('document.querySelector("#developer-dialog").open', `${name} developer settings open`);
+  const controls = await cdp.evaluate(`(() => ({
+    size: document.querySelector('#developer-setting-depositMarkerSizePx')?.value,
+    iron: document.querySelector('#developer-setting-depositIronColor')?.value,
+    oil: document.querySelector('#developer-setting-depositOilColor')?.value
+  }))()`);
+  assert.deepEqual(controls, { size: '32', iron: '#ffdb45', oil: '#ffbd43' },
+    `${name} developer panel exposes default deposit size and color controls`);
+
+  const updated = await cdp.evaluate(`(() => {
+    const size = document.querySelector('#developer-setting-depositMarkerSizePx');
+    size.value = '47'; size.dispatchEvent(new Event('input', { bubbles: true }));
+    const color = document.querySelector('#developer-setting-depositIronColor');
+    color.value = '#7c2eea'; color.dispatchEvent(new Event('input', { bubbles: true }));
+    return window.OrbitalDebug.getResourceRenderStyle('iron');
+  })()`);
+  assert.deepEqual(updated, { radiusPx: 47, hatchColor: '#7c2eeaf2' },
+    `${name} deposit settings update the fixed marker size and color immediately`);
+
+  await cdp.click('#developer-reset');
+  assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron")'),
+    { radiusPx: 32, hatchColor: '#ffdb45f2' }, `${name} reset restores the default deposit appearance`);
+  await cdp.click('#developer-tools-close');
+}
+
 async function runViewport(cdp, viewport, runtimeErrors) {
   const { name, width, height, mobile } = viewport;
   await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
@@ -450,6 +478,7 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await cdp.until('window.OrbitalDebug.getState().systemCount > 0', `${name} galaxy generation`);
   if (await cdp.evaluate(menuVisibleExpression)) await cdp.click('#continue-button');
   await cdp.until(`!(${menuVisibleExpression})`, `${name} initial menu closed`);
+  await checkDeveloperDepositSettings(cdp, name);
   await checkLayout(cdp, width, height);
   if (mobile) await cdp.screenshot('mobile-startup.png');
 

@@ -1035,6 +1035,7 @@
       return record?.data?.resources?.map(resource => ({ id: resource.id, x: resource.x, y: resource.y,
         radius: resource.radius, marine: resource.marine })) || [];
     },
+    getResourceRenderStyle: resourceId => renderer.getResourceRenderStyle(resourceId),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),

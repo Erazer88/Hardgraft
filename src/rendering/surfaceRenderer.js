@@ -5,6 +5,10 @@
   const SurfaceStyle = root.OrbitSurfaceStyle;
   const surfaceRendererScriptUrl = root.document?.currentScript?.src || '';
   const TAU = Math.PI * 2;
+  const RESOURCE_COLOR_SETTINGS = Object.freeze({
+    iron: 'depositIronColor', copper: 'depositCopperColor', silicon: 'depositSiliconColor',
+    carbon: 'depositCarbonColor', oil: 'depositOilColor'
+  });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
 
@@ -807,10 +811,21 @@
       canvasContext.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
     }
 
-    function resourceMarkerRadius(resource, frame, marker = SurfaceStyle.resources) {
-      const projectedFieldRadius = (resource.radius || 10) * Config.terrain.textureScale * frame.zoom *
-        marker.markerRadiusWorldScale;
-      return clamp(projectedFieldRadius, marker.markerRadiusMinPx, marker.markerRadiusMaxPx);
+    function resourceMarkerRadius(marker = SurfaceStyle.resources) {
+      const configured = Number(root.OrbitDeveloperSettings?.get('depositMarkerSizePx'));
+      return Number.isFinite(configured) ? clamp(configured, 8, 64) : marker.markerRadiusPx;
+    }
+
+    function resourceDepositStyle(resource, marker = SurfaceStyle.resources) {
+      const base = marker.deposits[resource.id] || marker.deposits.iron;
+      const setting = RESOURCE_COLOR_SETTINGS[resource.id];
+      const color = setting && root.OrbitDeveloperSettings?.get(setting);
+      if (!color || color === base.hatch.slice(0, 7)) return base;
+      return { fill: `${color}30`, hatch: `${color}f2`, outline: color, glow: color, label: color };
+    }
+
+    function getResourceRenderStyle(resourceId) {
+      return { radiusPx: resourceMarkerRadius(), hatchColor: resourceDepositStyle({ id: resourceId }).hatch };
     }
 
     function traceResourceBoundary(context, center, radius, resource, marker) {
@@ -841,8 +856,8 @@
       const marker = SurfaceStyle.resources;
       for (const resource of frame.terrain.resources) {
         const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
-        const radius = resourceMarkerRadius(resource, frame, marker);
-        const style = marker.deposits[resource.id] || marker.deposits.iron;
+        const radius = resourceMarkerRadius(marker);
+        const style = resourceDepositStyle(resource, marker);
         if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
         canvasContext.save();
         traceResourceBoundary(canvasContext, p, radius, resource, marker);
@@ -890,9 +905,10 @@
         for (const resource of frame.terrain.resources) {
           const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
           if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-          const radius = resourceMarkerRadius(resource, frame, marker);
+          const radius = resourceMarkerRadius(marker);
           dependencies.drawLabel(canvasContext, resource.type.toUpperCase(),
-            p.x + radius * marker.ellipseXRatio + marker.labelOffsetXPx, p.y, marker.deposits[resource.id]?.label || marker.deposits.iron.label,
+            p.x + radius * marker.ellipseXRatio + marker.labelOffsetXPx, p.y,
+            resourceDepositStyle(resource, marker).label,
             marker.labelSizePx);
         }
       }
@@ -933,6 +949,7 @@
       createTerrainTexture,
       createSurfaceDetail: generateSurfaceDetail,
       cancelSurfaceDetail: cancelDetailWorker,
+      getResourceRenderStyle,
       drawPlanetTerrain,
       releaseDetail: () => materialRenderer.release()
     });
