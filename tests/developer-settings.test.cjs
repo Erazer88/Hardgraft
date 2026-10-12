@@ -19,7 +19,7 @@ test('developer settings add deposit controls without discarding saved contour p
   const { settings } = loadSettings('{"overviewContourColor":"#abcdef","overviewContourOpacity":42}');
   assert.equal(settings.get('overviewContourColor'), '#abcdef');
   assert.equal(settings.get('overviewContourOpacity'), 42);
-  assert.equal(settings.get('depositMarkerSizePx'), 32);
+  assert.equal(settings.get('depositMarkerSizePercent'), 100);
   assert.deepEqual(Array.from(settings.definitions)
     .filter(definition => definition.id.endsWith('Color') && definition.id.startsWith('deposit'))
     .map(definition => definition.id).sort(), [
@@ -32,19 +32,19 @@ test('deposit size and colors validate, persist, notify controls, and reset to d
   const changes = [];
   settings.subscribe((id, value) => changes.push([id, value]));
 
-  assert.equal(settings.set('depositMarkerSizePx', 200), 64);
+  assert.equal(settings.set('depositMarkerSizePercent', 300), 200);
   assert.equal(settings.set('depositIronColor', '#F012aB'), '#f012ab');
   assert.equal(settings.set('depositSiliconColor', 'blue'), '#58efff');
-  assert.deepEqual(changes, [['depositMarkerSizePx', 64], ['depositIronColor', '#f012ab']]);
-  assert.equal(readStored().depositMarkerSizePx, 64);
+  assert.deepEqual(changes, [['depositMarkerSizePercent', 200], ['depositIronColor', '#f012ab']]);
+  assert.equal(readStored().depositMarkerSizePercent, 200);
   assert.equal(readStored().depositIronColor, '#f012ab');
 
   settings.reset();
-  assert.equal(settings.get('depositMarkerSizePx'), 32);
+  assert.equal(settings.get('depositMarkerSizePercent'), 100);
   assert.equal(settings.get('depositIronColor'), '#ffdb45');
-  assert.equal(readStored().depositMarkerSizePx, 32);
+  assert.equal(readStored().depositMarkerSizePercent, 100);
   assert.deepEqual(changes.slice(-8).map(([id]) => id).sort(), [
-    'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePx', 'depositOilColor',
+    'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePercent', 'depositOilColor',
     'depositSiliconColor', 'overviewContourColor', 'overviewContourOpacity'
   ].sort());
 });

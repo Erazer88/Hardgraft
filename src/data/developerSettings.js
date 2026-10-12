@@ -14,9 +14,9 @@
       defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
     }),
     Object.freeze({
-      id: 'depositMarkerSizePx', type: 'range', group: 'Gisements',
-      label: 'Taille des gisements', help: 'Rayon visuel constant à tous les niveaux de zoom.',
-      defaultValue: 32, min: 8, max: 64, step: 1, unit: ' px'
+      id: 'depositMarkerSizePercent', type: 'range', group: 'Gisements',
+      label: 'Taille réelle', help: 'Emprise sur la carte. À l’écran, les gisements suivent le zoom comme le terrain.',
+      defaultValue: 100, min: 25, max: 200, step: 5, unit: '%'
     }),
     Object.freeze({
       id: 'depositIronColor', type: 'color', group: 'Gisements',

@@ -445,26 +445,36 @@ async function checkDeveloperDepositSettings(cdp, name) {
   await cdp.click('#developer-tools-button');
   await cdp.until('document.querySelector("#developer-dialog").open', `${name} developer settings open`);
   const controls = await cdp.evaluate(`(() => ({
-    size: document.querySelector('#developer-setting-depositMarkerSizePx')?.value,
+    size: document.querySelector('#developer-setting-depositMarkerSizePercent')?.value,
     iron: document.querySelector('#developer-setting-depositIronColor')?.value,
     oil: document.querySelector('#developer-setting-depositOilColor')?.value
   }))()`);
-  assert.deepEqual(controls, { size: '32', iron: '#ffdb45', oil: '#ffbd43' },
+  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43' },
     `${name} developer panel exposes default deposit size and color controls`);
 
+  const scalesWithZoom = await cdp.evaluate(`(() => ({
+    zoomedOut: window.OrbitalDebug.getResourceRenderStyle('iron', 40, .5),
+    zoomedIn: window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2)
+  }))()`);
+  assert.deepEqual(scalesWithZoom, {
+    zoomedOut: { radiusWorldKm: 54, radiusPx: 27, hatchColor: '#ffdb45f2' },
+    zoomedIn: { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' }
+  }, `${name} deposit map size stays fixed while its screen size follows the zoom`);
+
   const updated = await cdp.evaluate(`(() => {
-    const size = document.querySelector('#developer-setting-depositMarkerSizePx');
-    size.value = '47'; size.dispatchEvent(new Event('input', { bubbles: true }));
+    const size = document.querySelector('#developer-setting-depositMarkerSizePercent');
+    size.value = '150'; size.dispatchEvent(new Event('input', { bubbles: true }));
     const color = document.querySelector('#developer-setting-depositIronColor');
     color.value = '#7c2eea'; color.dispatchEvent(new Event('input', { bubbles: true }));
-    return window.OrbitalDebug.getResourceRenderStyle('iron');
+    return window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2);
   })()`);
-  assert.deepEqual(updated, { radiusPx: 47, hatchColor: '#7c2eeaf2' },
-    `${name} deposit settings update the fixed marker size and color immediately`);
+  assert.deepEqual(updated, { radiusWorldKm: 81, radiusPx: 162, hatchColor: '#7c2eeaf2' },
+    `${name} deposit size and color settings update their map appearance immediately`);
 
   await cdp.click('#developer-reset');
-  assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron")'),
-    { radiusPx: 32, hatchColor: '#ffdb45f2' }, `${name} reset restores the default deposit appearance`);
+  assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron", 40, 2)'),
+    { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' },
+    `${name} reset restores the default deposit appearance`);
   await cdp.click('#developer-tools-close');
 }
 
