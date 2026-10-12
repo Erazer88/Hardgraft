@@ -11,6 +11,7 @@
   });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
+  const contourClock = () => root.performance?.now ? root.performance.now() : Date.now();
 
   function hexRGB(hex) {
     return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
@@ -58,6 +59,7 @@
     let materialImagesReady = false;
     let detailContourCache = null;
     let detailContourJob = null;
+    let contourRasterBuffer = null;
     let lastContourBuildAt = -Infinity;
     const materialIndices = Object.fromEntries(materialDefinitions.map((definition, index) => [definition.id, index]));
     let detailWorker = null;
@@ -474,6 +476,7 @@
     function stopContourJob() {
       if (!detailContourJob) return;
       if (detailContourJob.timer) root.clearTimeout(detailContourJob.timer);
+      if (detailContourJob.raster) contourRasterBuffer = detailContourJob.raster;
       detailContourJob = null;
     }
 
@@ -494,15 +497,22 @@
       const { x: worldX, y: worldY, width: worldWidth, height: worldHeight } = rasterBounds;
       const rasterWidth = Math.max(1, Math.ceil(worldWidth * job.zoom * job.pixelRatio));
       const rasterHeight = Math.max(1, Math.ceil(worldHeight * job.zoom * job.pixelRatio));
-      const createLayer = () => {
-        const canvas = makeCanvas(rasterWidth, rasterHeight);
+      const reusableRaster = contourRasterBuffer;
+      contourRasterBuffer = null;
+      const createLayer = reusableCanvas => {
+        const canvas = reusableCanvas || makeCanvas(rasterWidth, rasterHeight);
+        if (canvas.width !== rasterWidth) canvas.width = rasterWidth;
+        if (canvas.height !== rasterHeight) canvas.height = rasterHeight;
         const context = canvas.getContext('2d');
-        context.scale(job.zoom * job.pixelRatio, job.zoom * job.pixelRatio);
-        context.translate(-worldX, -worldY);
+        const scale = job.zoom * job.pixelRatio;
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.clearRect(0, 0, rasterWidth, rasterHeight);
+        context.setTransform(scale, 0, 0, scale, -worldX * scale, -worldY * scale);
         context.lineCap = 'round'; context.lineJoin = 'round';
         return { canvas, context };
       };
-      const majorLayer = createLayer(), detailLayer = createLayer();
+      const majorLayer = createLayer(reusableRaster?.major);
+      const detailLayer = createLayer(reusableRaster?.detail);
       job.rasterContexts = { major: majorLayer.context, detail: detailLayer.context };
       job.rasterContourIndex = 0;
       job.raster = { major: majorLayer.canvas, detail: detailLayer.canvas, x: worldX, y: worldY,
@@ -572,7 +582,7 @@
         queueContourJob(job);
         return;
       }
-      const now = () => root.performance?.now?.() || Date.now();
+      const now = contourClock;
       const interacting = isCameraInteracting && isCameraInteracting();
       // Contours keep rebuilding during a pinch, but each task yields quickly
       // so pointer handling and the rest of the frame stay responsive.
@@ -599,9 +609,16 @@
         }
         if (job.rasterContourIndex >= contours.length) {
           if (job.kind === 'geometry') {
+            const previousRaster = detailContourCache?.raster;
             job.cache.raster = job.raster;
             detailContourCache = job.cache;
-          } else if (detailContourCache === job.cache) job.cache.raster = job.raster;
+            if (previousRaster && previousRaster !== job.raster) contourRasterBuffer = previousRaster;
+          } else if (detailContourCache === job.cache) {
+            const previousRaster = job.cache.raster;
+            job.cache.raster = job.raster;
+            if (previousRaster && previousRaster !== job.raster) contourRasterBuffer = previousRaster;
+          }
+          lastContourBuildAt = now();
           detailContourJob = null;
           return;
         }
@@ -630,7 +647,7 @@
         lod: request.lod, sampleStride: request.sampleStride, contours, raster: null };
       candidate.x = candidate.minX; candidate.y = candidate.minY; candidate.phase = 'geometry';
       detailContourJob = candidate;
-      lastContourBuildAt = root.performance?.now?.() || Date.now();
+      lastContourBuildAt = contourClock();
       queueContourJob(candidate);
     }
 
@@ -646,7 +663,7 @@
       stopContourJob();
       candidate.phase = 'prepare-raster'; candidate.rasterContourIndex = 0;
       detailContourJob = candidate;
-      lastContourBuildAt = root.performance?.now?.() || Date.now();
+      lastContourBuildAt = contourClock();
       queueContourJob(candidate);
     }
 
@@ -687,8 +704,8 @@
       const contourColor = developerSettings?.get('overviewContourColor') || '#ffffff';
       const contourOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 67) / 100, 0, 1);
       const pixelRatio = canvasContext.canvas.width / viewport.width;
-      const now = root.performance?.now?.() || Date.now();
-      const canRefreshDuringGesture = !cameraInteracting || now - lastContourBuildAt >= 100;
+      const now = contourClock();
+      const canRefreshDuringGesture = !cameraInteracting || now - lastContourBuildAt >= 150;
       if (!coversViewport && canRefreshDuringGesture) {
         scheduleContourBuild({ planetId: frame.planet.id, terrain, terrainFactor,
           lod: contourLod, sampleStride, minX, maxX, minY, maxY,
