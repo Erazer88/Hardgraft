@@ -52,7 +52,7 @@ test('planet positions stay on ordered orbits and obey relative Kepler periods',
 test('system population is deterministic, configurable, and mostly ordinary', () => {
   const galaxy = world.createGalaxy('distribution-v2');
   const counts = new Map(), beltCounts = new Set(), layouts = new Set(), kinds = new Set();
-  let ordinary = 0, wrecks = 0;
+  let ordinary = 0, wrecks = 0, oilEligible = 0, oilBearing = 0;
   for (const star of galaxy.systems) {
     const model = world.createSystem(galaxy.seed, star.id, galaxy);
     assert.equal(serialize(model), serialize(world.createSystem(galaxy.seed, star.id, galaxy)));
@@ -72,6 +72,15 @@ test('system population is deterministic, configurable, and mostly ordinary', ()
       }
       assert.ok(planet.water >= 0 && planet.water <= 1 && planet.surfaceWater <= planet.water);
       assert.ok(planet.habitability >= 0 && planet.habitability <= 1);
+      const oilRange = context.OrbitWorldgenData.terrain.offshoreOil.temperatureRange;
+      const moderateTelluric = planet.kind === 'tellurique' && planet.temperature >= oilRange[0] &&
+        planet.temperature <= oilRange[1];
+      assert.equal(typeof planet.hasOilDeposit, 'boolean');
+      if (moderateTelluric) oilEligible += 1;
+      if (planet.hasOilDeposit) {
+        assert.ok(moderateTelluric, 'oil appears only on temperate telluric planets');
+        oilBearing += 1;
+      }
       if (planet.kind === 'gazeuse') {
         assert.equal(planet.surfaceWater, 0); assert.equal(planet.terrainWater, 0); assert.equal(planet.habitability, 0);
       }
@@ -94,6 +103,9 @@ test('system population is deterministic, configurable, and mostly ordinary', ()
   for (const kind of ['gazeuse', 'tellurique', 'glacée', 'aride', 'océanique']) assert.ok(kinds.has(kind), kind);
   assert.ok(ordinary / galaxy.systems.length > .5 && ordinary / galaxy.systems.length < .75);
   assert.ok(wrecks > 0 && wrecks < galaxy.systems.length * .25);
+  assert.ok(oilEligible > 200);
+  assert.ok(oilBearing / oilEligible > .29 && oilBearing / oilEligible < .38,
+    'about one third of temperate telluric planets carry an offshore oil field');
 
   const settings = JSON.parse(serialize(context.OrbitWorldgenData));
   settings.planetCounts = [1]; settings.beltCounts = [1]; settings.wreckChance = 0;
@@ -141,7 +153,8 @@ test('the natal system always provides a temperate candidate, water and basic de
       const landResources = terrain.resources.filter(item => !item.marine);
       const oilFields = terrain.resources.filter(item => item.marine);
       assert.deepEqual([...new Set(landResources.map(item => item.id))].sort(), ['carbon', 'copper', 'iron', 'silicon']);
-      assert.ok(oilFields.length >= 1);
+      assert.equal(oilFields.length, planet.hasOilDeposit ? 1 : 0);
+      assert.ok(terrain.resources.length <= 5);
       const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
       assert.ok(Math.abs(water - planet.surfaceWater) < .04);
       assert.ok(landResources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
@@ -178,7 +191,8 @@ test('terrain contains coherent water, land, and reachable resources for differe
       }
     }
     assert.ok(totalDifference / terrain.elevation.length < 9, 'terrain should vary smoothly across neighboring cells');
-    assert.ok(terrain.resources.length >= 4);
+    assert.ok(terrain.resources.length <= 5, 'each generated terrain has at most five deposits');
+    assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));
     for (const resource of terrain.resources) {
       assert.ok(resource.x >= 0 && resource.x < terrain.width && resource.y >= 0 && resource.y < terrain.height);
       assert.ok(resource.radius > 0);
@@ -191,17 +205,34 @@ test('terrain contains coherent water, land, and reachable resources for differe
     Array.from(world.createTerrain('two', 80, 60).elevation));
 });
 
-test('oceanic profiles create sparse broad mineral fields and offshore oil deposits', () => {
-  const planet = { surfaceWater: .74, temperature: 18, seed: 412, resources: { iron: .7 } };
+test('most planets have two or three large deposits, with some worlds empty or especially rich', () => {
+  const counts = Array(6).fill(0);
+  for (let i = 0; i < 72; i += 1) {
+    const terrain = world.createTerrain('deposit-distribution-' + i, 48, 36,
+      { kind: 'tellurique', temperature: 18, surfaceWater: .34, hasOilDeposit: false });
+    const count = terrain.resources.length;
+    assert.ok(count >= 0 && count <= 5);
+    counts[count] += 1;
+    assert.ok(terrain.resources.every(resource => !resource.marine));
+    assert.ok(terrain.resources.every(resource => resource.radius >= 5));
+  }
+  assert.ok((counts[2] + counts[3]) / 72 > .5, 'two and three deposits make up most planets');
+  assert.ok(counts[0] > 0 && counts[5] > 0, 'some planets have none and a few have five');
+});
+
+test('eligible planets can carry one broad offshore oil field', () => {
+  const planet = { kind: 'tellurique', hasOilDeposit: true, surfaceWater: .74, temperature: 18,
+    seed: 412, resources: { iron: .7 } };
   const terrain = world.createTerrain('oceanic-world', 480, 360, planet);
   const repeated = world.createTerrain('oceanic-world', 480, 360, planet);
   const minerals = terrain.resources.filter(resource => !resource.marine);
   const oil = terrain.resources.filter(resource => resource.marine);
   assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));
-  assert.ok(minerals.length >= 4 && minerals.length < 16);
-  assert.ok(minerals.every(resource => resource.radius >= 12));
-  assert.ok(oil.length >= 2 && oil.length <= 4);
-  assert.ok(oil.every(resource => resource.id === 'oil' && resource.radius > 16));
+  assert.ok(minerals.length <= 4);
+  assert.ok(minerals.every(resource => resource.radius >= 21));
+  assert.equal(oil.length, 1);
+  assert.ok(oil.every(resource => resource.id === 'oil' && resource.radius > 25));
+  assert.ok(terrain.resources.length <= 5);
   const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
   assert.ok(water > .70 && water < .78);
 });

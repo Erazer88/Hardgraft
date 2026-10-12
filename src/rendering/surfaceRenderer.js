@@ -807,40 +807,67 @@
       canvasContext.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
     }
 
-    function resourceMarkerRadius(resource, marker = SurfaceStyle.resources) {
-      return clamp((resource.radius || 10) * marker.markerRadiusPerTerrainCellPx,
-        marker.markerRadiusMinPx, marker.markerRadiusMaxPx);
+    function resourceMarkerRadius(resource, frame, marker = SurfaceStyle.resources) {
+      const projectedFieldRadius = (resource.radius || 10) * Config.terrain.textureScale * frame.zoom *
+        marker.markerRadiusWorldScale;
+      return clamp(projectedFieldRadius, marker.markerRadiusMinPx, marker.markerRadiusMaxPx);
+    }
+
+    function traceResourceBoundary(context, center, radius, resource, marker) {
+      const seed = World.hashSeed(`${resource.id}:${resource.x}:${resource.y}`) / 4294967296;
+      const phase = seed * TAU, rotation = marker.ellipseAngleRadians;
+      const points = [];
+      for (let i = 0; i < 24; i += 1) {
+        const angle = phase + i / 24 * TAU;
+        const variation = 1 + Math.sin(angle * 3 + phase) * .1 + Math.cos(angle * 5 - phase) * .045 +
+          Math.sin(angle * 7 + phase * .7) * .025;
+        const x = Math.cos(angle) * radius * marker.ellipseXRatio * variation;
+        const y = Math.sin(angle) * radius * marker.ellipseYRatio * variation;
+        points.push({ x: center.x + x * Math.cos(rotation) - y * Math.sin(rotation),
+          y: center.y + x * Math.sin(rotation) + y * Math.cos(rotation) });
+      }
+      const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+      const start = midpoint(points.at(-1), points[0]);
+      context.beginPath();
+      context.moveTo(start.x, start.y);
+      for (let i = 0; i < points.length; i += 1) {
+        const next = midpoint(points[i], points[(i + 1) % points.length]);
+        context.quadraticCurveTo(points[i].x, points[i].y, next.x, next.y);
+      }
+      context.closePath();
     }
 
     function drawGeologicalOverlays(frame) {
       const marker = SurfaceStyle.resources;
       for (const resource of frame.terrain.resources) {
         const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
-        const radius = resourceMarkerRadius(resource, marker);
-        const hatchColor = resource.marine ? marker.marineHatchColor : marker.hatchColor;
+        const radius = resourceMarkerRadius(resource, frame, marker);
+        const style = marker.deposits[resource.id] || marker.deposits.iron;
         if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-        canvasContext.save(); canvasContext.beginPath();
-        canvasContext.ellipse(p.x, p.y, radius * marker.ellipseXRatio, radius * marker.ellipseYRatio, marker.ellipseAngleRadians, 0, TAU);
+        canvasContext.save();
+        traceResourceBoundary(canvasContext, p, radius, resource, marker);
+        canvasContext.fillStyle = style.fill;
+        canvasContext.fill();
         canvasContext.clip();
+        canvasContext.beginPath();
         for (let i = -radius * 2; i < radius * 2; i += marker.hatchSpacingPx) {
-          dependencies.drawLine(canvasContext,
-            [{ x: p.x + i - radius, y: p.y + radius }, { x: p.x + i + radius, y: p.y - radius }],
-            hatchColor, marker.hatchWidthPx);
+          canvasContext.moveTo(p.x + i - radius, p.y + radius);
+          canvasContext.lineTo(p.x + i + radius, p.y - radius);
         }
+        canvasContext.strokeStyle = style.hatch;
+        canvasContext.lineWidth = marker.hatchWidthPx;
+        canvasContext.setLineDash([]);
+        canvasContext.stroke();
         canvasContext.restore();
-        if (resource.marine) {
-          canvasContext.save();
-          canvasContext.strokeStyle = marker.marineOutlineColor;
-          canvasContext.lineWidth = .8;
-          canvasContext.setLineDash([2, 2]);
-          canvasContext.beginPath();
-          canvasContext.ellipse(p.x, p.y, radius * marker.ellipseXRatio, radius * marker.ellipseYRatio,
-            marker.ellipseAngleRadians, 0, TAU);
-          canvasContext.stroke();
-          canvasContext.setLineDash([]);
-          dot(canvasContext, p.x, p.y, 1.15, marker.marineDotColor);
-          canvasContext.restore();
-        }
+        canvasContext.save();
+        traceResourceBoundary(canvasContext, p, radius, resource, marker);
+        canvasContext.strokeStyle = style.outline;
+        canvasContext.lineWidth = marker.outlineWidthPx;
+        canvasContext.setLineDash(marker.outlineDashPx);
+        canvasContext.shadowColor = style.glow;
+        canvasContext.shadowBlur = marker.glowBlurPx;
+        canvasContext.stroke();
+        canvasContext.restore();
       }
     }
 
@@ -863,9 +890,10 @@
         for (const resource of frame.terrain.resources) {
           const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
           if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-          const radius = resourceMarkerRadius(resource, marker);
+          const radius = resourceMarkerRadius(resource, frame, marker);
           dependencies.drawLabel(canvasContext, resource.type.toUpperCase(),
-            p.x + radius + marker.labelOffsetXPx, p.y, marker.labelColor, marker.labelSizePx);
+            p.x + radius * marker.ellipseXRatio + marker.labelOffsetXPx, p.y, marker.deposits[resource.id]?.label || marker.deposits.iron.label,
+            marker.labelSizePx);
         }
       }
       const top = frame.project(0, 0), bottom = frame.project(frame.terrainWidth, frame.terrainHeight);

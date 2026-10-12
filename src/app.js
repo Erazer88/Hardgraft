@@ -1030,6 +1030,11 @@
         logicalWidth: record.detailTexture.logicalWidth, logicalHeight: record.detailTexture.logicalHeight,
         surfaceZoom: localCamera(surfaceFrame(state.planet), state.camera).zoom };
     },
+    getSurfaceResourceMetrics: () => {
+      const record = state.planet && state.context?.terrains.get(state.planet.id);
+      return record?.data?.resources?.map(resource => ({ id: resource.id, x: resource.x, y: resource.y,
+        radius: resource.radius, marine: resource.marine })) || [];
+    },
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),

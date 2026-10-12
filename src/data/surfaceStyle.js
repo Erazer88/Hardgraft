@@ -45,20 +45,25 @@
       snowlineRange: 18
     }),
     resources: Object.freeze({
-      markerRadiusMinPx: 8,
-      markerRadiusMaxPx: 14,
-      markerRadiusPerTerrainCellPx: .6,
-      ellipseXRatio: 1.35,
-      ellipseYRatio: .75,
+      markerRadiusMinPx: 11,
+      markerRadiusMaxPx: 54,
+      markerRadiusWorldScale: .45,
+      ellipseXRatio: 1.28,
+      ellipseYRatio: .78,
       ellipseAngleRadians: -.45,
-      hatchSpacingPx: 4,
-      hatchColor: '#e7cf8291',
-      hatchWidthPx: .7,
-      marineHatchColor: '#f0a84cbb',
-      marineOutlineColor: '#f0a84caa',
-      marineDotColor: '#ffd189',
+      hatchSpacingPx: 5,
+      hatchWidthPx: 1.25,
+      outlineWidthPx: 1.25,
+      outlineDashPx: Object.freeze([4, 3]),
+      glowBlurPx: 5,
+      deposits: Object.freeze({
+        iron: Object.freeze({ fill: '#ffd72c26', hatch: '#ffdb45f2', outline: '#fff0a0', glow: '#f1c623', label: '#ffe575' }),
+        copper: Object.freeze({ fill: '#ff943326', hatch: '#ff9d3df2', outline: '#ffd1a0', glow: '#ff832f', label: '#ffc07a' }),
+        silicon: Object.freeze({ fill: '#45dff126', hatch: '#58effff2', outline: '#b5faff', glow: '#32dcea', label: '#8bf5ff' }),
+        carbon: Object.freeze({ fill: '#b9eb3226', hatch: '#c6f34af2', outline: '#edff9e', glow: '#a7d92c', label: '#d7f776' }),
+        oil: Object.freeze({ fill: '#ffad3026', hatch: '#ffbd43f2', outline: '#ffe0a1', glow: '#ff9f22', label: '#ffd079' })
+      }),
       labelOffsetXPx: 6,
-      labelColor: '#c7c49b',
       labelSizePx: 8
     }),
     selection: Object.freeze({
@@ -124,7 +129,7 @@
     lod: Object.freeze({
       surfaceGridZoom: .06,
       terrainDetailsZoom: .15,
-      resourceLabelZoom: .55,
+      resourceLabelZoom: .28,
       buildingFullZoom: .65,
       buildingCompactZoom: .22,
       buildingSymbolZoom: .08

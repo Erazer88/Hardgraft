@@ -84,6 +84,12 @@
         climate.temperature > 180 && traits.geology > .65 ? 'volcanique' :
           climate.surfaceWater > .65 ? 'océanique' :
             climate.surfaceWater < .08 || climate.temperature > 80 ? 'aride' : 'tellurique';
+      const oilSettings = settings.terrain.offshoreOil;
+      const moderateTelluric = kind === 'tellurique' && climate.temperature >= oilSettings.temperatureRange[0] &&
+        climate.temperature <= oilSettings.temperatureRange[1];
+      const planetSeed = World.hashSeed(String(seed) + ':' + systemId + ':terrain:' + i);
+      const hasOilDeposit = moderateTelluric &&
+        World.hashSeed(String(planetSeed) + ':offshore-oil:v' + settings.version) / 4294967296 < oilSettings.planetChance;
       const resources = { water: traits.water };
       for (const deposit of settings.deposits) {
         const abundance = .1 + random() * (.45 + traits.geology * .45);
@@ -95,8 +101,7 @@
         kind, color: settings.colors[kind], ...climate,
         surfaceWater: gas ? 0 : climate.surfaceWater, habitability: gas ? 0 : climate.habitability,
         terrainWater,
-        resources, startingCandidate: candidate,
-        seed: World.hashSeed(String(seed) + ':' + systemId + ':terrain:' + i) };
+        resources, startingCandidate: candidate, hasOilDeposit, seed: planetSeed };
     });
 
     let beltCount = weightedIndex(random, settings.beltCounts);

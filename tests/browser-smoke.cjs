@@ -156,6 +156,11 @@ async function launchChrome(profile) {
 
 const stateExpression = 'window.OrbitalDebug.getState()';
 const cameraExpression = 'window.OrbitalDebug.getCamera()';
+const startingPlanetIdExpression = `(() => {
+  const state = window.OrbitalDebug.getState();
+  const galaxy = window.OrbitWorld.createGalaxy(state.seed);
+  return window.OrbitWorld.createSystem(state.seed, state.homeId, galaxy).startingPlanetId;
+})()`;
 const settledExpression = '!window.OrbitalDebug.getState().moving';
 const menuVisibleExpression = `(() => {
   const menu = document.querySelector('#menu-dialog');
@@ -318,8 +323,9 @@ async function checkContinuousZoom(cdp, name, mobile) {
   assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} gas planet has no enterable terrain surface`);
   assert.deepEqual(await cdp.evaluate(cameraExpression), beforeGas, `${name} gas surface request leaves camera fixed`);
   await cdp.click('#close-inspector');
-  const planet = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.kind !== 'gazeuse' && p.x > 40 && p.x < innerWidth - 40 && p.y > 210 && p.y < innerHeight - 150)`);
-  assert.ok(planet, `${name} solid planet visible for surface threshold`);
+  const startingPlanetId = await cdp.evaluate(startingPlanetIdExpression);
+  const planet = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify(startingPlanetId)} && p.x > 40 && p.x < innerWidth - 40 && p.y > 210 && p.y < innerHeight - 150)`);
+  assert.ok(planet, `${name} starting planet visible for surface threshold`);
   const planetPoint = { x: planet.x, y: planet.y };
   await checkBoundary(cdp, name, mobile, 'system', 'surface', planetPoint);
   await cdp.tapAt(planetPoint, mobile);
@@ -496,13 +502,20 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await checkLayout(cdp, width, height);
   await cdp.screenshot(`${name}-system.png`);
 
-  const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.kind !== 'gazeuse' && p.x > 35 && p.x < innerWidth - 35 && p.y > 245 && p.y < innerHeight - 145)`);
-  assert.ok(planetPoint, `${name} a solid planet can be tapped in the viewport`);
+  const startingPlanetId = await cdp.evaluate(startingPlanetIdExpression);
+  const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify(startingPlanetId)} && p.x > 35 && p.x < innerWidth - 35 && p.y > 245 && p.y < innerHeight - 145)`);
+  assert.ok(planetPoint, `${name} starting planet can be tapped in the viewport`);
   await cdp.tapAt({ x: planetPoint.x, y: planetPoint.y }, mobile);
   assert.equal((await cdp.evaluate(stateExpression)).selectedId, planetPoint.id, `${name} real planet tap selects planet`);
   await cdp.click('#enter-button');
   await cdp.until('["surface", "planet"].includes(window.OrbitalDebug.getState().level) && !window.OrbitalDebug.getState().moving', `${name} surface navigation`);
   await checkLayout(cdp, width, height);
+  const resourceMetrics = await cdp.evaluate('window.OrbitalDebug.getSurfaceResourceMetrics()');
+  assert.ok(resourceMetrics.length >= 4 && resourceMetrics.length <= 5,
+    `${name} starting surface contains four or five resource fields`);
+  assert.deepEqual(resourceMetrics.filter(resource => !resource.marine).map(resource => resource.id).sort(),
+    ['carbon', 'copper', 'iron', 'silicon'], `${name} starting surface keeps all four basic mineral deposits`);
+  assert.ok(resourceMetrics.every(resource => resource.radius > 0), `${name} resource fields have visible areas`);
   await cdp.screenshot(`${name}-surface.png`);
 
   await cdp.evaluate('window.OrbitalDebug.back()');

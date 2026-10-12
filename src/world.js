@@ -36,6 +36,16 @@
     return Math.min(upper, Math.max(lower, value));
   }
 
+  function weightedCount(random, weights) {
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    let value = random() * total;
+    for (let count = 0; count < weights.length; count += 1) {
+      value -= weights[count];
+      if (value < 0) return count;
+    }
+    return Math.max(0, weights.length - 1);
+  }
+
   const STAR_CLASSES = root.OrbitWorldgenData.stars;
   const NAME_STARTS = ['Al', 'Er', 'Ves', 'Cor', 'Is', 'Tau', 'Hel', 'Ori', 'Cal', 'Mer', 'Sol', 'Vir', 'Nae', 'Eri', 'Ant', 'Aster', 'Lyr', 'Cass', 'Thal', 'Nox'];
   const NAME_ENDS = ['ara', 'ion', 'éa', 'aris', 'ora', 'is', 'ède', 'arae', 'ène', 'os', 'ys', 'onia', 'ius', 'ande', 'ine', 'ea'];
@@ -255,12 +265,22 @@
     const resources = [];
     const resourceTypes = root.OrbitWorldgenData.deposits;
     const depositSettings = settings.deposits;
+    const oilSettings = settings.offshoreOil;
+    const temperature = planet?.temperature;
+    const temperatureRange = oilSettings.temperatureRange;
+    const eligibleForOil = planet?.kind === 'tellurique' && Number.isFinite(temperature) &&
+      temperature >= temperatureRange[0] && temperature <= temperatureRange[1];
+    const oilPresenceRoll = hashSeed(String(planet?.seed ?? seed) + ':offshore-oil:v' + root.OrbitWorldgenData.version) /
+      4294967296;
+    const hasOilDeposit = typeof planet?.hasOilDeposit === 'boolean' ? planet.hasOilDeposit :
+      eligibleForOil && oilPresenceRoll < oilSettings.planetChance;
+    const requestedTotal = planet?.startingCandidate ? depositSettings.startingCandidateCount :
+      weightedCount(random, depositSettings.countWeights);
+    const requestedResources = planet?.startingCandidate ? requestedTotal :
+      Math.max(0, requestedTotal - (hasOilDeposit ? 1 : 0));
     let attempts = 0;
-    const landFactor = clamp((1 - waterFraction) / 0.55, 0.55, 1);
-    const requestedResources = Math.max(depositSettings.minimum, Math.min(depositSettings.maximum,
-      Math.floor(raw.length / depositSettings.cellsPerDeposit * landFactor)));
     const depositSpacing = Math.min(width, height) * depositSettings.spacingRatio;
-    while (resources.filter(resource => !resource.marine).length < requestedResources && attempts < 800) {
+    while (resources.length < requestedResources && attempts < 800) {
       attempts += 1;
       const x = Math.floor(random() * width), y = Math.floor(random() * height);
       const altitude = elevation[y * width + x];
@@ -269,29 +289,23 @@
           Math.hypot(resource.x - x, resource.y - y) < depositSpacing)) continue;
       // A natal candidate has at least one accessible deposit of each basic
       // solid resource. Water is represented by its sea and water abundance.
-      const landResourceCount = resources.filter(resource => !resource.marine).length;
+      const landResourceCount = resources.length;
       const definition = planet?.startingCandidate && landResourceCount < resourceTypes.length ? resourceTypes[landResourceCount] :
         resourceTypes[Math.floor(random() * resourceTypes.length)];
-      const radius = Math.max(6, Math.min(width, height) * (depositSettings.radiusRatio[0] +
+      const radius = Math.max(5, Math.min(width, height) * (depositSettings.radiusRatio[0] +
         random() * (depositSettings.radiusRatio[1] - depositSettings.radiusRatio[0])));
       resources.push({ ...definition, x, y, radius, marine: false,
         abundance: planet?.resources?.[definition.id] ?? .5 });
     }
 
-    const oilSettings = settings.offshoreOil;
-    if (waterFraction >= oilSettings.minimumWater) {
+    if (hasOilDeposit && waterFraction >= oilSettings.minimumWater) {
       const oilDefinition = root.OrbitWorldgenData.marineDeposits[0];
-      const oilCount = Math.max(oilSettings.minimumFields, Math.min(oilSettings.maximumFields,
-        Math.round(waterFraction * oilSettings.fieldsPerWaterFraction)));
-      const oilSpacing = Math.min(width, height) * oilSettings.spacingRatio;
       let oilAttempts = 0;
-      while (resources.filter(resource => resource.marine).length < oilCount && oilAttempts < 1800) {
+      while (!resources.some(resource => resource.marine) && oilAttempts < 1800) {
         oilAttempts += 1;
         const x = Math.floor(random() * width), y = Math.floor(random() * height);
         if (elevation[y * width + x] > seaLevel - oilSettings.depthBelowSea) continue;
-        if (resources.some(resource => resource.marine &&
-            Math.hypot(resource.x - x, resource.y - y) < oilSpacing)) continue;
-        const radius = Math.max(8, Math.min(width, height) * (oilSettings.radiusRatio[0] +
+        const radius = Math.max(7, Math.min(width, height) * (oilSettings.radiusRatio[0] +
           random() * (oilSettings.radiusRatio[1] - oilSettings.radiusRatio[0])));
         resources.push({ ...oilDefinition, x, y, radius, marine: true,
           abundance: planet?.resources?.oil ?? (0.55 + random() * 0.4) });
