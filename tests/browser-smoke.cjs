@@ -306,6 +306,7 @@ async function checkContinuousZoom(cdp, name, mobile) {
   const gpuBaseline = await cdp.evaluate(`({ draws: window.__terrainGpuStats.draws,
     uploads: window.__terrainGpuStats.storage.length,
     tileScales: window.__terrainGpuStats.tileWorldSizes.length,
+    detailBlends: window.__terrainGpuStats.detailBlends.length,
     arrayMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'array').length })`);
   await cdp.evaluate('window.OrbitalDebug.focusHome()');
   await settle(cdp, `${name} home camera settles before continuous zoom`);
@@ -338,6 +339,14 @@ async function checkContinuousZoom(cdp, name, mobile) {
   const gpuReady = `window.__terrainGpuStats.draws > ${gpuBaseline.draws} &&
     window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}).some(upload =>
       upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3 && upload.levels > 1)`;
+  await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
+  const initialMix = await cdp.evaluate(`({ zoom: window.OrbitalDebug.getSurfaceDetailMetrics().surfaceZoom,
+    start: window.OrbitConfig.terrain.materialTextureDetailBlendStartZoom,
+    blends: window.__terrainGpuStats.detailBlends.slice(${gpuBaseline.detailBlends}) })`);
+  if (initialMix.zoom <= initialMix.start) {
+    assert.ok(initialMix.blends.some(value => value < .001),
+      `${name} keeps the baked map unchanged while the planet is viewed wide`);
+  }
   assert.equal(detail.detailWidth, detail.baseWidth * 4, `${name} terrain detail has four times the horizontal samples`);
   assert.equal(detail.detailHeight, detail.baseHeight * 4, `${name} terrain detail has four times the vertical samples`);
   const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
@@ -349,7 +358,10 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await zoomStep(cdp, highDetailFactor, { x: planetPoint.x, y: planetPoint.y });
   const zoomedDetail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
   assert.ok(zoomedDetail.surfaceZoom >= 2, `${name} screenshot reaches the high-resolution terrain renderer`);
-  await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
+  const detailMix = await cdp.evaluate(`({ current: window.__terrainGpuStats.detailBlends.at(-1),
+    maximum: window.OrbitConfig.terrain.materialTextureMaxBlend })`);
+  assert.ok(detailMix.current >= detailMix.maximum * .95,
+    `${name} brings in the alternate texture motifs at close zoom`);
   await cdp.until(`window.__terrainGpuStats.tileWorldSizes.length > ${gpuBaseline.tileScales}`,
     `${name} records a stable world-space material scale`);
   const maxTileWorldSize = await cdp.evaluate('window.__terrainGpuStats.tileWorldSizes.at(-1)');
@@ -677,7 +689,7 @@ async function main() {
     await cdp.send('Page.enable');
     await cdp.send('Network.enable');
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
-      globalThis.__terrainGpuStats = { draws: 0, storage: [], tileWorldSizes: [], mipmaps: [], minFilters: [] };
+      globalThis.__terrainGpuStats = { draws: 0, storage: [], tileWorldSizes: [], detailBlends: [], mipmaps: [], minFilters: [] };
       const originalGetContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function(type, options) {
         const context = originalGetContext.call(this, type, options);
@@ -687,15 +699,18 @@ async function main() {
         const originalDrawArrays = context.drawArrays.bind(context);
         context.drawArrays = (...args) => { stats.draws += 1; return originalDrawArrays(...args); };
         let tileWorldSizeLocation = null;
+        let detailBlendLocation = null;
         const originalGetUniformLocation = context.getUniformLocation.bind(context);
         context.getUniformLocation = (program, name) => {
           const location = originalGetUniformLocation(program, name);
           if (name === 'uTileWorldSize') tileWorldSizeLocation = location;
+          if (name === 'uDetailBlend') detailBlendLocation = location;
           return location;
         };
         const originalUniform1f = context.uniform1f.bind(context);
         context.uniform1f = (location, value) => {
           if (location === tileWorldSizeLocation) stats.tileWorldSizes.push(value);
+          if (location === detailBlendLocation) stats.detailBlends.push(value);
           return originalUniform1f(location, value);
         };
         const originalTexStorage3D = context.texStorage3D.bind(context);

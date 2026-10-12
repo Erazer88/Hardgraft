@@ -143,8 +143,9 @@
         const baseCanvas = makeCanvas(terrain.width, terrain.height);
         const baseContext = baseCanvas.getContext('2d');
         baseContext.imageSmoothingEnabled = true;
-        baseContext.drawImage(baseTexture.baseColorCanvas || baseTexture,
-          0, 0, terrain.width, terrain.height);
+        // Preserve the already-composed, map-scale biome image as the high-res
+        // base. The GPU texture layer is only blended in as the camera zooms in.
+        baseContext.drawImage(baseTexture, 0, 0, terrain.width, terrain.height);
         const textureScale = options.textureScale || Config.terrain.textureScale;
         return {
           terrain,
@@ -782,6 +783,10 @@
       const maxDetailMultiplier = Math.max(1, Config.terrain.materialTextureMaxDetailMultiplier);
       const deviceDetailLimit = Math.min(maxDetailMultiplier, Math.max(1, pixelRatio));
       const materialTextureDensity = Config.terrain.materialTexturePixelsPerKm * deviceDetailLimit;
+      const blendStart = Config.terrain.materialTextureDetailBlendStartZoom;
+      const blendEnd = Math.max(blendStart + .001, Config.terrain.materialTextureDetailBlendEndZoom);
+      const detailBlend = ease(clamp((frame.zoom - blendStart) / (blendEnd - blendStart), 0, 1)) *
+        Config.terrain.materialTextureMaxBlend;
       const gpuRendered = frame.surfaceDetail &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
@@ -792,7 +797,9 @@
           top,
           zoom: frame.zoom,
           mapSize: { width: terrainWidth, height: terrainHeight },
-          tileWorldSize: (materialImages[materialDefinitions[0].id]?.naturalWidth || 1254) / materialTextureDensity,
+          tileWorldSize: (materialImages[materialDefinitions[0].id]?.naturalWidth || 1254) /
+            materialTextureDensity * Config.terrain.materialTextureTileScale,
+          detailBlend,
           seed: World.hashSeed(String(frame.planet.seed) + ':stochastic-materials:v1')
         });
       if (gpuRendered) {

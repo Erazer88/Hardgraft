@@ -28,6 +28,7 @@
     uniform float uPixelRatio;
     uniform float uZoom;
     uniform float uTileWorldSize;
+    uniform float uDetailBlend;
     uniform uint uPlanetSeed;
 
     out vec4 outputColor;
@@ -46,19 +47,27 @@
       return float(hashCell(cell, salt) & 0x00ffffffu) / 16777216.0;
     }
 
+    float valueNoise(vec2 coordinate, uint salt) {
+      ivec2 cell = ivec2(floor(coordinate));
+      vec2 blend = fract(coordinate);
+      blend = blend * blend * (3.0 - 2.0 * blend);
+      float top = mix(randomCell(cell, salt), randomCell(cell + ivec2(1, 0), salt), blend.x);
+      float bottom = mix(randomCell(cell + ivec2(0, 1), salt),
+        randomCell(cell + ivec2(1, 1), salt), blend.x);
+      return mix(top, bottom, blend.y);
+    }
+
     vec2 stochasticUv(vec2 coordinate, vec2 site, ivec2 cell, int material) {
       uint salt = uint(material + 1) * 0x9e3779b9u;
-      float rotation = floor(randomCell(cell, salt) * 4.0);
-      vec2 local = coordinate - site;
-      if (rotation < 1.0) local = vec2(local.x, local.y);
-      else if (rotation < 2.0) local = vec2(-local.y, local.x);
-      else if (rotation < 3.0) local = vec2(-local.x, -local.y);
-      else local = vec2(local.y, -local.x);
-
-      float scale = 0.82 + randomCell(cell, salt ^ 0xa511e9b3u) * 0.36;
+      float angle = randomCell(cell, salt) * 6.28318530718;
+      float cosine = cos(angle), sine = sin(angle);
+      vec2 local = coordinate - site - 0.5;
+      vec2 rotated = vec2(local.x * cosine - local.y * sine,
+        local.x * sine + local.y * cosine);
+      float scale = 0.88 + randomCell(cell, salt ^ 0xa511e9b3u) * 0.38;
       vec2 crop = vec2(randomCell(cell, salt ^ 0x63d83595u),
         randomCell(cell, salt ^ 0xb8d14e27u));
-      return local * scale + crop + 0.5;
+      return rotated * scale + crop + 0.5;
     }
 
     vec3 sampleBiomeSite(vec2 coordinate, ivec2 cell, int material) {
@@ -85,8 +94,9 @@
 
     void blendBiome(inout vec3 color, float coverage, vec2 coordinate,
         ivec2 cell, vec2 fraction, vec2 seams, int material) {
-      if (coverage > 0.005) {
-        color = mix(color, sampleBiome(coordinate, cell, fraction, seams, material), coverage);
+      float detailCoverage = coverage * uDetailBlend;
+      if (detailCoverage > 0.005) {
+        color = mix(color, sampleBiome(coordinate, cell, fraction, seams, material), detailCoverage);
       }
     }
 
@@ -98,6 +108,11 @@
 
       vec3 color = texture(uBaseColor, mapUv).rgb;
       vec2 coordinate = world / uTileWorldSize;
+      // Gently bend the tile lattice at a scale spanning several tiles. This
+      // keeps cell boundaries from lining up into a repeated checker pattern.
+      vec2 warp = vec2(valueNoise(coordinate * 0.34, uPlanetSeed ^ 0x68bc21ebu),
+        valueNoise((coordinate + vec2(19.7, 43.1)) * 0.34, uPlanetSeed ^ 0x02e5be93u)) - 0.5;
+      coordinate += warp * 0.34;
       ivec2 cell = ivec2(floor(coordinate));
       vec2 fraction = fract(coordinate);
       const float seamWidth = 0.09;
@@ -196,6 +211,7 @@
         pixelRatio: gl.getUniformLocation(program, 'uPixelRatio'),
         zoom: gl.getUniformLocation(program, 'uZoom'),
         tileWorldSize: gl.getUniformLocation(program, 'uTileWorldSize'),
+        detailBlend: gl.getUniformLocation(program, 'uDetailBlend'),
         planetSeed: gl.getUniformLocation(program, 'uPlanetSeed')
       };
     }
@@ -360,7 +376,7 @@
     function draw(frame) {
       if (contextLost || disabled || !frame.baseCanvas || !frame.detailTexture) return false;
       if (!biomeTexture && !uploadBiomeTextures()) return false;
-      const { viewport, pixelRatio, top, zoom, mapSize, tileWorldSize, seed } = frame;
+      const { viewport, pixelRatio, top, zoom, mapSize, tileWorldSize, detailBlend, seed } = frame;
       const width = Math.max(1, Math.round(viewport.width * pixelRatio));
       const height = Math.max(1, Math.round(viewport.height * pixelRatio));
       if (canvas.width !== width || canvas.height !== height) {
@@ -385,6 +401,7 @@
       gl.uniform1f(locations.pixelRatio, pixelRatio);
       gl.uniform1f(locations.zoom, zoom);
       gl.uniform1f(locations.tileWorldSize, tileWorldSize);
+      gl.uniform1f(locations.detailBlend, detailBlend);
       gl.uniform1ui(locations.planetSeed, activeSurface.seed);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       return true;
