@@ -9,6 +9,7 @@ const { test } = require('node:test');
 function loadRenderer() {
   const context = vm.createContext({
     OrbitSettlementConfig: { render: {
+      showSecondaryRoads: true, showHouses: true,
       minZoom: 0, secondaryColor: '#ffffff', secondaryOpacity: 1, secondaryWidthPx: 1,
       houseWidthWorld: 10, districtWidthWorld: 18, spriteOpacity: 1, cullMarginPx: 5
     } },

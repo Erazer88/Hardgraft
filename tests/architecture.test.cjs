@@ -170,6 +170,26 @@ test('versioned saves round-trip exploration and clock state without serializing
   assert.equal('context' in saved, false); assert.equal('camera' in saved, false);
 });
 
+test('factory process plans persist with their building and discard orphaned plans', () => {
+  const state = State.create(), world = galaxy();
+  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'factory-1', type: 'factory',
+    planetId: 'planet-1', x: 20, y: 30, constructionState: 'complete' })];
+  state.factoryPlans = {
+    'factory-1': { nodes: [
+      { id: 'node-1', type: 'input', x: 140, y: 90 },
+      { id: 'node-2', type: 'transform', x: 420, y: 90 }
+    ], connections: [{ id: 'link-1', fromNodeId: 'node-1', fromPort: 0, toNodeId: 'node-2', toPort: 0 }] },
+    'missing-building': { nodes: [], connections: [] }
+  };
+  let stored;
+  const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
+  assert.equal(Save.save(storage, state, world), true);
+  const saved = Save.load(storage), restored = State.create();
+  assert.deepEqual(plain(saved.factoryPlans), { 'factory-1': state.factoryPlans['factory-1'] });
+  assert.equal(Save.restore(restored, galaxy(), saved), true);
+  assert.deepEqual(plain(restored.factoryPlans), { 'factory-1': state.factoryPlans['factory-1'] });
+});
+
 test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {
   const state = State.create(), world = galaxy();
   state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'hub-1', type: 'hub',

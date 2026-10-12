@@ -75,6 +75,7 @@
       time: state.simulation.time, reveal: Boolean(state.reveal),
       inventory: copy(state.inventory || {}),
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
+      factoryPlans: snapshotFactoryPlans(state.factoryPlans, state.surfaceBuildings),
       surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
       view: {
         camera: copy(state.camera), target: copy(state.target),
@@ -97,6 +98,7 @@
     state.reveal = Boolean(saved.reveal);
     state.surfaceBuildings = restoreBuildings(saved.surfaceBuildings);
     state.roadNetworks = restoreRoadNetworks(saved.roadNetworks, state.surfaceBuildings);
+    state.factoryPlans = restoreFactoryPlans(saved.factoryPlans, state.surfaceBuildings);
     state.surfaceSettlements = restoreSettlements(saved.surfaceSettlements);
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
@@ -129,6 +131,28 @@
       try { return [Building ? Building.create(saved) : copy(saved)]; }
       catch (_) { return []; }
     });
+  }
+
+  function snapshotFactoryPlans(value, buildings) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const buildingIds = new Set((buildings || []).map(building => building.id));
+    return Object.fromEntries(Object.entries(value).flatMap(([buildingId, plan]) => {
+      if (!buildingIds.has(buildingId) || !plan || typeof plan !== 'object') return [];
+      const nodes = Array.isArray(plan.nodes) ? plan.nodes.filter(node => node && typeof node.id === 'string' &&
+        typeof node.type === 'string' && Number.isFinite(node.x) && Number.isFinite(node.y))
+        .map(node => ({ id: node.id, type: node.type, x: node.x, y: node.y })) : [];
+      const nodeIds = new Set(nodes.map(node => node.id));
+      const connections = Array.isArray(plan.connections) ? plan.connections.filter(connection => connection &&
+        typeof connection.id === 'string' && nodeIds.has(connection.fromNodeId) && nodeIds.has(connection.toNodeId) &&
+        Number.isInteger(connection.fromPort) && Number.isInteger(connection.toPort))
+        .map(connection => ({ id: connection.id, fromNodeId: connection.fromNodeId,
+          fromPort: connection.fromPort, toNodeId: connection.toNodeId, toPort: connection.toPort })) : [];
+      return [[buildingId, { nodes, connections }]];
+    }));
+  }
+
+  function restoreFactoryPlans(value, buildings) {
+    return snapshotFactoryPlans(value, buildings);
   }
 
   function restoreRoadNetworks(value, buildings) {

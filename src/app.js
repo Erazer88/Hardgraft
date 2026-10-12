@@ -31,6 +31,12 @@
     return entries.length ? entries.map(([id, amount]) => `${resourceName(id)} ${formatAmount(amount)}`).join(' · ') : 'aucun matériau';
   }
   const state = globalThis.OrbitState.create();
+  const factoryEditor = globalThis.OrbitFactoryEditor.create(document, {
+    onSave(buildingId, plan) {
+      state.factoryPlans[buildingId] = plan;
+      persist();
+    }
+  });
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -248,7 +254,7 @@
     state.inventory = Inventory.create(ResourceData.startingInventory);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
-    state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {};
+    state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {}; state.factoryPlans = {};
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
     cancelRoadDrag();
@@ -446,6 +452,7 @@
     if (refund === null) return;
     for (const network of Object.values(state.roadNetworks)) RoadNetwork.detachBuilding(network, building.id);
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
+    delete state.factoryPlans[building.id];
     state.selected = null; $('inspector').hidden = true;
     toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli. Récupéré : ${amountSummary(refund)}.`);
     updateUI(); persist();
@@ -888,6 +895,12 @@
   });
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
+  $('factory-edit-button').onclick = () => {
+    const building = state.selected?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+    if (building) factoryEditor.open(building, state.factoryPlans[building.id]);
+  };
+  $('factory-editor-close').onclick = () => factoryEditor.close();
   $('demolish-button').onclick = demolishSelectedBuilding;
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
@@ -969,6 +982,10 @@
   }
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
+    if (factoryEditor.isOpen()) {
+      if (e.key === 'Escape') { factoryEditor.close(); e.preventDefault(); }
+      return;
+    }
     if (e.key === 'Escape') {
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();

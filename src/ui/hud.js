@@ -153,6 +153,7 @@
       if (!isBuilding) clearBuildingPanelPosition();
       $('building-readout').hidden = !isBuilding;
       $('demolish-button').hidden = !isBuilding;
+      $('factory-edit-button').hidden = !isBuilding;
       $('selection-info').hidden = isBuilding;
       $('selection-meta').hidden = isBuilding;
       if (state.level === 'galaxy') {

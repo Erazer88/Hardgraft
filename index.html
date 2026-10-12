@@ -38,6 +38,7 @@
       <div class="building-level" id="building-level"></div>
       <div class="building-stats" id="building-stats"></div>
     </div>
+    <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
     <button class="demolish-button" id="demolish-button" hidden>DÉMOLIR · RÉCUPÉRER 100 %</button>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
@@ -47,6 +48,48 @@
     <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
   </aside>
+  <section class="factory-editor" id="factory-editor" role="dialog" aria-modal="true"
+      aria-labelledby="factory-editor-title" hidden>
+    <header class="factory-editor-header">
+      <button id="factory-editor-close" class="factory-back" type="button" aria-label="Retour à la carte">← <span>RETOUR</span></button>
+      <div class="factory-heading">
+        <span>ÉDITEUR DE PROCESSUS</span>
+        <strong id="factory-editor-title">USINE</strong>
+        <small id="factory-editor-building-type"></small>
+      </div>
+      <div class="factory-header-tools">
+        <span id="factory-editor-status" aria-live="polite">PLAN ENREGISTRÉ</span>
+        <button type="button" data-factory-zoom="out" aria-label="Dézoomer l’espace de travail">−</button>
+        <span id="factory-editor-zoom">100 %</span>
+        <button type="button" data-factory-zoom="in" aria-label="Zoomer l’espace de travail">+</button>
+        <button id="factory-editor-fit" type="button" aria-label="Cadrer les blocs">CADRER</button>
+      </div>
+    </header>
+    <div class="factory-editor-layout">
+      <aside class="factory-palette" aria-label="Blocs de processus">
+        <div class="factory-palette-heading"><span>AJOUTER UN BLOC</span><small>FLUX · TRAITEMENT</small></div>
+        <div class="factory-block-list" id="factory-block-list"></div>
+      </aside>
+      <main class="factory-viewport" id="factory-viewport" tabindex="0"
+          aria-label="Espace de travail 2D des processus de l’usine">
+        <div class="factory-world" id="factory-world">
+          <svg class="factory-links" id="factory-links" viewBox="0 0 2600 1800" aria-hidden="true">
+            <defs><marker id="factory-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z"></path>
+            </marker></defs>
+            <g id="factory-link-layer"></g>
+          </svg>
+          <div class="factory-nodes" id="factory-nodes"></div>
+        </div>
+        <div class="factory-empty" id="factory-empty">
+          <span class="factory-empty-mark">＋</span>
+          <strong>ESPACE DE PROCESSUS</strong>
+          <span>Ajoutez un bloc, puis reliez une sortie à une entrée.</span>
+        </div>
+        <div class="factory-viewport-hint" id="factory-viewport-hint">SORTIE → ENTRÉE&nbsp;&nbsp; · &nbsp;&nbsp;GLISSER POUR DÉPLACER</div>
+      </main>
+    </div>
+  </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
     <div class="toolbox panel">
@@ -125,6 +168,7 @@
   <script src="src/rendering/surfaceRenderer.js"></script>
   <script src="src/rendering/renderer.js"></script>
   <script src="src/ui/hud.js"></script>
+  <script src="src/ui/factoryEditor.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>
 </body>

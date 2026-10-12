@@ -13,7 +13,7 @@
       system: null, planet: null, camera: { x: 0, y: 0, zoom: .1 }, target: { x: 0, y: 0, zoom: .1 },
       paused: false, reveal: false, tool: 'pan', context: null,
       tracking: null, focusPlanet: null, surfaceBuildings: [], roadNetworks: {}, placement: null,
-      surfaceSettlements: {}, roadPreview: null, buildMenuOpen: false };
+      surfaceSettlements: {}, factoryPlans: {}, roadPreview: null, buildMenuOpen: false };
   }
 
   root.OrbitState = Object.freeze({ create, normalizedSeed });
