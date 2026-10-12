@@ -486,15 +486,20 @@
       const worldY = cache.minY * cellSize - padding;
       const worldWidth = (cache.maxX - cache.minX + cache.sampleStride) * cellSize + padding * 2;
       const worldHeight = (cache.maxY - cache.minY + cache.sampleStride) * cellSize + padding * 2;
-      const rasterCanvas = makeCanvas(Math.max(1, Math.ceil(worldWidth * job.zoom * job.pixelRatio)),
-        Math.max(1, Math.ceil(worldHeight * job.zoom * job.pixelRatio)));
-      const rasterContext = rasterCanvas.getContext('2d');
-      rasterContext.scale(job.zoom * job.pixelRatio, job.zoom * job.pixelRatio);
-      rasterContext.translate(-worldX, -worldY);
-      rasterContext.lineCap = 'round'; rasterContext.lineJoin = 'round';
-      job.rasterContext = rasterContext;
+      const rasterWidth = Math.max(1, Math.ceil(worldWidth * job.zoom * job.pixelRatio));
+      const rasterHeight = Math.max(1, Math.ceil(worldHeight * job.zoom * job.pixelRatio));
+      const createLayer = () => {
+        const canvas = makeCanvas(rasterWidth, rasterHeight);
+        const context = canvas.getContext('2d');
+        context.scale(job.zoom * job.pixelRatio, job.zoom * job.pixelRatio);
+        context.translate(-worldX, -worldY);
+        context.lineCap = 'round'; context.lineJoin = 'round';
+        return { canvas, context };
+      };
+      const majorLayer = createLayer(), detailLayer = createLayer();
+      job.rasterContexts = { major: majorLayer.context, detail: detailLayer.context };
       job.rasterContourIndex = 0;
-      job.raster = { canvas: rasterCanvas, x: worldX, y: worldY,
+      job.raster = { major: majorLayer.canvas, detail: detailLayer.canvas, x: worldX, y: worldY,
         width: worldWidth, height: worldHeight, zoom: job.zoom,
         pixelRatio: job.pixelRatio, color: job.color };
       job.phase = 'rasterize';
@@ -541,13 +546,11 @@
     }
 
     function strokeContour(job, contour) {
-      const context = job.rasterContext;
-      const detailMix = clamp((job.zoom - .4) / .9, 0, 1);
-      context.globalAlpha = contour.major || contour.coastline ? 1 : ease(detailMix);
+      const context = contour.major || contour.coastline
+        ? job.rasterContexts.major : job.rasterContexts.detail;
       context.lineWidth = contour.width / job.zoom;
       context.strokeStyle = job.color || '#ffffff';
       context.stroke(contour.path);
-      context.globalAlpha = 1;
     }
 
     function processContourJob(job) {
@@ -640,12 +643,11 @@
         return;
       }
       if (typeof root.Path2D !== 'function') return;
-      const contourLod = frame.zoom < .55 ? 'overview' : frame.zoom < 1.2 ? 'regional' : 'detail';
+      const contourLod = 'detail';
       const { width, height } = terrain;
       const viewport = frame.viewport, top = frame.project(0, 0);
       const terrainFactor = frame.detailTerrain ? frame.detailTerrainFactor || Config.terrain.renderDetailFactor : 1;
-      const sampleStride = Math.min(terrainFactor,
-        contourLod === 'overview' ? 4 : contourLod === 'regional' ? 3 : 2);
+      const sampleStride = Math.min(terrainFactor, 2);
       const cellSize = Config.terrain.textureScale / terrainFactor;
       const visibleMinX = clamp(Math.floor((-top.x / frame.zoom) / cellSize), 0, width - 2);
       const visibleMaxX = clamp(Math.ceil(((viewport.width - top.x) / frame.zoom) / cellSize), 0, width - 2);
@@ -690,7 +692,12 @@
       canvasContext.globalAlpha = contourOpacity;
       canvasContext.translate(top.x, top.y);
       canvasContext.scale(frame.zoom, frame.zoom);
-      canvasContext.drawImage(raster.canvas, raster.x, raster.y, raster.width, raster.height);
+      canvasContext.drawImage(raster.major, raster.x, raster.y, raster.width, raster.height);
+      const detailMix = ease(clamp((frame.zoom - .4) / 1.4, 0, 1));
+      if (detailMix > .001) {
+        canvasContext.globalAlpha = contourOpacity * detailMix;
+        canvasContext.drawImage(raster.detail, raster.x, raster.y, raster.width, raster.height);
+      }
       canvasContext.restore();
     }
 
