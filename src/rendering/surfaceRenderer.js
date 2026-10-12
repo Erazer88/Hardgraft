@@ -770,6 +770,14 @@
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
       const pixelRatio = canvasContext.canvas.width / frame.viewport.width;
+      // Reveal up to twice the source texture detail as zoom increases, capped
+      // by physical pixel density to avoid subpixel shimmer on standard screens.
+      const densityRange = Math.max(.01, Config.terrain.maxLocalZoom - 2);
+      const zoomDetail = ease(clamp((frame.zoom - 2) / densityRange, 0, 1));
+      const maxDetailMultiplier = Math.max(1, Config.terrain.materialTextureMaxDetailMultiplier);
+      const deviceDetailLimit = Math.min(maxDetailMultiplier, Math.max(1, pixelRatio));
+      const materialTextureDensity = Config.terrain.materialTexturePixelsPerKm *
+        (1 + (deviceDetailLimit - 1) * zoomDetail);
       const gpuRendered = frame.surfaceDetail && frame.zoom >= 2 &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
@@ -780,8 +788,7 @@
           top,
           zoom: frame.zoom,
           mapSize: { width: terrainWidth, height: terrainHeight },
-          tileWorldSize: (materialImages[materialDefinitions[0].id]?.naturalWidth || 1254) /
-            Config.terrain.materialTexturePixelsPerKm,
+          tileWorldSize: (materialImages[materialDefinitions[0].id]?.naturalWidth || 1254) / materialTextureDensity,
           seed: World.hashSeed(String(frame.planet.seed) + ':stochastic-materials:v1')
         });
       if (gpuRendered) {
