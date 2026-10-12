@@ -173,6 +173,19 @@
       record.detailTerrain = null;
     }
   }
+  function surfacePreviewRadius(planet, context) {
+    if (!planet || !context) return 0;
+    return planet.radius * context.frame.scale * state.camera.zoom;
+  }
+  function shouldRetainSurfaceDetailPreview(planet, context) {
+    return state.level === 'system' && state.context === context && state.planet?.id === planet?.id &&
+      state.focusPlanet?.id === planet?.id && surfacePreviewRadius(planet, context) >
+        Config.terrain.materialPreviewReleaseRadiusPx;
+  }
+  function shouldKeepSurfaceDetail(planet, context) {
+    if (!planet || state.context !== context || state.planet?.id !== planet.id) return false;
+    return state.level === 'surface' || shouldRetainSurfaceDetailPreview(planet, context);
+  }
   function refreshSettlements(planetId) {
     const network = state.roadNetworks[planetId];
     if (!network) return false;
@@ -319,8 +332,16 @@
       if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
-    if (previousLevel === 'surface' && (state.level !== 'surface' || previousPlanet?.id !== state.planet?.id)) {
+    const surfaceChanged = previousLevel === 'surface' &&
+      (state.level !== 'surface' || previousPlanet?.id !== state.planet?.id);
+    if (surfaceChanged && !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
       releaseSurfaceDetail(previousPlanet, previousContext);
+    } else if (previousLevel !== 'surface' && previousPlanet &&
+        !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
+      const previousRecord = previousContext?.terrains.get(previousPlanet.id);
+      if (previousRecord?.detailTexture || previousRecord?.detailTerrain) {
+        releaseSurfaceDetail(previousPlanet, previousContext);
+      }
     }
   }
 

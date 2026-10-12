@@ -740,11 +740,14 @@
         x + style.labelOffsetXPx, viewport.height - style.labelOffsetBottomPx, style.labelColor, style.labelSizePx);
     }
 
-    function makeSurfaceFrame(cam, planet, record) {
+    function makeSurfaceFrame(cam, planet, record, planetPreview = false) {
       const state = getState();
-      const useSurfaceDetail = state.level === 'surface' && state.planet?.id === planet.id && cam.zoom >= 2;
-      const useDetailedTexture = useSurfaceDetail && record.detailTexture;
-      const terrainTexture = useDetailedTexture ? record.detailTexture : record.texture;
+      const activeSurface = state.level === 'surface' && state.planet?.id === planet.id;
+      const retainedPreview = planetPreview && state.level === 'system' &&
+        state.planet?.id === planet.id && state.focusPlanet?.id === planet.id;
+      const useSurfaceDetail = Boolean((activeSurface || retainedPreview) &&
+        record.detailTerrain && record.detailTexture);
+      const terrainTexture = useSurfaceDetail ? record.detailTexture : record.texture;
       return {
         context: canvasContext,
         camera: cam,
@@ -770,15 +773,12 @@
       const width = terrainWidth * frame.zoom, height = terrainHeight * frame.zoom;
       canvasContext.imageSmoothingEnabled = true;
       const pixelRatio = canvasContext.canvas.width / frame.viewport.width;
-      // Reveal up to twice the source texture detail as zoom increases, capped
-      // by physical pixel density to avoid subpixel shimmer on standard screens.
-      const densityRange = Math.max(.01, Config.terrain.maxLocalZoom - 2);
-      const zoomDetail = ease(clamp((frame.zoom - 2) / densityRange, 0, 1));
+      // Keep material coordinates fixed in world space so texture features do
+      // not slide or rescale as the camera zooms.
       const maxDetailMultiplier = Math.max(1, Config.terrain.materialTextureMaxDetailMultiplier);
       const deviceDetailLimit = Math.min(maxDetailMultiplier, Math.max(1, pixelRatio));
-      const materialTextureDensity = Config.terrain.materialTexturePixelsPerKm *
-        (1 + (deviceDetailLimit - 1) * zoomDetail);
-      const gpuRendered = frame.surfaceDetail && frame.zoom >= 2 &&
+      const materialTextureDensity = Config.terrain.materialTexturePixelsPerKm * deviceDetailLimit;
+      const gpuRendered = frame.surfaceDetail &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
           baseCanvas: terrainTexture.baseColorCanvas,
@@ -874,7 +874,7 @@
     }
 
     function drawSurface(cam, planet, record, planetPreview = false) {
-      const frame = makeSurfaceFrame(cam, planet, record);
+      const frame = makeSurfaceFrame(cam, planet, record, planetPreview);
       drawTerrain(frame, !planetPreview);
       drawGeologicalOverlays(frame);
       layers.roads.render(frame);

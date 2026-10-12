@@ -230,8 +230,9 @@
           biomeUploadTexture = gl.createTexture();
           biomeUploadLayer = 0;
           gl.bindTexture(gl.TEXTURE_2D_ARRAY, biomeUploadTexture);
-          configureSampler(gl.TEXTURE_2D_ARRAY, gl.MIRRORED_REPEAT, false);
-          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_COUNT);
+          const mipLevels = Math.floor(Math.log2(Math.max(width, height))) + 1;
+          configureSampler(gl.TEXTURE_2D_ARRAY, gl.MIRRORED_REPEAT, true);
+          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, mipLevels, gl.RGB8, width, height, MATERIAL_COUNT);
         } else {
           gl.bindTexture(gl.TEXTURE_2D_ARRAY, biomeUploadTexture);
         }
@@ -246,6 +247,8 @@
 
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
         if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas finaliser les textures de biome.');
+        gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+        if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas lisser les niveaux de détail des textures.');
         biomeTexture = biomeUploadTexture;
         biomeUploadTexture = null;
         gl.useProgram(program);
@@ -300,14 +303,13 @@
         const maskTexture = gl.createTexture();
         const baseTexture = gl.createTexture();
         try {
+          const mipLevels = Math.floor(Math.log2(Math.max(width, height))) + 1;
           gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
           gl.bindTexture(gl.TEXTURE_2D_ARRAY, maskTexture);
-          configureSampler(gl.TEXTURE_2D_ARRAY, gl.CLAMP_TO_EDGE, false);
-          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGB8, width, height, MATERIAL_MASK_GROUPS);
+          configureSampler(gl.TEXTURE_2D_ARRAY, gl.CLAMP_TO_EDGE, true);
+          gl.texStorage3D(gl.TEXTURE_2D_ARRAY, mipLevels, gl.RGB8, width, height, MATERIAL_MASK_GROUPS);
           gl.bindTexture(gl.TEXTURE_2D, baseTexture);
-          // The base canvas is only magnified in the close-surface pass. Avoid
-          // building mipmaps that cost time and memory during the zoom.
-          configureSampler(gl.TEXTURE_2D, gl.CLAMP_TO_EDGE, false);
+          configureSampler(gl.TEXTURE_2D, gl.CLAMP_TO_EDGE, true);
           gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
           if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas réserver la carte de relief.');
           pendingSurface = { key, baseCanvas, masks, seed: seed >>> 0,
@@ -337,6 +339,11 @@
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, upload.baseCanvas);
         }
         if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas charger la carte de relief.');
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, upload.maskTexture);
+        gl.generateMipmap(gl.TEXTURE_2D_ARRAY);
+        gl.bindTexture(gl.TEXTURE_2D, upload.baseTexture);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        if (gl.getError() !== gl.NO_ERROR) throw new Error('Le GPU ne peut pas lisser les niveaux de détail de la carte.');
         activeSurface = { key, maskTexture: upload.maskTexture,
           baseTexture: upload.baseTexture, seed: upload.seed };
         pendingSurface = null;

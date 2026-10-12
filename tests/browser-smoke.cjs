@@ -299,7 +299,9 @@ async function checkTerrainZoomLimit(cdp, name) {
 
 async function checkContinuousZoom(cdp, name, mobile) {
   const gpuBaseline = await cdp.evaluate(`({ draws: window.__terrainGpuStats.draws,
-    uploads: window.__terrainGpuStats.storage.length })`);
+    uploads: window.__terrainGpuStats.storage.length,
+    tileScales: window.__terrainGpuStats.tileWorldSizes.length,
+    arrayMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'array').length })`);
   await cdp.evaluate('window.OrbitalDebug.focusHome()');
   await settle(cdp, `${name} home camera settles before continuous zoom`);
   await cdp.evaluate('window.OrbitalDebug.setPause(true)');
@@ -329,7 +331,7 @@ async function checkContinuousZoom(cdp, name, mobile) {
   assert.ok(detail, `${name} active surface builds its high-resolution terrain`);
   const gpuReady = `window.__terrainGpuStats.draws > ${gpuBaseline.draws} &&
     window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}).some(upload =>
-      upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3)`;
+      upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3 && upload.levels > 1)`;
   assert.equal(detail.detailWidth, detail.baseWidth * 4, `${name} terrain detail has four times the horizontal samples`);
   assert.equal(detail.detailHeight, detail.baseHeight * 4, `${name} terrain detail has four times the vertical samples`);
   const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
@@ -342,6 +344,38 @@ async function checkContinuousZoom(cdp, name, mobile) {
   const zoomedDetail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
   assert.ok(zoomedDetail.surfaceZoom >= 2, `${name} screenshot reaches the high-resolution terrain renderer`);
   await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
+  await cdp.until(`window.__terrainGpuStats.tileWorldSizes.length > ${gpuBaseline.tileScales}`,
+    `${name} records a stable world-space material scale`);
+  const maxTileWorldSize = await cdp.evaluate('window.__terrainGpuStats.tileWorldSizes.at(-1)');
+  const mipmapState = await cdp.evaluate(`({
+    arrayMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'array').length,
+    textureMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'texture').length,
+    mipFilter: window.__terrainGpuStats.mipmapFilter,
+    minFilters: window.__terrainGpuStats.minFilters
+  })`);
+  assert.ok(mipmapState.arrayMipmaps > gpuBaseline.arrayMipmaps,
+    `${name} builds mip levels for the high-resolution material masks`);
+  assert.ok(mipmapState.textureMipmaps > 0,
+    `${name} builds mip levels for the high-resolution base color`);
+  assert.ok(mipmapState.minFilters.some(filter => filter.value === mipmapState.mipFilter),
+    `${name} uses trilinear mip filtering to blend terrain detail during zoom`);
+
+  // Keep the planet large enough to stay visible in system view, then confirm
+  // the retained high-resolution surface keeps drawing at its minified mip LOD.
+  const previewZoom = 90 / zoomedDetail.logicalHeight;
+  const drawsBeforePreview = await cdp.evaluate('window.__terrainGpuStats.draws');
+  await zoomStep(cdp, previewZoom / zoomedDetail.surfaceZoom, { x: planetPoint.x, y: planetPoint.y });
+  assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} zooms out into the system preview`);
+  await cdp.until(`window.__terrainGpuStats.draws > ${drawsBeforePreview}`,
+    `${name} keeps rendering the detailed texture in the system preview`);
+  const previewState = await cdp.evaluate(`({ detail: window.OrbitalDebug.getSurfaceDetailMetrics(),
+    tileWorldSize: window.__terrainGpuStats.tileWorldSizes.at(-1) })`);
+  assert.ok(previewState.detail, `${name} retains high-resolution terrain while its preview remains visible`);
+  assert.ok(Math.abs(previewState.tileWorldSize - maxTileWorldSize) < 1e-6,
+    `${name} texture remains anchored at the same world scale through zoom out`);
+  await cdp.screenshot(`${name}-terrain-transition.png`);
+  await zoomStep(cdp, zoomedDetail.surfaceZoom / previewZoom, { x: planetPoint.x, y: planetPoint.y });
+  assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} zooming back re-enters the same surface`);
   await cdp.screenshot(`${name}-terrain-close.png`);
   await checkTerrainZoomLimit(cdp, name);
   assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
@@ -571,18 +605,43 @@ async function main() {
     await cdp.send('Page.enable');
     await cdp.send('Network.enable');
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
-      globalThis.__terrainGpuStats = { draws: 0, storage: [] };
+      globalThis.__terrainGpuStats = { draws: 0, storage: [], tileWorldSizes: [], mipmaps: [], minFilters: [] };
       const originalGetContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function(type, options) {
         const context = originalGetContext.call(this, type, options);
         if (type !== 'webgl2' || !context) return context;
         const stats = globalThis.__terrainGpuStats;
+        stats.mipmapFilter = context.LINEAR_MIPMAP_LINEAR;
         const originalDrawArrays = context.drawArrays.bind(context);
         context.drawArrays = (...args) => { stats.draws += 1; return originalDrawArrays(...args); };
+        let tileWorldSizeLocation = null;
+        const originalGetUniformLocation = context.getUniformLocation.bind(context);
+        context.getUniformLocation = (program, name) => {
+          const location = originalGetUniformLocation(program, name);
+          if (name === 'uTileWorldSize') tileWorldSizeLocation = location;
+          return location;
+        };
+        const originalUniform1f = context.uniform1f.bind(context);
+        context.uniform1f = (location, value) => {
+          if (location === tileWorldSizeLocation) stats.tileWorldSizes.push(value);
+          return originalUniform1f(location, value);
+        };
         const originalTexStorage3D = context.texStorage3D.bind(context);
         context.texStorage3D = (target, levels, format, width, height, depth) => {
-          stats.storage.push({ width, height, depth });
+          stats.storage.push({ width, height, depth, levels });
           return originalTexStorage3D(target, levels, format, width, height, depth);
+        };
+        const originalGenerateMipmap = context.generateMipmap.bind(context);
+        context.generateMipmap = target => {
+          stats.mipmaps.push(target === context.TEXTURE_2D_ARRAY ? 'array' : 'texture');
+          return originalGenerateMipmap(target);
+        };
+        const originalTexParameteri = context.texParameteri.bind(context);
+        context.texParameteri = (target, pname, value) => {
+          if (pname === context.TEXTURE_MIN_FILTER) {
+            stats.minFilters.push({ target: target === context.TEXTURE_2D_ARRAY ? 'array' : 'texture', value });
+          }
+          return originalTexParameteri(target, pname, value);
         };
         return context;
       };
