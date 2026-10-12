@@ -67,18 +67,18 @@
         : 'Aucune ressource en stock';
       const byType = {
         factory: [
-          ['DÉBIT DE TRANSFORMATION', `${fmtDecimal(flow)} / min`],
+          ['DÉBIT EN SORTIE', `${fmtDecimal(flow)} / min`],
           ['RESSOURCES TRAITÉES', mineralLabels.join(' · ')]
         ],
         extractor: [
-          ['DÉBIT D’EXTRACTION', `${fmtDecimal(flow)} / min`],
+          ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
           ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible']
         ],
         oil_platform: [
-          ['DÉBIT D’EXTRACTION', `${fmtDecimal(flow)} / min`],
+          ['VITESSE D’EXTRACTION', `${fmtDecimal(flow)} / min`],
           ['RESSOURCE', 'Hydrocarbures']
         ],
-        wind_turbine: [['ÉNERGIE FOURNIE', formatPower(building.energyOutputWatts)]],
+        wind_turbine: [['PRODUCTION ÉLECTRIQUE', formatPower(building.energyOutputWatts)]],
         hub: [
           ['ARRIVÉES', 'Personnel orbital'],
           ['DÉBIT D’EXPORT', `${fmtDecimal(flow)} / min`],
