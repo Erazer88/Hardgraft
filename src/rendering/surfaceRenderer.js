@@ -959,9 +959,12 @@
 
     function drawSurface(cam, planet, record, planetPreview = false) {
       const frame = makeSurfaceFrame(cam, planet, record, planetPreview);
+      const developerSettings = root.OrbitDeveloperSettings;
+      frame.showSurfaceRoads = developerSettings?.get('showSurfaceRoads') !== false;
+      frame.showSurfaceHouses = developerSettings?.get('showSurfaceHouses') !== false;
       drawTerrain(frame, !planetPreview);
       drawGeologicalOverlays(frame);
-      layers.roads.render(frame);
+      if (frame.showSurfaceRoads) layers.roads.render(frame);
       layers.settlements.render(frame);
       layers.buildings.renderPhysical(frame);
       layers.vehicles.render(frame);

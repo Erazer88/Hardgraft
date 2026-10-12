@@ -61,3 +61,8 @@ body[data-level="surface"] .corner-note{display:none}
 .developer-reset{width:100%;margin-top:17px;padding:11px;border:1px solid #829eaf2c;border-radius:4px;background:#0b17244d;color:#8da7b6;font-size:8px;letter-spacing:1px;cursor:pointer}
 .developer-reset:hover,.developer-reset:focus-visible{border-color:#d49a576b;color:#eab179;outline:none}
 @media(max-width:600px){.developer-card{padding:21px 22px 20px}.developer-option{gap:10px}.developer-option-copy label{font-size:9px}.developer-option-copy small{font-size:7px}.developer-option-control input[type="range"]{width:min(110px,30vw)}}
+
+#developer-dialog{overflow:hidden}
+#developer-dialog .developer-card{display:flex;flex-direction:column;max-height:calc(100dvh - 48px)}
+#developer-options{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#developer-dialog .developer-reset{flex:0 0 auto}

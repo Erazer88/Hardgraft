@@ -14,6 +14,16 @@
       defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
     }),
     Object.freeze({
+      id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',
+      label: 'Routes', help: 'Affiche les routes manuelles, maritimes et secondaires des quartiers.',
+      defaultValue: true
+    }),
+    Object.freeze({
+      id: 'showSurfaceHouses', type: 'checkbox', group: 'Affichage du terrain',
+      label: 'Maisons', help: 'Affiche les maisons décoratives générées autour des bâtiments.',
+      defaultValue: true
+    }),
+    Object.freeze({
       id: 'depositMarkerSizePercent', type: 'range', group: 'Gisements',
       label: 'Taille réelle', help: 'Emprise sur la carte. À l’écran, les gisements suivent le zoom comme le terrain.',
       defaultValue: 100, min: 25, max: 200, step: 5, unit: '%'

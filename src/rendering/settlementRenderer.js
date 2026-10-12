@@ -63,6 +63,8 @@
     if (frame.zoom < Style.minZoom) return;
     const settlement = frame.state.surfaceSettlements?.[frame.planet.id];
     if (!settlement) return;
+    const showRoads = frame.showSurfaceRoads !== false;
+    const showHouses = frame.showSurfaceHouses !== false;
     const roads = settlement.roads || [], network = frame.state.roadNetworks?.[frame.planet.id];
     const roadById = new Map([...roads, ...(network?.segments || [])].map(road => [road.id, road]));
     const routeGroups = new Map();
@@ -73,18 +75,22 @@
     }
     const completeMainRoutes = new Set([...routeGroups].filter(([, segments]) =>
       segments.every(segment => segment.builtLength >= segment.length - 1e-6)).map(([routeId]) => routeId));
-    for (const road of roads) drawRoad(frame, road);
-    for (const district of settlement.districts || []) {
-      const road = roadById.get(district.roadId);
-      const ready = district.mainRoadAsset ? completeMainRoutes.has(district.routeId) :
-        road && road.builtLength >= district.roadDistance;
-      if (ready) drawAsset(frame, district, district.widthWorld || Style.districtWidthWorld,
-        Style.spriteOpacity, true);
+    if (showRoads) {
+      for (const road of roads) drawRoad(frame, road);
+      for (const district of settlement.districts || []) {
+        const road = roadById.get(district.roadId);
+        const ready = district.mainRoadAsset ? completeMainRoutes.has(district.routeId) :
+          road && road.builtLength >= district.roadDistance;
+        if (ready) drawAsset(frame, district, district.widthWorld || Style.districtWidthWorld,
+          Style.spriteOpacity, true);
+      }
     }
-    for (const house of settlement.houses || []) {
-      const road = roadById.get(house.roadId);
-      if (road && road.builtLength >= house.roadDistance) {
-        drawAsset(frame, house, Style.houseWidthWorld, Style.spriteOpacity);
+    if (showHouses) {
+      for (const house of settlement.houses || []) {
+        const road = roadById.get(house.roadId);
+        if (road && road.builtLength >= house.roadDistance) {
+          drawAsset(frame, house, Style.houseWidthWorld, Style.spriteOpacity);
+        }
       }
     }
   }

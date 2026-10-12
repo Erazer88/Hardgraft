@@ -469,10 +469,29 @@ async function checkDeveloperDepositSettings(cdp, name) {
     size: document.querySelector('#developer-setting-depositMarkerSizePercent')?.value,
     iron: document.querySelector('#developer-setting-depositIronColor')?.value,
     oil: document.querySelector('#developer-setting-depositOilColor')?.value,
-    infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked
+    infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked,
+    showSurfaceRoads: document.querySelector('#developer-setting-showSurfaceRoads')?.checked,
+    showSurfaceHouses: document.querySelector('#developer-setting-showSurfaceHouses')?.checked
   }))()`);
-  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43', infiniteMinerals: false },
-    `${name} developer panel exposes deposit controls and disables infinite minerals by default`);
+  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43', infiniteMinerals: false,
+    showSurfaceRoads: true, showSurfaceHouses: true },
+    `${name} developer panel exposes deposit and visibility controls with roads and houses enabled by default`);
+
+  const visibility = await cdp.evaluate(`(() => {
+    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
+      const input = document.querySelector('#developer-setting-' + id);
+      input.checked = false; input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const hidden = ['showSurfaceRoads', 'showSurfaceHouses'].map(id => window.OrbitDeveloperSettings.get(id));
+    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
+      const input = document.querySelector('#developer-setting-' + id);
+      input.checked = true; input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return { hidden, restored: ['showSurfaceRoads', 'showSurfaceHouses']
+      .map(id => window.OrbitDeveloperSettings.get(id)) };
+  })()`);
+  assert.deepEqual(visibility, { hidden: [false, false], restored: [true, true] },
+    `${name} road and house visibility settings apply and restore immediately`);
 
   const infiniteMinerals = await cdp.evaluate(`(() => {
     const setting = document.querySelector('#developer-setting-infiniteMinerals');
