@@ -109,12 +109,48 @@
       }
     }
 
+    function clearBuildingPanelPosition() {
+      const panel = $('inspector');
+      panel.style.removeProperty('left');
+      panel.style.removeProperty('top');
+      panel.style.removeProperty('right');
+      panel.style.removeProperty('bottom');
+    }
+
+    function positionBuildingPanel(point) {
+      const panel = $('inspector');
+      if (!point || panel.hidden || !panel.classList.contains('building-panel')) return;
+      const panelRect = panel.getBoundingClientRect();
+      const rootStyle = getComputedStyle(document.documentElement);
+      const edge = parseFloat(rootStyle.getPropertyValue('--edge')) || 8;
+      const safeTop = parseFloat(rootStyle.getPropertyValue('--safe-top')) || 0;
+      const safeBottom = parseFloat(rootStyle.getPropertyValue('--safe-bottom')) || 0;
+      const safeLeft = parseFloat(rootStyle.getPropertyValue('--safe-left')) || 0;
+      const safeRight = parseFloat(rootStyle.getPropertyValue('--safe-right')) || 0;
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = document.documentElement.clientHeight;
+      const minLeft = edge + safeLeft;
+      const maxLeft = Math.max(minLeft, viewportWidth - panelRect.width - edge - safeRight);
+      const minTop = edge + safeTop;
+      const maxTop = Math.max(minTop, viewportHeight - 108 - safeBottom - panelRect.height);
+      const gap = 12;
+      let left = point.x + gap;
+      if (left > maxLeft) left = point.x - panelRect.width - gap;
+      const top = Math.max(minTop, Math.min(maxTop, point.y - panelRect.height / 2));
+      left = Math.max(minLeft, Math.min(maxLeft, left));
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    }
+
     function showSelection(item, { state, systemModel }) {
       const panel = $('inspector');
       panel.hidden = false;
       $('toast').classList.remove('visible');
       const isBuilding = item.kind === 'building';
       panel.classList.toggle('building-panel', isBuilding);
+      if (!isBuilding) clearBuildingPanelPosition();
       $('building-readout').hidden = !isBuilding;
       $('demolish-button').hidden = !isBuilding;
       $('selection-info').hidden = isBuilding;
@@ -156,10 +192,13 @@
       }
     }
 
-    function update({ state, galaxy, terrainData, width, scaleCamera }) {
+    function update({ state, galaxy, terrainData, width, scaleCamera, buildingPosition }) {
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
-      if (selectedBuilding && !$('building-readout').hidden) renderBuildingReadout(selectedBuilding);
+      if (selectedBuilding && !$('building-readout').hidden) {
+        renderBuildingReadout(selectedBuilding);
+        positionBuildingPanel(buildingPosition);
+      }
       const known = galaxy.systems.filter(system => system.discovered || state.reveal).length;
       const level = state.level;
       document.body.dataset.level = level;

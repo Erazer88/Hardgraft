@@ -728,8 +728,11 @@
     }
   }
   function updateUI() {
-    const scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) : localCamera(surfaceFrame());
-    hud.update({ state, galaxy, terrainData, width: W, scaleCamera });
+    const frame = state.level === 'surface' ? surfaceFrame() : null;
+    const scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) : localCamera(frame);
+    const buildingPosition = state.selected?.kind === 'building' && frame
+      ? project(frame.x + state.selected.x * frame.scale, frame.y + state.selected.y * frame.scale) : null;
+    hud.update({ state, galaxy, terrainData, width: W, scaleCamera, buildingPosition });
   }
 
   function clickMap(x, y, doubleClick = false) {

@@ -114,3 +114,14 @@ body[data-level="surface"] .corner-note{display:none}
   .menu-card{padding:18px 24px}
   #menu-dialog{inset:calc(56px + var(--safe-top)) calc(var(--edge) + var(--safe-right)) auto auto;max-height:calc(100dvh - 64px - var(--safe-top) - var(--safe-bottom))}
 }
+
+.inspector.building-panel{position:fixed;z-index:20;width:min(270px,calc(100vw - 16px - var(--safe-left) - var(--safe-right)));max-height:min(54dvh,330px);padding:9px 12px 10px;overflow:auto}
+.inspector.building-panel h2{font-size:20px;line-height:1.25;margin:3px 0 4px}
+.inspector.building-panel .building-readout{margin:8px 0 0;padding-top:7px}
+.inspector.building-panel .building-level{font-size:9px;margin-bottom:5px}
+.inspector.building-panel .building-stats{gap:3px}
+.inspector.building-panel .building-stat{grid-template-columns:minmax(88px,.85fr) minmax(0,1.15fr);gap:7px;padding:4px 0}
+.inspector.building-panel .building-stat-label{font-size:9px}
+.inspector.building-panel .building-stat-value{font-size:11px}
+.inspector.building-panel .demolish-button{margin-top:7px;padding:7px 9px;font-size:9px}
+@media(max-width:600px){.inspector.building-panel .building-stat-label{font-size:8px}.inspector.building-panel .building-stat-value{font-size:10px}}
