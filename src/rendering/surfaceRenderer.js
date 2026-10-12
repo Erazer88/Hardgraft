@@ -298,7 +298,10 @@
         pending -= 1;
         if (pending > 0) return;
         materialImagesReady = true;
-        materialRenderer.setMaterials(materialDefinitions.map(definition => materialImages[definition.id]));
+        materialRenderer.setMaterials(
+          materialDefinitions.map(definition => materialImages[definition.id]),
+          Config.terrain.materialTextureResolutionScale
+        );
         for (const record of [...pendingMaterialTextures]) applyMaterialTextures(record);
       };
       for (const definition of materialDefinitions) {

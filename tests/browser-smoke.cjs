@@ -340,6 +340,12 @@ async function checkContinuousZoom(cdp, name, mobile) {
     window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}).some(upload =>
       upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3 && upload.levels > 1)`;
   await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
+  const atlas = await cdp.evaluate(`({ scale: window.OrbitConfig.terrain.materialTextureResolutionScale,
+    uploads: window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}) })`);
+  const expectedAtlasSize = Math.round(1254 * atlas.scale);
+  assert.ok(atlas.uploads.some(upload => upload.width === expectedAtlasSize &&
+    upload.height === expectedAtlasSize && upload.depth === 9),
+  `${name} max-zoom biome images use one quarter of their source width and height`);
   const initialMix = await cdp.evaluate(`({ zoom: window.OrbitalDebug.getSurfaceDetailMetrics().surfaceZoom,
     start: window.OrbitConfig.terrain.materialTextureDetailBlendStartZoom,
     blends: window.__terrainGpuStats.detailBlends.slice(${gpuBaseline.detailBlends}) })`);
@@ -347,8 +353,11 @@ async function checkContinuousZoom(cdp, name, mobile) {
     assert.ok(initialMix.blends.some(value => value < .001),
       `${name} keeps the baked map unchanged while the planet is viewed wide`);
   }
-  assert.equal(detail.detailWidth, detail.baseWidth * 4, `${name} terrain detail has four times the horizontal samples`);
-  assert.equal(detail.detailHeight, detail.baseHeight * 4, `${name} terrain detail has four times the vertical samples`);
+  const detailFactor = await cdp.evaluate('window.OrbitConfig.terrain.renderDetailFactor');
+  assert.equal(detail.detailWidth, detail.baseWidth * detailFactor,
+    `${name} maximum terrain image uses the configured horizontal samples`);
+  assert.equal(detail.detailHeight, detail.baseHeight * detailFactor,
+    `${name} maximum terrain image uses the configured vertical samples`);
   const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
   assert.equal(detail.textureWidth, detail.logicalWidth * pixelRatio, `${name} high-resolution texture keeps the established map extent`);
   assert.equal(detail.textureHeight, detail.logicalHeight * pixelRatio, `${name} high-resolution texture keeps the established map extent`);

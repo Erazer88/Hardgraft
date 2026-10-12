@@ -156,6 +156,8 @@
     let biomeUploadTexture = null;
     let biomeUploadLayer = 0;
     let biomeImages = null;
+    let biomeSourceImages = null;
+    let biomeImageScale = 1;
     let activeSurface = null;
     let pendingSurface = null;
     let contextLost = false;
@@ -216,14 +218,43 @@
       };
     }
 
-    function setMaterials(images) {
+    function downsampleMaterial(image, scale) {
+      if (scale >= 1) return image;
+      const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+      const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+      const thumbnail = root.document.createElement('canvas');
+      thumbnail.width = width;
+      thumbnail.height = height;
+      const context = thumbnail.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Impossible de préparer les textures réduites du terrain.');
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      context.drawImage(image, 0, 0, width, height);
+      return thumbnail;
+    }
+
+    function setMaterials(images, resolutionScale = 1) {
       if (contextLost || disabled || !Array.isArray(images) || images.length !== MATERIAL_COUNT ||
           images.some(image => !image || !(image.naturalWidth || image.width))) return false;
-      if (!biomeImages || !images.every((image, index) => image === biomeImages[index])) biomeImages = images.slice();
-      const width = images[0].naturalWidth || images[0].width;
-      const height = images[0].naturalHeight || images[0].height;
-      if (images.some(image => (image.naturalWidth || image.width) !== width ||
-          (image.naturalHeight || image.height) !== height) ||
+      const sourceWidth = images[0].naturalWidth || images[0].width;
+      const sourceHeight = images[0].naturalHeight || images[0].height;
+      if (images.some(image => (image.naturalWidth || image.width) !== sourceWidth ||
+          (image.naturalHeight || image.height) !== sourceHeight)) return false;
+      const scale = Math.max(.0625, Math.min(1, Number(resolutionScale) || 1));
+      if (!biomeSourceImages || scale !== biomeImageScale ||
+          !images.every((image, index) => image === biomeSourceImages[index])) {
+        try {
+          biomeImages = images.map(image => downsampleMaterial(image, scale));
+          biomeSourceImages = images.slice();
+          biomeImageScale = scale;
+        } catch (error) {
+          fail(error);
+          return false;
+        }
+      }
+      const width = biomeImages[0].width;
+      const height = biomeImages[0].height;
+      if (biomeImages.some(image => image.width !== width || image.height !== height) ||
           width > gl.getParameter(gl.MAX_TEXTURE_SIZE) || height > gl.getParameter(gl.MAX_TEXTURE_SIZE) ||
           gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) < MATERIAL_COUNT) return false;
       try {

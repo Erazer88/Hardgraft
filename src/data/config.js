@@ -12,6 +12,7 @@
     terrain: Object.freeze({ width: 480, height: 360, textureScale: 3, renderDetailFactor: 4,
       renderTexturePixelRatio: 2, materialTexturePixelsPerKm: 3.4,
       materialTextureMaxDetailMultiplier: 2, materialTextureTileScale: 1.45,
+      materialTextureResolutionScale: .25,
       materialTextureDetailBlendStartZoom: .55, materialTextureDetailBlendEndZoom: 1.45,
       materialTextureMaxBlend: .72, materialPreviewReleaseRadiusPx: 18, maxLocalZoom: 4 })
   });
