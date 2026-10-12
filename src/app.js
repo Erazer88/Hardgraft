@@ -226,8 +226,19 @@
   function homeCamera() {
     if (state.level === 'galaxy') return { x: home.x - 200, y: home.y - 160, zoom: Math.max(.09, fitZoom(1900)) };
     if (state.level === 'system') return systemCamera();
-    return worldCamera(surfaceFrame(), { x: terrainData.width * Config.terrain.textureScale / 2, y: terrainData.height * Config.terrain.textureScale / 2,
-      zoom: Math.max(W / (terrainData.width * Config.terrain.textureScale), H / (terrainData.height * Config.terrain.textureScale)) * 1.08 });
+    return surfaceCamera();
+  }
+  function surfaceCamera(planet = state.planet, showOverview = false) {
+    const record = prepareTerrain(planet);
+    const width = record.texture.logicalWidth || record.texture.width;
+    const height = record.texture.logicalHeight || record.texture.height;
+    // In mobile portrait, keep the terrain edge to edge even when recentering
+    // or requesting an overview. Pan and pinch still reach the rest of the map.
+    const portrait = W <= 600 && H > W;
+    const zoom = showOverview && !portrait
+      ? Math.min((W - 30) / width, (H - 200) / height)
+      : Math.max(W / width, H / height) * 1.08;
+    return worldCamera(surfaceFrame(planet), { x: width / 2, y: height / 2, zoom });
   }
   function resetCamera(immediate = false) { const cam = homeCamera(); focusCamera(cam.x, cam.y, cam.zoom, immediate); }
 
@@ -660,12 +671,10 @@
     const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    const record = prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     refreshSettlements(planet.id);
     clearSelection();
-    const width = record.texture.logicalWidth || record.texture.width;
-    const height = record.texture.logicalHeight || record.texture.height;
-    const f = surfaceFrame(planet), camera = worldCamera(f, { x: width / 2, y: height / 2, zoom: Math.max(W / width, H / height) * 1.08 });
+    const camera = surfaceCamera(planet);
     focusCamera(camera.x, camera.y, camera.zoom);
     persist();
   }
@@ -690,8 +699,7 @@
       focusCamera(camera.x, camera.y, camera.zoom);
     } else {
       followPlanet(state.planet);
-      const frame = surfaceFrame(), camera = worldCamera(frame, { x: terrainTexture.width / 2, y: terrainTexture.height / 2,
-        zoom: Math.min((W - 30) / terrainTexture.width, (H - 200) / terrainTexture.height) });
+      const camera = surfaceCamera(state.planet, true);
       focusCamera(camera.x, camera.y, camera.zoom);
     }
     persist();
