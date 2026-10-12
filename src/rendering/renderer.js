@@ -250,9 +250,13 @@
     function drawUniverse() {
       ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       const cam = state.camera;
-      if (state.level === 'surface' && state.planet) {
-        const p = planetWorldPosition(state.planet), center = project(p.x, p.y), r = state.planet.radius * state.context.frame.scale * cam.zoom;
-        if (r > Math.max(W, H) * 1.5) { surfaceRenderer.drawPlanetTerrain(state.planet, state.context, center, r); return; }
+      if (state.level === 'surface') {
+        if (state.planet && state.context) {
+          const p = planetWorldPosition(state.planet), center = project(p.x, p.y);
+          const r = state.planet.radius * state.context.frame.scale * cam.zoom;
+          surfaceRenderer.drawPlanetTerrain(state.planet, state.context, center, r);
+        }
+        return;
       }
       drawGalaxy(cam);
       if (cam.zoom < .7) return;

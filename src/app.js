@@ -269,9 +269,9 @@
   function updateSceneContext() {
     if (!galaxy) return;
     const previousLevel = state.level, previousContext = state.context, previousPlanet = state.planet;
-    const known = galaxy.systems.filter(s => s.discovered || state.reveal);
     if (state.tracking) state.context = state.tracking.context;
     if (state.camera.zoom >= .7 && !state.tracking && !cameraMoving()) {
+      const known = galaxy.systems.filter(s => s.discovered || state.reveal);
       const nearest = [...known].sort((a, b) => distance(a, state.camera) - distance(b, state.camera))[0];
       const contextDistance = state.context ? distance(state.context.star, state.camera) : Infinity;
       const extent = state.context ? state.context.model.extent * state.context.frame.scale : 0;
@@ -327,9 +327,7 @@
   function renderUniverse(now) {
     const cam = state.camera;
     let visibleContexts = [];
-    const closeSurface = state.level === 'surface' && state.planet &&
-      state.planet.radius * state.context.frame.scale * cam.zoom > Math.max(W, H) * 1.5;
-    if (cam.zoom >= .7 && !closeSurface) {
+    if (state.level !== 'surface' && cam.zoom >= .7) {
       const visibleStars = galaxy.systems.filter(s => s.discovered || state.reveal)
         .filter(s => { const p = project(s.x, s.y); const padding = 18 * cam.zoom; return p.x > -padding && p.x < W + padding && p.y > -padding && p.y < H + padding; })
         .sort((a, b) => distance(a, cam) - distance(b, cam)).slice(0, 12);
