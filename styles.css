@@ -156,9 +156,12 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-block-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#698799;font-size:7px}
 .factory-viewport{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;background-color:#071522;touch-action:none;outline:none}
 .factory-world{position:absolute;top:0;left:0;width:2600px;height:1800px;transform-origin:0 0;background-image:radial-gradient(circle,#41617757 1px,transparent 1.4px);background-size:24px 24px}
-.factory-links{position:absolute;inset:0;width:2600px;height:1800px;overflow:visible;pointer-events:none}
-.factory-link{fill:none;stroke:#52b8c6b0;stroke-width:2.2;vector-effect:non-scaling-stroke}
+.factory-links{position:absolute;inset:0;width:2600px;height:1800px;overflow:visible;pointer-events:auto}
+.factory-link-hit{fill:none;stroke:transparent;stroke-width:18;pointer-events:stroke;vector-effect:non-scaling-stroke;cursor:grab}
+.factory-link-hit:active{cursor:grabbing}
+.factory-link{fill:none;stroke:#52b8c6b0;stroke-width:2.2;pointer-events:stroke;vector-effect:non-scaling-stroke}
 .factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6}
+.factory-link.pending{pointer-events:none}
 .factory-nodes{position:absolute;inset:0}
 .factory-node{position:absolute;z-index:1;width:184px;min-height:96px;border:1px solid #4f819348;border-radius:6px;background:linear-gradient(145deg,#10283a,#0b1c2a 70%);box-shadow:0 10px 26px #0006;color:#bed0d8;touch-action:none}
 .factory-node.selected{border-color:#75cfdbad;box-shadow:0 0 0 2px #4bb6c626,0 10px 28px #0007}
@@ -174,6 +177,7 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-port{position:absolute;z-index:3;width:14px;height:14px;padding:0;border:2px solid #061522;border-radius:50%;background:#7bcbcf;box-shadow:0 0 0 1px #74c6cf8c;touch-action:none}
 .factory-port:hover{background:#d4f5ef;box-shadow:0 0 0 4px #50b8c535}
 .factory-port.input{left:-8px;top:43px;background:#76a8c2;box-shadow:0 0 0 1px #76a8c27a}
+.factory-port.input[data-port-index="1"]{top:64px}
 .factory-port.output{right:-8px;top:43px}
 .factory-port.output[data-port-index="1"]{top:64px}
 .factory-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:20px;text-align:center;pointer-events:none;transition:opacity .15s}
@@ -195,6 +199,7 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-node{width:172px;min-height:90px}
   .factory-node-body{gap:4px;padding-top:6px;padding-bottom:7px}
   .factory-port.input,.factory-port.output{top:40px}
+  .factory-port.input[data-port-index="1"]{top:60px}
   .factory-port.output[data-port-index="1"]{top:60px}
 }
 @media(orientation:portrait),(max-width:600px){

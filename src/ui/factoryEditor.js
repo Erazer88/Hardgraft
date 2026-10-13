@@ -26,7 +26,8 @@
     const linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
     let activeBuilding = null, nodes = [], connections = [];
-    let selectedNodeId = null, pendingOutput = null, pendingPointer = null, drag = null, pinch = null;
+    let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
+    let drag = null, pinch = null, wireDrag = null;
     const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
 
@@ -46,8 +47,8 @@
         const source = nodeById.get(connection?.fromNodeId), target = nodeById.get(connection?.toNodeId);
         if (!source || !target || source.id === target.id || !Number.isInteger(connection.fromPort) ||
             !Number.isInteger(connection.toPort) || connection.fromPort < 0 ||
-            connection.fromPort >= typeOf(source.type).outputs || connection.toPort !== 0 ||
-            typeOf(target.type).inputs < 1 || usedInputs.has(`${target.id}:${connection.toPort}`)) return [];
+            connection.fromPort >= typeOf(source.type).outputs || connection.toPort < 0 ||
+            connection.toPort >= typeOf(target.type).inputs || usedInputs.has(`${target.id}:${connection.toPort}`)) return [];
         usedInputs.add(`${target.id}:${connection.toPort}`);
         return [{ id: typeof connection.id === 'string' ? connection.id : `link-${usedInputs.size}`,
           fromNodeId: source.id, fromPort: connection.fromPort,
@@ -88,19 +89,29 @@
       if (!source) return;
       const start = nodePoint(source, 'output', connection.fromPort);
       const target = nodes.find(node => node.id === connection.toNodeId);
-      const end = target ? nodePoint(target, 'input') : pendingPointer;
+      const end = target ? nodePoint(target, 'input', connection.toPort || 0) : pendingPointer;
       if (!end) return;
       const bend = Math.max(44, Math.abs(end.x - start.x) * .46);
+      const curve = `M ${start.x} ${start.y} C ${start.x + bend} ${start.y}, ${end.x - bend} ${end.y}, ${end.x} ${end.y}`;
+      if (!pending) {
+        const hitPath = document.createElementNS(svgNamespace, 'path');
+        hitPath.setAttribute('class', 'factory-link-hit');
+        hitPath.dataset.connectionId = connection.id;
+        hitPath.setAttribute('d', curve);
+        linkLayer.append(hitPath);
+      }
       const path = document.createElementNS(svgNamespace, 'path');
       path.setAttribute('class', pending ? 'factory-link pending' : 'factory-link');
-      path.setAttribute('d', `M ${start.x} ${start.y} C ${start.x + bend} ${start.y}, ${end.x - bend} ${end.y}, ${end.x} ${end.y}`);
+      if (!pending) path.dataset.connectionId = connection.id;
+      path.setAttribute('d', curve);
       linkLayer.append(path);
     }
 
     function renderConnections() {
       linkLayer.replaceChildren();
       for (const connection of connections) drawConnection(connection);
-      if (pendingOutput) drawConnection({ fromNodeId: pendingOutput.nodeId, fromPort: pendingOutput.port }, true);
+      if (pendingOutput) drawConnection({ fromNodeId: pendingOutput.nodeId, fromPort: pendingOutput.port,
+        toNodeId: pendingTarget?.nodeId, toPort: pendingTarget?.port || 0 }, true);
     }
 
     function createPort(side, node, index = 0) {
@@ -111,7 +122,7 @@
       port.dataset.nodeId = node.id;
       port.dataset.portIndex = String(index);
       port.setAttribute('aria-label', side === 'output' ? `Sortie ${index + 1} de ${typeOf(node.type).label}` : `Entrée de ${typeOf(node.type).label}`);
-      port.title = side === 'output' ? 'Choisir cette sortie, puis toucher une entrée' : 'Relier ici la sortie sélectionnée';
+      port.title = side === 'output' ? 'Glisser vers une entrée pour relier' : 'Déposer une sortie ici pour la relier';
       return port;
     }
 
@@ -131,7 +142,7 @@
       const portSummary = document.createElement('small');
       portSummary.textContent = `${type.inputs} ENTRÉE${type.inputs === 1 ? '' : 'S'} · ${type.outputs} SORTIE${type.outputs === 1 ? '' : 'S'}`;
       body.append(description, portSummary); card.append(header, body);
-      if (type.inputs) card.append(createPort('input', node));
+      for (let index = 0; index < type.inputs; index++) card.append(createPort('input', node, index));
       for (let index = 0; index < type.outputs; index++) card.append(createPort('output', node, index));
       return card;
     }
@@ -173,7 +184,8 @@
       const node = { id: `node-${index}`, type: typeId,
         x: clamp(x, 8, WORLD.width - NODE.width - 8),
         y: clamp(y, 8, WORLD.height - NODE.height - 8) };
-      nodes.push(node); selectedNodeId = node.id; pendingOutput = null;
+      nodes.push(node); selectedNodeId = node.id;
+      pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
       renderNodes(); savePlanStatus();
     }
 
@@ -181,23 +193,80 @@
       nodes = nodes.filter(node => node.id !== id);
       connections = connections.filter(connection => connection.fromNodeId !== id && connection.toNodeId !== id);
       if (selectedNodeId === id) selectedNodeId = null;
-      if (pendingOutput?.nodeId === id) pendingOutput = null;
+      if (pendingOutput?.nodeId === id || pendingTarget?.nodeId === id) {
+        pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
+      }
       renderNodes(); savePlanStatus();
     }
 
-    function connectTo(targetNodeId) {
+    function availableInputPorts(node) {
+      if (!node) return [];
+      const inputCount = typeOf(node?.type)?.inputs || 0;
+      const connected = new Set(connections.filter(connection => connection.toNodeId === node.id)
+        .map(connection => connection.toPort));
+      return Array.from({ length: inputCount }, (_, port) => port).filter(port => !connected.has(port));
+    }
+
+    function connectionTargetAt(clientX, clientY) {
+      if (!pendingOutput) return null;
+      const element = document.elementFromPoint(clientX, clientY);
+      const port = element?.closest?.('.factory-port.input');
+      if (port) {
+        const node = nodes.find(item => item.id === port.dataset.nodeId);
+        const portIndex = Number(port.dataset.portIndex) || 0;
+        return node && node.id !== pendingOutput.nodeId && availableInputPorts(node).includes(portIndex)
+          ? { nodeId: node.id, port: portIndex } : null;
+      }
+      const card = element?.closest?.('.factory-node');
+      const node = card && nodes.find(item => item.id === card.dataset.nodeId);
+      if (!node || node.id === pendingOutput.nodeId) return null;
+      const inputs = availableInputPorts(node);
+      if (inputs.length !== 1) return null;
+      const bounds = card.getBoundingClientRect();
+      const inCenter = clientX >= bounds.left + bounds.width * .22 &&
+        clientX <= bounds.right - bounds.width * .22 &&
+        clientY >= bounds.top + bounds.height * .18 &&
+        clientY <= bounds.bottom - bounds.height * .18;
+      return inCenter ? { nodeId: node.id, port: inputs[0] } : null;
+    }
+
+    function connectTo(targetNodeId, targetPort = 0) {
       if (!pendingOutput || pendingOutput.nodeId === targetNodeId) return;
       const source = nodes.find(node => node.id === pendingOutput.nodeId);
       const target = nodes.find(node => node.id === targetNodeId);
-      if (!source || !target || !typeOf(target.type).inputs ||
-          connections.some(connection => connection.toNodeId === targetNodeId)) {
+      if (!source || !target || !availableInputPorts(target).includes(targetPort)) {
         writeStatus('ENTRÉE DÉJÀ RELIÉE');
-        pendingOutput = null; renderConnections(); return;
+        pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections(); return;
       }
       connections.push({ id: `link-${nextConnectionId++}`, fromNodeId: source.id,
-        fromPort: pendingOutput.port, toNodeId: target.id, toPort: 0 });
-      pendingOutput = null; selectedNodeId = target.id;
+        fromPort: pendingOutput.port, toNodeId: target.id, toPort: targetPort });
+      pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
+      selectedNodeId = target.id;
       renderNodes(); savePlanStatus();
+    }
+
+    function updateWireDrag(event) {
+      if (!wireDrag || wireDrag.pointerId !== event.pointerId) return;
+      const distance = Math.hypot(event.clientX - wireDrag.startX, event.clientY - wireDrag.startY);
+      if (!wireDrag.moved && distance <= 5) return;
+      wireDrag.moved = true;
+      if (wireDrag.connectionId && !wireDrag.detached) {
+        connections = connections.filter(connection => connection.id !== wireDrag.connectionId);
+        wireDrag.detached = true;
+      }
+      pendingPointer = worldPoint(event.clientX, event.clientY);
+      pendingTarget = connectionTargetAt(event.clientX, event.clientY);
+      renderConnections();
+    }
+
+    function startExistingWireDrag(event, connection) {
+      pendingOutput = { nodeId: connection.fromNodeId, port: connection.fromPort };
+      pendingPointer = worldPoint(event.clientX, event.clientY);
+      pendingTarget = { nodeId: connection.toNodeId, port: connection.toPort };
+      wireDrag = { pointerId: event.pointerId, connectionId: connection.id,
+        startX: event.clientX, startY: event.clientY, moved: false, detached: false };
+      writeStatus('GLISSEZ LE TRAIT POUR LE DÉCONNECTER');
+      event.preventDefault(); capture(event);
     }
 
     function setZoom(value, screenX = viewport.clientWidth / 2, screenY = viewport.clientHeight / 2) {
@@ -246,8 +315,11 @@
       const points = touchPoints();
       if (points.length < 2) return false;
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
+      if (wireDrag?.detached) savePlanStatus();
       drag = null;
+      wireDrag = null;
       pendingOutput = null; pendingPointer = null; renderConnections();
+      pendingTarget = null;
       const [first, second] = points.map(([, point]) => point);
       const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
       const bounds = viewport.getBoundingClientRect();
@@ -286,11 +358,26 @@
         if (side === 'output') {
           pendingOutput = { nodeId, port: Number(port.dataset.portIndex) || 0 };
           pendingPointer = worldPoint(event.clientX, event.clientY);
+          pendingTarget = null;
+          wireDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+            moved: false, detached: false };
           selectedNodeId = nodeId;
-          writeStatus('SORTIE CHOISIE · TOUCHEZ UNE ENTRÉE');
+          writeStatus('TOUCHEZ OU GLISSEZ VERS UNE ENTRÉE');
           renderNodes();
-        } else if (pendingOutput) connectTo(nodeId);
+        } else if (pendingOutput) connectTo(nodeId, Number(port.dataset.portIndex) || 0);
+        else {
+          const connection = connections.find(item => item.toNodeId === nodeId &&
+            item.toPort === (Number(port.dataset.portIndex) || 0));
+          if (connection) startExistingWireDrag(event, connection);
+        }
         return;
+      }
+      const link = event.target.closest?.('[data-connection-id]');
+      if (link) {
+        const connection = connections.find(item => item.id === link.dataset.connectionId);
+        if (connection) {
+          startExistingWireDrag(event, connection); return;
+        }
       }
       const nodeElement = event.target.closest?.('[data-node-id]');
       if (nodeElement) {
@@ -313,6 +400,9 @@
       const pointer = activePointers.get(event.pointerId);
       if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
       if (pinch) { movePinch(); event.preventDefault(); return; }
+      if (wireDrag?.pointerId === event.pointerId) {
+        updateWireDrag(event); event.preventDefault(); return;
+      }
       if (!drag) {
         if (pendingOutput) { pendingPointer = worldPoint(event.clientX, event.clientY); renderConnections(); }
         return;
@@ -342,6 +432,26 @@
         } else drag = null;
         return;
       }
+      if (wireDrag?.pointerId === event.pointerId) {
+        if (event.type !== 'pointercancel') updateWireDrag(event);
+        const completedWireDrag = wireDrag;
+        wireDrag = null;
+        if (event.type === 'pointercancel') {
+          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+          if (completedWireDrag.detached) savePlanStatus();
+        } else if (completedWireDrag.moved && pendingTarget) {
+          connectTo(pendingTarget.nodeId, pendingTarget.port);
+        } else if (completedWireDrag.moved) {
+          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+          if (completedWireDrag.detached) savePlanStatus();
+        } else if (completedWireDrag.connectionId) {
+          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+        } else {
+          pendingPointer = worldPoint(event.clientX, event.clientY);
+          pendingTarget = null; renderConnections();
+        }
+        return;
+      }
       if (drag && drag.pointerId !== event.pointerId) return;
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       drag = null;
@@ -362,7 +472,8 @@
     function open(building, savedPlan) {
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
-      selectedNodeId = null; pendingOutput = null; pendingPointer = null; drag = null;
+      selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
+      drag = null; wireDrag = null;
       pinch = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       nextConnectionId = connections.reduce((max, connection) => Math.max(max, Number(connection.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
@@ -385,7 +496,8 @@
       if (editor.hidden) return;
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
-      activeBuilding = null; drag = null; pinch = null; activePointers.clear(); pendingOutput = null;
+      activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
+      pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
     }
 
