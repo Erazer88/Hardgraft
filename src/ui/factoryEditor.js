@@ -26,7 +26,8 @@
     const linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
     let activeBuilding = null, nodes = [], connections = [];
-    let selectedNodeId = null, pendingOutput = null, pendingPointer = null, drag = null;
+    let selectedNodeId = null, pendingOutput = null, pendingPointer = null, drag = null, pinch = null;
+    const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
 
     function typeOf(type) { return TYPES[type] || null; }
@@ -74,9 +75,12 @@
     }
 
     function nodePoint(node, side, portIndex = 0) {
-      if (side === 'input') return { x: node.x, y: node.y + NODE.height / 2 };
-      const y = typeOf(node.type).outputs > 1 && portIndex > 0 ? node.y + 64 : node.y + 43;
-      return { x: node.x + NODE.width, y };
+      const port = [...nodeLayer.querySelectorAll('.factory-port')].find(item =>
+        item.dataset.nodeId === node.id && item.dataset.portSide === side &&
+        Number(item.dataset.portIndex) === portIndex);
+      if (!port) return { x: node.x, y: node.y + NODE.height / 2 };
+      const bounds = port.getBoundingClientRect();
+      return worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
     }
 
     function drawConnection(connection, pending = false) {
@@ -234,9 +238,49 @@
       try { viewport.setPointerCapture(event.pointerId); } catch (_) { /* Pointer capture is optional in older browsers. */ }
     }
 
+    function touchPoints() {
+      return [...activePointers.entries()].filter(([, point]) => point.type === 'touch').slice(0, 2);
+    }
+
+    function beginPinch() {
+      const points = touchPoints();
+      if (points.length < 2) return false;
+      if (drag?.kind === 'node' && drag.moved) savePlanStatus();
+      drag = null;
+      pendingOutput = null; pendingPointer = null; renderConnections();
+      const [first, second] = points.map(([, point]) => point);
+      const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
+      const bounds = viewport.getBoundingClientRect();
+      pinch = {
+        distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+        scale: transform.scale,
+        worldX: (midpointX - bounds.left - transform.x) / transform.scale,
+        worldY: (midpointY - bounds.top - transform.y) / transform.scale
+      };
+      return true;
+    }
+
+    function movePinch() {
+      const points = touchPoints();
+      if (!pinch || points.length < 2) return;
+      const [first, second] = points.map(([, point]) => point);
+      const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
+      const bounds = viewport.getBoundingClientRect();
+      transform.scale = clamp(pinch.scale * Math.hypot(second.x - first.x, second.y - first.y) / pinch.distance, .42, 1.45);
+      transform.x = midpointX - bounds.left - pinch.worldX * transform.scale;
+      transform.y = midpointY - bounds.top - pinch.worldY * transform.scale;
+      updateTransform();
+    }
+
     function onPointerDown(event) {
+      if (event.target.closest?.('[data-remove-node]')) return;
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY, type: event.pointerType });
+      if (touchPoints().length >= 2 && beginPinch()) {
+        capture(event); event.preventDefault(); return;
+      }
       const port = event.target.closest?.('[data-port-side]');
       if (port) {
+        capture(event);
         event.preventDefault();
         const side = port.dataset.portSide, nodeId = port.dataset.nodeId;
         if (side === 'output') {
@@ -248,25 +292,27 @@
         } else if (pendingOutput) connectTo(nodeId);
         return;
       }
-      if (event.target.closest?.('[data-remove-node]')) return;
       const nodeElement = event.target.closest?.('[data-node-id]');
       if (nodeElement) {
         const node = nodes.find(item => item.id === nodeElement.dataset.nodeId);
         if (!node) return;
         selectedNodeId = node.id; pendingOutput = null;
-        drag = { kind: 'node', nodeId: node.id, startX: event.clientX, startY: event.clientY,
+        drag = { kind: 'node', pointerId: event.pointerId, nodeId: node.id, startX: event.clientX, startY: event.clientY,
           originX: node.x, originY: node.y, moved: false };
         nodeLayer.querySelectorAll('.factory-node').forEach(item =>
           item.classList.toggle('selected', item.dataset.nodeId === selectedNodeId));
         event.preventDefault(); capture(event); return;
       }
       pendingOutput = null; pendingPointer = null; renderConnections();
-      drag = { kind: 'pan', startX: event.clientX, startY: event.clientY,
+      drag = { kind: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
         originX: transform.x, originY: transform.y };
       event.preventDefault(); capture(event);
     }
 
     function onPointerMove(event) {
+      const pointer = activePointers.get(event.pointerId);
+      if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
+      if (pinch) { movePinch(); event.preventDefault(); return; }
       if (!drag) {
         if (pendingOutput) { pendingPointer = worldPoint(event.clientX, event.clientY); renderConnections(); }
         return;
@@ -284,7 +330,19 @@
       }
     }
 
-    function onPointerUp() {
+    function onPointerUp(event) {
+      activePointers.delete(event.pointerId);
+      if (pinch) {
+        pinch = null;
+        if (touchPoints().length >= 2) beginPinch();
+        else if (touchPoints().length === 1) {
+          const [pointerId, point] = touchPoints()[0];
+          drag = { kind: 'pan', pointerId, startX: point.x, startY: point.y,
+            originX: transform.x, originY: transform.y };
+        } else drag = null;
+        return;
+      }
+      if (drag && drag.pointerId !== event.pointerId) return;
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       drag = null;
     }
@@ -305,6 +363,7 @@
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; drag = null;
+      pinch = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       nextConnectionId = connections.reduce((max, connection) => Math.max(max, Number(connection.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       const definition = root.OrbitBuildingData.get(building.type);
@@ -315,6 +374,7 @@
       transform.scale = 1;
       transform.x = viewport.clientWidth / 2 - WORLD.width * transform.scale / 2;
       transform.y = viewport.clientHeight / 2 - WORLD.height * transform.scale / 2;
+      updateTransform();
       renderNodes();
       if (nodes.length) fitGraph(); else updateTransform();
       writeStatus('PLAN ENREGISTRÉ');
@@ -325,7 +385,7 @@
       if (editor.hidden) return;
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
-      activeBuilding = null; drag = null; pendingOutput = null;
+      activeBuilding = null; drag = null; pinch = null; activePointers.clear(); pendingOutput = null;
       $('factory-edit-button').focus();
     }
 

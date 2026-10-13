@@ -157,9 +157,8 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-viewport{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;background-color:#071522;touch-action:none;outline:none}
 .factory-world{position:absolute;top:0;left:0;width:2600px;height:1800px;transform-origin:0 0;background-image:radial-gradient(circle,#41617757 1px,transparent 1.4px);background-size:24px 24px}
 .factory-links{position:absolute;inset:0;width:2600px;height:1800px;overflow:visible;pointer-events:none}
-.factory-link{fill:none;stroke:#52b8c6b0;stroke-width:2.2;marker-end:url(#factory-arrow);vector-effect:non-scaling-stroke}
-#factory-arrow path{fill:#58b9c5}
-.factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6;marker-end:none}
+.factory-link{fill:none;stroke:#52b8c6b0;stroke-width:2.2;vector-effect:non-scaling-stroke}
+.factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6}
 .factory-nodes{position:absolute;inset:0}
 .factory-node{position:absolute;z-index:1;width:184px;min-height:96px;border:1px solid #4f819348;border-radius:6px;background:linear-gradient(145deg,#10283a,#0b1c2a 70%);box-shadow:0 10px 26px #0006;color:#bed0d8;touch-action:none}
 .factory-node.selected{border-color:#75cfdbad;box-shadow:0 0 0 2px #4bb6c626,0 10px 28px #0007}
