@@ -30,6 +30,7 @@
     let drag = null, pinch = null, wireDrag = null;
     const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
+    let zoomFrame = null, zoomFrameTime = 0, zoomTarget = null;
 
     function typeOf(type) { return TYPES[type] || null; }
 
@@ -73,6 +74,35 @@
     function updateTransform() {
       world.style.transform = `translate(${transform.x}px,${transform.y}px) scale(${transform.scale})`;
       $('factory-editor-zoom').textContent = `${Math.round(transform.scale * 100)} %`;
+    }
+
+    function stopZoomAnimation() {
+      if (zoomFrame !== null) cancelAnimationFrame(zoomFrame);
+      zoomFrame = null; zoomFrameTime = 0; zoomTarget = null;
+    }
+
+    function animateZoom(time) {
+      zoomFrame = null;
+      if (!zoomTarget) return;
+      const elapsed = zoomFrameTime ? Math.min(time - zoomFrameTime, 50) : 16.7;
+      zoomFrameTime = time;
+      const amount = 1 - Math.exp(-18 * elapsed / 1000);
+      transform.x += (zoomTarget.x - transform.x) * amount;
+      transform.y += (zoomTarget.y - transform.y) * amount;
+      transform.scale += (zoomTarget.scale - transform.scale) * amount;
+      const settled = Math.abs(zoomTarget.x - transform.x) < .04 &&
+        Math.abs(zoomTarget.y - transform.y) < .04 && Math.abs(zoomTarget.scale - transform.scale) < .0002;
+      if (settled) {
+        transform.x = zoomTarget.x; transform.y = zoomTarget.y; transform.scale = zoomTarget.scale;
+        zoomTarget = null; zoomFrameTime = 0;
+      }
+      updateTransform();
+      if (zoomTarget) zoomFrame = requestAnimationFrame(animateZoom);
+    }
+
+    function easeZoomTo(target) {
+      zoomTarget = target;
+      if (zoomFrame === null) zoomFrame = requestAnimationFrame(animateZoom);
     }
 
     function nodePoint(node, side, portIndex = 0) {
@@ -270,7 +300,8 @@
     }
 
     function setZoom(value, screenX = viewport.clientWidth / 2, screenY = viewport.clientHeight / 2) {
-      const nextScale = clamp(value, .42, 1.45);
+      stopZoomAnimation();
+      const nextScale = clamp(value, .18, 1.45);
       const worldX = (screenX - transform.x) / transform.scale;
       const worldY = (screenY - transform.y) / transform.scale;
       transform.scale = nextScale;
@@ -280,6 +311,7 @@
     }
 
     function fitGraph() {
+      stopZoomAnimation();
       if (!nodes.length) {
         transform.scale = 1;
         transform.x = viewport.clientWidth / 2 - WORLD.width * transform.scale / 2;
@@ -290,7 +322,7 @@
       const maxX = Math.max(...nodes.map(node => node.x + NODE.width));
       const maxY = Math.max(...nodes.map(node => node.y + NODE.height));
       const scale = clamp(Math.min((viewport.clientWidth - 100) / (maxX - minX + 100),
-        (viewport.clientHeight - 90) / (maxY - minY + 90)), .42, 1.25);
+        (viewport.clientHeight - 90) / (maxY - minY + 90)), .18, 1.25);
       transform.scale = scale;
       transform.x = (viewport.clientWidth - (minX + maxX) * scale) / 2;
       transform.y = (viewport.clientHeight - (minY + maxY) * scale) / 2;
@@ -314,6 +346,7 @@
     function beginPinch() {
       const points = touchPoints();
       if (points.length < 2) return false;
+      stopZoomAnimation();
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       if (wireDrag?.detached) savePlanStatus();
       drag = null;
@@ -323,8 +356,9 @@
       const [first, second] = points.map(([, point]) => point);
       const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
       const bounds = viewport.getBoundingClientRect();
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
       pinch = {
-        distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+        distance,
         scale: transform.scale,
         worldX: (midpointX - bounds.left - transform.x) / transform.scale,
         worldY: (midpointY - bounds.top - transform.y) / transform.scale
@@ -338,10 +372,11 @@
       const [first, second] = points.map(([, point]) => point);
       const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
       const bounds = viewport.getBoundingClientRect();
-      transform.scale = clamp(pinch.scale * Math.hypot(second.x - first.x, second.y - first.y) / pinch.distance, .42, 1.45);
-      transform.x = midpointX - bounds.left - pinch.worldX * transform.scale;
-      transform.y = midpointY - bounds.top - pinch.worldY * transform.scale;
-      updateTransform();
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const scale = clamp(pinch.scale * Math.pow(distance / pinch.distance, .38), .18, 1.45);
+      easeZoomTo({ scale,
+        x: midpointX - bounds.left - pinch.worldX * scale,
+        y: midpointY - bounds.top - pinch.worldY * scale });
     }
 
     function onPointerDown(event) {
@@ -426,6 +461,7 @@
         pinch = null;
         if (touchPoints().length >= 2) beginPinch();
         else if (touchPoints().length === 1) {
+          stopZoomAnimation();
           const [pointerId, point] = touchPoints()[0];
           drag = { kind: 'pan', pointerId, startX: point.x, startY: point.y,
             originX: transform.x, originY: transform.y };
@@ -470,6 +506,7 @@
     }
 
     function open(building, savedPlan) {
+      stopZoomAnimation();
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
@@ -494,6 +531,7 @@
 
     function close() {
       if (editor.hidden) return;
+      stopZoomAnimation();
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
