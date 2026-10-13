@@ -30,6 +30,7 @@
     let drag = null, pinch = null, wireDrag = null;
     const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
+    let pinchFrame = null;
 
     function typeOf(type) { return TYPES[type] || null; }
 
@@ -302,6 +303,19 @@
         y: (clientY - bounds.top - transform.y) / transform.scale };
     }
 
+    function cancelPinchFrame() {
+      if (pinchFrame !== null) cancelAnimationFrame(pinchFrame);
+      pinchFrame = null;
+    }
+
+    function queuePinchFrame() {
+      if (pinchFrame !== null) return;
+      pinchFrame = requestAnimationFrame(() => {
+        pinchFrame = null;
+        if (pinch) movePinch();
+      });
+    }
+
     function capture(event) {
       try { viewport.setPointerCapture(event.pointerId); } catch (_) { /* Pointer capture is optional in older browsers. */ }
     }
@@ -313,32 +327,36 @@
     function beginPinch() {
       const points = touchPoints();
       if (points.length < 2) return false;
+      if (pinch) movePinch();
+      cancelPinchFrame();
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       if (wireDrag?.detached) savePlanStatus();
       drag = null;
       wireDrag = null;
       pendingOutput = null; pendingPointer = null; renderConnections();
       pendingTarget = null;
-      const [first, second] = points.map(([, point]) => point);
+      const [firstEntry, secondEntry] = points;
+      const [firstId, first] = firstEntry, [secondId, second] = secondEntry;
       const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      pinch = { distance, midpoint };
+      const bounds = viewport.getBoundingClientRect();
+      pinch = { pointerIds: [firstId, secondId], distance, scale: transform.scale,
+        worldX: (midpoint.x - bounds.left - transform.x) / transform.scale,
+        worldY: (midpoint.y - bounds.top - transform.y) / transform.scale };
       return true;
     }
 
     function movePinch() {
-      const points = touchPoints();
-      if (!pinch || points.length < 2) return;
-      const [first, second] = points.map(([, point]) => point);
+      if (!pinch) return;
+      const [first, second] = pinch.pointerIds.map(pointerId => activePointers.get(pointerId));
+      if (!first || !second) return;
       const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
       const bounds = viewport.getBoundingClientRect();
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const anchor = worldPoint(pinch.midpoint.x, pinch.midpoint.y);
-      const scale = clamp(transform.scale * distance / Math.max(1, pinch.distance), .18, 1.45);
+      const scale = clamp(pinch.scale * distance / pinch.distance, .18, 1.45);
       transform.scale = scale;
-      transform.x = midpointX - bounds.left - anchor.x * scale;
-      transform.y = midpointY - bounds.top - anchor.y * scale;
-      pinch = { distance, midpoint: { x: midpointX, y: midpointY } };
+      transform.x = midpointX - bounds.left - pinch.worldX * scale;
+      transform.y = midpointY - bounds.top - pinch.worldY * scale;
       updateTransform();
     }
 
@@ -397,7 +415,7 @@
     function onPointerMove(event) {
       const pointer = activePointers.get(event.pointerId);
       if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
-      if (pinch) { movePinch(); event.preventDefault(); return; }
+      if (pinch) { queuePinchFrame(); event.preventDefault(); return; }
       if (wireDrag?.pointerId === event.pointerId) {
         updateWireDrag(event); event.preventDefault(); return;
       }
@@ -419,8 +437,12 @@
     }
 
     function onPointerUp(event) {
-      activePointers.delete(event.pointerId);
       if (pinch) {
+        const point = activePointers.get(event.pointerId);
+        if (point) { point.x = event.clientX; point.y = event.clientY; }
+        cancelPinchFrame();
+        movePinch();
+        activePointers.delete(event.pointerId);
         pinch = null;
         if (touchPoints().length >= 2) beginPinch();
         else if (touchPoints().length === 1) {
@@ -430,6 +452,7 @@
         } else drag = null;
         return;
       }
+      activePointers.delete(event.pointerId);
       if (wireDrag?.pointerId === event.pointerId) {
         if (event.type !== 'pointercancel') updateWireDrag(event);
         const completedWireDrag = wireDrag;
@@ -468,6 +491,7 @@
     }
 
     function open(building, savedPlan) {
+      cancelPinchFrame();
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
@@ -492,6 +516,7 @@
 
     function close() {
       if (editor.hidden) return;
+      cancelPinchFrame();
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();

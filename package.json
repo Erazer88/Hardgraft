@@ -1,12 +1,13 @@
 {
   "name": "nereide-atlas-orbital",
-  "version": "0.34.64",
+  "version": "0.34.65",
   "private": true,
   "description": "Prototype mobile de navigation dans un univers procédural",
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "build": "python3 build.py",
     "test": "node --test src/world.test.cjs tests/architecture.test.cjs tests/developer-settings.test.cjs tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs",
+    "test:factory-pinch": "node tests/factory-pinch-smoke.cjs",
     "test:browser": "node tests/browser-smoke.cjs"
   }
 }
