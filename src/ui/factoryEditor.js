@@ -312,10 +312,15 @@
       if (!pinch) return;
       const [first, second] = pinch.pointerIds.map(pointerId => activePointers.get(pointerId));
       if (!first || !second) return;
+      const bounds = viewport.getBoundingClientRect();
+      const midpoint = { x: (first.x + second.x) / 2 - bounds.left,
+        y: (first.y + second.y) / 2 - bounds.top };
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const scale = clamp(pinch.scale * distance / pinch.startDistance, .18, 1.45);
-      applyCamera(scale, pinch.focusX - pinch.worldX * scale,
-        pinch.focusY - pinch.worldY * scale);
+      const scale = clamp(transform.scale * distance / pinch.distance, .18, 1.45);
+      const worldX = (pinch.midpoint.x - transform.x) / transform.scale;
+      const worldY = (pinch.midpoint.y - transform.y) / transform.scale;
+      applyCamera(scale, midpoint.x - worldX * scale, midpoint.y - worldY * scale);
+      pinch = { ...pinch, distance, midpoint };
     }
 
     function queuePinchZoom() {
@@ -339,12 +344,11 @@
       pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
       const [[firstId, first], [secondId, second]] = points;
       const bounds = viewport.getBoundingClientRect();
-      const focusX = (first.x + second.x) / 2 - bounds.left;
-      const focusY = (first.y + second.y) / 2 - bounds.top;
-      pinch = { pointerIds: [firstId, secondId], startDistance: Math.max(1,
-        Math.hypot(second.x - first.x, second.y - first.y)), scale: transform.scale,
-        focusX, focusY, worldX: (focusX - transform.x) / transform.scale,
-        worldY: (focusY - transform.y) / transform.scale };
+      pinch = { pointerIds: [firstId, secondId], distance: Math.max(1,
+        Math.hypot(second.x - first.x, second.y - first.y)), midpoint: {
+          x: (first.x + second.x) / 2 - bounds.left,
+          y: (first.y + second.y) / 2 - bounds.top
+        } };
       return true;
     }
 
@@ -448,6 +452,12 @@
         updatePinchZoom();
         activePointers.delete(event.pointerId);
         pinch = null;
+        const remaining = touchPoints();
+        if (remaining.length === 1) {
+          const [pointerId, point] = remaining[0];
+          drag = { kind: 'pan', pointerId, startX: point.x, startY: point.y,
+            originX: transform.x, originY: transform.y, moved: false };
+        }
         return;
       }
       activePointers.delete(event.pointerId);
@@ -472,6 +482,7 @@
         }
         return;
       }
+      if (drag?.kind === 'pan' && !activePointers.has(drag.pointerId)) drag = null;
       if (drag && drag.pointerId !== event.pointerId) return;
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       drag = null;

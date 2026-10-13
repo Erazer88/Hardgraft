@@ -80,8 +80,10 @@ async function main() {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: blank.x + 36, y: blank.y - 18, id: 1 }] });
     await frame();
     const afterOneFinger = await snapshot();
-    assert.deepEqual(afterOneFinger.transform, beforeGestures.transform,
-      'One-finger movement does not pan the process view');
+    assert.ok(Math.abs(afterOneFinger.transform.x - (beforeGestures.transform.x + 36)) < .05 &&
+      Math.abs(afterOneFinger.transform.y - (beforeGestures.transform.y - 18)) < .05 &&
+      afterOneFinger.transform.scale === beforeGestures.transform.scale,
+    'One-finger movement pans the process view exactly with the finger');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await frame();
 
@@ -93,18 +95,31 @@ async function main() {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(28) });
     await frame();
     const pinchBase = await snapshot();
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(58, 16, 8) });
-    await frame();
-    const afterPinch = await snapshot();
-    const focusX = pinchCenter.x - layout.x, focusY = pinchCenter.y - layout.y;
-    const anchorWorldX = (focusX - pinchBase.transform.x) / pinchBase.transform.scale;
-    const anchorWorldY = (focusY - pinchBase.transform.y) / pinchBase.transform.scale;
+    const startFocusX = pinchCenter.x - layout.x, startFocusY = pinchCenter.y - layout.y;
+    const anchorWorldX = (startFocusX - pinchBase.transform.x) / pinchBase.transform.scale;
+    const anchorWorldY = (startFocusY - pinchBase.transform.y) / pinchBase.transform.scale;
+    let afterPinch = pinchBase;
+    for (let step = 1; step <= 4; step++) {
+      const spread = 28 + step * 7.5, offsetX = step * 4, offsetY = step * 2;
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove', touchPoints: pair(spread, offsetX, offsetY),
+      });
+      await frame();
+      afterPinch = await snapshot();
+      const stepScale = Math.min(1.45, pinchBase.transform.scale * (spread / 28));
+      const stepFocusX = startFocusX + offsetX, stepFocusY = startFocusY + offsetY;
+      assert.ok(Math.abs(afterPinch.transform.scale - stepScale) < .00001 &&
+        Math.abs(afterPinch.transform.x - (stepFocusX - anchorWorldX * stepScale)) < .05 &&
+        Math.abs(afterPinch.transform.y - (stepFocusY - anchorWorldY * stepScale)) < .05,
+      `Pinch stays aligned with the moving midpoint at step ${step}`);
+    }
+    const currentFocusX = startFocusX + 16, currentFocusY = startFocusY + 8;
     const expectedPinchScale = Math.min(1.45, pinchBase.transform.scale * (116 / 56));
     assert.ok(Math.abs(afterPinch.transform.scale - expectedPinchScale) < .00001,
       `Pinch updates zoom from distance ratio (got ${afterPinch.transform.scale}, expected ${expectedPinchScale}, start ${pinchBase.transform.scale})`);
-    assert.ok(Math.abs(afterPinch.transform.x - (focusX - anchorWorldX * expectedPinchScale)) < .05 &&
-      Math.abs(afterPinch.transform.y - (focusY - anchorWorldY * expectedPinchScale)) < .05,
-    'Pinch keeps its initial focal point fixed even if the midpoint drifts');
+    assert.ok(Math.abs(afterPinch.transform.x - (currentFocusX - anchorWorldX * expectedPinchScale)) < .05 &&
+      Math.abs(afterPinch.transform.y - (currentFocusY - anchorWorldY * expectedPinchScale)) < .05,
+    'Pinch tracks its moving midpoint while keeping the world point under the fingers stable');
 
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await frame();
@@ -163,7 +178,7 @@ async function main() {
       Math.abs(afterNodeDrag.node.y - beforeNodeDrag.node.y - 12) < .1,
     'Blocks remain individually draggable');
 
-    process.stdout.write('PASS 844x390 mobile landscape factory editor: pinch/wheel zoom, no pan or zoom buttons, block drag preserved\n');
+    process.stdout.write('PASS 844x390 mobile landscape factory editor: one-finger pan, pinch/wheel zoom, no zoom buttons, block drag preserved\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {
