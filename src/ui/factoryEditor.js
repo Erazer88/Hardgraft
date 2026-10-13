@@ -27,10 +27,10 @@
     const palette = $('factory-block-list');
     let activeBuilding = null, nodes = [], connections = [];
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
-    let drag = null, pinch = null, wireDrag = null;
+    let drag = null, cameraGesture = null, wireDrag = null;
     const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
-    let pinchFrame = null;
+    let cameraFrame = null;
 
     function typeOf(type) { return TYPES[type] || null; }
 
@@ -273,9 +273,13 @@
       const nextScale = clamp(value, .18, 1.45);
       const worldX = (screenX - transform.x) / transform.scale;
       const worldY = (screenY - transform.y) / transform.scale;
-      transform.scale = nextScale;
-      transform.x = screenX - worldX * nextScale;
-      transform.y = screenY - worldY * nextScale;
+      applyCamera(nextScale, screenX - worldX * nextScale, screenY - worldY * nextScale);
+    }
+
+    function applyCamera(scale, x, y) {
+      transform.scale = scale;
+      transform.x = x;
+      transform.y = y;
       updateTransform();
     }
 
@@ -291,29 +295,37 @@
       const maxY = Math.max(...nodes.map(node => node.y + NODE.height));
       const scale = clamp(Math.min((viewport.clientWidth - 100) / (maxX - minX + 100),
         (viewport.clientHeight - 90) / (maxY - minY + 90)), .18, 1.25);
-      transform.scale = scale;
-      transform.x = (viewport.clientWidth - (minX + maxX) * scale) / 2;
-      transform.y = (viewport.clientHeight - (minY + maxY) * scale) / 2;
-      updateTransform();
+      applyCamera(scale, (viewport.clientWidth - (minX + maxX) * scale) / 2,
+        (viewport.clientHeight - (minY + maxY) * scale) / 2);
+    }
+
+    function viewportPoint(clientX, clientY) {
+      const bounds = viewport.getBoundingClientRect();
+      return { x: clientX - bounds.left, y: clientY - bounds.top };
     }
 
     function worldPoint(clientX, clientY) {
-      const bounds = viewport.getBoundingClientRect();
-      return { x: (clientX - bounds.left - transform.x) / transform.scale,
-        y: (clientY - bounds.top - transform.y) / transform.scale };
+      const point = viewportPoint(clientX, clientY);
+      return { x: (point.x - transform.x) / transform.scale,
+        y: (point.y - transform.y) / transform.scale };
     }
 
-    function cancelPinchFrame() {
-      if (pinchFrame !== null) cancelAnimationFrame(pinchFrame);
-      pinchFrame = null;
+    function cancelCameraFrame() {
+      if (cameraFrame !== null) cancelAnimationFrame(cameraFrame);
+      cameraFrame = null;
     }
 
-    function queuePinchFrame() {
-      if (pinchFrame !== null) return;
-      pinchFrame = requestAnimationFrame(() => {
-        pinchFrame = null;
-        if (pinch) movePinch();
+    function queueCameraFrame() {
+      if (cameraFrame !== null) return;
+      cameraFrame = requestAnimationFrame(() => {
+        cameraFrame = null;
+        updateCameraGesture();
       });
+    }
+
+    function flushCameraFrame() {
+      cancelCameraFrame();
+      updateCameraGesture();
     }
 
     function capture(event) {
@@ -327,8 +339,8 @@
     function beginPinch() {
       const points = touchPoints();
       if (points.length < 2) return false;
-      if (pinch) movePinch();
-      cancelPinchFrame();
+      if (cameraGesture?.kind === 'pinch' && cameraGesture.pointerIds.every(id => points.some(([pointId]) => pointId === id))) return true;
+      flushCameraFrame();
       if (drag?.kind === 'node' && drag.moved) savePlanStatus();
       if (wireDrag?.detached) savePlanStatus();
       drag = null;
@@ -337,27 +349,44 @@
       pendingTarget = null;
       const [firstEntry, secondEntry] = points;
       const [firstId, first] = firstEntry, [secondId, second] = secondEntry;
-      const midpoint = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+      const firstPoint = viewportPoint(first.x, first.y), secondPoint = viewportPoint(second.x, second.y);
+      const midpoint = { x: (firstPoint.x + secondPoint.x) / 2, y: (firstPoint.y + secondPoint.y) / 2 };
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const bounds = viewport.getBoundingClientRect();
-      pinch = { pointerIds: [firstId, secondId], distance, scale: transform.scale,
-        worldX: (midpoint.x - bounds.left - transform.x) / transform.scale,
-        worldY: (midpoint.y - bounds.top - transform.y) / transform.scale };
+      cameraGesture = { kind: 'pinch', pointerIds: [firstId, secondId], startDistance: distance,
+        camera: { ...transform }, worldAnchor: {
+          x: (midpoint.x - transform.x) / transform.scale,
+          y: (midpoint.y - transform.y) / transform.scale
+        } };
       return true;
     }
 
-    function movePinch() {
-      if (!pinch) return;
-      const [first, second] = pinch.pointerIds.map(pointerId => activePointers.get(pointerId));
+    function beginPan(pointerId) {
+      const pointer = activePointers.get(pointerId);
+      if (!pointer) return false;
+      cameraGesture = { kind: 'pan', pointerIds: [pointerId],
+        startPoint: viewportPoint(pointer.x, pointer.y), camera: { ...transform } };
+      return true;
+    }
+
+    function updateCameraGesture() {
+      if (!cameraGesture) return;
+      if (cameraGesture.kind === 'pan') {
+        const pointer = activePointers.get(cameraGesture.pointerIds[0]);
+        if (!pointer) return;
+        const point = viewportPoint(pointer.x, pointer.y);
+        applyCamera(cameraGesture.camera.scale,
+          cameraGesture.camera.x + point.x - cameraGesture.startPoint.x,
+          cameraGesture.camera.y + point.y - cameraGesture.startPoint.y);
+        return;
+      }
+      const [first, second] = cameraGesture.pointerIds.map(pointerId => activePointers.get(pointerId));
       if (!first || !second) return;
-      const midpointX = (first.x + second.x) / 2, midpointY = (first.y + second.y) / 2;
-      const bounds = viewport.getBoundingClientRect();
+      const firstPoint = viewportPoint(first.x, first.y), secondPoint = viewportPoint(second.x, second.y);
+      const midpointX = (firstPoint.x + secondPoint.x) / 2, midpointY = (firstPoint.y + secondPoint.y) / 2;
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const scale = clamp(pinch.scale * distance / pinch.distance, .18, 1.45);
-      transform.scale = scale;
-      transform.x = midpointX - bounds.left - pinch.worldX * scale;
-      transform.y = midpointY - bounds.top - pinch.worldY * scale;
-      updateTransform();
+      const scale = clamp(cameraGesture.camera.scale * distance / cameraGesture.startDistance, .18, 1.45);
+      applyCamera(scale, midpointX - cameraGesture.worldAnchor.x * scale,
+        midpointY - cameraGesture.worldAnchor.y * scale);
     }
 
     function onPointerDown(event) {
@@ -407,15 +436,17 @@
         event.preventDefault(); capture(event); return;
       }
       pendingOutput = null; pendingPointer = null; renderConnections();
-      drag = { kind: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-        originX: transform.x, originY: transform.y };
+      beginPan(event.pointerId);
       event.preventDefault(); capture(event);
     }
 
     function onPointerMove(event) {
       const pointer = activePointers.get(event.pointerId);
       if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
-      if (pinch) { queuePinchFrame(); event.preventDefault(); return; }
+      if (cameraGesture) {
+        if (cameraGesture.pointerIds.includes(event.pointerId)) queueCameraFrame();
+        event.preventDefault(); return;
+      }
       if (wireDrag?.pointerId === event.pointerId) {
         updateWireDrag(event); event.preventDefault(); return;
       }
@@ -431,28 +462,23 @@
         node.y = clamp(drag.originY + dy / transform.scale, 8, WORLD.height - NODE.height - 8);
         drag.moved ||= Math.abs(dx) + Math.abs(dy) > 2;
         updateNodePosition(node);
-      } else {
-        transform.x = drag.originX + dx; transform.y = drag.originY + dy; updateTransform();
       }
     }
 
     function onPointerUp(event) {
-      if (pinch) {
+      if (cameraGesture?.pointerIds.includes(event.pointerId)) {
         const point = activePointers.get(event.pointerId);
         if (point) { point.x = event.clientX; point.y = event.clientY; }
-        cancelPinchFrame();
-        movePinch();
+        flushCameraFrame();
         activePointers.delete(event.pointerId);
-        pinch = null;
-        if (touchPoints().length >= 2) beginPinch();
-        else if (touchPoints().length === 1) {
-          const [pointerId, point] = touchPoints()[0];
-          drag = { kind: 'pan', pointerId, startX: point.x, startY: point.y,
-            originX: transform.x, originY: transform.y };
-        } else drag = null;
+        cameraGesture = null;
+        const remaining = touchPoints();
+        if (remaining.length >= 2) beginPinch();
+        else if (remaining.length === 1) beginPan(remaining[0][0]);
         return;
       }
       activePointers.delete(event.pointerId);
+      if (cameraGesture) return;
       if (wireDrag?.pointerId === event.pointerId) {
         if (event.type !== 'pointercancel') updateWireDrag(event);
         const completedWireDrag = wireDrag;
@@ -491,12 +517,12 @@
     }
 
     function open(building, savedPlan) {
-      cancelPinchFrame();
+      cancelCameraFrame();
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
       drag = null; wireDrag = null;
-      pinch = null; activePointers.clear();
+      cameraGesture = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       nextConnectionId = connections.reduce((max, connection) => Math.max(max, Number(connection.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       const definition = root.OrbitBuildingData.get(building.type);
@@ -516,10 +542,10 @@
 
     function close() {
       if (editor.hidden) return;
-      cancelPinchFrame();
+      cancelCameraFrame();
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
-      activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
+      activeBuilding = null; drag = null; cameraGesture = null; wireDrag = null; activePointers.clear();
       pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
     }

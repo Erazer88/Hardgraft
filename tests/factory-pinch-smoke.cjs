@@ -83,13 +83,39 @@ async function main() {
     })()`);
     await cdp.click('#factory-block-list [data-add-node="transform"]');
     await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 1', 'factory block added');
+    const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
+    const snapshot = async () => cdp.evaluate('window.__factoryPinchProbe.snapshot()');
+    const panStart = { x: box.x + box.width * .8, y: box.y + box.height * .8 };
+    const panBase = await snapshot();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...panStart, id: 4 }] });
+    await frame();
+    const panAfterStart = await snapshot();
+    assert.ok(Math.hypot(panAfterStart.transform.x - panBase.transform.x,
+      panAfterStart.transform.y - panBase.transform.y) < .05 &&
+      Math.abs(panAfterStart.transform.scale - panBase.transform.scale) < .00001,
+    'Starting a one-finger pan does not move the workspace');
+    let maxPanError = 0;
+    for (let step = 1; step <= 12; step++) {
+      const point = { x: panStart.x + step * 2.5, y: panStart.y - step * 1.25, id: 4 };
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point] });
+      await frame();
+      const state = await snapshot();
+      const expectedX = panBase.transform.x + step * 2.5;
+      const expectedY = panBase.transform.y - step * 1.25;
+      maxPanError = Math.max(maxPanError, Math.hypot(state.transform.x - expectedX,
+        state.transform.y - expectedY));
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await frame();
+    const panAfterLift = await snapshot();
+    assert.ok(Math.hypot(panAfterLift.transform.x - (panBase.transform.x + 30),
+      panAfterLift.transform.y - (panBase.transform.y - 15)) < .05 && maxPanError < .05,
+    `One-finger pan follows the finger without drift (max error ${maxPanError}px)`);
     const start = { x: box.x + box.width * .58, y: box.y + box.height * .56 };
     const pair = (firstId, secondId, midX, midY, spread) => [
       { x: midX - spread, y: midY - spread * .12, id: firstId },
       { x: midX + spread, y: midY + spread * .12, id: secondId },
     ];
-    const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
-    const snapshot = async () => cdp.evaluate('window.__factoryPinchProbe.snapshot()');
     const midpoint = state => ({ x: (state.points[0].x + state.points[1].x) / 2,
       y: (state.points[0].y + state.points[1].y) / 2 });
     const makeBaseline = state => {
@@ -159,7 +185,8 @@ async function main() {
     assert.ok(result.maxScaleError < .00001, `Pinch scale jumps by ${result.maxScaleError}`);
     assert.ok(result.maxPositionError < .05, `Pinch world anchor jumps by ${result.maxPositionError}px`);
     assert.ok(result.maxFingerStep < 20, `Pinch input step is unexpectedly large: ${result.maxFingerStep}px`);
-    process.stdout.write(`PASS 844x390 mobile landscape factory pinch/regrip: ${result.count} animation frames, ` +
+    process.stdout.write(`PASS 844x390 mobile landscape factory pan/pinch/regrip: max pan error ${maxPanError}px, ` +
+      `${result.count} pinch frames, ` +
       `max scale error ${result.maxScaleError}, max anchor error ${result.maxPositionError}px\n`);
   } finally {
     if (cdp) cdp.socket.close();
