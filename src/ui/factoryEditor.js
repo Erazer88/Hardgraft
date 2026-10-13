@@ -402,6 +402,9 @@
         event.preventDefault(); capture(event); return;
       }
       pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+      drag = { kind: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+        originX: transform.x, originY: transform.y, moved: false };
+      capture(event);
       event.preventDefault();
     }
 
@@ -420,6 +423,11 @@
         return;
       }
       const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+      if (drag.kind === 'pan') {
+        applyCamera(transform.scale, drag.originX + dx, drag.originY + dy);
+        drag.moved ||= Math.abs(dx) + Math.abs(dy) > 2;
+        event.preventDefault(); return;
+      }
       if (drag.kind === 'node') {
         const node = nodes.find(item => item.id === drag.nodeId);
         if (!node) return;
