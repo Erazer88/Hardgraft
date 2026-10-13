@@ -50,7 +50,9 @@ async function main() {
     await cdp.until('Boolean(window.__factoryEditorTest && window.OrbitBuildingData)', 'factory editor startup', 20000);
     if (await cdp.evaluate('document.querySelector("#menu-dialog").open')) await cdp.click('#continue-button');
     await cdp.until('!document.querySelector("#menu-dialog").open', 'initial game menu closing');
-    await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, null)`);
+    await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, {
+      nodes: [{ id: 'node-1', type: 'transform', x: 500, y: 700 }], connections: []
+    })`);
     await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
 
     const layout = await cdp.evaluate(`(() => {
@@ -62,7 +64,7 @@ async function main() {
     assert.ok(layout.width > 500 && layout.height > 200, `Landscape work area is visible: ${JSON.stringify(layout)}`);
     assert.equal(layout.zoomControls, 0, 'Process view has no zoom or reframe controls');
     await cdp.click('#factory-block-list [data-add-node="transform"]');
-    await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 1', 'factory block added');
+    await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 2', 'factory block added');
 
     const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
     const snapshot = async () => cdp.evaluate(`(() => {
@@ -106,7 +108,7 @@ async function main() {
       });
       await frame();
       afterPinch = await snapshot();
-      const stepScale = Math.min(1.45, pinchBase.transform.scale * (spread / 28));
+      const stepScale = Math.min(3.2, Math.max(.12, pinchBase.transform.scale * (spread / 28)));
       const stepFocusX = startFocusX + offsetX, stepFocusY = startFocusY + offsetY;
       assert.ok(Math.abs(afterPinch.transform.scale - stepScale) < .00001 &&
         Math.abs(afterPinch.transform.x - (stepFocusX - anchorWorldX * stepScale)) < .05 &&
@@ -114,9 +116,11 @@ async function main() {
       `Pinch stays aligned with the moving midpoint at step ${step}`);
     }
     const currentFocusX = startFocusX + 16, currentFocusY = startFocusY + 8;
-    const expectedPinchScale = Math.min(1.45, pinchBase.transform.scale * (116 / 56));
+    const expectedPinchScale = Math.min(3.2, Math.max(.12, pinchBase.transform.scale * (116 / 56)));
     assert.ok(Math.abs(afterPinch.transform.scale - expectedPinchScale) < .00001,
       `Pinch updates zoom from distance ratio (got ${afterPinch.transform.scale}, expected ${expectedPinchScale}, start ${pinchBase.transform.scale})`);
+    assert.ok(afterPinch.transform.scale > 1.45,
+      'Pinch zoom is not capped immediately above the fitted process view');
     assert.ok(Math.abs(afterPinch.transform.x - (currentFocusX - anchorWorldX * expectedPinchScale)) < .05 &&
       Math.abs(afterPinch.transform.y - (currentFocusY - anchorWorldY * expectedPinchScale)) < .05,
     'Pinch tracks its moving midpoint while keeping the world point under the fingers stable');

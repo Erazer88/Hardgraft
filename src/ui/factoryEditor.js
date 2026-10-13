@@ -3,6 +3,7 @@
 
   const WORLD = Object.freeze({ width: 2600, height: 1800 });
   const NODE = Object.freeze({ width: 184, height: 96 });
+  const CAMERA_MIN_SCALE = .12, CAMERA_MAX_SCALE = 3.2;
   const TYPES = Object.freeze({
     input: Object.freeze({ label: 'ENTRÉE D’USINE', detail: 'Arrivée de ressources', mark: 'IN', inputs: 0, outputs: 1 }),
     transform: Object.freeze({ label: 'TRANSFORMATION', detail: 'Traitement générique', mark: 'TR', inputs: 1, outputs: 1 }),
@@ -277,7 +278,7 @@
     }
 
     function zoomAt(value, screenX, screenY) {
-      const scale = clamp(value, .18, 1.45);
+      const scale = clamp(value, CAMERA_MIN_SCALE, CAMERA_MAX_SCALE);
       const worldX = (screenX - transform.x) / transform.scale;
       const worldY = (screenY - transform.y) / transform.scale;
       applyCamera(scale, screenX - worldX * scale, screenY - worldY * scale);
@@ -288,7 +289,7 @@
       const maxX = Math.max(...nodes.map(node => node.x + NODE.width));
       const maxY = Math.max(...nodes.map(node => node.y + NODE.height));
       const scale = clamp(Math.min((viewport.clientWidth - 100) / (maxX - minX + 100),
-        (viewport.clientHeight - 90) / (maxY - minY + 90)), .18, 1.25);
+        (viewport.clientHeight - 90) / (maxY - minY + 90)), CAMERA_MIN_SCALE, 1.25);
       applyCamera(scale, (viewport.clientWidth - (minX + maxX) * scale) / 2,
         (viewport.clientHeight - (minY + maxY) * scale) / 2);
     }
@@ -316,7 +317,7 @@
       const midpoint = { x: (first.x + second.x) / 2 - bounds.left,
         y: (first.y + second.y) / 2 - bounds.top };
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const scale = clamp(transform.scale * distance / pinch.distance, .18, 1.45);
+      const scale = clamp(transform.scale * distance / pinch.distance, CAMERA_MIN_SCALE, CAMERA_MAX_SCALE);
       const worldX = (pinch.midpoint.x - transform.x) / transform.scale;
       const worldY = (pinch.midpoint.y - transform.y) / transform.scale;
       applyCamera(scale, midpoint.x - worldX * scale, midpoint.y - worldY * scale);
