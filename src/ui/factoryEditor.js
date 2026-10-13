@@ -27,10 +27,8 @@
     const palette = $('factory-block-list');
     let activeBuilding = null, nodes = [], connections = [];
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
-    let drag = null, cameraGesture = null, wireDrag = null;
-    const activePointers = new Map();
+    let drag = null, wireDrag = null;
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
-    let cameraFrame = null;
 
     function typeOf(type) { return TYPES[type] || null; }
 
@@ -269,13 +267,6 @@
       event.preventDefault(); capture(event);
     }
 
-    function setZoom(value, screenX = viewport.clientWidth / 2, screenY = viewport.clientHeight / 2) {
-      const nextScale = clamp(value, .18, 1.45);
-      const worldX = (screenX - transform.x) / transform.scale;
-      const worldY = (screenY - transform.y) / transform.scale;
-      applyCamera(nextScale, screenX - worldX * nextScale, screenY - worldY * nextScale);
-    }
-
     function applyCamera(scale, x, y) {
       transform.scale = scale;
       transform.x = x;
@@ -283,13 +274,7 @@
       updateTransform();
     }
 
-    function fitGraph() {
-      if (!nodes.length) {
-        transform.scale = 1;
-        transform.x = viewport.clientWidth / 2 - WORLD.width * transform.scale / 2;
-        transform.y = viewport.clientHeight / 2 - WORLD.height * transform.scale / 2;
-        updateTransform(); return;
-      }
+    function frameSavedPlan() {
       const minX = Math.min(...nodes.map(node => node.x)), minY = Math.min(...nodes.map(node => node.y));
       const maxX = Math.max(...nodes.map(node => node.x + NODE.width));
       const maxY = Math.max(...nodes.map(node => node.y + NODE.height));
@@ -299,102 +284,19 @@
         (viewport.clientHeight - (minY + maxY) * scale) / 2);
     }
 
-    function viewportPoint(clientX, clientY) {
-      const bounds = viewport.getBoundingClientRect();
-      return { x: clientX - bounds.left, y: clientY - bounds.top };
-    }
-
     function worldPoint(clientX, clientY) {
-      const point = viewportPoint(clientX, clientY);
-      return { x: (point.x - transform.x) / transform.scale,
-        y: (point.y - transform.y) / transform.scale };
-    }
-
-    function cancelCameraFrame() {
-      if (cameraFrame !== null) cancelAnimationFrame(cameraFrame);
-      cameraFrame = null;
-    }
-
-    function queueCameraFrame() {
-      if (cameraFrame !== null) return;
-      cameraFrame = requestAnimationFrame(() => {
-        cameraFrame = null;
-        updateCameraGesture();
-      });
-    }
-
-    function flushCameraFrame() {
-      cancelCameraFrame();
-      updateCameraGesture();
+      const bounds = viewport.getBoundingClientRect();
+      return { x: (clientX - bounds.left - transform.x) / transform.scale,
+        y: (clientY - bounds.top - transform.y) / transform.scale };
     }
 
     function capture(event) {
       try { viewport.setPointerCapture(event.pointerId); } catch (_) { /* Pointer capture is optional in older browsers. */ }
     }
 
-    function touchPoints() {
-      return [...activePointers.entries()].filter(([, point]) => point.type === 'touch').slice(0, 2);
-    }
-
-    function beginPinch() {
-      const points = touchPoints();
-      if (points.length < 2) return false;
-      if (cameraGesture?.kind === 'pinch' && cameraGesture.pointerIds.every(id => points.some(([pointId]) => pointId === id))) return true;
-      flushCameraFrame();
-      if (drag?.kind === 'node' && drag.moved) savePlanStatus();
-      if (wireDrag?.detached) savePlanStatus();
-      drag = null;
-      wireDrag = null;
-      pendingOutput = null; pendingPointer = null; renderConnections();
-      pendingTarget = null;
-      const [firstEntry, secondEntry] = points;
-      const [firstId, first] = firstEntry, [secondId, second] = secondEntry;
-      const firstPoint = viewportPoint(first.x, first.y), secondPoint = viewportPoint(second.x, second.y);
-      const midpoint = { x: (firstPoint.x + secondPoint.x) / 2, y: (firstPoint.y + secondPoint.y) / 2 };
-      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      cameraGesture = { kind: 'pinch', pointerIds: [firstId, secondId], startDistance: distance,
-        camera: { ...transform }, worldAnchor: {
-          x: (midpoint.x - transform.x) / transform.scale,
-          y: (midpoint.y - transform.y) / transform.scale
-        } };
-      return true;
-    }
-
-    function beginPan(pointerId) {
-      const pointer = activePointers.get(pointerId);
-      if (!pointer) return false;
-      cameraGesture = { kind: 'pan', pointerIds: [pointerId],
-        startPoint: viewportPoint(pointer.x, pointer.y), camera: { ...transform } };
-      return true;
-    }
-
-    function updateCameraGesture() {
-      if (!cameraGesture) return;
-      if (cameraGesture.kind === 'pan') {
-        const pointer = activePointers.get(cameraGesture.pointerIds[0]);
-        if (!pointer) return;
-        const point = viewportPoint(pointer.x, pointer.y);
-        applyCamera(cameraGesture.camera.scale,
-          cameraGesture.camera.x + point.x - cameraGesture.startPoint.x,
-          cameraGesture.camera.y + point.y - cameraGesture.startPoint.y);
-        return;
-      }
-      const [first, second] = cameraGesture.pointerIds.map(pointerId => activePointers.get(pointerId));
-      if (!first || !second) return;
-      const firstPoint = viewportPoint(first.x, first.y), secondPoint = viewportPoint(second.x, second.y);
-      const midpointX = (firstPoint.x + secondPoint.x) / 2, midpointY = (firstPoint.y + secondPoint.y) / 2;
-      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const scale = clamp(cameraGesture.camera.scale * distance / cameraGesture.startDistance, .18, 1.45);
-      applyCamera(scale, midpointX - cameraGesture.worldAnchor.x * scale,
-        midpointY - cameraGesture.worldAnchor.y * scale);
-    }
-
     function onPointerDown(event) {
       if (event.target.closest?.('[data-remove-node]')) return;
-      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY, type: event.pointerType });
-      if (touchPoints().length >= 2 && beginPinch()) {
-        capture(event); event.preventDefault(); return;
-      }
+      if (event.pointerType === 'touch' && !event.isPrimary) { event.preventDefault(); return; }
       const port = event.target.closest?.('[data-port-side]');
       if (port) {
         capture(event);
@@ -435,18 +337,11 @@
           item.classList.toggle('selected', item.dataset.nodeId === selectedNodeId));
         event.preventDefault(); capture(event); return;
       }
-      pendingOutput = null; pendingPointer = null; renderConnections();
-      beginPan(event.pointerId);
-      event.preventDefault(); capture(event);
+      pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+      event.preventDefault();
     }
 
     function onPointerMove(event) {
-      const pointer = activePointers.get(event.pointerId);
-      if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
-      if (cameraGesture) {
-        if (cameraGesture.pointerIds.includes(event.pointerId)) queueCameraFrame();
-        event.preventDefault(); return;
-      }
       if (wireDrag?.pointerId === event.pointerId) {
         updateWireDrag(event); event.preventDefault(); return;
       }
@@ -466,19 +361,6 @@
     }
 
     function onPointerUp(event) {
-      if (cameraGesture?.pointerIds.includes(event.pointerId)) {
-        const point = activePointers.get(event.pointerId);
-        if (point) { point.x = event.clientX; point.y = event.clientY; }
-        flushCameraFrame();
-        activePointers.delete(event.pointerId);
-        cameraGesture = null;
-        const remaining = touchPoints();
-        if (remaining.length >= 2) beginPinch();
-        else if (remaining.length === 1) beginPan(remaining[0][0]);
-        return;
-      }
-      activePointers.delete(event.pointerId);
-      if (cameraGesture) return;
       if (wireDrag?.pointerId === event.pointerId) {
         if (event.type !== 'pointercancel') updateWireDrag(event);
         const completedWireDrag = wireDrag;
@@ -517,12 +399,10 @@
     }
 
     function open(building, savedPlan) {
-      cancelCameraFrame();
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
       drag = null; wireDrag = null;
-      cameraGesture = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       nextConnectionId = connections.reduce((max, connection) => Math.max(max, Number(connection.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       const definition = root.OrbitBuildingData.get(building.type);
@@ -535,17 +415,16 @@
       transform.y = viewport.clientHeight / 2 - WORLD.height * transform.scale / 2;
       updateTransform();
       renderNodes();
-      if (nodes.length) fitGraph(); else updateTransform();
+      if (nodes.length) frameSavedPlan();
       writeStatus('PLAN ENREGISTRÉ');
       $('factory-editor-close').focus();
     }
 
     function close() {
       if (editor.hidden) return;
-      cancelCameraFrame();
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
-      activeBuilding = null; drag = null; cameraGesture = null; wireDrag = null; activePointers.clear();
+      activeBuilding = null; drag = null; wireDrag = null;
       pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
     }
@@ -562,15 +441,7 @@
       const button = event.target.closest('[data-remove-node]');
       if (button) removeNode(button.dataset.removeNode);
     });
-    viewport.addEventListener('wheel', event => {
-      event.preventDefault();
-      const bounds = viewport.getBoundingClientRect();
-      setZoom(transform.scale * (event.deltaY < 0 ? 1.12 : 1 / 1.12), event.clientX - bounds.left, event.clientY - bounds.top);
-    }, { passive: false });
-    editor.querySelector('[data-factory-zoom="out"]').addEventListener('click', () => setZoom(transform.scale / 1.18));
-    editor.querySelector('[data-factory-zoom="in"]').addEventListener('click', () => setZoom(transform.scale * 1.18));
-    $('factory-editor-fit').addEventListener('click', fitGraph);
-    addPalette(); fitGraph();
+    addPalette();
 
     return Object.freeze({ open, close, isOpen: () => !editor.hidden });
   }

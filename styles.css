@@ -138,9 +138,6 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-heading small{font-size:8px;letter-spacing:.6px;color:#7794a5}
 .factory-header-tools{display:flex;align-items:center;gap:7px;margin-left:auto;flex:0 0 auto}
 .factory-header-tools>span:first-child{margin-right:10px;color:#7397a9;font-size:8px;letter-spacing:.8px;white-space:nowrap}
-.factory-header-tools button{min-width:32px;height:32px;border:1px solid #7190a22b;border-radius:4px;background:#0c1d2b;color:#a8c2cf;font-size:16px}
-.factory-header-tools button:hover{background:#173247;border-color:#4d9ba766}
-.factory-header-tools #factory-editor-fit{width:auto;padding:0 9px;font-size:8px;letter-spacing:.9px}
 .factory-editor-layout{display:flex;flex:1 1 auto;min-height:0;overflow:hidden}
 .factory-palette{z-index:1;display:flex;flex:0 0 186px;flex-direction:column;min-width:0;min-height:0;padding:12px 9px;border-right:1px solid #65859b20;background:#091a29;box-shadow:7px 0 24px #0002}
 .factory-palette-heading{display:flex;flex-direction:column;gap:4px;margin:1px 4px 10px;padding:0 3px 8px;border-bottom:1px solid #718da31f}
@@ -190,7 +187,6 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-back{padding:6px 8px}
   .factory-heading strong{font-size:11px}
   .factory-header-tools{gap:5px}
-  .factory-header-tools button{min-width:30px;height:30px}
   .factory-palette{flex-basis:160px;min-width:0;padding:8px 7px}
   .factory-palette-heading{margin-bottom:7px;padding-bottom:6px}
   .factory-block-list{gap:4px}
@@ -209,8 +205,6 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-heading small{display:none}
   .factory-header-tools>span:first-child{display:none}
   .factory-header-tools{gap:3px}
-  .factory-header-tools button{min-width:29px;height:29px}
-  .factory-header-tools #factory-editor-fit{padding:0 6px;font-size:7px}
   .factory-editor-layout{flex-direction:column-reverse}
   .factory-palette{flex:0 0 105px;width:100%;padding:6px 8px;border-top:1px solid #65859b20;border-right:0;box-shadow:0 -5px 18px #0003}
   .factory-palette-heading{margin:0 2px 5px;padding:0 2px 4px;flex-direction:row;justify-content:space-between}
