@@ -125,21 +125,29 @@ async function main() {
       Math.abs(afterPinch.transform.y - (currentFocusY - anchorWorldY * expectedPinchScale)) < .05,
     'Pinch tracks its moving midpoint while keeping the world point under the fingers stable');
 
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(28) });
+    await frame();
+    const afterPinchReturns = await snapshot();
+    assert.ok(Math.abs(afterPinchReturns.transform.scale - pinchBase.transform.scale) < .00001 &&
+      Math.abs(afterPinchReturns.transform.x - pinchBase.transform.x) < .05 &&
+      Math.abs(afterPinchReturns.transform.y - pinchBase.transform.y) < .05,
+    'Returning both fingers to their starting distance and midpoint restores the exact starting view');
+
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await frame();
     const afterLift = await snapshot();
-    assert.deepEqual(afterLift.transform, afterPinch.transform,
+    assert.deepEqual(afterLift.transform, afterPinchReturns.transform,
       'Lifting both fingers does not change the zoom');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(30, 8, 3) });
     await frame();
     const afterSecondPinchStart = await snapshot();
-    assert.deepEqual(afterSecondPinchStart.transform, afterPinch.transform,
+    assert.deepEqual(afterSecondPinchStart.transform, afterPinchReturns.transform,
       'Starting a second pinch does not jump the process view');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(20, 8, 3) });
     await frame();
     const afterSecondPinchZoom = await snapshot();
-    assert.ok(Math.abs(afterSecondPinchZoom.transform.scale - afterPinch.transform.scale * (40 / 60)) < .00001,
-      `A second pinch uses its own distance baseline (got ${afterSecondPinchZoom.transform.scale}, expected ${afterPinch.transform.scale * (40 / 60)})`);
+    assert.ok(Math.abs(afterSecondPinchZoom.transform.scale - afterPinchReturns.transform.scale * (40 / 60)) < .00001,
+      `A second pinch uses its own distance baseline (got ${afterSecondPinchZoom.transform.scale}, expected ${afterPinchReturns.transform.scale * (40 / 60)})`);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await frame();
 

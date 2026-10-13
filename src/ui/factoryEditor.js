@@ -317,11 +317,9 @@
       const midpoint = { x: (first.x + second.x) / 2 - bounds.left,
         y: (first.y + second.y) / 2 - bounds.top };
       const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-      const scale = clamp(transform.scale * distance / pinch.distance, CAMERA_MIN_SCALE, CAMERA_MAX_SCALE);
-      const worldX = (pinch.midpoint.x - transform.x) / transform.scale;
-      const worldY = (pinch.midpoint.y - transform.y) / transform.scale;
-      applyCamera(scale, midpoint.x - worldX * scale, midpoint.y - worldY * scale);
-      pinch = { ...pinch, distance, midpoint };
+      const scale = clamp(pinch.startScale * distance / pinch.startDistance,
+        CAMERA_MIN_SCALE, CAMERA_MAX_SCALE);
+      applyCamera(scale, midpoint.x - pinch.worldX * scale, midpoint.y - pinch.worldY * scale);
     }
 
     function queuePinchZoom() {
@@ -345,11 +343,13 @@
       pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
       const [[firstId, first], [secondId, second]] = points;
       const bounds = viewport.getBoundingClientRect();
-      pinch = { pointerIds: [firstId, secondId], distance: Math.max(1,
-        Math.hypot(second.x - first.x, second.y - first.y)), midpoint: {
-          x: (first.x + second.x) / 2 - bounds.left,
-          y: (first.y + second.y) / 2 - bounds.top
-        } };
+      const midpoint = { x: (first.x + second.x) / 2 - bounds.left,
+        y: (first.y + second.y) / 2 - bounds.top };
+      pinch = { pointerIds: [firstId, secondId],
+        startDistance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+        startScale: transform.scale,
+        worldX: (midpoint.x - transform.x) / transform.scale,
+        worldY: (midpoint.y - transform.y) / transform.scale };
       return true;
     }
 
