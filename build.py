@@ -56,9 +56,12 @@ html = html.replace('</head>', '<script>globalThis.OrbitSurfaceTerrainWorkerSour
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)
+versioned_preview = OUT / f'nereide-zoom-continu-{version}.html'
+versioned_preview.write_text(html)
 manifest = (ROOT / 'manifest.webmanifest').read_text().replace('"./index.html"', '"./nereide-zoom-continu.html"')
 (OUT / 'manifest.webmanifest').write_text(manifest)
 print(f'Export autonome : {destination} ({destination.stat().st_size:,} octets)')
+print(f'Aperçu versionné : {versioned_preview}')
 with zipfile.ZipFile(OUT / 'nereide-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     sources = ['index.html', 'styles.css', 'manifest.webmanifest', 'build.py', 'README.md', 'package.json', '.gitignore', 'AGENTS.md', 'docs/ARCHITECTURE.md', 'docs/WORLDGEN.md']
     sources += [str(path.relative_to(ROOT)) for folder in ('src', 'tests', 'docs/reference')
