@@ -79,20 +79,75 @@ async function main() {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...blank, id: 1 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: blank.x + 36, y: blank.y - 18, id: 1 }] });
     await frame();
+    const afterOneFinger = await snapshot();
+    assert.deepEqual(afterOneFinger.transform, beforeGestures.transform,
+      'One-finger movement does not pan the process view');
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await frame();
 
     const pinchCenter = { x: layout.x + layout.width * .58, y: layout.y + layout.height * .56 };
-    const pair = spread => [
-      { x: pinchCenter.x - spread, y: pinchCenter.y, id: 2 },
-      { x: pinchCenter.x + spread, y: pinchCenter.y, id: 3 },
+    const pair = (spread, offsetX = 0, offsetY = 0) => [
+      { x: pinchCenter.x - spread + offsetX, y: pinchCenter.y + offsetY, id: 2 },
+      { x: pinchCenter.x + spread + offsetX, y: pinchCenter.y + offsetY, id: 3 },
     ];
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(28) });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(58) });
     await frame();
+    const pinchBase = await snapshot();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(58, 16, 8) });
+    await frame();
+    const afterPinch = await snapshot();
+    const focusX = pinchCenter.x - layout.x, focusY = pinchCenter.y - layout.y;
+    const anchorWorldX = (focusX - pinchBase.transform.x) / pinchBase.transform.scale;
+    const anchorWorldY = (focusY - pinchBase.transform.y) / pinchBase.transform.scale;
+    const expectedPinchScale = Math.min(1.45, pinchBase.transform.scale * (116 / 56));
+    assert.ok(Math.abs(afterPinch.transform.scale - expectedPinchScale) < .00001,
+      `Pinch updates zoom from distance ratio (got ${afterPinch.transform.scale}, expected ${expectedPinchScale}, start ${pinchBase.transform.scale})`);
+    assert.ok(Math.abs(afterPinch.transform.x - (focusX - anchorWorldX * expectedPinchScale)) < .05 &&
+      Math.abs(afterPinch.transform.y - (focusY - anchorWorldY * expectedPinchScale)) < .05,
+    'Pinch keeps its initial focal point fixed even if the midpoint drifts');
+
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    const afterGestures = await snapshot();
-    assert.deepEqual(afterGestures.transform, beforeGestures.transform,
-      'Pan and pinch gestures on the process background do not move or zoom the view');
+    await frame();
+    const afterLift = await snapshot();
+    assert.deepEqual(afterLift.transform, afterPinch.transform,
+      'Lifting both fingers does not change the zoom');
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(30, 8, 3) });
+    await frame();
+    const afterSecondPinchStart = await snapshot();
+    assert.deepEqual(afterSecondPinchStart.transform, afterPinch.transform,
+      'Starting a second pinch does not jump the process view');
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(20, 8, 3) });
+    await frame();
+    const afterSecondPinchZoom = await snapshot();
+    assert.ok(Math.abs(afterSecondPinchZoom.transform.scale - afterPinch.transform.scale * (40 / 60)) < .00001,
+      `A second pinch uses its own distance baseline (got ${afterSecondPinchZoom.transform.scale}, expected ${afterPinch.transform.scale * (40 / 60)})`);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await frame();
+
+    const wheelPoint = { x: layout.x + layout.width * .34, y: layout.y + layout.height * .42 };
+    const beforeWheel = await snapshot();
+    const wheelFocusX = wheelPoint.x - layout.x, wheelFocusY = wheelPoint.y - layout.y;
+    const wheelAnchorX = (wheelFocusX - beforeWheel.transform.x) / beforeWheel.transform.scale;
+    const wheelAnchorY = (wheelFocusY - beforeWheel.transform.y) / beforeWheel.transform.scale;
+    await cdp.evaluate(`(() => {
+      globalThis.__factoryWheelEvent = null;
+      document.querySelector('#factory-viewport').addEventListener('wheel', event => {
+        globalThis.__factoryWheelEvent = { deltaY: event.deltaY, target: event.target.id,
+          deltaMode: event.deltaMode, defaultPrevented: event.defaultPrevented };
+      }, { once: true });
+    })()`);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wheelPoint.x, y: wheelPoint.y });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', ...wheelPoint, deltaX: 0, deltaY: 120 });
+    await frame();
+    const afterWheel = await snapshot();
+    const wheelEvent = await cdp.evaluate('window.__factoryWheelEvent');
+    const wheelUnit = wheelEvent.deltaMode === 1 ? 16 : wheelEvent.deltaMode === 2 ? layout.height : 1;
+    const expectedWheelScale = beforeWheel.transform.scale * Math.exp(-wheelEvent.deltaY * wheelUnit * .0012);
+    assert.ok(Math.abs(afterWheel.transform.scale - expectedWheelScale) < .00001,
+      `Mouse wheel changes the process zoom smoothly (got ${afterWheel.transform.scale}, expected ${expectedWheelScale})`);
+    assert.ok(Math.abs(afterWheel.transform.x - (wheelFocusX - wheelAnchorX * expectedWheelScale)) < .05 &&
+      Math.abs(afterWheel.transform.y - (wheelFocusY - wheelAnchorY * expectedWheelScale)) < .05,
+    'Mouse wheel keeps the cursor focal point fixed');
 
     const beforeNodeDrag = await cdp.evaluate(`(() => {
       const bounds = document.querySelector('.factory-node-header').getBoundingClientRect();
@@ -108,7 +163,7 @@ async function main() {
       Math.abs(afterNodeDrag.node.y - beforeNodeDrag.node.y - 12) < .1,
     'Blocks remain individually draggable');
 
-    process.stdout.write('PASS 844x390 mobile landscape factory editor: background pan/pinch removed; block drag preserved\n');
+    process.stdout.write('PASS 844x390 mobile landscape factory editor: pinch/wheel zoom, no pan or zoom buttons, block drag preserved\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

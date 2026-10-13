@@ -27,8 +27,10 @@
     const palette = $('factory-block-list');
     let activeBuilding = null, nodes = [], connections = [];
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
-    let drag = null, wireDrag = null;
+    let drag = null, pinch = null, wireDrag = null;
+    const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
+    let zoomFrame = null;
 
     function typeOf(type) { return TYPES[type] || null; }
 
@@ -274,6 +276,13 @@
       updateTransform();
     }
 
+    function zoomAt(value, screenX, screenY) {
+      const scale = clamp(value, .18, 1.45);
+      const worldX = (screenX - transform.x) / transform.scale;
+      const worldY = (screenY - transform.y) / transform.scale;
+      applyCamera(scale, screenX - worldX * scale, screenY - worldY * scale);
+    }
+
     function frameSavedPlan() {
       const minX = Math.min(...nodes.map(node => node.x)), minY = Math.min(...nodes.map(node => node.y));
       const maxX = Math.max(...nodes.map(node => node.x + NODE.width));
@@ -290,13 +299,68 @@
         y: (clientY - bounds.top - transform.y) / transform.scale };
     }
 
+    function touchPoints() {
+      return [...activePointers.entries()].filter(([, point]) => point.type === 'touch').slice(0, 2);
+    }
+
+    function cancelZoomFrame() {
+      if (zoomFrame !== null) cancelAnimationFrame(zoomFrame);
+      zoomFrame = null;
+    }
+
+    function updatePinchZoom() {
+      if (!pinch) return;
+      const [first, second] = pinch.pointerIds.map(pointerId => activePointers.get(pointerId));
+      if (!first || !second) return;
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const scale = clamp(pinch.scale * distance / pinch.startDistance, .18, 1.45);
+      applyCamera(scale, pinch.focusX - pinch.worldX * scale,
+        pinch.focusY - pinch.worldY * scale);
+    }
+
+    function queuePinchZoom() {
+      if (zoomFrame !== null) return;
+      zoomFrame = requestAnimationFrame(() => {
+        zoomFrame = null;
+        updatePinchZoom();
+      });
+    }
+
+    function beginPinchZoom() {
+      const points = touchPoints();
+      if (points.length < 2) return false;
+      const ids = points.map(([pointerId]) => pointerId);
+      if (pinch && pinch.pointerIds.every(pointerId => ids.includes(pointerId))) return true;
+      cancelZoomFrame();
+      updatePinchZoom();
+      if (drag?.kind === 'node' && drag.moved) savePlanStatus();
+      if (wireDrag?.detached) savePlanStatus();
+      drag = null; wireDrag = null;
+      pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+      const [[firstId, first], [secondId, second]] = points;
+      const bounds = viewport.getBoundingClientRect();
+      const focusX = (first.x + second.x) / 2 - bounds.left;
+      const focusY = (first.y + second.y) / 2 - bounds.top;
+      pinch = { pointerIds: [firstId, secondId], startDistance: Math.max(1,
+        Math.hypot(second.x - first.x, second.y - first.y)), scale: transform.scale,
+        focusX, focusY, worldX: (focusX - transform.x) / transform.scale,
+        worldY: (focusY - transform.y) / transform.scale };
+      return true;
+    }
+
     function capture(event) {
       try { viewport.setPointerCapture(event.pointerId); } catch (_) { /* Pointer capture is optional in older browsers. */ }
     }
 
     function onPointerDown(event) {
       if (event.target.closest?.('[data-remove-node]')) return;
-      if (event.pointerType === 'touch' && !event.isPrimary) { event.preventDefault(); return; }
+      if (event.pointerType === 'touch') {
+        activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY, type: event.pointerType });
+        if (touchPoints().length >= 2 && beginPinchZoom()) {
+          capture(event); event.preventDefault(); return;
+        }
+        if (!event.isPrimary) { event.preventDefault(); return; }
+      }
       const port = event.target.closest?.('[data-port-side]');
       if (port) {
         capture(event);
@@ -342,6 +406,12 @@
     }
 
     function onPointerMove(event) {
+      const pointer = activePointers.get(event.pointerId);
+      if (pointer) { pointer.x = event.clientX; pointer.y = event.clientY; }
+      if (pinch) {
+        if (pinch.pointerIds.includes(event.pointerId)) queuePinchZoom();
+        event.preventDefault(); return;
+      }
       if (wireDrag?.pointerId === event.pointerId) {
         updateWireDrag(event); event.preventDefault(); return;
       }
@@ -361,6 +431,19 @@
     }
 
     function onPointerUp(event) {
+      if (pinch?.pointerIds.includes(event.pointerId)) {
+        const point = activePointers.get(event.pointerId);
+        if (point && event.type !== 'pointercancel') {
+          point.x = event.clientX; point.y = event.clientY;
+        }
+        cancelZoomFrame();
+        updatePinchZoom();
+        activePointers.delete(event.pointerId);
+        pinch = null;
+        return;
+      }
+      activePointers.delete(event.pointerId);
+      if (pinch) return;
       if (wireDrag?.pointerId === event.pointerId) {
         if (event.type !== 'pointercancel') updateWireDrag(event);
         const completedWireDrag = wireDrag;
@@ -399,10 +482,11 @@
     }
 
     function open(building, savedPlan) {
+      cancelZoomFrame();
       activeBuilding = building;
       ({ nodes, connections } = normalizePlan(savedPlan));
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
-      drag = null; wireDrag = null;
+      drag = null; pinch = null; wireDrag = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       nextConnectionId = connections.reduce((max, connection) => Math.max(max, Number(connection.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
       const definition = root.OrbitBuildingData.get(building.type);
@@ -422,9 +506,10 @@
 
     function close() {
       if (editor.hidden) return;
+      cancelZoomFrame();
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
-      activeBuilding = null; drag = null; wireDrag = null;
+      activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
       pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
     }
@@ -437,6 +522,14 @@
     viewport.addEventListener('pointermove', onPointerMove);
     viewport.addEventListener('pointerup', onPointerUp);
     viewport.addEventListener('pointercancel', onPointerUp);
+    viewport.addEventListener('wheel', event => {
+      event.preventDefault();
+      const bounds = viewport.getBoundingClientRect();
+      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? viewport.clientHeight : 1;
+      zoomAt(transform.scale * Math.exp(-event.deltaY * unit * .0012),
+        event.clientX - bounds.left, event.clientY - bounds.top);
+    }, { passive: false });
     viewport.addEventListener('click', event => {
       const button = event.target.closest('[data-remove-node]');
       if (button) removeNode(button.dataset.removeNode);
