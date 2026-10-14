@@ -64,13 +64,15 @@ test('resource stacks canonicalize legacy ids and preserve weighted metadata', (
   assert.throws(() => Stack.merge(first, material('standard_copper', 1)), /Cannot merge different resources/);
 });
 
-test('graph links are directional, one-to-one, and require real ports', () => {
-  const graph = makeGraph(['input', 'crusher', 'crusher', 'drill']);
-  assert.equal(Graph.connect(graph, { id: 'l1', fromNodeId: 'n1', fromPort: 0, toNodeId: 'n2', toPort: 0 }).ok, true);
-  assert.match(Graph.connect(graph, { id: 'l2', fromNodeId: 'n1', fromPort: 0, toNodeId: 'n3', toPort: 0 }).reason, /Division/);
-  assert.match(Graph.connect(graph, { id: 'l3', fromNodeId: 'n3', fromPort: 0, toNodeId: 'n2', toPort: 0 }).reason, /Fusion/);
-  assert.equal(Graph.connect(graph, { id: 'self', fromNodeId: 'n2', fromPort: 0, toNodeId: 'n2', toPort: 0 }).ok, false);
-  assert.equal(Graph.connect(graph, { id: 'no-input', fromNodeId: 'n2', fromPort: 0, toNodeId: 'n4', toPort: 0 }).ok, false);
+test('graph links are directional, allow shared inputs, and require real ports', () => {
+  const graph = makeGraph(['input', 'input', 'crusher', 'crusher', 'drill']);
+  assert.equal(Graph.connect(graph, { id: 'l1', fromNodeId: 'n1', fromPort: 0, toNodeId: 'n3', toPort: 0 }).ok, true);
+  assert.match(Graph.connect(graph, { id: 'l2', fromNodeId: 'n1', fromPort: 0, toNodeId: 'n4', toPort: 0 }).reason, /Division/);
+  assert.equal(Graph.connect(graph, { id: 'l3', fromNodeId: 'n2', fromPort: 0, toNodeId: 'n3', toPort: 0 }).ok, true);
+  assert.equal(graph.connections[1].toSlot, 1);
+  assert.match(Graph.connect(graph, { id: 'l4', fromNodeId: 'n4', fromPort: 0, toNodeId: 'n3', toPort: 0, toSlot: 0 }).reason, /point d’entrée/i);
+  assert.equal(Graph.connect(graph, { id: 'self', fromNodeId: 'n3', fromPort: 0, toNodeId: 'n3', toPort: 0 }).ok, false);
+  assert.equal(Graph.connect(graph, { id: 'no-input', fromNodeId: 'n3', fromPort: 0, toNodeId: 'n5', toPort: 0 }).ok, false);
 });
 
 test('crusher turns raw rock into fragments without changing its mass or composition', () => {
@@ -326,6 +328,21 @@ test('transfers stop at the first block and respect the maximum connection rate 
   close(Graph.materialTotal(blockedGraph), blockedBefore);
 });
 
+test('several sources share one input point group and its maximum throughput', () => {
+  const graph = makeGraph(['input', 'input', 'crusher']);
+  const first = node(graph, 'n1'), second = node(graph, 'n2'), crusher = node(graph, 'n3');
+  first.internalBuffer.outputs[0] = material('raw_rock', 10);
+  second.internalBuffer.outputs[0] = material('raw_rock', 10);
+  link(graph, 'n1', 'n3', 'a-source'); link(graph, 'n2', 'n3', 'b-source');
+  assert.deepEqual(plain(graph.connections.map(item => item.toSlot)), [0, 1]);
+  const before = Graph.materialTotal(graph);
+  advance(graph, .1);
+  assert.ok(crusher.job);
+  close(crusher.job.inputs[0].amount, Data.get('crusher').inputPorts[0].maxThroughput * .1);
+  close(first.internalBuffer.outputs[0]?.amount + second.internalBuffer.outputs[0]?.amount, 18.8);
+  close(Graph.materialTotal(graph), before);
+});
+
 test('building input stock enters the graph once and advances at the connection limit', () => {
   const graph = makeGraph(['input', 'crusher'], { externalStock: [material('raw_rock', 10)] });
   const importer = node(graph), crusher = node(graph, 'n2');
@@ -407,6 +424,7 @@ test('graph snapshots restore buffers, metadata, active jobs, connections, and m
   const before = Graph.materialTotal(graph), saved = Graph.snapshot(graph), restored = Graph.create(plain(saved));
   close(Graph.materialTotal(restored), before);
   assert.equal(restored.connections[0].fromPortId, 'product');
+  assert.equal(restored.connections[0].toSlot, 0);
   assert.equal(restored.externalStock[0].moisture, .9);
   assert.equal(restored.nodes[1].job.inputs[0].resourceId, 'rock_fragments');
   assert.deepEqual(plain(Graph.snapshot(restored)), plain(saved));

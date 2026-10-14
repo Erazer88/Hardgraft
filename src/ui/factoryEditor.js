@@ -3,7 +3,7 @@
 
   const Data = root.OrbitProcessData, Graph = root.OrbitProcessGraph, Stack = root.OrbitResourceStack;
   const WORLD = Data.config.world;
-  const NODE = Object.freeze({ width: 220, height: 156 });
+  const NODE = Object.freeze({ width: 240, height: 156 });
   const CAMERA_MIN_SCALE = .12, CAMERA_MAX_SCALE = 3.2;
   const TYPES = Data.definitions;
   const svgNamespace = 'http://www.w3.org/2000/svg';
@@ -30,13 +30,41 @@
 
     function typeOf(type) { return Graph.definitionOf({ type }); }
 
+    function inputSlots(node, links = connections) {
+      return node.inputPorts.flatMap((_, port) => {
+        const occupied = new Set(links.filter(link => link.toNodeId === node.id && link.toPort === port)
+          .map(link => Number.isInteger(link.toSlot) && link.toSlot >= 0 ? link.toSlot : 0));
+        const count = Math.max(1, ...[...occupied].map(slot => slot + 2));
+        return Array.from({ length: count }, (_, slot) => ({ port, slot, connected: occupied.has(slot) }));
+      });
+    }
+
+    function freeInputSlots(node, links = connections) {
+      return inputSlots(node, links).filter(item => !item.connected);
+    }
+
+    function nodeHeight(node, links = connections) {
+      const rows = inputSlots(node, links).length;
+      return Math.max(NODE.height, 54 + Math.max(0, rows - 1) * 22 + 14 + 12);
+    }
+
     function normalizePlan(value) {
       const live = value?.version === Data.config.version && Array.isArray(value.externalStock) &&
         value.nodes?.every(node => node.internalBuffer && node.telemetry);
       const plan = live ? value : Graph.create(value || {});
+      const occupied = new Map();
+      for (const connection of plan.connections) {
+        const key = `${connection.toNodeId}:${connection.toPort}`;
+        const slots = occupied.get(key) || new Set();
+        if (!Number.isInteger(connection.toSlot) || connection.toSlot < 0 || slots.has(connection.toSlot)) {
+          let slot = 0; while (slots.has(slot)) slot++;
+          connection.toSlot = slot;
+        }
+        slots.add(connection.toSlot); occupied.set(key, slots);
+      }
       for (const node of plan.nodes) {
         node.x = clamp(node.x, 8, WORLD.width - NODE.width - 8);
-        node.y = clamp(node.y, 8, WORLD.height - NODE.height - 8);
+        node.y = clamp(node.y, 8, WORLD.height - nodeHeight(node, plan.connections) - 8);
       }
       return plan;
     }
@@ -54,15 +82,38 @@
       const definition = typeOf(node.type), set = (key, text) => {
         const target = card.querySelector(`[data-readout="${key}"]`); if (target) target.textContent = text;
       };
+      const packet = node.preview?.ready ? node.preview : null;
+      const duration = node.job?.duration || packet?.duration || definition.processingTime;
+      const cycleAmount = node.job ? (node.job.inputs[0]?.amount || Stack.total(node.job.outputs
+        .filter(item => item.port === 0).map(item => item.stack))) : packet
+        ? (packet.inputs.find(input => input.port === 0)?.amount || Stack.total(packet.outputs
+          .filter(item => item.port === 0).map(item => item.stack))) : 0;
+      const cycleRate = node.job && cycleAmount > 0 ? cycleAmount / duration :
+        packet?.rate || definition.baseThroughput * (1 + Math.max(0, graph?.technologyLevel - 1) * Data.config.throughputPerLevel);
+      const secondsPerUnit = cycleAmount > 0 ? duration / cycleAmount : cycleRate > 0 ? 1 / cycleRate : duration;
+      const progress = node.job && node.job.duration > 0
+        ? clamp(1 - node.job.remainingSeconds / node.job.duration, 0, 1) : 0;
       card.dataset.state = node.state;
       set('state', Data.statuses[node.state] || node.state);
       set('input', `IN · ${definition.operation === 'source' ? 'Gisement' : stackSummary(node.internalBuffer.inputs.some(Boolean)
         ? node.internalBuffer.inputs : node.job?.inputs || [])}`);
       set('output', `${node.internalBuffer.outputs.some(Boolean) ? 'OUT' : node.job ? 'PRÉVU' : 'OUT'} · ${stackSummary(node.internalBuffer.outputs.some(Boolean) ? node.internalBuffer.outputs :
         node.job?.outputs.map(item => item.stack) || [])}`);
-      set('rate', `${fmt(node.telemetry.outputRate)} u/s · ${fmt(node.telemetry.energyMW)} MW`);
-      set('buffer', node.type === 'dump' ? `Terril · ${fmt(node.internalBuffer.history?.amount || 0)} u` :
-        `Buffers · ${fmt(Stack.total(node.internalBuffer.inputs))} / ${definition.inputCapacity * node.inputPorts.length} u`);
+      set('rate', `VITESSE · ${fmt(cycleRate)} u/s`);
+      set('cycle', `${fmt(secondsPerUnit)} s / u`);
+      set('energy', `ÉNERGIE · ${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
+      const progressBar = card.querySelector('.factory-progress-fill');
+      if (progressBar) progressBar.style.width = `${(progress * 100).toFixed(1)}%`;
+      set('progress-label', node.job ? `CYCLE · ${fmt(progress * 100)} %` : packet ? 'PRÊT' : 'EN ATTENTE');
+      for (const label of card.querySelectorAll('[data-output-label-index]')) {
+        const index = Number(label.dataset.outputLabelIndex);
+        const current = node.internalBuffer.outputs[index] || node.job?.outputs.find(item => item.port === index)?.stack;
+        const value = label.querySelector('small');
+        if (value) value.textContent = current ? `${fmt(current.amount)} u` : '—';
+        const port = node.outputPorts[index];
+        label.title = `${port.label}${current ? ` · ${resourceName(current.resourceId)} · ${fmt(current.amount)} u` : ''}`;
+      }
+      card.style.height = `${nodeHeight(node)}px`;
       card.title = node.message || definition.detail;
     }
 
@@ -200,11 +251,12 @@
       world.style.transform = `translate(${transform.x}px,${transform.y}px) scale(${transform.scale})`;
     }
 
-    function nodePoint(node, side, portIndex = 0) {
+    function nodePoint(node, side, portIndex = 0, portSlot = 0) {
       const port = [...nodeLayer.querySelectorAll('.factory-port')].find(item =>
         item.dataset.nodeId === node.id && item.dataset.portSide === side &&
-        Number(item.dataset.portIndex) === portIndex);
-      if (!port) return { x: node.x, y: node.y + NODE.height / 2 };
+        Number(item.dataset.portIndex) === portIndex &&
+        (side !== 'input' || Number(item.dataset.portSlot) === portSlot));
+      if (!port) return { x: node.x, y: node.y + nodeHeight(node) / 2 };
       const bounds = port.getBoundingClientRect();
       return worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
     }
@@ -214,7 +266,7 @@
       if (!source) return;
       const start = nodePoint(source, 'output', connection.fromPort);
       const target = nodes.find(node => node.id === connection.toNodeId);
-      const end = target ? nodePoint(target, 'input', connection.toPort || 0) : pendingPointer;
+      const end = target ? nodePoint(target, 'input', connection.toPort || 0, connection.toSlot || 0) : pendingPointer;
       if (!end) return;
       const bend = Math.max(44, Math.abs(end.x - start.x) * .46);
       const curve = `M ${start.x} ${start.y} C ${start.x + bend} ${start.y}, ${end.x - bend} ${end.y}, ${end.x} ${end.y}`;
@@ -249,19 +301,22 @@
       linkLayer.replaceChildren();
       for (const connection of connections) drawConnection(connection);
       if (pendingOutput) drawConnection({ fromNodeId: pendingOutput.nodeId, fromPort: pendingOutput.port,
-        toNodeId: pendingTarget?.nodeId, toPort: pendingTarget?.port || 0 }, true);
+        toNodeId: pendingTarget?.nodeId, toPort: pendingTarget?.port || 0, toSlot: pendingTarget?.slot || 0 }, true);
     }
 
-    function createPort(side, node, index = 0) {
+    function createPort(side, node, index = 0, slot = 0, top = 54, connected = false) {
       const port = document.createElement('button');
       port.type = 'button';
       port.className = `factory-port ${side}`;
       port.dataset.portSide = side;
       port.dataset.nodeId = node.id;
       port.dataset.portIndex = String(index);
+      port.dataset.portSlot = String(slot);
+      port.dataset.connected = String(connected);
       const definition = (side === 'output' ? node.outputPorts : node.inputPorts)[index];
-      port.style.top = `${54 + index * 32}px`;
-      port.setAttribute('aria-label', `${side === 'output' ? 'Sortie' : 'Entrée'} ${definition.label} de ${typeOf(node.type).label}`);
+      port.style.top = `${top}px`;
+      port.setAttribute('aria-label', `${side === 'output' ? 'Sortie' : 'Entrée'} ${definition.label}` +
+        `${side === 'input' && slot ? ` · point ${slot + 1}` : ''} de ${typeOf(node.type).label}`);
       port.title = `${definition.label} · ${definition.maxThroughput} u/s · ${definition.acceptedResources.map(resourceName).join(', ') || definition.phases.map(phaseName).join(', ')}`;
       return port;
     }
@@ -271,6 +326,7 @@
       card.className = `factory-node${node.id === selectedNodeId ? ' selected' : ''}`;
       card.dataset.nodeId = node.id;
       card.style.left = `${node.x}px`; card.style.top = `${node.y}px`;
+      card.style.height = `${nodeHeight(node)}px`;
       const header = document.createElement('div'); header.className = 'factory-node-header';
       const mark = document.createElement('span'); mark.className = 'factory-node-mark'; mark.textContent = type.mark;
       const title = document.createElement('strong'); title.textContent = type.label;
@@ -278,12 +334,25 @@
       remove.dataset.removeNode = node.id; remove.setAttribute('aria-label', `Supprimer ${type.label}`); remove.textContent = '×';
       header.append(mark, title, remove);
       const body = document.createElement('div'); body.className = 'factory-node-body';
-      for (const key of ['state', 'input', 'output', 'rate', 'buffer']) {
+      for (const key of ['state', 'rate', 'cycle', 'input', 'output', 'energy']) {
         const reading = document.createElement('span'); reading.dataset.readout = key; body.append(reading);
       }
+      const progress = document.createElement('div'); progress.className = 'factory-progress';
+      const fill = document.createElement('i'); fill.className = 'factory-progress-fill'; progress.append(fill);
+      const progressLabel = document.createElement('small'); progressLabel.dataset.readout = 'progress-label';
+      body.append(progress, progressLabel);
       card.append(header, body); updateNodeReadout(card, node);
-      for (let index = 0; index < node.inputPorts.length; index++) card.append(createPort('input', node, index));
-      for (let index = 0; index < node.outputPorts.length; index++) card.append(createPort('output', node, index));
+      inputSlots(node).forEach(({ port, slot, connected }, row) =>
+        card.append(createPort('input', node, port, slot, 54 + row * 22, connected)));
+      for (let index = 0; index < node.outputPorts.length; index++) {
+        const top = 54 + index * 32;
+        const outputPort = createPort('output', node, index, 0, top);
+        const label = document.createElement('span'); label.className = 'factory-port-label output';
+        label.dataset.outputLabelIndex = String(index); label.style.top = `${top - 6}px`;
+        const name = document.createElement('b'), amount = document.createElement('small');
+        name.textContent = node.outputPorts[index].label; label.append(name, amount);
+        card.append(label, outputPort);
+      }
       return card;
     }
 
@@ -316,16 +385,16 @@
       const previous = nodes[nodes.length - 1];
       const gap = 58;
       let x = previous ? previous.x + NODE.width + gap : centerX - NODE.width - gap / 2;
-      let y = previous ? previous.y : centerY - NODE.height / 2;
+      let y = previous ? previous.y : centerY - nodeHeight({ inputPorts: type.inputPorts }, connections) / 2;
       const visibleWorldRight = (bounds.width - transform.x) / transform.scale - NODE.width - 8;
       if (x > visibleWorldRight) {
         x = centerX - NODE.width - gap / 2;
-        y = previous.y + NODE.height + 54;
-        if (y + NODE.height > WORLD.height - 8) y = 16;
+        y = previous.y + nodeHeight(previous) + 54;
+        if (y + nodeHeight({ inputPorts: type.inputPorts }, connections) > WORLD.height - 8) y = 16;
       }
       const node = root.OrbitProcessBlock.create({ id: `node-${index}`, type: typeId,
         x: clamp(x, 8, WORLD.width - NODE.width - 8),
-        y: clamp(y, 8, WORLD.height - NODE.height - 8),
+        y: clamp(y, 8, WORLD.height - nodeHeight({ inputPorts: type.inputPorts }, connections) - 8),
         settings: typeId === 'storage' && activeBuilding.type === 'oil_platform' ? { phase: 'liquid' } : {} });
       nodes.push(node); selectedNodeId = node.id;
       selectedConnectionId = null;
@@ -344,14 +413,6 @@
       renderNodes(); savePlanStatus();
     }
 
-    function availableInputPorts(node) {
-      if (!node) return [];
-      const inputCount = typeOf(node?.type)?.inputs || 0;
-      const connected = new Set(connections.filter(connection => connection.toNodeId === node.id)
-        .map(connection => connection.toPort));
-      return Array.from({ length: inputCount }, (_, port) => port).filter(port => !connected.has(port));
-    }
-
     function connectionTargetAt(clientX, clientY) {
       if (!pendingOutput) return null;
       let closest = null, closestDistance = 36;
@@ -359,16 +420,16 @@
         if (node.id === pendingOutput.nodeId) continue;
         const card = [...nodeLayer.children].find(item => item.dataset.nodeId === node.id);
         if (!card) continue;
-        for (const portIndex of availableInputPorts(node)) {
-          const port = [...card.querySelectorAll('.factory-port.input')]
-            .find(item => Number(item.dataset.portIndex) === portIndex);
+        for (const { port: portIndex, slot } of freeInputSlots(node)) {
+          const port = [...card.querySelectorAll('.factory-port.input')].find(item =>
+            Number(item.dataset.portIndex) === portIndex && Number(item.dataset.portSlot) === slot);
           if (!port) continue;
           const bounds = port.getBoundingClientRect();
           const distance = Math.hypot(clientX - (bounds.left + bounds.width / 2),
             clientY - (bounds.top + bounds.height / 2));
           if (distance <= closestDistance) {
             closestDistance = distance;
-            closest = { nodeId: node.id, port: portIndex };
+            closest = { nodeId: node.id, port: portIndex, slot };
           }
         }
       }
@@ -377,30 +438,31 @@
       // A single free input can also be targeted by dropping on the body of its block.
       for (const node of nodes) {
         if (node.id === pendingOutput.nodeId) continue;
-        const inputs = availableInputPorts(node);
+        const inputs = freeInputSlots(node);
+        const availablePorts = [...new Set(inputs.map(item => item.port))];
         const card = [...nodeLayer.children].find(item => item.dataset.nodeId === node.id);
-        if (inputs.length !== 1 || !card) continue;
+        if (availablePorts.length !== 1 || !card) continue;
         const bounds = card.getBoundingClientRect();
         const inCenter = clientX >= bounds.left + bounds.width * .22 &&
           clientX <= bounds.right - bounds.width * .22 &&
           clientY >= bounds.top + bounds.height * .18 &&
           clientY <= bounds.bottom - bounds.height * .18;
-        if (inCenter) return { nodeId: node.id, port: inputs[0] };
+        if (inCenter) return { nodeId: node.id, port: inputs[0].port, slot: inputs[0].slot };
       }
       return null;
     }
 
-    function connectTo(targetNodeId, targetPort = 0) {
+    function connectTo(targetNodeId, targetPort = 0, targetSlot = 0) {
       if (!pendingOutput || pendingOutput.nodeId === targetNodeId) return;
       const source = nodes.find(node => node.id === pendingOutput.nodeId);
       const target = nodes.find(node => node.id === targetNodeId);
-      if (!source || !target || !availableInputPorts(target).includes(targetPort)) {
-        writeStatus('ENTRÉE DÉJÀ RELIÉE');
+      if (!source || !target || !freeInputSlots(target).some(slot => slot.port === targetPort && slot.slot === targetSlot)) {
+        writeStatus('POINT D’ENTRÉE INDISPONIBLE');
         pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections(); return;
       }
       graph.connections = connections;
       const result = Graph.connect(graph, { id: `link-${nextConnectionId++}`, fromNodeId: source.id,
-        fromPort: pendingOutput.port, toNodeId: target.id, toPort: targetPort });
+        fromPort: pendingOutput.port, toNodeId: target.id, toPort: targetPort, toSlot: targetSlot });
       if (!result.ok) {
         writeStatus(result.reason); pendingOutput = null; pendingPointer = null; pendingTarget = null;
         wireDrag = null; renderConnections(); return;
@@ -430,7 +492,7 @@
     function startExistingWireDrag(event, connection) {
       pendingOutput = { nodeId: connection.fromNodeId, port: connection.fromPort };
       pendingPointer = worldPoint(event.clientX, event.clientY);
-      pendingTarget = { nodeId: connection.toNodeId, port: connection.toPort };
+      pendingTarget = { nodeId: connection.toNodeId, port: connection.toPort, slot: connection.toSlot || 0 };
       wireDrag = { pointerId: event.pointerId, connectionId: connection.id,
         startX: event.clientX, startY: event.clientY, moved: false, detached: false };
       writeStatus('GLISSEZ LE TRAIT POUR LE DÉCONNECTER');
@@ -454,7 +516,7 @@
     function frameSavedPlan() {
       const minX = Math.min(...nodes.map(node => node.x)), minY = Math.min(...nodes.map(node => node.y));
       const maxX = Math.max(...nodes.map(node => node.x + NODE.width));
-      const maxY = Math.max(...nodes.map(node => node.y + NODE.height));
+      const maxY = Math.max(...nodes.map(node => node.y + nodeHeight(node)));
       const scale = clamp(Math.min((viewport.clientWidth - 100) / (maxX - minX + 100),
         (viewport.clientHeight - 90) / (maxY - minY + 90)), CAMERA_MIN_SCALE, 1.25);
       applyCamera(scale, (viewport.clientWidth - (minX + maxX) * scale) / 2,
@@ -547,10 +609,11 @@
           selectedNodeId = nodeId;
           writeStatus('TOUCHEZ OU GLISSEZ VERS UNE ENTRÉE');
           renderNodes();
-        } else if (pendingOutput) connectTo(nodeId, Number(port.dataset.portIndex) || 0);
+        } else if (pendingOutput) connectTo(nodeId, Number(port.dataset.portIndex) || 0, Number(port.dataset.portSlot) || 0);
         else {
           const connection = connections.find(item => item.toNodeId === nodeId &&
-            item.toPort === (Number(port.dataset.portIndex) || 0));
+            item.toPort === (Number(port.dataset.portIndex) || 0) &&
+            item.toSlot === (Number(port.dataset.portSlot) || 0));
           if (connection) startExistingWireDrag(event, connection);
         }
         return;
@@ -570,7 +633,7 @@
           const target = connectionTargetAt(event.clientX, event.clientY);
           if (target) {
             event.preventDefault();
-            connectTo(target.nodeId, target.port);
+            connectTo(target.nodeId, target.port, target.slot);
           } else {
             writeStatus('DÉPOSEZ SUR UN PORT OU AU CENTRE D’UN BLOC À ENTRÉE LIBRE');
           }
@@ -618,7 +681,7 @@
         const node = nodes.find(item => item.id === drag.nodeId);
         if (!node) return;
         node.x = clamp(drag.originX + dx / transform.scale, 8, WORLD.width - NODE.width - 8);
-        node.y = clamp(drag.originY + dy / transform.scale, 8, WORLD.height - NODE.height - 8);
+        node.y = clamp(drag.originY + dy / transform.scale, 8, WORLD.height - nodeHeight(node) - 8);
         drag.moved ||= Math.abs(dx) + Math.abs(dy) > 2;
         updateNodePosition(node);
       }
@@ -649,12 +712,12 @@
         const completedWireDrag = wireDrag;
         wireDrag = null;
         if (event.type === 'pointercancel') {
-          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderNodes();
           if (completedWireDrag.detached) savePlanStatus();
         } else if (completedWireDrag.moved && pendingTarget) {
-          connectTo(pendingTarget.nodeId, pendingTarget.port);
+          connectTo(pendingTarget.nodeId, pendingTarget.port, pendingTarget.slot);
         } else if (completedWireDrag.moved) {
-          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+          pendingOutput = null; pendingPointer = null; pendingTarget = null; renderNodes();
           if (completedWireDrag.detached) savePlanStatus();
           writeStatus('Aucune entrée disponible au point de dépôt.');
         } else if (completedWireDrag.connectionId) {

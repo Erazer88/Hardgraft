@@ -76,14 +76,18 @@
     if (graph.connections.some(link => link.fromNodeId === source.id && link.fromPort === from)) {
       return { ok: false, reason: 'Sortie déjà reliée : utilisez un bloc Division.' };
     }
-    if (graph.connections.some(link => link.toNodeId === target.id && link.toPort === to)) {
-      return { ok: false, reason: 'Entrée déjà reliée : utilisez un bloc Fusion.' };
-    }
     if (typeof connection.id !== 'string' || graph.connections.some(link => link.id === connection.id)) {
       return { ok: false, reason: 'Identifiant de connexion invalide ou dupliqué.' };
     }
+    const connectedSlots = new Set(graph.connections.filter(link => link.toNodeId === target.id && link.toPort === to)
+      .map(link => Number.isInteger(link.toSlot) && link.toSlot >= 0 ? link.toSlot : 0));
+    let toSlot = Number.isInteger(connection.toSlot) && connection.toSlot >= 0 ? connection.toSlot : 0;
+    if (connectedSlots.has(toSlot)) {
+      if (Number.isInteger(connection.toSlot)) return { ok: false, reason: 'Point d’entrée déjà relié.' };
+      while (connectedSlots.has(toSlot)) toSlot++;
+    }
     graph.connections.push({ id: connection.id, fromNodeId: source.id, fromPort: from,
-      toNodeId: target.id, toPort: to, fromPortId: source.outputPorts[from].id,
+      toNodeId: target.id, toPort: to, toSlot, fromPortId: source.outputPorts[from].id,
       toPortId: target.inputPorts[to].id, resourceId: null, currentThroughput: 0,
       maxThroughput: Math.min(source.outputPorts[from].maxThroughput, target.inputPorts[to].maxThroughput),
       state: 'waiting', message: '' });
@@ -152,7 +156,7 @@
         settings: clone(node.settings), internalBuffer: clone(node.internalBuffer), job: node.job ? clone(node.job) : null })),
       connections: graph.connections.map(link => ({ id: link.id, fromNodeId: link.fromNodeId,
         fromPort: link.fromPort, fromPortId: link.fromPortId, toNodeId: link.toNodeId,
-        toPort: link.toPort, toPortId: link.toPortId })) };
+        toPort: link.toPort, toPortId: link.toPortId, toSlot: link.toSlot })) };
   }
   function materialTotal(graph) {
     return Stack.total([...graph.externalStock, ...graph.exportStock, ...graph.retainedWaste]) +

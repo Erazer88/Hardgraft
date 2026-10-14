@@ -74,6 +74,7 @@
       [`${node.id}:${port}`, stack?.amount || 0])));
     const links = graph.connections.slice().sort((a, b) => a.id.localeCompare(b.id));
     const start = links.length ? graph.tick % links.length : 0;
+    const incomingUsed = new Map();
     for (let offset = 0; offset < Math.min(links.length, Config.maxTransfersPerTick); offset++) {
       const link = links[(start + offset) % links.length], source = byId.get(link.fromNodeId), destination = byId.get(link.toNodeId);
       if (source && destination) link.maxThroughput = Math.min(source.outputPorts[link.fromPort].maxThroughput,
@@ -92,7 +93,12 @@
         continue;
       }
       const key = `${source.id}:${link.fromPort}`;
-      const amount = Math.min(available.get(key) || 0, stack.amount, acceptance.capacity, link.maxThroughput * seconds);
+      const targetKey = `${destination.id}:${link.toPort}`;
+      const technology = 1 + Math.max(0, graph.technologyLevel - 1) * Config.throughputPerLevel;
+      const portBudget = destination.inputPorts[link.toPort].maxThroughput * technology * seconds;
+      const remainingPortBudget = Math.max(0, portBudget - (incomingUsed.get(targetKey) || 0));
+      const amount = Math.min(available.get(key) || 0, stack.amount, acceptance.capacity,
+        link.maxThroughput * seconds, remainingPortBudget);
       if (amount <= EPS) continue;
       const piece = Stack.portion(stack, amount);
       // Prepare the destination before debiting the source: the operation is atomic.
@@ -101,6 +107,7 @@
       stack.amount -= amount;
       if (stack.amount <= EPS) source.internalBuffer.outputs[link.fromPort] = null;
       available.set(key, (available.get(key) || 0) - amount);
+      incomingUsed.set(targetKey, (incomingUsed.get(targetKey) || 0) + amount);
       record(destination, 'input', piece);
       link._transferred = (link._transferred || 0) + amount; link.state = 'active';
     }

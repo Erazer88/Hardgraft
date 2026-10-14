@@ -1,4 +1,4 @@
-# Processus industriels V1 — livraison locale 0.34.73
+# Processus industriels V1 — cartes et connexions partagées 0.34.75
 
 Cette couche implémente les processus internes demandés le 14 octobre 2026.
 Elle ne lance pas de tests, ne publie pas le jeu et ne modifie pas l'historique Git.
@@ -87,9 +87,12 @@ API utilisables par l'agent de validation :
 
 Une connexion accepte des indices de ports ou des identifiants stables
 `fromPortId` / `toPortId`. Les snapshots conservent les deux ; les identifiants
-sont prioritaires à la restauration. Une entrée et une sortie ne peuvent être
-reliées qu'une fois. Pour partager ou regrouper, il faut Division ou Fusion.
-Les boucles entre plusieurs blocs sont autorisées.
+sont prioritaires à la restauration. Une sortie ne peut alimenter qu'une seule
+connexion, mais plusieurs sorties peuvent rejoindre la même entrée. Elles
+occupent alors des points d'accroche distincts et se partagent le débit maximal
+de ce port. Si les matières reçues diffèrent, le port conserve la première et
+signale le flux incompatible sans le retirer de sa source. Les boucles entre
+plusieurs blocs sont autorisées.
 
 ## Règles temporelles et conservation
 
@@ -186,12 +189,13 @@ de migration. Les types inconnus et leurs matières restent conservés.
 
 Le joueur ouvre Modifier, choisit les blocs du catalogue adapté au bâtiment,
 configure les filtres d'Entrée, puis utilise Stocks pour approvisionner le stock
-extérieur. Les machines affichent état, matière actuelle, production prévue,
-débit, puissance et buffers. Le panneau d'information au clic est temporairement
-masqué; son contenu et les réglages restent dans le code. Les traits restent sans
-flèche ; leur couleur dépend de cinq familles et leur texte affiche matière
-dominante et débit actuel/maximal. Un toucher sur un trait ouvre ses détails ;
-le glisser décroche la connexion.
+extérieur. Les cartes reprennent la densité de référence d'Upload Labs : état,
+vitesse de traitement, durée par unité, progression du cycle, flux d'entrée,
+sorties nommées à côté de leurs ports et énergie. Le panneau d'information au
+clic est temporairement masqué; son contenu et les réglages restent dans le code.
+Les traits restent sans flèche ; leur couleur dépend de cinq familles et leur
+texte affiche matière dominante et débit actuel/maximal. Un toucher sur un trait
+ouvre ses détails ; le glisser décroche la connexion.
 
 ## Relais avant validation initiale
 
@@ -208,3 +212,12 @@ les quais concurrents et les snapshots. Résultat ciblé : 31/31 réussis.
 La suite complète `npm test` réussit : 68 tests passés, aucun échec. Aucune
 vérification navigateur n'a été lancée; la validation porte sur le moteur de
 simulation, sans contrôle visuel de l'éditeur mobile.
+
+## Validation des cartes et des entrées partagées en 0.34.75
+
+Les tests couvrent également plusieurs connexions vers une même entrée, ses
+points d'accroche distincts et le partage de son débit maximal. La validation
+du moteur ciblée passe (32/32), la suite complète passe (69/69) et le smoke test
+de l'éditeur en paysage mobile 844×390 passe. Il vérifie les statistiques
+Upload Labs, les noms de sortie et le raccordement de deux sources à la même
+entrée. Aucun contrôle de bureau n'a été lancé.

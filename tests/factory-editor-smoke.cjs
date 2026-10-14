@@ -51,7 +51,7 @@ async function main() {
     if (await cdp.evaluate('document.querySelector("#menu-dialog").open')) await cdp.click('#continue-button');
     await cdp.until('!document.querySelector("#menu-dialog").open', 'initial game menu closing');
     await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, {
-      nodes: [{ id: 'node-1', type: 'transform', x: 500, y: 700 }], connections: []
+      nodes: [{ id: 'node-1', type: 'smelter', x: 500, y: 700 }], connections: []
     })`);
     await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
 
@@ -63,8 +63,25 @@ async function main() {
     })()`);
     assert.ok(layout.width > 500 && layout.height > 200, `Landscape work area is visible: ${JSON.stringify(layout)}`);
     assert.equal(layout.zoomControls, 0, 'Process view has no zoom or reframe controls');
-    await cdp.click('#factory-block-list [data-add-node="transform"]');
-    await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 2', 'factory block added');
+    await cdp.click('#factory-block-list [data-add-node="crusher"]');
+    const addedBlocks = await cdp.evaluate(`({ count: document.querySelectorAll('#factory-nodes .factory-node').length,
+      addButton: (() => { const item = document.querySelector('#factory-block-list [data-add-node="crusher"]');
+        const bounds = item.getBoundingClientRect(); return { disabled: item.disabled, bounds: bounds.toJSON(),
+          hit: document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)?.outerHTML.slice(0, 120) }; })(),
+      status: document.querySelector('#factory-editor-status').textContent })`);
+    assert.equal(addedBlocks.count, 2, `Factory block was added: ${JSON.stringify(addedBlocks)}`);
+    const cardReadouts = await cdp.evaluate(`(() => {
+      const card = document.querySelector('.factory-node');
+      return { rate: card.querySelector('[data-readout="rate"]').textContent,
+        cycle: card.querySelector('[data-readout="cycle"]').textContent,
+        progress: Boolean(card.querySelector('.factory-progress-fill')),
+        outputs: [...card.querySelectorAll('.factory-port-label.output b')].map(item => item.textContent) };
+    })()`);
+    assert.match(cardReadouts.rate, /VITESSE/);
+    assert.match(cardReadouts.cycle, /s \/ u/);
+    assert.equal(cardReadouts.progress, true, 'Process cards show a cycle progress bar');
+    assert.ok(cardReadouts.outputs.includes('Métal') && cardReadouts.outputs.includes('Déchets'),
+      `Smelter outputs are labeled beside their ports: ${JSON.stringify(cardReadouts.outputs)}`);
 
     const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
     const snapshot = async () => cdp.evaluate(`(() => {
@@ -190,7 +207,41 @@ async function main() {
       Math.abs(afterNodeDrag.node.y - beforeNodeDrag.node.y - 12) < .1,
     'Blocks remain individually draggable');
 
-    process.stdout.write('PASS 844x390 mobile landscape factory editor: one-finger pan, pinch/wheel zoom, no zoom buttons, block drag preserved\n');
+    await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-links', type: 'factory', upgradeLevel: 1 }, {
+      nodes: [
+        { id: 'source-a', type: 'input', x: 320, y: 560 },
+        { id: 'source-b', type: 'input', x: 320, y: 850 },
+        { id: 'crusher', type: 'crusher', x: 780, y: 700 }
+      ], connections: []
+    })`);
+    await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 3', 'shared-input test plan loaded');
+    let touchId = 10;
+    const tap = async selector => {
+      const point = await cdp.evaluate(`(() => {
+        const selector = ${JSON.stringify(selector)};
+        const bounds = document.querySelector(selector).getBoundingClientRect();
+        return { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
+      })()`);
+      const id = touchId++;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await frame();
+    };
+    await tap('.factory-node[data-node-id="source-a"] .factory-port.output');
+    await tap('.factory-node[data-node-id="crusher"] .factory-port.input[data-port-index="0"][data-port-slot="0"]');
+    await tap('.factory-node[data-node-id="source-b"] .factory-port.output');
+    await tap('.factory-node[data-node-id="crusher"] .factory-port.input[data-port-index="0"][data-port-slot="1"]');
+    const sharedInput = await cdp.evaluate(`(() => {
+      const card = document.querySelector('.factory-node[data-node-id="crusher"]');
+      return { links: document.querySelectorAll('.factory-link-hit').length,
+        slots: [...card.querySelectorAll('.factory-port.input[data-port-index="0"]')]
+          .map(port => ({ slot: Number(port.dataset.portSlot), connected: port.dataset.connected === 'true' })) };
+    })()`);
+    assert.equal(sharedInput.links, 2, 'Two sources can connect to one crusher input');
+    assert.deepEqual(sharedInput.slots.slice(0, 2), [{ slot: 0, connected: true }, { slot: 1, connected: true }]);
+    assert.ok(sharedInput.slots.some(item => !item.connected), 'The shared input exposes the next free snap point');
+
+    process.stdout.write('PASS 844x390 mobile landscape factory editor: Upload Labs-style readouts, multi-source input snapping, pan, pinch/wheel zoom, block drag\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {
