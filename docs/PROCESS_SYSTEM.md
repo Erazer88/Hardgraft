@@ -187,21 +187,24 @@ de migration. Les types inconnus et leurs matières restent conservés.
 Le joueur ouvre Modifier, choisit les blocs du catalogue adapté au bâtiment,
 configure les filtres d'Entrée, puis utilise Stocks pour approvisionner le stock
 extérieur. Les machines affichent état, matière actuelle, production prévue,
-débit, puissance et buffers. Le panneau au clic détaille recette, rendement,
-préparation et problème. Les traits restent sans flèche ; leur couleur dépend
-de cinq familles et leur texte affiche matière dominante et débit actuel/maximal.
-Un toucher sur un trait ouvre ses détails ; le glisser décroche la connexion.
+débit, puissance et buffers. Le panneau d'information au clic est temporairement
+masqué; son contenu et les réglages restent dans le code. Les traits restent sans
+flèche ; leur couleur dépend de cinq familles et leur texte affiche matière
+dominante et débit actuel/maximal. Un toucher sur un trait ouvre ses détails ;
+le glisser décroche la connexion.
 
-## Relais de validation
+## Relais avant validation initiale
 
-Aucun test, contrôle de syntaxe exécuté ni lancement navigateur n'a été effectué
-pour cette livraison, à la demande de l'utilisateur. L'export autonome est une
-opération de packaging uniquement.
+Lors de la livraison initiale 0.34.73, aucun test, contrôle de syntaxe ni
+lancement navigateur n'avait été effectué, à la demande de l'utilisateur.
 
-L'agent de validation devra couvrir les cas du tableau, la conservation de masse,
-les réservations de quais multiples, les retours de cycles lors des suppressions,
-la restauration des métadonnées et des cycles, les boucles, la redistribution,
-les filtres, le stockage mono-matière et les états sans énergie. Pour l'interface,
-utiliser seulement une vue mobile paysage standard, conformément aux consignes
-du projet. Les tests existants de l'ancien catalogue passif devront être adaptés
-au catalogue actif et au nouveau format de graphe.
+## Validation du moteur en 0.34.74
+
+`tests/process-simulation.test.cjs` ajoute 31 scénarios sur les recettes des
+blocs miniers et pétroliers, les cinq catégories de compatibilité, les débits,
+les transferts bloqués, les cycles, la conservation, l'énergie, la suppression,
+les quais concurrents et les snapshots. Résultat ciblé : 31/31 réussis.
+
+La suite complète `npm test` réussit : 68 tests passés, aucun échec. Aucune
+vérification navigateur n'a été lancée; la validation porte sur le moteur de
+simulation, sans contrôle visuel de l'éditeur mobile.
