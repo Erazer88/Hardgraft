@@ -354,25 +354,40 @@
 
     function connectionTargetAt(clientX, clientY) {
       if (!pendingOutput) return null;
-      const element = document.elementFromPoint(clientX, clientY);
-      const port = element?.closest?.('.factory-port.input');
-      if (port) {
-        const node = nodes.find(item => item.id === port.dataset.nodeId);
-        const portIndex = Number(port.dataset.portIndex) || 0;
-        return node && node.id !== pendingOutput.nodeId && availableInputPorts(node).includes(portIndex)
-          ? { nodeId: node.id, port: portIndex } : null;
+      let closest = null, closestDistance = 36;
+      for (const node of nodes) {
+        if (node.id === pendingOutput.nodeId) continue;
+        const card = [...nodeLayer.children].find(item => item.dataset.nodeId === node.id);
+        if (!card) continue;
+        for (const portIndex of availableInputPorts(node)) {
+          const port = [...card.querySelectorAll('.factory-port.input')]
+            .find(item => Number(item.dataset.portIndex) === portIndex);
+          if (!port) continue;
+          const bounds = port.getBoundingClientRect();
+          const distance = Math.hypot(clientX - (bounds.left + bounds.width / 2),
+            clientY - (bounds.top + bounds.height / 2));
+          if (distance <= closestDistance) {
+            closestDistance = distance;
+            closest = { nodeId: node.id, port: portIndex };
+          }
+        }
       }
-      const card = element?.closest?.('.factory-node');
-      const node = card && nodes.find(item => item.id === card.dataset.nodeId);
-      if (!node || node.id === pendingOutput.nodeId) return null;
-      const inputs = availableInputPorts(node);
-      if (inputs.length !== 1) return null;
-      const bounds = card.getBoundingClientRect();
-      const inCenter = clientX >= bounds.left + bounds.width * .22 &&
-        clientX <= bounds.right - bounds.width * .22 &&
-        clientY >= bounds.top + bounds.height * .18 &&
-        clientY <= bounds.bottom - bounds.height * .18;
-      return inCenter ? { nodeId: node.id, port: inputs[0] } : null;
+      if (closest) return closest;
+
+      // A single free input can also be targeted by dropping on the body of its block.
+      for (const node of nodes) {
+        if (node.id === pendingOutput.nodeId) continue;
+        const inputs = availableInputPorts(node);
+        const card = [...nodeLayer.children].find(item => item.dataset.nodeId === node.id);
+        if (inputs.length !== 1 || !card) continue;
+        const bounds = card.getBoundingClientRect();
+        const inCenter = clientX >= bounds.left + bounds.width * .22 &&
+          clientX <= bounds.right - bounds.width * .22 &&
+          clientY >= bounds.top + bounds.height * .18 &&
+          clientY <= bounds.bottom - bounds.height * .18;
+        if (inCenter) return { nodeId: node.id, port: inputs[0] };
+      }
+      return null;
     }
 
     function connectTo(targetNodeId, targetPort = 0) {
@@ -551,6 +566,16 @@
       if (nodeElement) {
         const node = nodes.find(item => item.id === nodeElement.dataset.nodeId);
         if (!node) return;
+        if (pendingOutput) {
+          const target = connectionTargetAt(event.clientX, event.clientY);
+          if (target) {
+            event.preventDefault();
+            connectTo(target.nodeId, target.port);
+          } else {
+            writeStatus('DÉPOSEZ SUR UN PORT OU AU CENTRE D’UN BLOC À ENTRÉE LIBRE');
+          }
+          return;
+        }
         selectedNodeId = node.id; selectedConnectionId = null; pendingOutput = null;
         $('factory-stock-panel').hidden = true;
         drag = { kind: 'node', pointerId: event.pointerId, nodeId: node.id, startX: event.clientX, startY: event.clientY,

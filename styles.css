@@ -203,6 +203,7 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-link[data-state="saturated"]{stroke:#d1ab69}
 .factory-link-label{fill:#c3d4dc;stroke:#071522;stroke-width:3;paint-order:stroke fill;font-size:10px;text-anchor:middle;pointer-events:auto;cursor:grab}
 .factory-process-panel{position:absolute;z-index:4;right:8px;top:8px;width:min(266px,calc(100% - 180px));max-height:calc(100% - 16px);overflow:auto;overscroll-behavior:contain;padding:12px;border:1px solid #6f94a755;border-radius:6px;background:#091a29f5;box-shadow:0 8px 28px #0006;touch-action:pan-y}
+#factory-process-details{display:none!important}
 .factory-process-panel>header{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
 .factory-process-panel>header strong{font-size:11px;letter-spacing:.5px}
 .factory-process-panel p{font-size:10px;line-height:1.5;color:#8ab5c4}
