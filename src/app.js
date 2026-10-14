@@ -1044,6 +1044,7 @@
     if (state.level === 'surface' && cameraMoving()) renderer.cancelSurfaceDetail();
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
+    factoryEditor.refreshProgress();
     if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); lastHUD = now; }
     requestAnimationFrame(frame);
   }

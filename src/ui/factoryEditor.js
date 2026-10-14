@@ -3,7 +3,7 @@
 
   const Data = root.OrbitProcessData, Graph = root.OrbitProcessGraph, Stack = root.OrbitResourceStack;
   const WORLD = Data.config.world;
-  const NODE = Object.freeze({ width: 240, height: 156 });
+  const NODE = Object.freeze({ width: 240, height: 96 });
   const CAMERA_MIN_SCALE = .12, CAMERA_MAX_SCALE = 3.2;
   const TYPES = Data.definitions;
   const svgNamespace = 'http://www.w3.org/2000/svg';
@@ -21,6 +21,7 @@
     const linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
     let activeBuilding = null, graph = null, nodes = [], connections = [];
+    let nodeCards = new Map();
     let selectedConnectionId = null;
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
     let drag = null, pinch = null, wireDrag = null;
@@ -45,7 +46,9 @@
 
     function nodeHeight(node, links = connections) {
       const rows = inputSlots(node, links).length;
-      return Math.max(NODE.height, 54 + Math.max(0, rows - 1) * 22 + 14 + 12);
+      const inputHeight = 54 + Math.max(0, rows - 1) * 22 + 14 + 12;
+      const outputHeight = node.outputPorts.length ? 54 + (node.outputPorts.length - 1) * 32 + 24 + 8 : 0;
+      return Math.max(NODE.height, inputHeight, outputHeight);
     }
 
     function normalizePlan(value) {
@@ -78,33 +81,31 @@
       return present.length ? present.map(stack => `${resourceName(stack.resourceId)} ${fmt(stack.amount)} u`).join(' · ') : '—';
     }
 
+    function updateNodeProgress(card, node) {
+      const progress = node.job && node.job.duration > 0
+        ? clamp(1 - node.job.remainingSeconds / node.job.duration, 0, 1) : 0;
+      const progressBar = card.querySelector('.factory-progress-fill');
+      const percent = Math.floor(progress * 100);
+      const width = String(percent);
+      if (progressBar && progressBar.dataset.progress !== width) {
+        progressBar.dataset.progress = width;
+        progressBar.style.width = `${width}%`;
+      }
+      const label = card.querySelector('[data-readout="progress-label"]');
+      const text = node.job ? `CYCLE · ${percent} %`
+        : node.preview?.ready ? 'PRÊT' : 'EN ATTENTE';
+      if (label && label.textContent !== text) label.textContent = text;
+    }
+
     function updateNodeReadout(card, node) {
       const definition = typeOf(node.type), set = (key, text) => {
         const target = card.querySelector(`[data-readout="${key}"]`); if (target) target.textContent = text;
       };
       const packet = node.preview?.ready ? node.preview : null;
-      const duration = node.job?.duration || packet?.duration || definition.processingTime;
-      const cycleAmount = node.job ? (node.job.inputs[0]?.amount || Stack.total(node.job.outputs
-        .filter(item => item.port === 0).map(item => item.stack))) : packet
-        ? (packet.inputs.find(input => input.port === 0)?.amount || Stack.total(packet.outputs
-          .filter(item => item.port === 0).map(item => item.stack))) : 0;
-      const cycleRate = node.job && cycleAmount > 0 ? cycleAmount / duration :
-        packet?.rate || definition.baseThroughput * (1 + Math.max(0, graph?.technologyLevel - 1) * Data.config.throughputPerLevel);
-      const secondsPerUnit = cycleAmount > 0 ? duration / cycleAmount : cycleRate > 0 ? 1 / cycleRate : duration;
-      const progress = node.job && node.job.duration > 0
-        ? clamp(1 - node.job.remainingSeconds / node.job.duration, 0, 1) : 0;
       card.dataset.state = node.state;
-      set('state', Data.statuses[node.state] || node.state);
-      set('input', definition.operation === 'source' ? 'Gisement' : stackSummary(node.internalBuffer.inputs.some(Boolean)
-        ? node.internalBuffer.inputs : node.job?.inputs || []));
-      set('output', `${node.job && !node.internalBuffer.outputs.some(Boolean) ? 'PRÉVU · ' : ''}${stackSummary(node.internalBuffer.outputs.some(Boolean) ? node.internalBuffer.outputs :
-        node.job?.outputs.map(item => item.stack) || [])}`);
       set('rate', `MOY. · ${fmt(node.telemetry.outputRate)} u/s`);
-      set('cycle', `${fmt(secondsPerUnit)} s / u`);
-      set('energy', `ÉNERGIE · ${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
-      const progressBar = card.querySelector('.factory-progress-fill');
-      if (progressBar) progressBar.style.width = `${(progress * 100).toFixed(1)}%`;
-      set('progress-label', node.job ? `CYCLE · ${fmt(progress * 100)} %` : packet ? 'PRÊT' : 'EN ATTENTE');
+      set('energy', `${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
+      updateNodeProgress(card, node);
       for (const label of card.querySelectorAll('[data-output-label-index]')) {
         const index = Number(label.dataset.outputLabelIndex);
         const current = node.internalBuffer.outputs[index] || node.job?.outputs.find(item => item.port === index)?.stack;
@@ -240,6 +241,14 @@
       renderInspector(); renderStocks();
     }
 
+    function refreshProgress() {
+      if (editor.hidden || !graph) return;
+      for (const node of nodes) {
+        const card = nodeCards.get(node.id);
+        if (card) updateNodeProgress(card, node);
+      }
+    }
+
     function persistPlan() {
       if (!activeBuilding) return;
       graph.nodes = nodes; graph.connections = connections;
@@ -330,11 +339,12 @@
       const header = document.createElement('div'); header.className = 'factory-node-header';
       const mark = document.createElement('span'); mark.className = 'factory-node-mark'; mark.textContent = type.mark;
       const title = document.createElement('strong'); title.textContent = type.label;
+      const energy = document.createElement('span'); energy.dataset.readout = 'energy';
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'factory-node-remove';
       remove.dataset.removeNode = node.id; remove.setAttribute('aria-label', `Supprimer ${type.label}`); remove.textContent = '×';
-      header.append(mark, title, remove);
+      header.append(mark, title, energy, remove);
       const body = document.createElement('div'); body.className = 'factory-node-body';
-      for (const key of ['state', 'rate', 'cycle', 'input', 'output', 'energy']) {
+      for (const key of ['rate']) {
         const reading = document.createElement('span'); reading.dataset.readout = key; body.append(reading);
       }
       const progress = document.createElement('div'); progress.className = 'factory-progress';
@@ -357,7 +367,10 @@
     }
 
     function renderNodes() {
-      nodeLayer.replaceChildren(...nodes.map(createNodeElement));
+      nodeCards = new Map();
+      nodeLayer.replaceChildren(...nodes.map(node => {
+        const card = createNodeElement(node); nodeCards.set(node.id, card); return card;
+      }));
       $('factory-empty').hidden = nodes.length > 0;
       renderConnections();
       renderInspector();
@@ -783,7 +796,7 @@
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
-      graph = null; nodes = []; connections = [];
+      graph = null; nodes = []; connections = []; nodeCards.clear();
       $('factory-stock-panel').hidden = true; $('factory-process-details').hidden = true;
       pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
@@ -831,7 +844,7 @@
     });
     addPalette();
 
-    return Object.freeze({ open, close, refresh, isOpen: () => !editor.hidden });
+    return Object.freeze({ open, close, refresh, refreshProgress, isOpen: () => !editor.hidden });
   }
 
   root.OrbitFactoryEditor = Object.freeze({ create, types: TYPES });
