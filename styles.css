@@ -266,7 +266,7 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-node-body [data-readout="input"],.factory-node-body [data-readout="output"]{color:#9eafc3;font-size:9px}
 .factory-node-body [data-readout="energy"]{color:#839fb8;font-size:9px}
 .factory-progress{height:4px;overflow:hidden;border-radius:4px;background:#27394d}
-.factory-progress-fill{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#13c9b0,#4ad2d4);transition:width .12s linear}
+.factory-progress-fill{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#13c9b0,#4ad2d4);transition:width .38s linear}
 .factory-node[data-state="degraded"] .factory-progress-fill,.factory-node[data-state="no_energy"] .factory-progress-fill{background:#eab76a}
 .factory-node[data-state="incompatible"] .factory-progress-fill,.factory-node[data-state="destructive"] .factory-progress-fill{background:#df806c}
 .factory-node-body [data-readout="progress-label"]{color:#748ba5;font-size:8px;line-height:10px;letter-spacing:.35px}

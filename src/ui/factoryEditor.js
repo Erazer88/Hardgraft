@@ -95,11 +95,11 @@
         ? clamp(1 - node.job.remainingSeconds / node.job.duration, 0, 1) : 0;
       card.dataset.state = node.state;
       set('state', Data.statuses[node.state] || node.state);
-      set('input', `IN · ${definition.operation === 'source' ? 'Gisement' : stackSummary(node.internalBuffer.inputs.some(Boolean)
-        ? node.internalBuffer.inputs : node.job?.inputs || [])}`);
-      set('output', `${node.internalBuffer.outputs.some(Boolean) ? 'OUT' : node.job ? 'PRÉVU' : 'OUT'} · ${stackSummary(node.internalBuffer.outputs.some(Boolean) ? node.internalBuffer.outputs :
+      set('input', definition.operation === 'source' ? 'Gisement' : stackSummary(node.internalBuffer.inputs.some(Boolean)
+        ? node.internalBuffer.inputs : node.job?.inputs || []));
+      set('output', `${node.job && !node.internalBuffer.outputs.some(Boolean) ? 'PRÉVU · ' : ''}${stackSummary(node.internalBuffer.outputs.some(Boolean) ? node.internalBuffer.outputs :
         node.job?.outputs.map(item => item.stack) || [])}`);
-      set('rate', `VITESSE · ${fmt(cycleRate)} u/s`);
+      set('rate', `MOY. · ${fmt(node.telemetry.outputRate)} u/s`);
       set('cycle', `${fmt(secondsPerUnit)} s / u`);
       set('energy', `ÉNERGIE · ${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
       const progressBar = card.querySelector('.factory-progress-fill');
