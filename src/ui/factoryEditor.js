@@ -1,75 +1,199 @@
 (function (root) {
   'use strict';
 
-  const WORLD = Object.freeze({ width: 2600, height: 1800 });
-  const NODE = Object.freeze({ width: 184, height: 96 });
+  const Data = root.OrbitProcessData, Graph = root.OrbitProcessGraph, Stack = root.OrbitResourceStack;
+  const WORLD = Data.config.world;
+  const NODE = Object.freeze({ width: 220, height: 156 });
   const CAMERA_MIN_SCALE = .12, CAMERA_MAX_SCALE = 3.2;
-  const TYPES = Object.freeze({
-    input: Object.freeze({ label: 'ENTRÉE D’USINE', detail: 'Arrivée de ressources', mark: 'IN', inputs: 0, outputs: 1 }),
-    transform: Object.freeze({ label: 'TRANSFORMATION', detail: 'Traitement générique', mark: 'TR', inputs: 1, outputs: 1 }),
-    assembly: Object.freeze({ label: 'ASSEMBLAGE', detail: 'Réunit plusieurs composants', mark: 'AS', inputs: 1, outputs: 1 }),
-    separator: Object.freeze({ label: 'SÉPARATION', detail: 'Distribue un flux entrant', mark: 'SP', inputs: 1, outputs: 2 }),
-    storage: Object.freeze({ label: 'STOCKAGE', detail: 'Réserve interne limitée', mark: 'ST', inputs: 1, outputs: 1 }),
-    filter: Object.freeze({ label: 'FILTRE', detail: 'Sélectionne un flux', mark: 'FL', inputs: 1, outputs: 1 }),
-    output: Object.freeze({ label: 'SORTIE D’USINE', detail: 'Expédition de ressources', mark: 'OUT', inputs: 1, outputs: 0 })
-  });
-  const PALETTE = Object.freeze([
-    ['input', 'FLUX'], ['transform', 'TRAITEMENT'], ['assembly', 'TRAITEMENT'],
-    ['separator', 'FLUX'], ['storage', 'FLUX'], ['filter', 'TRAITEMENT'], ['output', 'FLUX']
-  ]);
+  const TYPES = Data.definitions;
   const svgNamespace = 'http://www.w3.org/2000/svg';
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
+  const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
+  const resourceName = id => root.OrbitResourceData.get(id)?.label || id || '—';
+  const phaseName = phase => ({ solid: 'solide', liquid: 'liquide', gas: 'gaz' })[phase] || phase;
 
-  function create(document, { onSave = () => {} } = {}) {
+  function create(document, { onSave = () => {}, isPaused = () => false,
+    onSupply = () => ({ ok: false, message: 'Approvisionnement indisponible.' }) } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes');
     const linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
-    let activeBuilding = null, nodes = [], connections = [];
+    let activeBuilding = null, graph = null, nodes = [], connections = [];
+    let selectedConnectionId = null;
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
     let drag = null, pinch = null, wireDrag = null;
     const activePointers = new Map();
     let transform = { x: 0, y: 0, scale: 1 }, nextNodeId = 1, nextConnectionId = 1;
     let zoomFrame = null;
 
-    function typeOf(type) { return TYPES[type] || null; }
+    function typeOf(type) { return Graph.definitionOf({ type }); }
 
     function normalizePlan(value) {
-      const planNodes = Array.isArray(value?.nodes) ? value.nodes.flatMap(node => {
-        if (!node || typeof node.id !== 'string' || !typeOf(node.type) ||
-            !Number.isFinite(node.x) || !Number.isFinite(node.y)) return [];
-        return [{ id: node.id, type: node.type,
-          x: clamp(node.x, 8, WORLD.width - NODE.width - 8),
-          y: clamp(node.y, 8, WORLD.height - NODE.height - 8) }];
-      }) : [];
-      const nodeById = new Map(planNodes.map(node => [node.id, node]));
-      const usedInputs = new Set();
-      const planConnections = Array.isArray(value?.connections) ? value.connections.flatMap(connection => {
-        const source = nodeById.get(connection?.fromNodeId), target = nodeById.get(connection?.toNodeId);
-        if (!source || !target || source.id === target.id || !Number.isInteger(connection.fromPort) ||
-            !Number.isInteger(connection.toPort) || connection.fromPort < 0 ||
-            connection.fromPort >= typeOf(source.type).outputs || connection.toPort < 0 ||
-            connection.toPort >= typeOf(target.type).inputs || usedInputs.has(`${target.id}:${connection.toPort}`)) return [];
-        usedInputs.add(`${target.id}:${connection.toPort}`);
-        return [{ id: typeof connection.id === 'string' ? connection.id : `link-${usedInputs.size}`,
-          fromNodeId: source.id, fromPort: connection.fromPort,
-          toNodeId: target.id, toPort: connection.toPort }];
-      }) : [];
-      return { nodes: planNodes, connections: planConnections };
+      const live = value?.version === Data.config.version && Array.isArray(value.externalStock) &&
+        value.nodes?.every(node => node.internalBuffer && node.telemetry);
+      const plan = live ? value : Graph.create(value || {});
+      for (const node of plan.nodes) {
+        node.x = clamp(node.x, 8, WORLD.width - NODE.width - 8);
+        node.y = clamp(node.y, 8, WORLD.height - NODE.height - 8);
+      }
+      return plan;
     }
 
     function writeStatus(message = 'PLAN ENREGISTRÉ') {
       $('factory-editor-status').textContent = message;
     }
 
+    function stackSummary(stacks) {
+      const present = stacks.filter(Boolean);
+      return present.length ? present.map(stack => `${resourceName(stack.resourceId)} ${fmt(stack.amount)} u`).join(' · ') : '—';
+    }
+
+    function updateNodeReadout(card, node) {
+      const definition = typeOf(node.type), set = (key, text) => {
+        const target = card.querySelector(`[data-readout="${key}"]`); if (target) target.textContent = text;
+      };
+      card.dataset.state = node.state;
+      set('state', Data.statuses[node.state] || node.state);
+      set('input', `IN · ${definition.operation === 'source' ? 'Gisement' : stackSummary(node.internalBuffer.inputs.some(Boolean)
+        ? node.internalBuffer.inputs : node.job?.inputs || [])}`);
+      set('output', `${node.internalBuffer.outputs.some(Boolean) ? 'OUT' : node.job ? 'PRÉVU' : 'OUT'} · ${stackSummary(node.internalBuffer.outputs.some(Boolean) ? node.internalBuffer.outputs :
+        node.job?.outputs.map(item => item.stack) || [])}`);
+      set('rate', `${fmt(node.telemetry.outputRate)} u/s · ${fmt(node.telemetry.energyMW)} MW`);
+      set('buffer', node.type === 'dump' ? `Terril · ${fmt(node.internalBuffer.history?.amount || 0)} u` :
+        `Buffers · ${fmt(Stack.total(node.internalBuffer.inputs))} / ${definition.inputCapacity * node.inputPorts.length} u`);
+      card.title = node.message || definition.detail;
+    }
+
+    function connectionReading(connection) {
+      return `${resourceName(connection.resourceId)} · ${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s · ` +
+        `${Data.statuses[connection.state] || connection.state}${connection.message ? ' · ' + connection.message : ''}`;
+    }
+
+    function detail(parent, label, value) {
+      const row = document.createElement('div'); row.className = 'factory-detail-row';
+      const name = document.createElement('small'), reading = document.createElement('span');
+      name.textContent = label; reading.textContent = value; row.append(name, reading); parent.append(row);
+    }
+
+    function resourceSelector(value, onChange) {
+      const select = document.createElement('select');
+      const all = document.createElement('option'); all.value = ''; all.textContent = 'Toutes les matières'; select.append(all);
+      for (const resource of root.OrbitResourceData.catalog().filter(item => !item.canonicalId)) {
+        const option = document.createElement('option'); option.value = resource.id; option.textContent = resource.label; select.append(option);
+      }
+      select.value = value || ''; select.addEventListener('change', () => onChange(select.value || null));
+      return select;
+    }
+
+    function renderNodeConfiguration(node, parent) {
+      const field = (name, control) => {
+        const label = document.createElement('label'); label.textContent = name; label.append(control); parent.append(label);
+      };
+      if (['input', 'dock', 'filter', 'storage'].includes(node.type)) {
+        field('Filtre matière', resourceSelector(node.settings.filter, value => {
+          node.settings.filter = value; savePlanStatus();
+        }));
+      }
+      if (node.type === 'storage') {
+        const select = document.createElement('select'); select.dataset.storagePhase = node.id;
+        for (const [value, label] of [['solid', 'Solides'], ['liquid', 'Liquides'], ['gas', 'Gaz']]) {
+          const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
+        }
+        select.value = node.settings.phase; select.disabled = Boolean(Graph.lockedResource(node));
+        select.title = 'Videz le stock avant de changer son état physique.';
+        select.addEventListener('change', () => {
+          if (Graph.lockedResource(node)) return;
+          node.settings.phase = select.value; savePlanStatus();
+        });
+        field('Type de stockage', select);
+      }
+      if (node.type === 'splitter') {
+        const control = document.createElement('input'); control.type = 'range'; control.min = '0'; control.max = '100';
+        control.value = String(Math.round(node.settings.ratio * 100));
+        const caption = document.createElement('span');
+        const update = () => { caption.textContent = `A ${control.value} % · B ${100 - Number(control.value)} % · redistribution automatique`; };
+        update(); control.addEventListener('input', () => { node.settings.ratio = Number(control.value) / 100; update(); });
+        control.addEventListener('change', savePlanStatus); field('Répartition', control); parent.append(caption);
+      }
+    }
+
+    function renderInspector() {
+      const panel = $('factory-process-details'), summary = $('factory-selected-summary');
+      const node = nodes.find(item => item.id === selectedNodeId);
+      const connection = connections.find(item => item.id === selectedConnectionId);
+      panel.hidden = (!node && !connection) || !$('factory-stock-panel').hidden;
+      if (panel.hidden) return;
+      summary.replaceChildren();
+      const selection = node ? node.id : connection.id;
+      if (panel.dataset.selection !== selection) {
+        panel.dataset.selection = selection; $('factory-selected-config').replaceChildren();
+        if (node) renderNodeConfiguration(node, $('factory-selected-config'));
+      }
+      if (connection) {
+        $('factory-selected-title').textContent = 'CONNEXION';
+        const source = nodes.find(item => item.id === connection.fromNodeId), target = nodes.find(item => item.id === connection.toNodeId);
+        detail(summary, 'Direction', `${typeOf(source.type).label} (${source.outputPorts[connection.fromPort].label}) → ${typeOf(target.type).label} (${target.inputPorts[connection.toPort].label})`);
+        detail(summary, 'Ressource dominante', resourceName(connection.resourceId));
+        detail(summary, 'Débit actuel / maximal', `${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s`);
+        detail(summary, 'État', Data.statuses[connection.state] || connection.state);
+        if (connection.message) detail(summary, 'Problème', connection.message);
+        return;
+      }
+      const definition = typeOf(node.type), job = node.job;
+      $('factory-selected-title').textContent = definition.label;
+      detail(summary, 'État', Data.statuses[node.state] || node.state);
+      detail(summary, 'Entrée actuelle', stackSummary(node.internalBuffer.inputs.some(Boolean) ? node.internalBuffer.inputs : job?.inputs || []));
+      detail(summary, 'Sortie actuelle', stackSummary(node.internalBuffer.outputs));
+      if (job) detail(summary, 'Production prévue', stackSummary(job.outputs.map(item => item.stack)));
+      detail(summary, 'Débit', `${fmt(node.telemetry.outputRate)} / ${fmt(definition.baseThroughput)} u/s`);
+      detail(summary, 'Énergie', `${fmt(node.telemetry.energyMW)} MW · nominal ${fmt(job?.energyUse ?? definition.energyUse)} MW`);
+      detail(summary, 'Recette active', job ? `${[...new Set(job.inputs.map(stack => resourceName(stack.resourceId)))].join(' + ') || 'Gisement'} → ` +
+        [...new Set(job.outputs.map(item => resourceName(item.stack.resourceId)))].join(' + ') : definition.detail);
+      if (job?.inputs.length) detail(summary, 'Rendement utile', `${fmt(Stack.total(job.outputs.filter(item => item.port === 0).map(item => item.stack)) / Stack.total(job.inputs) * 100)} %`);
+      detail(summary, 'Entrées attendues', definition.inputPorts.map(port => `${port.label} : ${port.acceptedResources.map(resourceName).join(', ') || port.phases.map(phaseName).join(', ')}`).join(' · ') || 'Aucune entrée matière');
+      detail(summary, 'Sorties prévues', definition.outputPorts.map(port => port.label).join(' · ') ||
+        (node.type === 'dump' ? 'Terril permanent' : 'Stock extérieur du quai'));
+      if (node.message) detail(summary, 'Diagnostic', node.message);
+      const materials = node.internalBuffer.inputs.filter(Boolean);
+      if (materials.length) detail(summary, 'Préparation', materials.map(stack => `${resourceName(stack.resourceId)} · ` +
+        `${({ impure: 'impur', standard: 'standard', superior: 'supérieur' })[stack.quality]} · ` +
+        `${({ raw: 'brut', fragment: 'fragmenté', powder: 'poudre' })[stack.particleSize]} · humidité ${fmt(stack.moisture * 100)} %`).join(' / '));
+      if (definition.operation === 'source' && graph.geology) detail(summary, 'Gisement',
+        `${resourceName(graph.geology.resourceId)} · dureté ${fmt(graph.geology.hardness)} · débit géologique ${fmt(graph.geology.throughput)} u/s`);
+      if (node.type === 'dump') {
+        const history = node.internalBuffer.history;
+        detail(summary, 'Historique conservé', history ? `${fmt(history.amount)} u · fer récupérable ${fmt(Stack.recoverableAmount(history, 'iron'))} u · cuivre ${fmt(Stack.recoverableAmount(history, 'copper'))} u` : 'Terril vide');
+      }
+      const phaseControl = panel.querySelector('[data-storage-phase]');
+      if (phaseControl) phaseControl.disabled = Boolean(Graph.lockedResource(node));
+    }
+
+    function renderStocks() {
+      const parent = $('factory-building-stocks'); if (!graph || $('factory-stock-panel').hidden) return;
+      parent.replaceChildren();
+      detail(parent, `ENTRÉE · ${fmt(Stack.total(graph.externalStock))} / ${graph.inputCapacity} u`, stackSummary(graph.externalStock));
+      detail(parent, `QUAIS · ${fmt(Stack.total(graph.exportStock))} / ${graph.exportCapacity} u`, stackSummary(graph.exportStock));
+      detail(parent, 'DÉCHETS DE RÉCUPÉRATION', stackSummary(graph.retainedWaste));
+    }
+
+    function refresh() {
+      if (editor.hidden || !graph) return;
+      for (const card of nodeLayer.children) {
+        const node = nodes.find(item => item.id === card.dataset.nodeId); if (node) updateNodeReadout(card, node);
+      }
+      $('factory-energy-status').textContent = isPaused() ? 'SIMULATION EN PAUSE' : activeBuilding.constructionState !== 'complete' ? 'ASSEMBLAGE EN COURS' :
+        `ÉNERGIE ${fmt(graph.energyUsedMW)} MW / ${graph.energyUnlimited ? '∞' : fmt(graph.energyAvailableMW) + ' MW'}`;
+      if (!drag && !wireDrag && !pinch) renderConnections();
+      renderInspector(); renderStocks();
+    }
+
     function persistPlan() {
       if (!activeBuilding) return;
-      onSave(activeBuilding.id, {
-        nodes: nodes.map(node => ({ id: node.id, type: node.type, x: node.x, y: node.y })),
-        connections: connections.map(connection => ({ ...connection }))
-      });
-      writeStatus('PLAN ENREGISTRÉ');
+      graph.nodes = nodes; graph.connections = connections;
+      onSave(activeBuilding.id, graph);
+      writeStatus(graph.diagnostics.length ? 'MIGRATION : ' + graph.diagnostics[0] : 'PLAN ENREGISTRÉ');
     }
 
     function updateTransform() {
@@ -103,9 +227,22 @@
       }
       const path = document.createElementNS(svgNamespace, 'path');
       path.setAttribute('class', pending ? 'factory-link pending' : 'factory-link');
-      if (!pending) path.dataset.connectionId = connection.id;
+      if (!pending) {
+        path.dataset.connectionId = connection.id;
+        const family = root.OrbitResourceData.get(connection.resourceId)?.family || 'mineral';
+        path.dataset.family = family; path.dataset.state = connection.state;
+        const title = document.createElementNS(svgNamespace, 'title');
+        title.textContent = connectionReading(connection); path.append(title);
+      }
       path.setAttribute('d', curve);
       linkLayer.append(path);
+      if (!pending) {
+        const label = document.createElementNS(svgNamespace, 'text');
+        label.setAttribute('class', 'factory-link-label'); label.dataset.connectionId = connection.id;
+        label.setAttribute('x', (start.x + end.x) / 2); label.setAttribute('y', (start.y + end.y) / 2 - 8);
+        label.textContent = connection.resourceId ? `${resourceName(connection.resourceId)} · ${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s` : 'EN ATTENTE';
+        linkLayer.append(label);
+      }
     }
 
     function renderConnections() {
@@ -122,8 +259,10 @@
       port.dataset.portSide = side;
       port.dataset.nodeId = node.id;
       port.dataset.portIndex = String(index);
-      port.setAttribute('aria-label', side === 'output' ? `Sortie ${index + 1} de ${typeOf(node.type).label}` : `Entrée de ${typeOf(node.type).label}`);
-      port.title = side === 'output' ? 'Glisser vers une entrée pour relier' : 'Déposer une sortie ici pour la relier';
+      const definition = (side === 'output' ? node.outputPorts : node.inputPorts)[index];
+      port.style.top = `${54 + index * 32}px`;
+      port.setAttribute('aria-label', `${side === 'output' ? 'Sortie' : 'Entrée'} ${definition.label} de ${typeOf(node.type).label}`);
+      port.title = `${definition.label} · ${definition.maxThroughput} u/s · ${definition.acceptedResources.map(resourceName).join(', ') || definition.phases.map(phaseName).join(', ')}`;
       return port;
     }
 
@@ -139,12 +278,12 @@
       remove.dataset.removeNode = node.id; remove.setAttribute('aria-label', `Supprimer ${type.label}`); remove.textContent = '×';
       header.append(mark, title, remove);
       const body = document.createElement('div'); body.className = 'factory-node-body';
-      const description = document.createElement('span'); description.textContent = type.detail;
-      const portSummary = document.createElement('small');
-      portSummary.textContent = `${type.inputs} ENTRÉE${type.inputs === 1 ? '' : 'S'} · ${type.outputs} SORTIE${type.outputs === 1 ? '' : 'S'}`;
-      body.append(description, portSummary); card.append(header, body);
-      for (let index = 0; index < type.inputs; index++) card.append(createPort('input', node, index));
-      for (let index = 0; index < type.outputs; index++) card.append(createPort('output', node, index));
+      for (const key of ['state', 'input', 'output', 'rate', 'buffer']) {
+        const reading = document.createElement('span'); reading.dataset.readout = key; body.append(reading);
+      }
+      card.append(header, body); updateNodeReadout(card, node);
+      for (let index = 0; index < node.inputPorts.length; index++) card.append(createPort('input', node, index));
+      for (let index = 0; index < node.outputPorts.length; index++) card.append(createPort('output', node, index));
       return card;
     }
 
@@ -152,6 +291,7 @@
       nodeLayer.replaceChildren(...nodes.map(createNodeElement));
       $('factory-empty').hidden = nodes.length > 0;
       renderConnections();
+      renderInspector();
     }
 
     function updateNodePosition(node) {
@@ -167,7 +307,8 @@
 
     function addNode(typeId) {
       const type = typeOf(typeId);
-      if (!type || !activeBuilding) return;
+      if (!TYPES[typeId] || type.enabled === false || !activeBuilding) return;
+      if (nodes.length >= Data.config.maxNodes) { writeStatus('Limite de blocs atteinte.'); return; }
       const index = nextNodeId++;
       const bounds = viewport.getBoundingClientRect();
       const centerX = (bounds.width / 2 - transform.x) / transform.scale;
@@ -182,17 +323,20 @@
         y = previous.y + NODE.height + 54;
         if (y + NODE.height > WORLD.height - 8) y = 16;
       }
-      const node = { id: `node-${index}`, type: typeId,
+      const node = root.OrbitProcessBlock.create({ id: `node-${index}`, type: typeId,
         x: clamp(x, 8, WORLD.width - NODE.width - 8),
-        y: clamp(y, 8, WORLD.height - NODE.height - 8) };
+        y: clamp(y, 8, WORLD.height - NODE.height - 8),
+        settings: typeId === 'storage' && activeBuilding.type === 'oil_platform' ? { phase: 'liquid' } : {} });
       nodes.push(node); selectedNodeId = node.id;
+      selectedConnectionId = null;
       pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
       renderNodes(); savePlanStatus();
     }
 
     function removeNode(id) {
-      nodes = nodes.filter(node => node.id !== id);
-      connections = connections.filter(connection => connection.fromNodeId !== id && connection.toNodeId !== id);
+      graph.nodes = nodes; graph.connections = connections;
+      Graph.removeNode(graph, id);
+      nodes = graph.nodes; connections = graph.connections;
       if (selectedNodeId === id) selectedNodeId = null;
       if (pendingOutput?.nodeId === id || pendingTarget?.nodeId === id) {
         pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
@@ -239,10 +383,17 @@
         writeStatus('ENTRÉE DÉJÀ RELIÉE');
         pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections(); return;
       }
-      connections.push({ id: `link-${nextConnectionId++}`, fromNodeId: source.id,
+      graph.connections = connections;
+      const result = Graph.connect(graph, { id: `link-${nextConnectionId++}`, fromNodeId: source.id,
         fromPort: pendingOutput.port, toNodeId: target.id, toPort: targetPort });
+      if (!result.ok) {
+        writeStatus(result.reason); pendingOutput = null; pendingPointer = null; pendingTarget = null;
+        wireDrag = null; renderConnections(); return;
+      }
+      connections = graph.connections;
       pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
       selectedNodeId = target.id;
+      selectedConnectionId = null;
       renderNodes(); savePlanStatus();
     }
 
@@ -253,6 +404,7 @@
       wireDrag.moved = true;
       if (wireDrag.connectionId && !wireDrag.detached) {
         connections = connections.filter(connection => connection.id !== wireDrag.connectionId);
+        graph.connections = connections;
         wireDrag.detached = true;
       }
       pendingPointer = worldPoint(event.clientX, event.clientY);
@@ -399,14 +551,18 @@
       if (nodeElement) {
         const node = nodes.find(item => item.id === nodeElement.dataset.nodeId);
         if (!node) return;
-        selectedNodeId = node.id; pendingOutput = null;
+        selectedNodeId = node.id; selectedConnectionId = null; pendingOutput = null;
+        $('factory-stock-panel').hidden = true;
         drag = { kind: 'node', pointerId: event.pointerId, nodeId: node.id, startX: event.clientX, startY: event.clientY,
           originX: node.x, originY: node.y, moved: false };
         nodeLayer.querySelectorAll('.factory-node').forEach(item =>
           item.classList.toggle('selected', item.dataset.nodeId === selectedNodeId));
+        renderInspector();
         event.preventDefault(); capture(event); return;
       }
       pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+      selectedNodeId = null; selectedConnectionId = null; renderInspector();
+      nodeLayer.querySelectorAll('.factory-node').forEach(item => item.classList.remove('selected'));
       drag = { kind: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
         originX: transform.x, originY: transform.y, moved: false };
       capture(event);
@@ -475,8 +631,11 @@
         } else if (completedWireDrag.moved) {
           pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
           if (completedWireDrag.detached) savePlanStatus();
+          writeStatus('Aucune entrée disponible au point de dépôt.');
         } else if (completedWireDrag.connectionId) {
           pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
+          selectedConnectionId = completedWireDrag.connectionId; selectedNodeId = null;
+          $('factory-stock-panel').hidden = true; renderInspector();
         } else {
           pendingPointer = worldPoint(event.clientX, event.clientY);
           pendingTarget = null; renderConnections();
@@ -490,13 +649,15 @@
     }
 
     function addPalette() {
-      for (const [typeId, category] of PALETTE) {
-        const type = typeOf(typeId), button = document.createElement('button');
-        button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addNode = typeId;
+      palette.replaceChildren();
+      for (const type of Data.catalog(activeBuilding?.type || 'factory')) {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addNode = type.id;
+        button.disabled = type.enabled === false;
         const icon = document.createElement('span'); icon.className = 'factory-block-icon'; icon.textContent = type.mark;
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const label = document.createElement('strong'); label.textContent = type.label;
-        const detail = document.createElement('small'); detail.textContent = `${category} · ${type.detail}`;
+        const detail = document.createElement('small'); detail.textContent = `${type.category} · ${type.detail}`;
         copy.append(label, detail); button.append(icon, copy); palette.append(button);
       }
     }
@@ -504,7 +665,10 @@
     function open(building, savedPlan) {
       cancelZoomFrame();
       activeBuilding = building;
-      ({ nodes, connections } = normalizePlan(savedPlan));
+      graph = normalizePlan(savedPlan); ({ nodes, connections } = graph);
+      selectedConnectionId = null;
+      $('factory-stock-panel').hidden = true; $('factory-process-details').dataset.selection = '';
+      addPalette();
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
       drag = null; pinch = null; wireDrag = null; activePointers.clear();
       nextNodeId = nodes.reduce((max, node) => Math.max(max, Number(node.id.match(/(\d+)$/)?.[1]) || 0), 0) + 1;
@@ -520,7 +684,8 @@
       updateTransform();
       renderNodes();
       if (nodes.length) frameSavedPlan();
-      writeStatus('PLAN ENREGISTRÉ');
+      writeStatus(graph.diagnostics.length ? 'MIGRATION : ' + graph.diagnostics[0] : 'PLAN ENREGISTRÉ');
+      refresh();
       $('factory-editor-close').focus();
     }
 
@@ -530,6 +695,8 @@
       persistPlan();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; drag = null; pinch = null; wireDrag = null; activePointers.clear();
+      graph = null; nodes = []; connections = [];
+      $('factory-stock-panel').hidden = true; $('factory-process-details').hidden = true;
       pendingOutput = null; pendingPointer = null; pendingTarget = null;
       $('factory-edit-button').focus();
     }
@@ -554,9 +721,29 @@
       const button = event.target.closest('[data-remove-node]');
       if (button) removeNode(button.dataset.removeNode);
     });
+    $('factory-stock-toggle').addEventListener('click', () => {
+      const panel = $('factory-stock-panel'); panel.hidden = !panel.hidden;
+      renderInspector(); renderStocks();
+    });
+    $('factory-stocks-close').addEventListener('click', () => { $('factory-stock-panel').hidden = true; renderInspector(); });
+    $('factory-details-close').addEventListener('click', () => {
+      selectedNodeId = null; selectedConnectionId = null; renderInspector();
+      nodeLayer.querySelectorAll('.factory-node').forEach(item => item.classList.remove('selected'));
+    });
+    for (const resource of root.OrbitResourceData.catalog().filter(item => !item.canonicalId)) {
+      const option = document.createElement('option'); option.value = resource.id; option.textContent = resource.label;
+      $('factory-supply-resource').append(option);
+    }
+    $('factory-supply-resource').value = 'water';
+    $('factory-reserve-label').textContent = Data.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' : 'RÉSERVE DE LA COLONIE';
+    $('factory-supply-form').addEventListener('submit', event => {
+      event.preventDefault(); if (!activeBuilding) return;
+      const result = onSupply(activeBuilding, $('factory-supply-resource').value, Number($('factory-supply-amount').value));
+      writeStatus(result.message); renderStocks();
+    });
     addPalette();
 
-    return Object.freeze({ open, close, isOpen: () => !editor.hidden });
+    return Object.freeze({ open, close, refresh, isOpen: () => !editor.hidden });
   }
 
   root.OrbitFactoryEditor = Object.freeze({ create, types: TYPES });

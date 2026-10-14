@@ -2,7 +2,7 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, 4, 5, 6, 7, config.saveVersion];
+  const supportedSaveVersions = [2, 3, 4, 5, 6, 7, 8, config.saveVersion];
 
   // Houses are kept both in the settlement-wide list and on each road for
   // rendering. The settlement-wide list is authoritative when restoring, so
@@ -74,6 +74,8 @@
       })),
       time: state.simulation.time, reveal: Boolean(state.reveal),
       inventory: copy(state.inventory || {}),
+      colonyMaterials: copy(state.colonyMaterials || []),
+      industryAccumulator: state.industryAccumulator || 0,
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
       factoryPlans: snapshotFactoryPlans(state.factoryPlans, state.surfaceBuildings),
       surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
@@ -105,6 +107,9 @@
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
     state.simulation = simulation;
     state.inventory = root.OrbitInventory.create(saved.inventory ?? state.inventory ?? root.OrbitResourceData.startingInventory);
+    state.colonyMaterials = Array.isArray(saved.colonyMaterials)
+      ? root.OrbitResourceStack ? saved.colonyMaterials.map(root.OrbitResourceStack.create).filter(Boolean) : copy(saved.colonyMaterials) : [];
+    state.industryAccumulator = Number.isFinite(saved.industryAccumulator) && saved.industryAccumulator >= 0 ? saved.industryAccumulator : 0;
     return true;
   }
 
@@ -138,6 +143,11 @@
     const buildingIds = new Set((buildings || []).map(building => building.id));
     return Object.fromEntries(Object.entries(value).flatMap(([buildingId, plan]) => {
       if (!buildingIds.has(buildingId) || !plan || typeof plan !== 'object') return [];
+      if (root.OrbitProcessGraph) {
+        const graph = plan.version === root.OrbitProcessData.config.version && Array.isArray(plan.externalStock)
+          ? plan : root.OrbitProcessGraph.create(plan);
+        return [[buildingId, root.OrbitProcessGraph.snapshot(graph)]];
+      }
       const nodes = Array.isArray(plan.nodes) ? plan.nodes.filter(node => node && typeof node.id === 'string' &&
         typeof node.type === 'string' && Number.isFinite(node.x) && Number.isFinite(node.y))
         .map(node => ({ id: node.id, type: node.type, x: node.x, y: node.y })) : [];
@@ -152,7 +162,17 @@
   }
 
   function restoreFactoryPlans(value, buildings) {
-    return snapshotFactoryPlans(value, buildings);
+    const plans = snapshotFactoryPlans(value, buildings);
+    if (!root.OrbitProcessGraph) return plans;
+    return Object.fromEntries(Object.entries(plans).map(([id, plan]) => {
+      const graph = root.OrbitProcessGraph.create(plan);
+      if (!Array.isArray(value?.[id]?.externalStock)) {
+        const building = buildings.find(item => item.id === id);
+        for (const [resourceId, amount] of Object.entries(building?.inventory || {})) root.OrbitResourceStack.addToStock(graph.externalStock,
+          root.OrbitResourceStack.create({ resourceId, amount, origin: { kind: 'building', id } }));
+      }
+      return [id, graph];
+    }));
   }
 
   function restoreRoadNetworks(value, buildings) {

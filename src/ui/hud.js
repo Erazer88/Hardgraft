@@ -78,7 +78,7 @@
           ['VITESSE D’EXTRACTION', `${fmtDecimal(flow)} / min`],
           ['RESSOURCE', 'Hydrocarbures']
         ],
-        wind_turbine: [['PRODUCTION ÉLECTRIQUE', formatPower(building.energyOutputWatts)]],
+        wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
         hub: [
           ['ARRIVÉES', 'Personnel orbital'],
           ['DÉBIT D’EXPORT', `${fmtDecimal(flow)} / min`],
@@ -91,6 +91,7 @@
         surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']]
       };
       const rows = byType[building.type] || [];
+      if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
       if (building.constructionState === 'constructing') {
         rows.unshift(['ASSEMBLAGE', `${Math.round((building.constructionProgress || 0) * 100)} %`]);
       }
@@ -239,8 +240,9 @@
         if (definition) option.title = option.disabled
           ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
-      $('resource-stock').textContent = `STOCK · ${ResourceData.catalog()
-        .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
+      $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
+        `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
+          .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
       $('build-menu-title').textContent = orbitalHubRequired ? 'HUB ORBITAL REQUIS' : 'INFRASTRUCTURES';
       $('build-menu-hint').hidden = !orbitalHubRequired;
       $('back-button').disabled = level === 'galaxy';

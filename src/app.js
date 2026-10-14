@@ -35,6 +35,11 @@
     onSave(buildingId, plan) {
       state.factoryPlans[buildingId] = plan;
       persist();
+    },
+    isPaused: () => state.paused,
+    onSupply(building, resourceId, amount) {
+      const result = globalThis.OrbitIndustry.supply(state, building, resourceId, amount);
+      persist(); return result;
     }
   });
   let galaxy, home, terrainTexture, terrainData;
@@ -248,6 +253,7 @@
 
 
   function regenerate(seed, restoring = null) {
+    if (factoryEditor.isOpen()) factoryEditor.close();
     state.seed = normalizedSeed(seed); galaxy = World.createGalaxy(state.seed);
     home = galaxy.systems.find(s => s.id === galaxy.homeId);
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
@@ -255,6 +261,8 @@
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
     state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {}; state.factoryPlans = {};
+    state.colonyMaterials = [];
+    state.industryAccumulator = 0;
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
     cancelRoadDrag();
@@ -400,7 +408,7 @@
     const definition = BuildingData.get(preview.type);
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
-      resourceId: preview.resourceId, waterPort: preview.waterPort,
+      resourceId: preview.resourceId, depositAbundance: preview.depositAbundance, waterPort: preview.waterPort,
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory);
     if (!construction.started) {
@@ -452,7 +460,7 @@
     if (refund === null) return;
     for (const network of Object.values(state.roadNetworks)) RoadNetwork.detachBuilding(network, building.id);
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
-    delete state.factoryPlans[building.id];
+    globalThis.OrbitIndustry.reclaimBuilding(state, building);
     state.selected = null; $('inspector').hidden = true;
     toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli. Récupéré : ${amountSummary(refund)}.`);
     updateUI(); persist();
@@ -898,7 +906,7 @@
   $('factory-edit-button').onclick = () => {
     const building = state.selected?.kind === 'building'
       ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
-    if (building) factoryEditor.open(building, state.factoryPlans[building.id]);
+    if (building) factoryEditor.open(building, globalThis.OrbitIndustry.ensureGraph(state, building));
   };
   $('factory-editor-close').onclick = () => factoryEditor.close();
   $('demolish-button').onclick = demolishSelectedBuilding;
@@ -1022,6 +1030,7 @@
       Construction.advance(state.surfaceBuildings, dt, building => refreshSettlements(building.planetId));
       RoadConstruction.advance(state.roadNetworks, dt, planetId => refreshSettlements(planetId));
       SettlementSimulation.advance(state.surfaceSettlements, dt, refreshSettlements);
+      globalThis.OrbitIndustry.advance(state, dt);
     }
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
@@ -1035,7 +1044,7 @@
     if (state.level === 'surface' && cameraMoving()) renderer.cancelSurfaceDetail();
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
-    if (now - lastHUD > 350) { updateUI(); lastHUD = now; }
+    if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); lastHUD = now; }
     requestAnimationFrame(frame);
   }
 

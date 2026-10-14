@@ -20,6 +20,7 @@
   }
 
   function isInfinite(id) {
+    if (root.OrbitProcessData?.config.colonyReserveInfinite && root.OrbitResourceData.get(id)) return true;
     return MINERAL_IDS.has(id) && root.OrbitDeveloperSettings?.get('infiniteMinerals') === true;
   }
 

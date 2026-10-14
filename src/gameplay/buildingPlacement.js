@@ -221,6 +221,7 @@
       }
     }
     return { valid: true, reason: '', rotation: resolvedRotation, resourceId: deposit?.id || null,
+      depositAbundance: deposit?.abundance ?? .5,
       waterPort: marineDock?.point || null };
   }
 

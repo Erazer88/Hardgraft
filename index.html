@@ -58,6 +58,8 @@
         <small id="factory-editor-building-type"></small>
       </div>
       <div class="factory-header-tools">
+        <span id="factory-energy-status">ÉNERGIE —</span>
+        <button id="factory-stock-toggle" class="factory-back" type="button">STOCKS</button>
         <span id="factory-editor-status" aria-live="polite">PLAN ENREGISTRÉ</span>
       </div>
     </header>
@@ -81,6 +83,23 @@
         </div>
         <div class="factory-viewport-hint" id="factory-viewport-hint">GLISSER LE FOND · PINCER / MOLETTE POUR ZOOMER&nbsp;&nbsp; · &nbsp;&nbsp;SORTIE → ENTRÉE</div>
       </main>
+      <aside class="factory-process-panel" id="factory-process-details" aria-label="Détails du processus" hidden>
+        <header><strong id="factory-selected-title"></strong><button id="factory-details-close" class="text-icon" type="button" aria-label="Fermer les détails">×</button></header>
+        <div id="factory-selected-summary"></div>
+        <div id="factory-selected-config"></div>
+      </aside>
+      <aside class="factory-process-panel" id="factory-stock-panel" aria-label="Stocks du bâtiment" hidden>
+        <header><strong>STOCKS DU BÂTIMENT</strong><button id="factory-stocks-close" class="text-icon" type="button" aria-label="Fermer les stocks">×</button></header>
+        <p id="factory-reserve-label">RÉSERVE COLONIE ∞</p>
+        <form id="factory-supply-form">
+          <label for="factory-supply-resource">Matière à approvisionner</label>
+          <select id="factory-supply-resource"></select>
+          <label for="factory-supply-amount">Quantité (u)</label>
+          <input id="factory-supply-amount" type="number" min="0.1" step="0.1" value="100" required>
+          <button type="submit">APPROVISIONNER</button>
+        </form>
+        <div id="factory-building-stocks"></div>
+      </aside>
     </div>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -129,6 +148,7 @@
   <script src="src/data/developerSettings.js"></script>
   <script src="src/data/config.js"></script>
   <script src="src/data/resources.js"></script>
+  <script src="src/data/processes.js"></script>
   <script src="src/data/worldgen.js"></script>
   <script src="src/data/buildings.js"></script>
   <script src="src/data/roads.js"></script>
@@ -138,6 +158,10 @@
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
   <script src="src/simulation/inventory.js"></script>
+  <script src="src/simulation/resourceStack.js"></script>
+  <script src="src/simulation/processGraph.js"></script>
+  <script src="src/simulation/recipeResolver.js"></script>
+  <script src="src/simulation/processSimulation.js"></script>
   <script src="src/simulation/buildings.js"></script>
   <script src="src/simulation/construction.js"></script>
   <script src="src/simulation/roadNetwork.js"></script>
@@ -149,6 +173,7 @@
   <script src="src/gameplay/exploration.js"></script>
   <script src="src/gameplay/buildingPlacement.js"></script>
   <script src="src/gameplay/roadPlacement.js"></script>
+  <script src="src/gameplay/industry.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>
   <script src="src/navigation/camera.js"></script>
