@@ -195,6 +195,25 @@
     flushYieldRemainders(node);
   }
 
+  function storeTerrilMaterial(node, stack) {
+    if (!stack) return;
+    const existing = node.internalBuffer.history;
+    const history = existing && existing.resourceId !== 'waste'
+      ? Stack.convert(existing, 'waste', existing.amount) : existing;
+    node.internalBuffer.history = Stack.merge(history, Stack.convert(stack, 'waste', stack.amount));
+  }
+
+  function drainTerrilInputs(graph) {
+    for (const node of graph.nodes) {
+      if (Graph.definitionOf(node).operation !== 'dump') continue;
+      node.internalBuffer.inputs.forEach((stack, port) => {
+        if (!stack) return;
+        storeTerrilMaterial(node, stack);
+        node.internalBuffer.inputs[port] = null;
+      });
+    }
+  }
+
   // One transfer pass uses a snapshot of available outputs. New input cannot
   // hop through a second block in this pass, including in cyclic graphs.
   function transfer(graph, seconds) {
@@ -248,7 +267,8 @@
         const piece = Stack.portion(stack, unit);
         if (!piece || piece.amount + EPS < unit) break;
         // Prepare the destination before debiting the source: each transfer is atomic and exactly 1 u.
-        destination.internalBuffer.inputs[link.toPort] = Stack.merge(destination.internalBuffer.inputs[link.toPort], piece);
+        if (Graph.definitionOf(destination).operation === 'dump') storeTerrilMaterial(destination, piece);
+        else destination.internalBuffer.inputs[link.toPort] = Stack.merge(destination.internalBuffer.inputs[link.toPort], piece);
         stack.amount = Math.max(0, stack.amount - unit);
         available.set(key, Math.max(0, (available.get(key) || 0) - unit));
         link.transferCredit = Math.max(0, link.transferCredit - unit);
@@ -308,7 +328,9 @@
       job.remainingSeconds = Math.max(0, job.remainingSeconds - seconds * factor);
       if (job.remainingSeconds <= EPS) finishJob(node, graph);
     }
+    drainTerrilInputs(graph);
     transfer(graph, seconds);
+    drainTerrilInputs(graph);
     // Re-evaluate after arrivals, while preserving the per-building power budget.
     const nextDemand = demand(graph);
     ratio = graph.energyUnlimited || nextDemand <= EPS ? 1 : Math.min(1, graph.energyAvailableMW / nextDemand);

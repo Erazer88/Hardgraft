@@ -15,7 +15,10 @@ bas conservent l'historique des décisions ; elles ne définissent pas le workfl
   réserve. Un bloc Entrée, avec un filtre matière, alimente ensuite un seul flux.
 - Le quai remplit un stock de sortie limité. Il ne livre pas automatiquement la
   colonie ni un autre bâtiment : la logistique extérieure reste une étape suivante.
-- Le terril conserve les matières et leur composition, sans limite de gameplay.
+- Le terril est une poubelle à capacité et débit de traitement illimités : chaque
+  unité solide reçue est immédiatement conservée dans son historique de déchets,
+  avec sa composition. Son entrée ne limite pas le débit ; la capacité de la source
+  et la limite de sécurité globale des transferts continuent de s'appliquer.
 - Analyse qualité figure dans les données et le catalogue, mais reste désactivé.
   Le purificateur et le raffinage pétrolier avancé ne sont pas implémentés.
 
@@ -92,10 +95,11 @@ Une connexion accepte des indices de ports ou des identifiants stables
 sont prioritaires à la restauration. Une sortie ne peut alimenter qu'une seule
 connexion, mais plusieurs sorties peuvent rejoindre la même entrée. Elles
 occupent alors des points d'accroche distincts et se partagent le débit maximal
-de ce port. Les ports n'excèdent jamais leur limite déclarée : 12 u/s pour les
-matières, 6 u/s pour l'eau et 4 u/s pour le carbone, même avec des bonus
-technologiques. Si les matières reçues diffèrent, le port conserve la première
-et signale le flux incompatible sans le retirer de sa source. Le concasseur a
+de ce port. Les ports ordinaires n'excèdent jamais leur limite déclarée : 12 u/s
+pour les matières, 6 u/s pour l'eau et 4 u/s pour le carbone, même avec des bonus
+technologiques. L'entrée du terril n'impose aucun plafond. Si les matières reçues
+diffèrent, un port ordinaire conserve la première et signale le flux incompatible
+sans le retirer de sa source. Le concasseur a
 un port de retour dédié afin que roche fraîche et trop-gros puissent être
 traités en alternance. Les boucles entre plusieurs blocs sont autorisées.
 
@@ -186,7 +190,7 @@ construction correspondant.
 | Gaz → Stock solide | Refus ; choisir un stock Gaz vide dans la configuration |
 | Division, branche pleine | Redistribution vers l'autre branche si elle a de la place |
 | Quai sans destination | Stock extérieur rempli puis blocage, sans export automatique |
-| Roche/déchets → Terril | Matière jetée mais conservée dans l'historique |
+| Matière solide → Terril | Stockage immédiat illimité dans l'historique de déchets, composition conservée |
 | Déchets → Analyseur | Minerai résiduel + déchets appauvris, récupération restante diminuée |
 | Pétrole brut → Séparateur triphasé | Gaz + pétrole + déchets, masses issues de la composition |
 

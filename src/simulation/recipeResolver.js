@@ -168,6 +168,7 @@
       if (node.internalBuffer.inputs[candidate]) { mainPort = candidate; main = node.internalBuffer.inputs[candidate]; break; }
     }
     if (definition.operation === 'disabled' || definition.enabled === false) return blocked('waiting', 'Bloc désactivé pour cette version.');
+    if (definition.operation === 'dump') return blocked('waiting', 'Le terril stocke directement toute matière reçue.');
     if (definition.operation === 'source') {
       const oil = definition.sourceResource === 'raw_oil';
       if (!graph.geology || !Number.isFinite(graph.geology.throughput) || !Number.isFinite(graph.geology.hardness) ||
@@ -212,10 +213,6 @@
       const amount = Math.min(budget(definition, graph, main), graph.exportCapacity - Stack.total(graph.exportStock));
       if (amount <= EPS) return blocked('output_blocked', 'Stock du quai plein : aucune destination extérieure ne l’a vidé.');
       return result(definition, graph, {}, [{ port: mainPort, amount }], output(-1, Stack.portion(main, amount)), { destination: 'exportStock' });
-    }
-    if (definition.operation === 'dump') {
-      const amount = budget(definition, graph, main);
-      return result(definition, graph, {}, [{ port: mainPort, amount }], output(-1, Stack.convert(main, 'waste', amount)), { destination: 'history' });
     }
     if (definition.operation === 'screen') {
       const amount = budget(definition, graph, main);

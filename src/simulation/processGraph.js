@@ -138,10 +138,11 @@
       return { ok: false, state: 'incompatible', kind: 'incompatible', reason: 'Matière refusée par le filtre du bloc.' };
     }
     const current = node.internalBuffer.inputs[portIndex];
-    const lock = ['storage', 'merger'].includes(node.type) ? lockedResource(node) : current?.resourceId;
+    const lock = ['storage', 'merger'].includes(node.type) ? lockedResource(node) :
+      definition.operation === 'dump' ? null : current?.resourceId;
     if (lock && lock !== stack.resourceId) return { ok: false, state: 'incompatible', kind: 'incompatible',
       reason: node.type === 'merger' ? 'Fusion refusée : les matières diffèrent.' : 'Une autre matière occupe ce stock.' };
-    const capacity = node.type === 'storage'
+    const capacity = definition.operation === 'dump' ? Infinity : node.type === 'storage'
       ? Math.max(0, definition.inputCapacity - bufferedAmount(node))
       : Math.max(0, definition.inputCapacity - (current?.amount || 0));
     return capacity > Stack.EPSILON ? { ok: true, capacity } :

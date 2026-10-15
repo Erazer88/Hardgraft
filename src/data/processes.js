@@ -119,8 +119,9 @@
     { category: 'FLUX', detail: 'Même resourceId uniquement', baseThroughput: 12, energyUse: 0 });
   block('dock', 'QUAI DE CHARGEMENT', 'QU', 'export', [anyIn()], [],
     { category: 'FLUX', detail: 'Stock extérieur, filtre facultatif', baseThroughput: 12, energyUse: 0 });
-  block('dump', 'TERRIL', 'TE', 'dump', [inlet()], [],
-    { category: 'DÉCHETS', detail: 'Dépôt permanent, composition conservée', baseThroughput: 12, energyUse: 0 });
+  block('dump', 'TERRIL', 'TE', 'dump', [inlet('material', { maxThroughput: 1000000 })], [],
+    { category: 'DÉCHETS', detail: 'Poubelle sans limite de capacité ni de débit', baseThroughput: 0,
+      unlimitedThroughput: true, energyUse: 0 });
   block('waste_analyzer', 'ANALYSEUR DE DÉCHETS', 'AD', 'recipe', [inlet('waste', { acceptedTags: ['waste'], compatibilityMode: 'strict' })],
     [outlet('residual_ore'), outlet('depleted_waste')], { category: 'DÉCHETS', detail: 'Résidu minéral récupérable', baseThroughput: 5, energyUse: 4,
       recipes: [{ id: 'waste_recovery', operation: 'recycle', recovery: .65, remainingRecoverability: .35 }] });
