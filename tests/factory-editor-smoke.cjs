@@ -73,12 +73,14 @@ async function main() {
     const cardReadouts = await cdp.evaluate(`(() => {
       const card = document.querySelector('.factory-node');
       return { rate: card.querySelector('[data-readout="rate"]').textContent,
-        cycle: card.querySelector('[data-readout="cycle"]').textContent,
+        energy: card.querySelector('[data-readout="energy"]').textContent,
+        removedReadouts: ['state', 'cycle', 'input', 'output'].filter(key => card.querySelector('[data-readout="' + key + '"]')),
         progress: Boolean(card.querySelector('.factory-progress-fill')),
         outputs: [...card.querySelectorAll('.factory-port-label.output b')].map(item => item.textContent) };
     })()`);
-    assert.match(cardReadouts.rate, /VITESSE/);
-    assert.match(cardReadouts.cycle, /s \/ u/);
+    assert.match(cardReadouts.rate, /DÉBIT/);
+    assert.match(cardReadouts.energy, /MW/);
+    assert.deepEqual(cardReadouts.removedReadouts, [], 'Redundant status, cycle, input, and output rows are absent');
     assert.equal(cardReadouts.progress, true, 'Process cards show a cycle progress bar');
     assert.ok(cardReadouts.outputs.includes('Métal') && cardReadouts.outputs.includes('Déchets'),
       `Smelter outputs are labeled beside their ports: ${JSON.stringify(cardReadouts.outputs)}`);
@@ -234,10 +236,14 @@ async function main() {
     const sharedInput = await cdp.evaluate(`(() => {
       const card = document.querySelector('.factory-node[data-node-id="crusher"]');
       return { links: document.querySelectorAll('.factory-link-hit').length,
+        linkLabels: document.querySelectorAll('.factory-link-label').length,
+        linkTooltips: [...document.querySelectorAll('.factory-link')].filter(path => path.querySelector('title')).length,
         slots: [...card.querySelectorAll('.factory-port.input[data-port-index="0"]')]
           .map(port => ({ slot: Number(port.dataset.portSlot), connected: port.dataset.connected === 'true' })) };
     })()`);
     assert.equal(sharedInput.links, 2, 'Two sources can connect to one crusher input');
+    assert.equal(sharedInput.linkLabels, 0, 'Connections have no overlaid data labels');
+    assert.equal(sharedInput.linkTooltips, 0, 'Connections have no hidden data tooltips');
     assert.deepEqual(sharedInput.slots.slice(0, 2), [{ slot: 0, connected: true }, { slot: 1, connected: true }]);
     assert.ok(sharedInput.slots.some(item => !item.connected), 'The shared input exposes the next free snap point');
 

@@ -22,7 +22,6 @@
     const palette = $('factory-block-list');
     let activeBuilding = null, graph = null, nodes = [], connections = [];
     let nodeCards = new Map();
-    let selectedConnectionId = null;
     let selectedNodeId = null, pendingOutput = null, pendingPointer = null, pendingTarget = null;
     let drag = null, pinch = null, wireDrag = null;
     const activePointers = new Map();
@@ -47,7 +46,8 @@
     function nodeHeight(node, links = connections) {
       const rows = inputSlots(node, links).length;
       const inputHeight = 54 + Math.max(0, rows - 1) * 22 + 14 + 12;
-      const outputHeight = node.outputPorts.length ? 54 + (node.outputPorts.length - 1) * 32 + 24 + 8 : 0;
+      const outputCount = node.outputPorts?.length || 0;
+      const outputHeight = outputCount ? 54 + (outputCount - 1) * 32 + 24 + 8 : 0;
       return Math.max(NODE.height, inputHeight, outputHeight);
     }
 
@@ -103,7 +103,7 @@
       };
       const packet = node.preview?.ready ? node.preview : null;
       card.dataset.state = node.state;
-      set('rate', `MOY. · ${fmt(node.telemetry.outputRate)} u/s`);
+      set('rate', `DÉBIT · ${fmt(node.telemetry.outputRate)} u/s`);
       set('energy', `${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
       updateNodeProgress(card, node);
       for (const label of card.querySelectorAll('[data-output-label-index]')) {
@@ -116,11 +116,6 @@
       }
       card.style.height = `${nodeHeight(node)}px`;
       card.title = node.message || definition.detail;
-    }
-
-    function connectionReading(connection) {
-      return `${resourceName(connection.resourceId)} · ${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s · ` +
-        `${Data.statuses[connection.state] || connection.state}${connection.message ? ' · ' + connection.message : ''}`;
     }
 
     function detail(parent, label, value) {
@@ -174,24 +169,13 @@
     function renderInspector() {
       const panel = $('factory-process-details'), summary = $('factory-selected-summary');
       const node = nodes.find(item => item.id === selectedNodeId);
-      const connection = connections.find(item => item.id === selectedConnectionId);
-      panel.hidden = (!node && !connection) || !$('factory-stock-panel').hidden;
+      panel.hidden = !node || !$('factory-stock-panel').hidden;
       if (panel.hidden) return;
       summary.replaceChildren();
-      const selection = node ? node.id : connection.id;
+      const selection = node.id;
       if (panel.dataset.selection !== selection) {
         panel.dataset.selection = selection; $('factory-selected-config').replaceChildren();
-        if (node) renderNodeConfiguration(node, $('factory-selected-config'));
-      }
-      if (connection) {
-        $('factory-selected-title').textContent = 'CONNEXION';
-        const source = nodes.find(item => item.id === connection.fromNodeId), target = nodes.find(item => item.id === connection.toNodeId);
-        detail(summary, 'Direction', `${typeOf(source.type).label} (${source.outputPorts[connection.fromPort].label}) → ${typeOf(target.type).label} (${target.inputPorts[connection.toPort].label})`);
-        detail(summary, 'Ressource dominante', resourceName(connection.resourceId));
-        detail(summary, 'Débit actuel / maximal', `${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s`);
-        detail(summary, 'État', Data.statuses[connection.state] || connection.state);
-        if (connection.message) detail(summary, 'Problème', connection.message);
-        return;
+        renderNodeConfiguration(node, $('factory-selected-config'));
       }
       const definition = typeOf(node.type), job = node.job;
       $('factory-selected-title').textContent = definition.label;
@@ -289,21 +273,11 @@
       const path = document.createElementNS(svgNamespace, 'path');
       path.setAttribute('class', pending ? 'factory-link pending' : 'factory-link');
       if (!pending) {
-        path.dataset.connectionId = connection.id;
         const family = root.OrbitResourceData.get(connection.resourceId)?.family || 'mineral';
         path.dataset.family = family; path.dataset.state = connection.state;
-        const title = document.createElementNS(svgNamespace, 'title');
-        title.textContent = connectionReading(connection); path.append(title);
       }
       path.setAttribute('d', curve);
       linkLayer.append(path);
-      if (!pending) {
-        const label = document.createElementNS(svgNamespace, 'text');
-        label.setAttribute('class', 'factory-link-label'); label.dataset.connectionId = connection.id;
-        label.setAttribute('x', (start.x + end.x) / 2); label.setAttribute('y', (start.y + end.y) / 2 - 8);
-        label.textContent = connection.resourceId ? `${resourceName(connection.resourceId)} · ${fmt(connection.currentThroughput)} / ${fmt(connection.maxThroughput)} u/s` : 'EN ATTENTE';
-        linkLayer.append(label);
-      }
     }
 
     function renderConnections() {
@@ -410,7 +384,6 @@
         y: clamp(y, 8, WORLD.height - nodeHeight({ inputPorts: type.inputPorts }, connections) - 8),
         settings: typeId === 'storage' && activeBuilding.type === 'oil_platform' ? { phase: 'liquid' } : {} });
       nodes.push(node); selectedNodeId = node.id;
-      selectedConnectionId = null;
       pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
       renderNodes(); savePlanStatus();
     }
@@ -483,7 +456,6 @@
       connections = graph.connections;
       pendingOutput = null; pendingPointer = null; pendingTarget = null; wireDrag = null;
       selectedNodeId = target.id;
-      selectedConnectionId = null;
       renderNodes(); savePlanStatus();
     }
 
@@ -652,7 +624,7 @@
           }
           return;
         }
-        selectedNodeId = node.id; selectedConnectionId = null; pendingOutput = null;
+        selectedNodeId = node.id; pendingOutput = null;
         $('factory-stock-panel').hidden = true;
         drag = { kind: 'node', pointerId: event.pointerId, nodeId: node.id, startX: event.clientX, startY: event.clientY,
           originX: node.x, originY: node.y, moved: false };
@@ -662,7 +634,7 @@
         event.preventDefault(); capture(event); return;
       }
       pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
-      selectedNodeId = null; selectedConnectionId = null; renderInspector();
+      selectedNodeId = null; renderInspector();
       nodeLayer.querySelectorAll('.factory-node').forEach(item => item.classList.remove('selected'));
       drag = { kind: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
         originX: transform.x, originY: transform.y, moved: false };
@@ -735,8 +707,7 @@
           writeStatus('Aucune entrée disponible au point de dépôt.');
         } else if (completedWireDrag.connectionId) {
           pendingOutput = null; pendingPointer = null; pendingTarget = null; renderConnections();
-          selectedConnectionId = completedWireDrag.connectionId; selectedNodeId = null;
-          $('factory-stock-panel').hidden = true; renderInspector();
+          selectedNodeId = null; renderInspector();
         } else {
           pendingPointer = worldPoint(event.clientX, event.clientY);
           pendingTarget = null; renderConnections();
@@ -767,7 +738,6 @@
       cancelZoomFrame();
       activeBuilding = building;
       graph = normalizePlan(savedPlan); ({ nodes, connections } = graph);
-      selectedConnectionId = null;
       $('factory-stock-panel').hidden = true; $('factory-process-details').dataset.selection = '';
       addPalette();
       selectedNodeId = null; pendingOutput = null; pendingPointer = null; pendingTarget = null;
@@ -828,7 +798,7 @@
     });
     $('factory-stocks-close').addEventListener('click', () => { $('factory-stock-panel').hidden = true; renderInspector(); });
     $('factory-details-close').addEventListener('click', () => {
-      selectedNodeId = null; selectedConnectionId = null; renderInspector();
+      selectedNodeId = null; renderInspector();
       nodeLayer.querySelectorAll('.factory-node').forEach(item => item.classList.remove('selected'));
     });
     for (const resource of root.OrbitResourceData.catalog().filter(item => !item.canonicalId)) {

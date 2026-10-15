@@ -19,7 +19,7 @@
     const job = value.job && Array.isArray(value.job.outputs) ? {
       recipeId: value.job.recipeId || null, mode: value.job.mode || 'valid', message: String(value.job.message || ''),
       remainingSeconds: number(value.job.remainingSeconds), duration: Math.max(.01, number(value.job.duration, 1)),
-      energyUse: number(value.job.energyUse),
+      energyUse: number(value.job.energyUse), powerFactor: number(value.job.powerFactor, 1),
       inputs: normalizeStock(value.job.inputs),
       outputs: value.job.outputs.flatMap(item => {
         const stack = Stack.create(item.stack);

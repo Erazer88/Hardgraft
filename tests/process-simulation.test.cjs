@@ -387,6 +387,33 @@ test('fixed-step advance accumulates sub-tick time without running early', () =>
   assert.equal(graph.tick, 1); close(graph.accumulator, 0);
 });
 
+test('live process rates are exact from the first active tick and scale with available power', () => {
+  const crusherGraph = makeGraph(['crusher']), crusher = node(crusherGraph);
+  feed(crusher, 0, material('raw_rock', 10)); advance(crusherGraph, .1);
+  close(crusher.telemetry.inputRate, 10); close(crusher.telemetry.outputRate, 10);
+  close(crusher.telemetry.inputAmounts.raw_rock, 10);
+  close(crusher.telemetry.outputAmounts.rock_fragments, 10);
+
+  const grinderGraph = makeGraph(['grinder']), grinder = node(grinderGraph);
+  feed(grinder, 0, material('raw_rock', 10)); advance(grinderGraph, .1);
+  close(grinder.telemetry.inputRate, 1.08); close(grinder.telemetry.outputRate, 1.08);
+  close(grinder.telemetry.outputAmounts.rock_powder, 1.08);
+
+  const smelterGraph = makeGraph(['smelter']), smelter = node(smelterGraph);
+  feed(smelter, 0, material('impure_iron', 10)); feed(smelter, 1, material('carbon', 2));
+  advance(smelterGraph, .1, { energyAvailableMW: 4.1 });
+  close(smelter.telemetry.inputRate, 2.2); close(smelter.telemetry.outputRate, 2.2);
+  close(smelter.telemetry.outputAmounts.standard_iron, 1.84);
+  close(smelter.telemetry.outputAmounts.waste, .36);
+  close(smelter.telemetry.energyMW, 4.1);
+
+  const stoppedGraph = makeGraph(['crusher']), stopped = node(stoppedGraph);
+  feed(stopped, 0, material('raw_rock', 2)); advance(stoppedGraph, .1);
+  close(stopped.telemetry.outputRate, 2);
+  advance(stoppedGraph, 1.1);
+  assert.equal(stopped.job, null); close(stopped.telemetry.outputRate, 0);
+});
+
 test('deleting an active block returns actual in-progress inputs but never planned products', () => {
   const graph = makeGraph(['smelter']), smelter = node(graph);
   feed(smelter, 0, material('impure_iron', 10)); feed(smelter, 1, material('carbon', 2));

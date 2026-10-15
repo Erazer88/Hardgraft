@@ -22,13 +22,7 @@
       return sum + (packet.ready && outputsFit(node, graph, packet) ? packet.energyUse : 0);
     }, 0);
   }
-  function record(node, side, stack) {
-    const key = side === 'input' ? '_incoming' : '_outgoing';
-    node.telemetry[key] ||= {};
-    node.telemetry[key][stack.resourceId] = (node.telemetry[key][stack.resourceId] || 0) + stack.amount;
-  }
-
-  function startJob(node, graph, packet) {
+  function startJob(node, graph, packet, powerFactor = 1) {
     const consumed = [];
     for (const input of packet.inputs) {
       const source = input.external ? graph.externalStock.find(stack => stack.resourceId === input.resourceId) : node.internalBuffer.inputs[input.port];
@@ -42,7 +36,7 @@
     }
     for (const input of packet.inputs) {
       if (input.external) {
-        const taken = Stack.takeFromStock(graph.externalStock, input.resourceId, input.amount); record(node, 'input', taken);
+        Stack.takeFromStock(graph.externalStock, input.resourceId, input.amount);
       } else {
         const source = node.internalBuffer.inputs[input.port]; source.amount -= input.amount;
         if (source.amount <= EPS) node.internalBuffer.inputs[input.port] = null;
@@ -51,7 +45,7 @@
     node.job = { recipeId: packet.recipeId, mode: packet.mode, message: packet.message,
       remainingSeconds: packet.duration, duration: packet.duration, energyUse: packet.energyUse,
       inputs: consumed, outputs: packet.outputs, destination: packet.destination || null,
-      geologicalSource: packet.geologicalSource === true };
+      powerFactor, geologicalSource: packet.geologicalSource === true };
     return true;
   }
 
@@ -61,7 +55,6 @@
       if (node.job.destination === 'exportStock') Stack.addToStock(graph.exportStock, item.stack);
       else if (node.job.destination === 'history') node.internalBuffer.history = Stack.merge(node.internalBuffer.history, item.stack);
       else node.internalBuffer.outputs[item.port] = Stack.merge(node.internalBuffer.outputs[item.port], item.stack);
-      record(node, 'output', item.stack);
     }
     node.job = null;
   }
@@ -108,22 +101,28 @@
       if (stack.amount <= EPS) source.internalBuffer.outputs[link.fromPort] = null;
       available.set(key, (available.get(key) || 0) - amount);
       incomingUsed.set(targetKey, (incomingUsed.get(targetKey) || 0) + amount);
-      record(destination, 'input', piece);
       link._transferred = (link._transferred || 0) + amount; link.state = 'active';
     }
   }
 
+  function flowRates(items, unwrap, duration, factor) {
+    const amounts = {};
+    if (duration > EPS && factor > EPS) for (const item of items) {
+      const stack = unwrap(item);
+      if (stack) amounts[stack.resourceId] = (amounts[stack.resourceId] || 0) + stack.amount * factor / duration;
+    }
+    return amounts;
+  }
+
   function updateTelemetry(graph, seconds) {
     for (const node of graph.nodes) {
-      const sample = node.telemetry; sample._seconds = (sample._seconds || 0) + seconds;
-      sample._energyIntegral = (sample._energyIntegral || 0) + sample.energyMW * seconds;
-      if (sample._seconds >= 1 - EPS) {
-        sample.inputAmounts = Object.fromEntries(Object.entries(sample._incoming || {}).map(([id, value]) => [id, value / sample._seconds]));
-        sample.outputAmounts = Object.fromEntries(Object.entries(sample._outgoing || {}).map(([id, value]) => [id, value / sample._seconds]));
-        sample.inputRate = Object.values(sample.inputAmounts).reduce((sum, value) => sum + value, 0);
-        sample.outputRate = Object.values(sample.outputAmounts).reduce((sum, value) => sum + value, 0);
-        sample._seconds = 0; sample._incoming = {}; sample._outgoing = {}; sample._energyIntegral = 0;
-      }
+      const sample = node.telemetry, job = node.job;
+      const duration = job?.duration || 0, factor = job?.powerFactor ?? 0;
+      sample.inputAmounts = job ? flowRates(job.inputs, stack => stack, duration, factor) : {};
+      sample.outputAmounts = job ? flowRates(job.outputs, item => item.stack, duration, factor) : {};
+      sample.inputRate = Object.values(sample.inputAmounts).reduce((sum, value) => sum + value, 0);
+      sample.outputRate = Object.values(sample.outputAmounts).reduce((sum, value) => sum + value, 0);
+      sample.energyMW = job ? job.energyUse * factor : 0;
     }
     for (const link of graph.connections) {
       link._seconds = (link._seconds || 0) + seconds;
@@ -143,6 +142,7 @@
       node.telemetry.energyMW = 0;
       if (!node.job) continue;
       const job = node.job, factor = job.energyUse > EPS ? ratio : 1;
+      job.powerFactor = factor;
       node.state = factor <= EPS ? 'no_energy' : Resolver.stateOf(job.mode);
       node.message = factor <= EPS ? 'Aucune puissance disponible pour ce bâtiment.' : job.message;
       node.recipeId = job.recipeId; node.mode = job.mode;
@@ -180,7 +180,7 @@
         node.state = 'no_energy'; node.message = 'Aucune puissance disponible pour ce bâtiment.'; continue;
       }
       node.state = packet.state; node.message = packet.message;
-      startJob(node, graph, packet);
+      startJob(node, graph, packet, packet.energyUse > EPS ? ratio : 1);
     }
     graph.energyDemandMW = demand(graph);
     updateTelemetry(graph, seconds);
