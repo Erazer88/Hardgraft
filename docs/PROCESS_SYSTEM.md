@@ -284,3 +284,13 @@ principale (1 u). Les connexions accumulent leur capacité de transfert, puis
 déplacent la matière par paquets atomiques de 1 u, en respectant les limites de
 débit des ports. Les sorties fractionnaires des recettes s'accumulent en buffer
 jusqu'à former une unité transférable.
+
+## Unités entières et cadence d'extraction en 0.34.83
+
+Les quantités saisies et déplacées entre les blocs sont des unités entières.
+Les rendements fractionnaires restent dans un accumulateur interne et ne
+deviennent visibles sur une sortie qu'une fois une unité complète disponible.
+Les réactifs secondaires sont prélevés par unités entières puis crédités sur
+plusieurs cycles selon leur ratio de recette. La foreuse n'applique plus de
+cadence géologique comme limite de machine ; le concasseur niveau 1 traite 5 u/s
+et constitue le premier goulot de la chaîne.

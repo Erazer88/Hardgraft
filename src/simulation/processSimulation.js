@@ -12,8 +12,13 @@
     if (packet.destination === 'history') return true;
     if (packet.destination === 'exportStock') return Stack.total(graph.exportStock) + reservedExport(graph) +
       Stack.total(packet.outputs.map(item => item.stack)) <= graph.exportCapacity + EPS;
-    return packet.outputs.every(item => item.port >= 0 && node.outputPorts[item.port] &&
-      Graph.outputRoom(node, item.port, item.stack) + EPS >= item.stack.amount);
+    return packet.outputs.every(item => {
+      if (item.port < 0 || !node.outputPorts[item.port]) return false;
+      const remainder = node.internalBuffer.yieldRemainders.find(entry => entry.port === item.port &&
+        entry.stack.resourceId === item.stack.resourceId);
+      const wholeUnits = Math.floor((remainder?.stack.amount || 0) + item.stack.amount + EPS);
+      return Graph.outputRoom(node, item.port, item.stack) + EPS >= wholeUnits;
+    });
   }
   function demand(graph) {
     return graph.nodes.reduce((sum, node) => {
@@ -111,11 +116,23 @@
   }
 
   function startJob(node, graph, packet, powerFactor = 1) {
-    const consumed = [];
+    const consumed = [], creditUpdates = new Map();
     for (const input of packet.inputs) {
       const source = input.external ? graph.externalStock.find(stack => stack.resourceId === input.resourceId) : node.internalBuffer.inputs[input.port];
-      if (!source || source.amount + EPS < input.amount) return false;
-      consumed.push(Stack.portion(source, input.amount));
+      const debitAmount = input.reserveAmount ?? input.amount;
+      if (input.ingredientCredit) {
+        const currentCredit = node.internalBuffer.ingredientCredits[input.port];
+        const sourceAmount = source?.resourceId === input.resourceId ? source.amount : 0;
+        if (sourceAmount + EPS < debitAmount || (currentCredit?.amount || 0) + debitAmount + EPS < input.amount) return false;
+        const reserved = debitAmount > EPS ? Stack.portion(source, debitAmount) : null;
+        const pool = Stack.merge(currentCredit, reserved), used = Stack.portion(pool, input.amount);
+        const remaining = pool.amount - input.amount;
+        consumed.push(used);
+        creditUpdates.set(input.port, remaining > EPS ? Stack.portion(pool, remaining) : null);
+      } else {
+        if (!source || source.amount + EPS < debitAmount) return false;
+        consumed.push(Stack.portion(source, input.amount));
+      }
     }
     const inputMass = Stack.total(consumed), outputMass = Stack.total(packet.outputs.map(item => item.stack));
     if (!packet.geologicalSource && Math.abs(inputMass - outputMass) > EPS * Math.max(1, inputMass)) {
@@ -123,17 +140,23 @@
       return false;
     }
     for (const input of packet.inputs) {
+      const debitAmount = input.reserveAmount ?? input.amount;
+      if (debitAmount <= EPS) continue;
       if (input.external) {
-        Stack.takeFromStock(graph.externalStock, input.resourceId, input.amount);
+        Stack.takeFromStock(graph.externalStock, input.resourceId, debitAmount);
       } else {
-        const source = node.internalBuffer.inputs[input.port]; source.amount -= input.amount;
+        const source = node.internalBuffer.inputs[input.port]; source.amount -= debitAmount;
         if (source.amount <= EPS) node.internalBuffer.inputs[input.port] = null;
       }
     }
-    const primaryInputPorts = Graph.definitionOf(node).mainInputPorts;
+    for (const [port, stack] of creditUpdates) node.internalBuffer.ingredientCredits[port] = stack;
+    for (const update of packet.creditUpdates || []) node.internalBuffer.ingredientCredits[update.port] = update.stack;
+    const definition = Graph.definitionOf(node), primaryInputPorts = definition.mainInputPorts;
     if (primaryInputPorts?.length > 1 && Number.isInteger(packet.inputs[0]?.port)) {
       const index = primaryInputPorts.indexOf(packet.inputs[0].port);
       if (index >= 0) node.settings.nextMainPort = primaryInputPorts[(index + 1) % primaryInputPorts.length];
+    } else if (definition.operation === 'merge' && Number.isInteger(packet.inputs[0]?.port)) {
+      node.settings.nextMainPort = (packet.inputs[0].port + 1) % Math.max(1, node.inputPorts.length);
     }
     node.job = { recipeId: packet.recipeId, mode: packet.mode, message: packet.message,
       remainingSeconds: packet.duration, duration: packet.duration, energyUse: packet.energyUse,
@@ -142,14 +165,34 @@
     return true;
   }
 
+  function flushYieldRemainders(node) {
+    for (const entry of node.internalBuffer.yieldRemainders) {
+      if (!entry.stack) continue;
+      const room = Graph.outputRoom(node, entry.port, entry.stack);
+      const whole = Math.floor(Math.min(entry.stack.amount, room) + EPS);
+      if (whole < 1) continue;
+      const portion = Stack.portion(entry.stack, whole);
+      node.internalBuffer.outputs[entry.port] = Stack.merge(node.internalBuffer.outputs[entry.port], portion);
+      entry.stack.amount = Math.max(0, entry.stack.amount - whole);
+      if (entry.stack.amount <= EPS) entry.stack = null;
+    }
+    node.internalBuffer.yieldRemainders = node.internalBuffer.yieldRemainders.filter(entry => entry.stack);
+  }
+
   function finishJob(node, graph) {
     if (node.job.geologicalSource) graph.totalExtracted += Stack.total(node.job.outputs.map(item => item.stack));
     for (const item of node.job.outputs) {
       if (node.job.destination === 'exportStock') Stack.addToStock(graph.exportStock, item.stack);
       else if (node.job.destination === 'history') node.internalBuffer.history = Stack.merge(node.internalBuffer.history, item.stack);
-      else node.internalBuffer.outputs[item.port] = Stack.merge(node.internalBuffer.outputs[item.port], item.stack);
+      else {
+        let entry = node.internalBuffer.yieldRemainders.find(value => value.port === item.port &&
+          value.stack.resourceId === item.stack.resourceId);
+        if (!entry) { entry = { port: item.port, stack: null }; node.internalBuffer.yieldRemainders.push(entry); }
+        entry.stack = Stack.merge(entry.stack, item.stack);
+      }
     }
     node.job = null;
+    flushYieldRemainders(node);
   }
 
   // One transfer pass uses a snapshot of available outputs. New input cannot
@@ -215,6 +258,7 @@
       }
       if (moved > 0) link.state = 'active';
     }
+    for (const node of graph.nodes) flushYieldRemainders(node);
   }
 
   function flowRates(items, unwrap, duration, factor) {

@@ -46,15 +46,15 @@
       return { ok: false, message: 'Matière ou quantité invalide.' };
     }
     const graph = ensureGraph(state, building), room = Math.max(0, graph.inputCapacity - Stack.total(graph.externalStock));
-    const accepted = Math.min(amount, room);
-    if (accepted <= Stack.EPSILON) return { ok: false, message: 'Stock d’entrée du bâtiment plein.' };
+    const accepted = Math.floor(Math.min(amount, room) + Stack.EPSILON);
+    if (accepted < 1) return { ok: false, message: room < 1 ? 'Stock d’entrée du bâtiment plein.' : 'La quantité doit contenir au moins 1 u entière.' };
     const inventoryId = legacyInventoryId(resourceId);
     if (!Data.config.colonyReserveInfinite && !root.OrbitInventory.consume(state.inventory, { [inventoryId]: accepted })) {
       return { ok: false, message: 'Réserve de la colonie insuffisante.' };
     }
     Stack.addToStock(graph.externalStock, Stack.create({ resourceId, amount: accepted,
       origin: { kind: 'colony', seed: state.seed }, moisture: resourceId === 'sludge' ? .9 : 0 }));
-    return { ok: true, amount: accepted, message: `${accepted.toFixed(1)} u ajoutées au stock d’entrée.` };
+    return { ok: true, amount: accepted, message: `${accepted} u ajoutées au stock d’entrée.` };
   }
 
   function step(state, seconds) {
@@ -109,7 +109,8 @@
     const resolved = ensureGraph(state, building);
     const stocks = [...resolved.externalStock, ...resolved.exportStock, ...resolved.retainedWaste];
     for (const node of resolved.nodes) stocks.push(...node.internalBuffer.inputs, ...node.internalBuffer.outputs,
-      node.internalBuffer.history, ...(node.job?.inputs || []));
+      node.internalBuffer.history, ...(node.internalBuffer.ingredientCredits || []),
+      ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack), ...(node.job?.inputs || []));
     state.colonyMaterials ||= [];
     for (const stack of stocks.filter(Boolean)) {
       Stack.addToStock(state.colonyMaterials, stack);

@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
   const config = {
-    version: 2, fixedStepSeconds: .1, resourceUnit: 1, maxTicksPerAdvance: 100, maxTransfersPerTick: 512,
+    version: 3, fixedStepSeconds: .1, resourceUnit: 1, maxTicksPerAdvance: 100, maxTransfersPerTick: 512,
     maxNodes: 256, maxConnections: 512, world: { width: 2600, height: 1800 },
     inputCapacity: 20, outputCapacity: 20, buildingInputCapacity: 1000, buildingExportCapacity: 500,
     colonyReserveInfinite: true, windPowerUnlimited: true, windPowerMW: 32, geothermalPowerMW: 80,
@@ -41,11 +41,12 @@
   }
   block('input', 'ENTRÉE DU BÂTIMENT', 'IN', 'import', [], [anyOut()],
     { category: 'FLUX', detail: 'Stock extérieur vers processus', baseThroughput: 12, energyUse: 0 });
-  block('drill', 'FOREUSE', 'FO', 'source', [], [outlet('raw_rock')],
-    { category: 'EXTRACTION', detail: 'Roche du gisement associé', baseThroughput: 10, energyUse: 2.5, sourceResource: 'raw_rock' });
+  block('drill', 'FOREUSE', 'FO', 'source', [], [outlet('raw_rock', { maxThroughput: 1000000 })],
+    { category: 'EXTRACTION', detail: 'Extraction sans limite ; le concasseur cadence le flux',
+      baseThroughput: 1000000, unlimitedThroughput: true, energyUse: 2.5, sourceResource: 'raw_rock' });
   block('crusher', 'CONCASSEUR', 'CO', 'recipe', [inlet(), inlet('rework', {
     acceptedTags: ['ore', 'waste'], compatibilityMode: 'strict' })], [outlet()],
-    { detail: 'Roche brute / trop gros → fragments', baseThroughput: 10, energyUse: 2,
+    { detail: 'Roche brute / trop gros → fragments', baseThroughput: 5, energyUse: 2,
       mainInputPorts: [0, 1],
       recipes: [{ id: 'crush', operation: 'resize', particleSizes: ['raw', 'oversized'], resources: ['raw_rock', 'rock_fragments',
         'residual_ore', 'residual_ore_fragment', 'waste', 'residual_waste'],

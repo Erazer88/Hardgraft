@@ -67,17 +67,33 @@
   }
 
   function ingredientBatch(node, graph, definition, recipe, main, mainPort = 0) {
-    let amount = budget(definition, graph, main, recipe), secondary = null;
+    let amount = budget(definition, graph, main, recipe), secondary = null, creditUpdates = [];
+    if (amount + EPS < (Data.config.resourceUnit || 1)) {
+      return { error: blocked('missing_input', `En attente de ${Data.config.resourceUnit || 1} u entière.`) };
+    }
     if (recipe.secondary) {
       const required = recipe.secondary, available = node.internalBuffer.inputs[required.port];
-      if (!available || available.resourceId !== required.resourceId || available.amount <= EPS) {
+      const credit = node.internalBuffer.ingredientCredits[required.port];
+      if (credit && credit.resourceId !== required.resourceId) {
+        return { error: blocked('incompatible', 'Le crédit d’ingrédient contient une matière différente.', 'impossible') };
+      }
+      const needed = amount * required.ratio, shortfall = Math.max(0, needed - (credit?.amount || 0));
+      const reserveAmount = Math.ceil(shortfall - EPS);
+      if (reserveAmount > 0 && (!available || available.resourceId !== required.resourceId || available.amount + EPS < reserveAmount)) {
         return { error: blocked('missing_input', 'ENTRÉE MANQUANTE : ' + Resources.get(required.resourceId).label.toUpperCase()) };
       }
-      amount = Math.min(amount, available.amount / required.ratio);
-      secondary = Stack.portion(available, amount * required.ratio);
+      const reserved = reserveAmount > 0 ? Stack.portion(available, reserveAmount) : null;
+      const creditPool = Stack.merge(credit, reserved);
+      secondary = Stack.portion(creditPool, needed);
+      const creditLeft = creditPool.amount - needed;
+      creditUpdates = [{ port: required.port, stack: creditLeft > EPS ? Stack.portion(creditPool, creditLeft) : null }];
+      amount = Math.min(amount, 1);
+      return { amount, main: Stack.portion(main, amount), secondary,
+        inputs: [{ port: mainPort, amount }, { port: required.port, resourceId: required.resourceId,
+          amount: secondary.amount, reserveAmount, ingredientCredit: true }], creditUpdates };
     }
     return { amount, main: Stack.portion(main, amount), secondary,
-      inputs: [{ port: mainPort, amount }, ...(secondary ? [{ port: recipe.secondary.port, amount: secondary.amount }] : [])] };
+      inputs: [{ port: mainPort, amount }], creditUpdates };
   }
 
   function recover(node, graph, definition, recipe, main, mainPort = 0) {
@@ -103,7 +119,8 @@
     if (!product && !batch.secondary && !main.tags.includes('ore') && !main.tags.includes('waste')) rejection = batch.main;
     if (!product) adjusted = { ...adjusted, mode: 'useless', message: 'Aucune fraction ' + recipe.element + ' récupérable : flux dirigé vers les rejets.' };
     if (recipe.wasteResource === 'sludge' && rejection) rejection = Stack.create({ ...rejection, moisture: .9 });
-    return result(definition, graph, adjusted, batch.inputs, [...output(0, product), ...output(1, rejection)]);
+    return result(definition, graph, adjusted, batch.inputs, [...output(0, product), ...output(1, rejection)],
+      { creditUpdates: batch.creditUpdates });
   }
 
   function purify(node, graph, definition, recipe, main, mainPort = 0) {
@@ -122,7 +139,8 @@
     const product = usefulStack(batch.main, recipe.outputResource, usefulAmount, { moisture: 0 });
     const rejection = remainder(ingredients, product, recipe.wasteResource || 'waste',
       recipe.wasteResource === 'sludge' ? { moisture: .9 } : {});
-    return result(definition, graph, adjusted, batch.inputs, [...output(0, product), ...output(1, rejection)]);
+    return result(definition, graph, adjusted, batch.inputs, [...output(0, product), ...output(1, rejection)],
+      { creditUpdates: batch.creditUpdates });
   }
 
   function recycle(node, graph, definition, recipe, main) {
@@ -157,8 +175,9 @@
           (oil ? graph.geology.resourceId !== 'oil' : graph.geology.resourceId === 'oil')) {
         return blocked('missing_input', 'Aucun gisement compatible associé au bâtiment.');
       }
-      if (graph.geology.throughput <= EPS) return blocked('waiting', 'Le gisement ne produit aucun flux actuellement.');
-      const adjusted = { rateMultiplier: graph.geology.throughput / definition.baseThroughput,
+      if (oil && graph.geology.throughput <= EPS) return blocked('waiting', 'Le gisement ne produit aucun flux actuellement.');
+      const sourceRate = oil ? graph.geology.throughput : definition.baseThroughput;
+      const adjusted = { rateMultiplier: sourceRate / definition.baseThroughput,
         energyMultiplier: graph.geology.hardness, id: 'geological_extraction' };
       const time = timing(definition, graph, adjusted);
       const stack = Stack.create({ resourceId: definition.sourceResource, amount: Math.min(time.rate * time.duration,
@@ -178,13 +197,17 @@
       const stacks = node.internalBuffer.inputs.filter(Boolean);
       if (!stacks.length) return blocked('missing_input', 'Aucun flux à fusionner.');
       if (stacks.some(stack => stack.resourceId !== stacks[0].resourceId)) return blocked('incompatible', 'Fusion refusée : Fer + Cuivre ne crée pas un alliage.', 'impossible');
-      const time = timing(definition, graph), total = Math.min(Stack.total(stacks), time.rate * time.duration,
-        definition.outputCapacity, Data.config.resourceUnit || 1);
-      const available = Stack.total(stacks), inputs = [], portions = [];
-      node.internalBuffer.inputs.forEach((stack, port) => { if (stack) {
-        const amount = total * stack.amount / available; inputs.push({ port, amount }); portions.push(Stack.portion(stack, amount));
-      } });
-      return result(definition, graph, {}, inputs, output(0, portions.reduce((a, b) => Stack.merge(a, b), null)));
+      const time = timing(definition, graph), unit = Data.config.resourceUnit || 1;
+      const start = Number.isInteger(node.settings.nextMainPort) ? node.settings.nextMainPort : 0;
+      let port = -1;
+      for (let offset = 0; offset < node.internalBuffer.inputs.length; offset++) {
+        const candidate = (start + offset) % node.internalBuffer.inputs.length;
+        const stack = node.internalBuffer.inputs[candidate];
+        if (stack && stack.amount + EPS >= unit) { port = candidate; break; }
+      }
+      if (port < 0) return blocked('missing_input', `En attente de ${unit} u entière pour fusionner.`);
+      const amount = Math.min(unit, time.rate * time.duration, definition.outputCapacity);
+      return result(definition, graph, {}, [{ port, amount }], output(0, Stack.portion(node.internalBuffer.inputs[port], amount)));
     }
     if (!main) return blocked('missing_input', 'Aucune matière dans le buffer d’entrée.');
     const acceptance = Graph.acceptance(node, mainPort, main);

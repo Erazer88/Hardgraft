@@ -14,8 +14,18 @@
     const sourceBuffer = value.internalBuffer || {};
     const inputs = Array.from({ length: Math.max(definition?.inputs || 0, sourceBuffer.inputs?.length || 0) },
       (_, index) => Stack.create(sourceBuffer.inputs?.[index]));
-    const outputs = Array.from({ length: Math.max(definition?.outputs || 0, sourceBuffer.outputs?.length || 0) },
-      (_, index) => Stack.create(sourceBuffer.outputs?.[index]));
+    const yieldRemainders = Array.isArray(sourceBuffer.yieldRemainders) ? sourceBuffer.yieldRemainders.flatMap(item => {
+      const stack = Stack.create(item?.stack);
+      return stack && Number.isInteger(item.port) && item.port >= 0 && item.port < (definition?.outputs || 0)
+        ? [{ port: item.port, stack }] : [];
+    }) : [];
+    const outputs = Array.from({ length: Math.max(definition?.outputs || 0, sourceBuffer.outputs?.length || 0) }, (_, index) => {
+      const stack = Stack.create(sourceBuffer.outputs?.[index]);
+      if (!stack) return null;
+      const whole = Math.floor(stack.amount + Stack.EPSILON), remainder = stack.amount - whole;
+      if (remainder > Stack.EPSILON) yieldRemainders.push({ port: index, stack: Stack.portion(stack, remainder) });
+      return whole > 0 ? Stack.portion(stack, whole) : null;
+    });
     const job = value.job && Array.isArray(value.job.outputs) ? {
       recipeId: value.job.recipeId || null, mode: value.job.mode || 'valid', message: String(value.job.message || ''),
       remainingSeconds: number(value.job.remainingSeconds), duration: Math.max(.01, number(value.job.duration, 1)),
@@ -30,7 +40,9 @@
     const settings = value.settings || {};
     return { id: value.id, type, x: number(value.x, 24), y: number(value.y, 24),
       inputPorts: clone(definition?.inputPorts || []), outputPorts: clone(definition?.outputPorts || []),
-      internalBuffer: { inputs, outputs, history: Stack.create(sourceBuffer.history) },
+      internalBuffer: { inputs, outputs, history: Stack.create(sourceBuffer.history), yieldRemainders,
+        ingredientCredits: Array.from({ length: Math.max(definition?.inputs || 0, sourceBuffer.inputs?.length || 0) },
+          (_, index) => Stack.create(sourceBuffer.ingredientCredits?.[index])) },
       transferCredits: Array.from({ length: Math.max(definition?.inputs || 0, sourceBuffer.inputs?.length || 0) },
         (_, index) => number(value.transferCredits?.[index])),
       processingTime: definition?.processingTime || 1, energyUse: definition?.energyUse || 0,
@@ -100,11 +112,15 @@
 
   function lockedResource(node) {
     return [...node.internalBuffer.inputs, ...node.internalBuffer.outputs,
+      ...(node.internalBuffer.ingredientCredits || []),
+      ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack),
       ...(node.job?.outputs.map(item => item.stack) || [])].find(Boolean)?.resourceId || null;
   }
 
   function bufferedAmount(node) {
-    return Stack.total([...node.internalBuffer.inputs, ...node.internalBuffer.outputs, ...(node.job?.inputs || [])]);
+    return Stack.total([...node.internalBuffer.inputs, ...node.internalBuffer.outputs,
+      ...(node.internalBuffer.ingredientCredits || []), ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack),
+      ...(node.job?.inputs || [])]);
   }
 
   function acceptance(node, portIndex, stack) {
@@ -154,6 +170,7 @@
     const node = graph.nodes.find(item => item.id === id);
     if (!node) return false;
     [...node.internalBuffer.inputs, ...node.internalBuffer.outputs, node.internalBuffer.history,
+      ...(node.internalBuffer.ingredientCredits || []), ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack),
       ...(node.job?.inputs || [])].forEach(stack => salvage(graph, stack));
     graph.nodes = graph.nodes.filter(item => item !== node);
     graph.connections = graph.connections.filter(link => link.fromNodeId !== id && link.toNodeId !== id);
@@ -174,7 +191,8 @@
   function materialTotal(graph) {
     return Stack.total([...graph.externalStock, ...graph.exportStock, ...graph.retainedWaste]) +
       graph.nodes.reduce((sum, node) => sum + Stack.total([...node.internalBuffer.inputs, ...node.internalBuffer.outputs,
-        node.internalBuffer.history, ...(node.job?.inputs || [])]), 0);
+        node.internalBuffer.history, ...(node.internalBuffer.ingredientCredits || []),
+        ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack), ...(node.job?.inputs || [])]), 0);
   }
   root.OrbitProcessBlock = Object.freeze({ create: createBlock });
   root.OrbitProcessGraph = Object.freeze({ create, snapshot, connect, acceptance, outputRoom, removeNode,

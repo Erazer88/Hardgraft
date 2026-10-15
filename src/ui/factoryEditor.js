@@ -10,6 +10,7 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
+  const fmtUnits = value => numberFormat.format(Math.floor((Number.isFinite(value) ? value : 0) + Stack.EPSILON));
   const resourceName = id => root.OrbitResourceData.get(id)?.label || id || '—';
   const phaseName = phase => ({ solid: 'solide', liquid: 'liquide', gas: 'gaz' })[phase] || phase;
 
@@ -78,7 +79,8 @@
 
     function stackSummary(stacks) {
       const present = stacks.filter(Boolean);
-      return present.length ? present.map(stack => `${resourceName(stack.resourceId)} ${fmt(stack.amount)} u`).join(' · ') : '—';
+      return present.length ? present.map(stack => `${resourceName(stack.resourceId)} ${Math.floor(stack.amount + Stack.EPSILON) > 0
+        ? `${fmtUnits(stack.amount)} u` : 'en accumulation'}`).join(' · ') : '—';
     }
 
     function updateNodeProgress(card, node) {
@@ -108,11 +110,13 @@
       updateNodeProgress(card, node);
       for (const label of card.querySelectorAll('[data-output-label-index]')) {
         const index = Number(label.dataset.outputLabelIndex);
-        const current = node.internalBuffer.outputs[index] || node.job?.outputs.find(item => item.port === index)?.stack;
+        const current = node.internalBuffer.outputs[index];
+        const pending = node.internalBuffer.yieldRemainders.find(item => item.port === index);
         const value = label.querySelector('small');
-        if (value) value.textContent = current ? `${fmt(current.amount)} u` : '—';
+        if (value) value.textContent = current ? `${fmtUnits(current.amount)} u` : pending ? 'ACCUM.' : '—';
         const port = node.outputPorts[index];
-        label.title = `${port.label}${current ? ` · ${resourceName(current.resourceId)} · ${fmt(current.amount)} u` : ''}`;
+        label.title = `${port.label}${current ? ` · ${resourceName(current.resourceId)} · ${fmtUnits(current.amount)} u` :
+          pending ? ` · ${resourceName(pending.stack.resourceId)} · accumulation jusqu’à 1 u` : ''}`;
       }
       card.style.height = `${nodeHeight(node)}px`;
       card.title = node.message || definition.detail;
@@ -183,7 +187,7 @@
       detail(summary, 'Entrée actuelle', stackSummary(node.internalBuffer.inputs.some(Boolean) ? node.internalBuffer.inputs : job?.inputs || []));
       detail(summary, 'Sortie actuelle', stackSummary(node.internalBuffer.outputs));
       if (job) detail(summary, 'Production prévue', stackSummary(job.outputs.map(item => item.stack)));
-      detail(summary, 'Débit', `${fmt(node.telemetry.displayRate)} / ${fmt(definition.baseThroughput)} u/s`);
+      detail(summary, 'Débit', `${fmt(node.telemetry.displayRate)} / ${definition.unlimitedThroughput ? '∞' : fmt(definition.baseThroughput)} u/s`);
       detail(summary, 'Énergie', `${fmt(node.telemetry.energyMW)} MW · nominal ${fmt(job?.energyUse ?? definition.energyUse)} MW`);
       detail(summary, 'Recette active', job ? `${[...new Set(job.inputs.map(stack => resourceName(stack.resourceId)))].join(' + ') || 'Gisement'} → ` +
         [...new Set(job.outputs.map(item => resourceName(item.stack.resourceId)))].join(' + ') : definition.detail);
@@ -196,7 +200,8 @@
       if (materials.length) detail(summary, 'Préparation', materials.map(stack => `${resourceName(stack.resourceId)} · ` +
         `${({ impure: 'impur', standard: 'standard', superior: 'supérieur' })[stack.quality]} · ` +
         `${({ raw: 'brut', fragment: 'fragmenté', powder: 'poudre' })[stack.particleSize]} · humidité ${fmt(stack.moisture * 100)} %`).join(' / '));
-      if (definition.operation === 'source' && graph.geology) detail(summary, 'Gisement',
+      if (definition.operation === 'source' && graph.geology) detail(summary, 'Gisement', node.type === 'drill'
+        ? `${resourceName(graph.geology.resourceId)} · dureté ${fmt(graph.geology.hardness)} · extraction sans limite` :
         `${resourceName(graph.geology.resourceId)} · dureté ${fmt(graph.geology.hardness)} · débit géologique ${fmt(graph.geology.throughput)} u/s`);
       if (node.type === 'dump') {
         const history = node.internalBuffer.history;
@@ -209,8 +214,8 @@
     function renderStocks() {
       const parent = $('factory-building-stocks'); if (!graph || $('factory-stock-panel').hidden) return;
       parent.replaceChildren();
-      detail(parent, `ENTRÉE · ${fmt(Stack.total(graph.externalStock))} / ${graph.inputCapacity} u`, stackSummary(graph.externalStock));
-      detail(parent, `QUAIS · ${fmt(Stack.total(graph.exportStock))} / ${graph.exportCapacity} u`, stackSummary(graph.exportStock));
+      detail(parent, `ENTRÉE · ${fmtUnits(Stack.total(graph.externalStock))} / ${graph.inputCapacity} u`, stackSummary(graph.externalStock));
+      detail(parent, `QUAIS · ${fmtUnits(Stack.total(graph.exportStock))} / ${graph.exportCapacity} u`, stackSummary(graph.exportStock));
       detail(parent, 'DÉCHETS DE RÉCUPÉRATION', stackSummary(graph.retainedWaste));
     }
 
