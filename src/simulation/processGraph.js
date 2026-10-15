@@ -31,6 +31,8 @@
     return { id: value.id, type, x: number(value.x, 24), y: number(value.y, 24),
       inputPorts: clone(definition?.inputPorts || []), outputPorts: clone(definition?.outputPorts || []),
       internalBuffer: { inputs, outputs, history: Stack.create(sourceBuffer.history) },
+      transferCredits: Array.from({ length: Math.max(definition?.inputs || 0, sourceBuffer.inputs?.length || 0) },
+        (_, index) => number(value.transferCredits?.[index])),
       processingTime: definition?.processingTime || 1, energyUse: definition?.energyUse || 0,
       recipes: definition?.recipes || [], settings: {
         ratio: Number.isFinite(settings.ratio) ? Math.max(0, Math.min(1, settings.ratio)) : .5,
@@ -92,7 +94,7 @@
       toNodeId: target.id, toPort: to, toSlot, fromPortId: source.outputPorts[from].id,
       toPortId: target.inputPorts[to].id, resourceId: null, currentThroughput: 0,
       maxThroughput: Math.min(source.outputPorts[from].maxThroughput, target.inputPorts[to].maxThroughput),
-      state: 'waiting', message: '' });
+      transferCredit: number(connection.transferCredit), state: 'waiting', message: '' });
     return { ok: true };
   }
 

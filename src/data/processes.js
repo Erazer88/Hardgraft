@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
   const config = {
-    version: 2, fixedStepSeconds: .1, maxTicksPerAdvance: 100, maxTransfersPerTick: 512,
+    version: 2, fixedStepSeconds: .1, resourceUnit: 1, maxTicksPerAdvance: 100, maxTransfersPerTick: 512,
     maxNodes: 256, maxConnections: 512, world: { width: 2600, height: 1800 },
     inputCapacity: 20, outputCapacity: 20, buildingInputCapacity: 1000, buildingExportCapacity: 500,
     colonyReserveInfinite: true, windPowerUnlimited: true, windPowerMW: 32, geothermalPowerMW: 80,

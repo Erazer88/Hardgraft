@@ -92,7 +92,7 @@
         progressBar.style.width = `${width}%`;
       }
       const label = card.querySelector('[data-readout="progress-label"]');
-      const text = node.job ? `CYCLE · ${percent} %`
+      const text = node.job ? `CYCLE · 1 u · ${percent} %`
         : node.preview?.ready ? 'PRÊT' : 'EN ATTENTE';
       if (label && label.textContent !== text) label.textContent = text;
     }

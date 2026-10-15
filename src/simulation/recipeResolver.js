@@ -21,6 +21,8 @@
     const workAmount = inputs.length ? (definition.operation === 'merge'
       ? inputs.reduce((sum, item) => sum + item.amount, 0) : inputs[0].amount)
       : Stack.total(outputs.filter(item => item.port >= 0).map(item => item.stack));
+    const unit = Data.config.resourceUnit || 1;
+    if (workAmount + EPS < unit) return blocked('missing_input', `En attente de ${unit} u pour terminer un cycle.`);
     const duration = workAmount > EPS
       ? Math.min(time.duration, Math.max(Data.config.fixedStepSeconds, workAmount / time.rate)) : time.duration;
     return { ready: true, state: stateOf(mode), mode, message: recipe.message || '', recipeId: recipe.id || definition.operation,
@@ -28,7 +30,10 @@
   }
   function budget(definition, graph, stack, recipe = {}) {
     const time = timing(definition, graph, recipe);
-    return Math.min(stack.amount, time.rate * time.duration, definition.outputCapacity / (1 + (recipe.secondary?.ratio || 0)));
+    const unit = Data.config.resourceUnit || 1;
+    const available = Math.min(stack.amount, time.rate * time.duration,
+      definition.outputCapacity / (1 + (recipe.secondary?.ratio || 0)));
+    return available + EPS >= unit ? unit : 0;
   }
   const output = (port, stack) => stack ? [{ port, stack }] : [];
   function usefulStack(source, resourceId, amount, changes = {}) {
@@ -156,7 +161,8 @@
       const adjusted = { rateMultiplier: graph.geology.throughput / definition.baseThroughput,
         energyMultiplier: graph.geology.hardness, id: 'geological_extraction' };
       const time = timing(definition, graph, adjusted);
-      const stack = Stack.create({ resourceId: definition.sourceResource, amount: Math.min(time.rate * time.duration, definition.outputCapacity),
+      const stack = Stack.create({ resourceId: definition.sourceResource, amount: Math.min(time.rate * time.duration,
+        definition.outputCapacity, Data.config.resourceUnit || 1),
         composition: graph.geology.composition, moisture: graph.geology.moisture,
         origin: { kind: 'deposit', id: graph.geology.id, planetId: graph.geology.planetId }, quality: 'impure' });
       return result(definition, graph, adjusted, [], output(0, stack), { geologicalSource: true });
@@ -172,7 +178,8 @@
       const stacks = node.internalBuffer.inputs.filter(Boolean);
       if (!stacks.length) return blocked('missing_input', 'Aucun flux à fusionner.');
       if (stacks.some(stack => stack.resourceId !== stacks[0].resourceId)) return blocked('incompatible', 'Fusion refusée : Fer + Cuivre ne crée pas un alliage.', 'impossible');
-      const time = timing(definition, graph), total = Math.min(Stack.total(stacks), time.rate * time.duration, definition.outputCapacity);
+      const time = timing(definition, graph), total = Math.min(Stack.total(stacks), time.rate * time.duration,
+        definition.outputCapacity, Data.config.resourceUnit || 1);
       const available = Stack.total(stacks), inputs = [], portions = [];
       node.internalBuffer.inputs.forEach((stack, port) => { if (stack) {
         const amount = total * stack.amount / available; inputs.push({ port, amount }); portions.push(Stack.portion(stack, amount));
@@ -210,7 +217,9 @@
     if (definition.operation === 'split') {
       const desired = budget(definition, graph, main), roomA = Graph.outputRoom(node, 0, main), roomB = Graph.outputRoom(node, 1, main);
       const amount = Math.min(desired, roomA + roomB);
-      if (amount <= EPS) return blocked('output_blocked', 'Les deux branches sont pleines.');
+      if (amount + EPS < (Data.config.resourceUnit || 1)) {
+        return blocked('output_blocked', 'Les sorties doivent pouvoir accueillir le cycle complet de 1 u.');
+      }
       let amountA = Math.min(amount * clamp(node.settings.ratio, 0, 1), roomA);
       const amountB = Math.min(amount - amountA, roomB); amountA += Math.min(amount - amountA - amountB, roomA - amountA);
       return result(definition, graph, {}, [{ port: mainPort, amount: amountA + amountB }],

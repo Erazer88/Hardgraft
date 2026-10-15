@@ -26,6 +26,8 @@
   function rateProfile(node, packet) {
     if (!packet || !Number.isFinite(packet.rate) || packet.rate <= EPS) return null;
     const definition = Graph.definitionOf(node), generated = ['source', 'import'].includes(definition.operation);
+    const unit = Config.resourceUnit || 1;
+    const rate = Math.min(packet.rate, unit / Config.fixedStepSeconds);
     const mainPorts = definition.operation === 'merge'
       ? definition.inputPorts.map((_, index) => index) : (definition.mainInputPorts || [0]);
     const inputAmounts = new Map(); let externalAmount = 0;
@@ -36,7 +38,7 @@
     }
     const mainAmount = generated ? externalAmount : mainPorts.reduce((sum, port) => sum + (inputAmounts.get(port) || 0), 0);
     const denominator = definition.operation === 'import' ? externalAmount :
-      (generated ? packet.rate * (packet.duration || 1) : mainAmount);
+      (generated ? rate * (packet.duration || 1) : mainAmount);
     if (denominator <= EPS) return null;
     const outputRatios = {};
     for (const item of packet.outputs || []) {
@@ -46,7 +48,7 @@
     if (!generated) for (const [port, amount] of inputAmounts) {
       if (!mainPorts.includes(port) && amount > EPS) secondaryRatios[port] = amount / mainAmount;
     }
-    return { rate: packet.rate, generated, mainPorts, outputRatios, secondaryRatios };
+    return { rate, generated, mainPorts, outputRatios, secondaryRatios };
   }
 
   function estimateDisplayRates(graph) {
@@ -158,11 +160,24 @@
       [`${node.id}:${port}`, stack?.amount || 0])));
     const links = graph.connections.slice().sort((a, b) => a.id.localeCompare(b.id));
     const start = links.length ? graph.tick % links.length : 0;
-    const incomingUsed = new Map();
-    for (let offset = 0; offset < Math.min(links.length, Config.maxTransfersPerTick); offset++) {
-      const link = links[(start + offset) % links.length], source = byId.get(link.fromNodeId), destination = byId.get(link.toNodeId);
-      if (source && destination) link.maxThroughput = Math.min(source.outputPorts[link.fromPort].maxThroughput,
+    const unit = Config.resourceUnit || 1, inputPortsWithLinks = new Map();
+    const creditCapacity = rate => Math.max(unit, unit + rate * Config.fixedStepSeconds);
+    for (const link of links) {
+      const source = byId.get(link.fromNodeId), destination = byId.get(link.toNodeId);
+      if (!source || !destination) continue;
+      link.maxThroughput = Math.min(source.outputPorts[link.fromPort].maxThroughput,
         destination.inputPorts[link.toPort].maxThroughput);
+      const credit = Number.isFinite(link.transferCredit) ? link.transferCredit : 0;
+      link.transferCredit = Math.min(creditCapacity(link.maxThroughput), credit + link.maxThroughput * seconds);
+      inputPortsWithLinks.set(`${destination.id}:${link.toPort}`, { node: destination, port: link.toPort });
+    }
+    for (const { node, port } of inputPortsWithLinks.values()) {
+      const rate = node.inputPorts[port].maxThroughput, credit = node.transferCredits[port] || 0;
+      node.transferCredits[port] = Math.min(creditCapacity(rate), credit + rate * seconds);
+    }
+    let transferCount = 0;
+    for (let offset = 0; offset < links.length && offset < Config.maxTransfersPerTick; offset++) {
+      const link = links[(start + offset) % links.length], source = byId.get(link.fromNodeId), destination = byId.get(link.toNodeId);
       const stack = source?.internalBuffer.outputs[link.fromPort];
       link.state = 'waiting'; link.message = '';
       if (!source || !destination || !stack) continue;
@@ -177,21 +192,28 @@
         continue;
       }
       const key = `${source.id}:${link.fromPort}`;
-      const targetKey = `${destination.id}:${link.toPort}`;
-      const portBudget = destination.inputPorts[link.toPort].maxThroughput * seconds;
-      const remainingPortBudget = Math.max(0, portBudget - (incomingUsed.get(targetKey) || 0));
-      const amount = Math.min(available.get(key) || 0, stack.amount, acceptance.capacity,
-        link.maxThroughput * seconds, remainingPortBudget);
-      if (amount <= EPS) continue;
-      const piece = Stack.portion(stack, amount);
-      // Prepare the destination before debiting the source: the operation is atomic.
-      const merged = Stack.merge(destination.internalBuffer.inputs[link.toPort], piece);
-      destination.internalBuffer.inputs[link.toPort] = merged;
-      stack.amount -= amount;
-      if (stack.amount <= EPS) source.internalBuffer.outputs[link.fromPort] = null;
-      available.set(key, (available.get(key) || 0) - amount);
-      incomingUsed.set(targetKey, (incomingUsed.get(targetKey) || 0) + amount);
-      link._transferred = (link._transferred || 0) + amount; link.state = 'active';
+      let moved = 0;
+      while (transferCount < Config.maxTransfersPerTick && link.transferCredit + EPS >= unit &&
+          destination.transferCredits[link.toPort] + EPS >= unit && (available.get(key) || 0) + EPS >= unit &&
+          stack.amount + EPS >= unit) {
+        const currentAcceptance = Graph.acceptance(destination, link.toPort, stack);
+        if (!currentAcceptance.ok || currentAcceptance.capacity + EPS < unit) {
+          link.state = currentAcceptance.state || 'saturated';
+          link.message = currentAcceptance.reason || 'Le buffer doit pouvoir recevoir 1 u.';
+          break;
+        }
+        const piece = Stack.portion(stack, unit);
+        if (!piece || piece.amount + EPS < unit) break;
+        // Prepare the destination before debiting the source: each transfer is atomic and exactly 1 u.
+        destination.internalBuffer.inputs[link.toPort] = Stack.merge(destination.internalBuffer.inputs[link.toPort], piece);
+        stack.amount = Math.max(0, stack.amount - unit);
+        available.set(key, Math.max(0, (available.get(key) || 0) - unit));
+        link.transferCredit = Math.max(0, link.transferCredit - unit);
+        destination.transferCredits[link.toPort] = Math.max(0, destination.transferCredits[link.toPort] - unit);
+        link._transferred = (link._transferred || 0) + piece.amount; moved++; transferCount++;
+        if (stack.amount <= EPS) source.internalBuffer.outputs[link.fromPort] = null;
+      }
+      if (moved > 0) link.state = 'active';
     }
   }
 

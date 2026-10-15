@@ -276,3 +276,11 @@ recette active, des rendements de ses sorties, des limites de ports et du flux
 disponible en amont, y compris les coentrées comme l'eau et le carbone. Les
 cycles de recyclage sont résolus de manière stable. La télémétrie de production
 réelle reste séparée pour la simulation économique.
+
+## Cycles et transferts par unité en 0.34.82
+
+Une barre de progression représente le traitement d'une unité de matière
+principale (1 u). Les connexions accumulent leur capacité de transfert, puis
+déplacent la matière par paquets atomiques de 1 u, en respectant les limites de
+débit des ports. Les sorties fractionnaires des recettes s'accumulent en buffer
+jusqu'à former une unité transférable.
