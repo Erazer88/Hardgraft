@@ -197,17 +197,13 @@
       const stacks = node.internalBuffer.inputs.filter(Boolean);
       if (!stacks.length) return blocked('missing_input', 'Aucun flux à fusionner.');
       if (stacks.some(stack => stack.resourceId !== stacks[0].resourceId)) return blocked('incompatible', 'Fusion refusée : Fer + Cuivre ne crée pas un alliage.', 'impossible');
-      const time = timing(definition, graph), unit = Data.config.resourceUnit || 1;
-      const start = Number.isInteger(node.settings.nextMainPort) ? node.settings.nextMainPort : 0;
-      let port = -1;
-      for (let offset = 0; offset < node.internalBuffer.inputs.length; offset++) {
-        const candidate = (start + offset) % node.internalBuffer.inputs.length;
-        const stack = node.internalBuffer.inputs[candidate];
-        if (stack && stack.amount + EPS >= unit) { port = candidate; break; }
-      }
-      if (port < 0) return blocked('missing_input', `En attente de ${unit} u entière pour fusionner.`);
-      const amount = Math.min(unit, time.rate * time.duration, definition.outputCapacity);
-      return result(definition, graph, {}, [{ port, amount }], output(0, Stack.portion(node.internalBuffer.inputs[port], amount)));
+      const unit = Data.config.resourceUnit || 1;
+      const inputs = node.internalBuffer.inputs.flatMap((stack, port) =>
+        stack && stack.amount + EPS >= unit ? [{ port, stack: Stack.portion(stack, unit) }] : []);
+      if (!inputs.length) return blocked('missing_input', `En attente de ${unit} u entière pour fusionner.`);
+      const merged = inputs.reduce((current, item) => Stack.merge(current, item.stack), null);
+      return result(definition, graph, {}, inputs.map(item => ({ port: item.port, amount: item.stack.amount })),
+        output(0, merged));
     }
     if (!main) return blocked('missing_input', 'Aucune matière dans le buffer d’entrée.');
     const acceptance = Graph.acceptance(node, mainPort, main);

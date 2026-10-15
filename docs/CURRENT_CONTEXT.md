@@ -30,11 +30,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - La foreuse ne plafonne pas l'extraction ; le concasseur niveau 1 est le premier
   goulot à 5 u/s. Ces paramètres et recettes se trouvent dans
   `src/data/processes.js`, avec leur résolution dans `src/simulation/recipeResolver.js`.
-- Écart de validation connu en 0.34.84 : `npm test` échoue sur 16 assertions de
-  `tests/process-simulation.test.cjs` qui attendent notamment le graphe v2, le
-  concasseur à 10 u/s et les anciens transferts fractionnaires. La correction du
-  contrat de test est à traiter séparément ; cette mission n'a pas modifié le moteur
-  ni les tests.
+- Pour une modification industrielle, lancer d'abord
+  `node --test tests/process-simulation.test.cjs`. Le contrat courant est le graphe
+  v3, concasseur niveau 1 à 5 u/s, cycles et transferts par unités entières, avec
+  rendements fractionnaires accumulés en buffer.
 - Les routes de surface enregistrent géométrie, connexions et progression de
   construction. Elles ne constituent pas encore le transport de ressources entre
   bâtiments. Les quartiers et véhicules visibles sont des représentations séparées.

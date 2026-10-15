@@ -106,16 +106,21 @@ en unités/seconde mais aucun objet voyage sur les traits. Une seule passe utili
 les sorties disponibles ; une arrivée ne peut pas retraverser un second bloc
 instantanément. `maxTransfersPerTick` borne la passe et une rotation de l'ordre
 des connexions évite de toujours privilégier les mêmes sous une limite.
-Un lot partiel prend le temps correspondant à sa quantité au débit courant,
-avec un minimum d'un pas de simulation ; il ne monopolise pas un cycle complet
-quand peu de matière est disponible.
-
 Un cycle commence uniquement si ses ingrédients et la place pour ses sorties
 sont disponibles. Les ingrédients deviennent alors les matières en cours de
 traitement dans `job.inputs`. `job.outputs` réserve la place et décrit le résultat
 prévu : ce n'est pas encore de la matière produite. Les sorties n'existent
 physiquement qu'à la fin du cycle. La foreuse ne crée donc de matière et
 n'incrémente `totalExtracted` qu'à la fin de son cycle.
+
+Les cycles de recette traitent une unité entière de matière principale. Une fusion
+peut prendre une unité sur chacun des flux identiques disponibles ; elle conserve
+la qualité la plus basse. Les transferts accumulent du crédit de débit, mais ne
+déplacent qu'une unité entière à la fois. Les rendements de sortie peuvent être
+fractionnaires : ils restent dans `yieldRemainders` et ne deviennent visibles ni
+transférables qu'une fois une unité entière accumulée. Les réactifs secondaires
+sont réservés par unités entières puis leur part fractionnaire est créditée entre
+les cycles.
 
 Pour compter les matières, utiliser `materialTotal(graph)` ou additionner :
 
@@ -233,12 +238,17 @@ clic est temporairement masqué; son contenu et les réglages restent dans le co
 Les traits restent sans flèche et sans étiquette de débit ou de ressource ; leur
 couleur dépend de cinq familles. Le glisser décroche la connexion.
 
-## Relais avant validation initiale
+## Historique des validations (versions antérieures)
+
+Les résultats datés ci-dessous décrivent leurs versions respectives, pas le
+contrat courant quand celui-ci a évolué.
+
+### Relais avant validation initiale
 
 Lors de la livraison initiale 0.34.73, aucun test, contrôle de syntaxe ni
 lancement navigateur n'avait été effectué, à la demande de l'utilisateur.
 
-## Validation du moteur en 0.34.74
+### Validation du moteur en 0.34.74
 
 `tests/process-simulation.test.cjs` ajoute 31 scénarios sur les recettes des
 blocs miniers et pétroliers, les cinq catégories de compatibilité, les débits,
@@ -249,7 +259,7 @@ La suite complète `npm test` réussit : 68 tests passés, aucun échec. Aucune
 vérification navigateur n'a été lancée; la validation porte sur le moteur de
 simulation, sans contrôle visuel de l'éditeur mobile.
 
-## Validation des cartes et des entrées partagées en 0.34.75
+### Validation des cartes et des entrées partagées en 0.34.75
 
 Les tests couvrent également plusieurs connexions vers une même entrée, ses
 points d'accroche distincts et le partage de son débit maximal. La validation
@@ -258,7 +268,7 @@ de l'éditeur en paysage mobile 844×390 passe. Il vérifie les statistiques
 Upload Labs, les noms de sortie et le raccordement de deux sources à la même
 entrée. Aucun contrôle de bureau n'a été lancé.
 
-## Équilibrage, recyclage et cycles partiels en 0.34.80
+### Équilibrage, recyclage et cycles partiels en 0.34.80
 
 Le crible sépare désormais les fragments en 85 % calibrés et 15 % trop-gros ;
 le concasseur possède une entrée de retour dédiée et alterne les deux flux. Les
@@ -272,7 +282,7 @@ La suite complète `npm test` passe : 78/78. Les tests du moteur passent :
 41/41. Le smoke test de l'éditeur mobile paysage 844×390 passe. Aucun test de
 bureau n'a été lancé.
 
-## Débit affiché déterministe en 0.34.81
+### Débit affiché déterministe en 0.34.81
 
 Le débit de la carte et de l'inspecteur est estimé à partir de la cadence de la
 recette active, des rendements de ses sorties, des limites de ports et du flux
@@ -280,7 +290,7 @@ disponible en amont, y compris les coentrées comme l'eau et le carbone. Les
 cycles de recyclage sont résolus de manière stable. La télémétrie de production
 réelle reste séparée pour la simulation économique.
 
-## Cycles et transferts par unité en 0.34.82
+### Cycles et transferts par unité en 0.34.82
 
 Une barre de progression représente le traitement d'une unité de matière
 principale (1 u). Les connexions accumulent leur capacité de transfert, puis
@@ -288,7 +298,7 @@ déplacent la matière par paquets atomiques de 1 u, en respectant les limites d
 débit des ports. Les sorties fractionnaires des recettes s'accumulent en buffer
 jusqu'à former une unité transférable.
 
-## Unités entières et cadence d'extraction en 0.34.83
+### Unités entières et cadence d'extraction en 0.34.83
 
 Les quantités saisies et déplacées entre les blocs sont des unités entières.
 Les rendements fractionnaires restent dans un accumulateur interne et ne

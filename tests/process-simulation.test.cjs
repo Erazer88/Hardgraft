@@ -78,7 +78,7 @@ test('graph links are directional, allow shared inputs, and require real ports',
 test('existing process graphs rebuild with the additional crusher return port', () => {
   const graph = Graph.create({ version: 1, nodes: [{ id: 'old-crusher', type: 'crusher',
     internalBuffer: { inputs: [null], outputs: [null] } }] });
-  assert.equal(Data.config.version, 2); assert.equal(graph.version, 2);
+  assert.equal(Data.config.version, 3); assert.equal(graph.version, 3);
   assert.equal(node(graph, 'old-crusher').inputPorts.length, 2);
   assert.equal(node(graph, 'old-crusher').internalBuffer.inputs.length, 2);
 });
@@ -91,7 +91,7 @@ test('crusher turns raw rock into fragments without changing its mass or composi
   assert.equal(outputAt(packet, 0).particleSize, 'fragment'); assertConservative(packet);
   advance(graph, 1.1);
   assert.equal(crusher.internalBuffer.outputs[0].resourceId, 'rock_fragments');
-  close(crusher.internalBuffer.outputs[0].amount, 10); close(Graph.materialTotal(graph), before);
+  close(crusher.internalBuffer.outputs[0].amount, 5); close(Graph.materialTotal(graph), before);
 });
 
 test('crusher can alternate mined rock and a separate oversized return port', () => {
@@ -117,7 +117,8 @@ test('grinder accepts raw rock slowly and rejects already powdered material unch
   feed(grinder, 0, material('raw_rock', 10));
   const raw = Resolver.resolve(grinder, graph);
   assert.equal(raw.mode, 'degraded'); assert.equal(outputAt(raw, 0).resourceId, 'rock_powder');
-  close(raw.rate, 2); close(raw.duration, 1); close(raw.energyUse, Data.get('grinder').energyUse * 3);
+  close(raw.rate, 2); close(raw.duration, .5); close(outputAt(raw, 0).amount, 1);
+  close(raw.energyUse, Data.get('grinder').energyUse * 3);
   assertConservative(raw);
   feed(grinder, 0, material('rock_powder', 10, { particleSize: 'powder' }));
   const powder = Resolver.resolve(grinder, graph);
@@ -130,10 +131,10 @@ test('screen routes raw and processed grain sizes to different outputs', () => {
   feed(screen, 0, material('raw_rock', 4, { particleSize: 'raw' }));
   let packet = Resolver.resolve(screen, graph);
   assert.equal(outputAt(packet, 0).particleSize, 'oversized'); assert.equal(outputAt(packet, 1), null);
-  close(packet.duration, 4 / 12); assertConservative(packet);
+  close(packet.duration, .1); close(outputAt(packet, 0).amount, 1); assertConservative(packet);
   feed(screen, 0, material('rock_fragments', 4, { particleSize: 'fragment' }));
   packet = Resolver.resolve(screen, graph);
-  close(outputAt(packet, 0).amount, .6); close(outputAt(packet, 1).amount, 3.4);
+  close(outputAt(packet, 0).amount, .15); close(outputAt(packet, 1).amount, .85);
   assert.equal(outputAt(packet, 0).particleSize, 'oversized');
   assert.equal(outputAt(packet, 1).particleSize, 'calibrated'); assertConservative(packet);
   feed(screen, 0, material('rock_powder', 4, { particleSize: 'powder' }));
@@ -142,7 +143,7 @@ test('screen routes raw and processed grain sizes to different outputs', () => {
 });
 
 test('nominal rates match the recommended processing choices and preserve hard port caps', () => {
-  assert.equal(Data.get('crusher').baseThroughput, 10);
+  assert.equal(Data.get('crusher').baseThroughput, 5);
   assert.equal(Data.get('grinder').baseThroughput, 9);
   assert.equal(Data.get('screen').baseThroughput, 12);
   for (const type of ['magnetic_sorter', 'gravity_sorter', 'coal_sorter', 'silicon_washer']) {
@@ -180,7 +181,7 @@ test('filter routes matching and rejected resources separately without changing 
   feed(filter, 0, material('standard_iron', 3));
   let packet = Resolver.resolve(filter, graph);
   assert.equal(outputAt(packet, 0), null); assert.equal(outputAt(packet, 1).resourceId, 'standard_iron');
-  assert.equal(outputAt(packet, 1).amount, 3); assertConservative(packet);
+  assert.equal(outputAt(packet, 1).amount, 1); assertConservative(packet);
   feed(filter, 0, material('raw_rock', 2)); packet = Resolver.resolve(filter, graph);
   assert.equal(outputAt(packet, 0).resourceId, 'raw_rock'); assert.equal(outputAt(packet, 1), null); assertConservative(packet);
 });
@@ -307,7 +308,7 @@ test('storage capacity 500 is shared by its input, output, and active batch buff
   const graph = makeGraph(['storage']), storage = node(graph);
   feed(storage, 0, material('raw_rock', 500));
   const packet = Resolver.resolve(storage, graph);
-  close(packet.inputs[0].amount, 12); close(Graph.outputRoom(storage, 0, packet.outputs[0].stack), 12);
+  close(packet.inputs[0].amount, 1); close(Graph.outputRoom(storage, 0, packet.outputs[0].stack), 1);
   advance(graph, .1);
   assert.equal(storage.job.inputs[0].resourceId, 'raw_rock');
   assert.equal(Graph.acceptance(storage, 0, material('raw_rock', 1)).state, 'saturated');
@@ -327,7 +328,9 @@ test('splitter redistributes around a full branch and merger refuses different r
   feed(merger, 0, material('standard_iron', 10, { quality: 'superior' }));
   feed(merger, 1, material('standard_iron', 10, { quality: 'standard' }));
   packet = Resolver.resolve(merger, mergeGraph);
-  assert.equal(outputAt(packet, 0).quality, 'standard'); assertConservative(packet);
+  assert.deepEqual(plain(packet.inputs.map(item => [item.port, item.amount])), [[0, 1], [1, 1]]);
+  assert.equal(outputAt(packet, 0).amount, 2); assert.equal(outputAt(packet, 0).quality, 'standard');
+  assertConservative(packet);
   feed(merger, 1, material('standard_copper', 10)); packet = Resolver.resolve(merger, mergeGraph);
   assert.equal(packet.ready, false); assert.equal(packet.state, 'incompatible');
   close(Stack.total(merger.internalBuffer.inputs), 20);
@@ -355,18 +358,20 @@ test('dock transfers accepted material to the finite export stock', () => {
 
 test('waste analyzer creates residual ore and reduces recoverable potential', () => {
   const graph = makeGraph(['waste_analyzer']), analyzer = node(graph);
-  feed(analyzer, 0, material('waste', 100, { composition: { iron: .1, copper: .05, sterile: .85 },
+  feed(analyzer, 0, material('waste', 1, { composition: { iron: .1, copper: .05, sterile: .85 },
     recoverableFraction: .15, particleSize: 'fragment' }));
   const packet = Resolver.resolve(analyzer, graph), residual = outputAt(packet, 0), depleted = outputAt(packet, 1);
   assert.equal(residual.resourceId, 'residual_ore_fragment');
   assert.equal(residual.reprocessingPasses, 1); close(depleted.recoverableFraction, .15 * .35);
   assertConservative(packet);
 
-  let next = depleted;
+  // Fractional reject output is accumulated before it can be transferred again;
+  // model each later pass as a recombined, whole-unit feed.
   for (let pass = 2; pass <= 4; pass++) {
-    feed(analyzer, 0, next);
+    feed(analyzer, 0, material('residual_waste', 1, { composition: { iron: .1, copper: .05, sterile: .85 },
+      recoverableFraction: .15 * (.35 ** (pass - 1)), particleSize: 'fragment', reprocessingPasses: pass - 1 }));
     const repeated = Resolver.resolve(analyzer, graph);
-    next = outputAt(repeated, 1);
+    const next = outputAt(repeated, 1);
     close(next.recoverableFraction, .15 * (.35 ** pass));
     assertConservative(repeated);
   }
@@ -386,10 +391,10 @@ test('oil pump only extracts from an oil deposit and creates crude at cycle comp
   const graph = makeGraph(['oil_pump'], { geology }), pump = node(graph);
   const packet = Resolver.resolve(pump, graph);
   assert.equal(packet.ready, true); assert.equal(outputAt(packet, 0).resourceId, 'raw_oil');
-  assert.equal(outputAt(packet, 0).amount, 8);
-  advance(graph, 1.1);
+  assert.equal(outputAt(packet, 0).amount, 1); assert.equal(packet.rate, 8);
+  advance(graph, .3);
   assert.equal(pump.internalBuffer.outputs[0].resourceId, 'raw_oil');
-  close(pump.internalBuffer.outputs[0].amount, 8); close(graph.totalExtracted, 8);
+  close(pump.internalBuffer.outputs[0].amount, 1); close(graph.totalExtracted, 1);
 
   const invalidGraph = makeGraph(['oil_pump'], { geology: { ...geology, resourceId: 'iron' } });
   assert.equal(Resolver.resolve(node(invalidGraph), invalidGraph).state, 'missing_input');
@@ -418,7 +423,8 @@ test('simulation preserves input without energy, then completes the smelting cyc
   close(Graph.materialTotal(graph), before);
   advance(graph, 1.1);
   assert.equal(smelter.internalBuffer.outputs[0].resourceId, 'standard_iron');
-  assert.equal(smelter.internalBuffer.outputs[1].resourceId, 'waste');
+  assert.equal(smelter.internalBuffer.outputs[1], null);
+  close(smelter.internalBuffer.yieldRemainders.find(item => item.port === 1).stack.amount, .54);
   close(Graph.materialTotal(graph), before);
 });
 
@@ -454,8 +460,8 @@ test('several sources share one input point group and its maximum throughput', (
   const before = Graph.materialTotal(graph);
   advance(graph, .1);
   assert.ok(crusher.job);
-  close(crusher.job.inputs[0].amount, Data.get('crusher').inputPorts[0].maxThroughput * .1);
-  close(first.internalBuffer.outputs[0]?.amount + second.internalBuffer.outputs[0]?.amount, 18.8);
+  close(crusher.job.inputs[0].amount, 1);
+  close(first.internalBuffer.outputs[0]?.amount + second.internalBuffer.outputs[0]?.amount, 19);
   close(Graph.materialTotal(graph), before);
 });
 
@@ -465,10 +471,10 @@ test('building input stock enters the graph once and advances at the connection 
   link(graph, 'n1', 'n2', 'building-input');
   const before = Graph.materialTotal(graph); advance(graph, 1.1);
   assert.equal(graph.externalStock.length, 0);
-  assert.equal(importer.internalBuffer.outputs[0].resourceId, 'raw_rock');
-  close(importer.internalBuffer.outputs[0].amount, 7.6);
+  assert.equal(importer.internalBuffer.outputs[0], null);
   assert.equal(crusher.job.inputs[0].resourceId, 'raw_rock');
-  close(crusher.job.inputs[0].amount, 1.2); close(crusher.internalBuffer.inputs[0].amount, 1.2);
+  close(crusher.job.inputs[0].amount, 1); close(crusher.internalBuffer.inputs[0].amount, 5);
+  close(crusher.internalBuffer.outputs[0].amount, 4);
   close(Graph.materialTotal(graph), before);
 });
 
@@ -480,12 +486,13 @@ test('loops transfer at most one buffer snapshot per tick and preserve all mater
   link(graph, 'n1', 'n2', 'loop-forward'); link(graph, 'n2', 'n1', 'loop-return');
   const before = Graph.materialTotal(graph); advance(graph, .1);
   assert.ok(first.job && second.job);
-  close(first.job.inputs[0].amount, 1.2); close(second.job.inputs[0].amount, 1.2);
+  close(first.job.inputs[0].amount, 1); close(second.job.inputs[0].amount, 1);
+  close(first.internalBuffer.outputs[0].amount, 4); close(second.internalBuffer.outputs[0].amount, 4);
   close(Graph.materialTotal(graph), before);
 });
 
 test('simultaneous docks reserve export room so they cannot overfill the building stock', () => {
-  const graph = makeGraph(['dock', 'dock'], { exportStock: [material('waste', 495)] });
+  const graph = makeGraph(['dock', 'dock'], { exportStock: [material('waste', 499)] });
   const first = node(graph), second = node(graph, 'n2');
   feed(first, 0, material('raw_rock', 10)); feed(second, 0, material('rock_fragments', 10));
   const before = Graph.materialTotal(graph); advance(graph, .1);
@@ -507,9 +514,9 @@ test('fixed-step advance accumulates sub-tick time without running early', () =>
 test('live process rates are exact from the first active tick and scale with available power', () => {
   const crusherGraph = makeGraph(['crusher']), crusher = node(crusherGraph);
   feed(crusher, 0, material('raw_rock', 10)); advance(crusherGraph, .1);
-  close(crusher.telemetry.inputRate, 10); close(crusher.telemetry.outputRate, 10);
-  close(crusher.telemetry.inputAmounts.raw_rock, 10);
-  close(crusher.telemetry.outputAmounts.rock_fragments, 10);
+  close(crusher.telemetry.inputRate, 5); close(crusher.telemetry.outputRate, 5);
+  close(crusher.telemetry.inputAmounts.raw_rock, 5);
+  close(crusher.telemetry.outputAmounts.rock_fragments, 5);
 
   const grinderGraph = makeGraph(['grinder']), grinder = node(grinderGraph);
   feed(grinder, 0, material('raw_rock', 10)); advance(grinderGraph, .1);
@@ -526,7 +533,7 @@ test('live process rates are exact from the first active tick and scale with ava
 
   const stoppedGraph = makeGraph(['crusher']), stopped = node(stoppedGraph);
   feed(stopped, 0, material('raw_rock', 2)); advance(stoppedGraph, .1);
-  close(stopped.telemetry.outputRate, 10);
+  close(stopped.telemetry.outputRate, 5);
   advance(stoppedGraph, 1.1);
   assert.equal(stopped.job, null); close(stopped.telemetry.outputRate, 0);
 });
