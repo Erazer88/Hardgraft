@@ -5412,8 +5412,8 @@ globalThis.OrbitVersion = "0.34.83";
 
   function supply(state, building, resourceId, amount) {
     const definition = root.OrbitResourceData.get(resourceId);
-    if (!definition || definition.canonicalId || !Number.isFinite(amount) || amount <= 0) {
-      return { ok: false, message: 'Matière ou quantité invalide.' };
+    if (!definition || definition.canonicalId || !Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
+      return { ok: false, message: 'La matière est invalide ou la quantité n’est pas un nombre entier.' };
     }
     const graph = ensureGraph(state, building), room = Math.max(0, graph.inputCapacity - Stack.total(graph.externalStock));
     const accepted = Math.floor(Math.min(amount, room) + Stack.EPSILON);
