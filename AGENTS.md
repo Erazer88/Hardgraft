@@ -1,50 +1,53 @@
-# Hardgraft — consignes de développement
+# Hardgraft — règles de travail
 
-Lire intégralement avant toute modification :
+## Invariants permanents
 
-- `docs/reference/gameplay.txt` : Game Design Source of Truth.
-- `docs/reference/agents.txt` : Plan Codex, missions et dépendances.
-- `docs/reference/general.txt` : règles générales.
-- `README.md` et les fichiers/tests concernés.
+- Garder JavaScript simple, sans framework ou dépendance ajoutés sans besoin réel.
+- Préserver la compatibilité PC et mobile, les sauvegardes, la génération déterministe
+  par graine et les exports HTML autonomes.
+- Conserver le chargement actuel par IIFE/globalThis et l'ordre des scripts dans
+  `index.html`. Ne pas migrer vers ESM/npm dans une tâche locale.
+- Séparer données, simulation, gameplay, UI et rendu. La simulation ne dépend ni du
+  DOM ni de Canvas ; le rendu affiche l'état et l'UI ne produit pas de ressources.
+- Garder les paramètres de gameplay déclaratifs lorsqu'ils peuvent l'être.
+- Ne pas réécrire un système fonctionnel sans nécessité. Faire la modification minimale
+  qui répond à la demande.
+- Une mécanique future décrite dans le GDD n'est pas une demande d'implémentation.
+- Lire uniquement le contexte et les références pertinents à la tâche ; ne pas lire
+  intégralement `docs/reference/*.txt` par défaut.
 
-Les PDF originaux sont conservés dans le même dossier. Ces documents fournis
-par l'utilisateur remplacent les anciennes hypothèses de gameplay.
+## Priorité des décisions
 
-Travailler sur une seule mission demandée à la fois. Commencer par Agent 00
-(architecture) ; ne pas démarrer la mission suivante sans demande explicite.
-Préserver génération, seeds, zoom continu, mobile, sauvegardes et HTML autonome.
-Avant de coder, annoncer le plan minimal et les fichiers concernés.
+En cas de contradiction, appliquer dans cet ordre :
 
-Séparer données, simulation, rendu et interface. La simulation est testable sans
-Canvas ; paramètres et recettes sont déclaratifs. JavaScript simple et modules
-IIFE sont acceptés. Éviter frameworks, abstractions prématurées et dépendances.
+1. demande actuelle de l'utilisateur ;
+2. règles techniques permanentes de ce fichier ;
+3. décisions actuelles dans [`docs/CURRENT_CONTEXT.md`](docs/CURRENT_CONTEXT.md) ;
+4. documentation spécialisée du système concerné ;
+5. documents de conception historiques dans `docs/reference/`.
 
-Les blocs industriels seront dans l'espace interne fini d'une usine. Leur
-placement ne modifie pas les performances. Transferts internes instantanés si
-le stock suivant a de la place ; transports hors usine temporisés. Énergie
-globale par usine. Ne pas implémenter ces mécaniques pendant Agent 00.
+## Workflow
 
-Après chaque mission : tests unitaires et smoke tests pertinents ; vérifier
-mobile et bureau si l'interface est concernée. Rapporter fichiers, résultat,
-tests, limites, risques et prochaine dépendance. Ne pas étendre le scope aux
-mécaniques galactiques, monétaires, orbitales avancées ou au Contexte complet.
+**ITÉRATION — mode par défaut.** Inspecter le minimum utile, faire la modification
+demandée et lancer les tests ciblés pertinents. Ne pas lancer automatiquement la suite
+complète ou un smoke navigateur complet ; ne pas incrémenter la version, lancer
+`build.py`, régénérer les exports, committer ou pousser.
 
-Agent 00 travaille seul sur la structure commune. Les tâches suivantes peuvent
-être parallélisées uniquement sur des fichiers distincts, après intégration et
-validation de leur base commune.
+**LIVRAISON — sur demande explicite de livraison/version/commit ou pour un lot cohérent.**
+Lancer la suite complète et les smoke tests pertinents, incrémenter `package.json`,
+exécuter `python3 build.py`, vérifier les exports, puis committer et pousser sur
+`codex/nereide-prototype`. `src/data/version.js` et `dist/` sont générés : ne pas les
+éditer à la main. Dans la réponse de livraison, fournir le commit, la version et
+l'aperçu RawGit testable dans Firefox. Un aperçu publié ne représente pas les
+changements d'une itération qui n'a pas été poussée.
 
-## Livraison et version
+## Repères rapides
 
-Chaque mise à jour doit être testée, puis commitée et poussée sur GitHub dans
-la branche `codex/nereide-prototype`. Fournir le lien du commit à la livraison.
-Utiliser ce lien de lancement pour les tests de l'utilisateur :
-`https://raw.githack.com/Erazer88/Hardgraft/codex/nereide-prototype/dist/nereide-zoom-continu.html`.
-Le paramètre `?v=X.Y.Z` peut être ajouté pour distinguer les versions en cache.
-
-`package.json` est la référence du numéro de version. Incrémenter la version
-pour chaque mise à jour livrée et exécuter `python3 build.py` : il génère
-`src/data/version.js` et les exports. Le HUD affiche cette version en bas du jeu.
-Ne pas modifier directement le fichier de version généré.
-
-Terminer chaque réponse à l'utilisateur dans ce chat, y compris les points
-d'avancement, par `Version actuelle : X.Y.Z`, avec la version courante du projet.
+- Commencer par [`docs/CURRENT_CONTEXT.md`](docs/CURRENT_CONTEXT.md), puis lire seulement
+  la référence de la tâche. Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) pour les
+  modules et [`README.md`](README.md) pour lancer le jeu.
+- Processus industriels : [`docs/PROCESS_SYSTEM.md`](docs/PROCESS_SYSTEM.md).
+- Génération : [`docs/WORLDGEN.md`](docs/WORLDGEN.md).
+- Routes et quartiers : [`docs/ROAD_SYSTEM.md`](docs/ROAD_SYSTEM.md).
+- Les textes de `docs/reference/` conservent la conception et les plans historiques ;
+  ils ne priment pas sur les décisions actuelles.

@@ -1,3 +1,10 @@
+ARCHIVE — DOCUMENT DE CONCEPTION HISTORIQUE
+Ce GDD conserve les objectifs, idées et règles de conception d'origine. Il peut
+décrire des mécaniques futures ou des décisions depuis remplacées ; il ne décrit
+pas nécessairement le jeu actuellement implémenté. Pour l'état validé, consulter
+docs/CURRENT_CONTEXT.md, puis la documentation spécialisée du système.
+
+
 HARDGRAFT — GAME DESIGN SOURCE
 OF TRUTH
 0. Rôle de ce document

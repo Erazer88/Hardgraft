@@ -1,3 +1,10 @@
+ARCHIVE — PLAN CODEX HISTORIQUE
+Ce plan conserve l'organisation et les consignes d'une étape antérieure. Ses
+obligations de lecture, d'ordre de mission, de délégation, de test ou de livraison
+sont obsolètes si elles contredisent AGENTS.md. Les règles courantes sont dans
+AGENTS.md et docs/CURRENT_CONTEXT.md.
+
+
 HARDGRAFT — PLAN CODEX
 A. ÉTAT ACTUEL DU REPOSITORY
 Repository : Erazer88/Hardgraft

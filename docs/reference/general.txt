@@ -1,3 +1,10 @@
+ARCHIVE — RÈGLES GÉNÉRALES HISTORIQUES
+Ce document conserve des principes de conception initiaux. Ses consignes de
+lecture intégrale et ses affirmations de fonctionnement peuvent être anciennes.
+Priorité à la demande actuelle, AGENTS.md, docs/CURRENT_CONTEXT.md et aux
+références spécialisées du système concerné.
+
+
 Tu travailles sur Hardgraft.
 
 Les documents GAME DESIGN SOURCE OF TRUTH et PLAN CODEX sont les références

@@ -1,13 +1,15 @@
-# Processus industriels V1 — équilibrage et cycles proportionnels 0.34.80
+# Processus industriels — contrat du moteur
 
-Cette couche implémente les processus internes demandés le 14 octobre 2026.
-Elle ne lance pas de tests, ne publie pas le jeu et ne modifie pas l'historique Git.
-Les tests et la validation navigateur sont confiés à l'agent désigné par l'utilisateur.
+Référence spécialisée sur l'implémentation actuelle des graphes, recettes et cycles.
+Pour le contexte global, les systèmes temporaires et le choix du test par tâche, voir
+[`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md) et `AGENTS.md`. Les versions datées plus
+bas conservent l'historique des décisions ; elles ne définissent pas le workflow.
 
 ## Décisions validées
 
-- Réserve de la colonie infinie en V1, y compris pour les coûts de construction.
-- Une éolienne terminée fournit une puissance illimitée à sa planète. Sans
+- Modes temporaires du prototype : réserve de la colonie infinie, y compris pour les
+  coûts de construction. Le modèle économique cible est un stock limité par réseau local.
+- Une éolienne terminée fournit actuellement une puissance illimitée à sa planète. Sans
   générateur, les traitements consommateurs restent SANS ÉNERGIE.
 - L'approvisionnement manuel remplit le stock d'entrée du bâtiment depuis cette
   réserve. Un bloc Entrée, avec un filtre matière, alimente ensuite un seul flux.
@@ -139,7 +141,7 @@ construction correspondant.
 | Cas | Résultat V1 |
 | --- | --- |
 | Roche → Foreuse | Connexion impossible : aucune entrée |
-| Roche → Concasseur | Fragments, composition conservée, 10 u/s |
+| Roche → Concasseur | Fragments, composition conservée, 5 u/s au niveau 1 |
 | Trop-gros → entrée de retour du concasseur | Fragments, composition conservée, partagé avec le débit nominal |
 | Fragments/poudre/métal industriel → Concasseur | Inchangé, TRAITEMENT INUTILE |
 | Déchets bruts → Concasseur | Déchets fragmentés, identifiant de déchet conservé |
@@ -216,8 +218,9 @@ Il conserve les buffers, métadonnées, cycles en cours, stocks extérieurs,
 historiques, réglages et restes de pas fixe. Aucun progrès industriel hors ligne
 n'est ajouté. Les anciens types génériques sont migrés : Transformation vers
 Fonderie, Assemblage vers Affineur, Séparation vers Division, Sortie vers Quai.
-Le graphe de processus passe en version 2 ; les plans existants reçoivent le
-second port du concasseur réservé au retour des trop-gros.
+Le graphe de processus est actuellement en version 3 ; les plans existants reçoivent
+le port de retour du concasseur et migrent les stocks fractionnaires vers les unités
+entières avec leurs restes de rendement.
 Les anciennes connexions dupliquant une sortie sont écartées avec un diagnostic
 de migration. Les types inconnus et leurs matières restent conservés.
 

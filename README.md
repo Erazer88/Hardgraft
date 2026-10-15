@@ -2,11 +2,20 @@
 
 Prototype mobile de navigation spatiale et d'industrie, optimisé pour le paysage. Explorez une galaxie procédurale, examinez les cartes topographiques et construisez des chaînes de processus à l'intérieur des bâtiments.
 
-Les références de direction artistique sont dans [docs/images](docs/images). Les règles complètes du jeu fournies par l'utilisateur sont conservées dans [docs/reference](docs/reference) pour guider les prochaines étapes.
+Les références de direction artistique sont dans [docs/images](docs/images). Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
+
+## Développement
+
+Pour une tâche de code, commencer par [AGENTS.md](AGENTS.md), puis lire le
+[contexte courant](docs/CURRENT_CONTEXT.md) et uniquement la documentation du
+système concerné. [Architecture](docs/ARCHITECTURE.md), [processus industriels](docs/PROCESS_SYSTEM.md),
+[routes](docs/ROAD_SYSTEM.md) et [génération](docs/WORLDGEN.md) ont chacun leur
+référence. `docs/reference/` contient les plans et le GDD historiques ; il n'est
+pas requis de les lire intégralement.
 
 ## Ouvrir le prototype
 
-[Lancer le jeu dans le navigateur](https://htmlpreview.github.io/?https://github.com/Erazer88/Hardgraft/blob/codex/nereide-prototype/dist/nereide-zoom-continu.html). Le numéro de version apparaît en bas de l'écran.
+[Lancer le jeu dans Firefox](https://raw.githack.com/Erazer88/Hardgraft/codex/nereide-prototype/dist/nereide-zoom-continu.html). Le numéro de version apparaît en bas de l'écran.
 
 Les exports autonomes sont disponibles dans `dist/` : `nereide-zoom-continu.html`, `nereide-prototype.html` et `nereide-sources.zip`. `python3 build.py` les régénère. Le HTML autonome embarque le JavaScript et le CSS ; il n'a pas besoin de dépendances réseau.
 
@@ -28,7 +37,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS, Canva
 - Le retour et le fil d'Ariane remontent d'un niveau. Sur une planète, le bouton de cadrage remplit l'écran avec le terrain, sans bandes vides sur les côtés ; glisser permet d'explorer le reste de la carte. La cible recentre la vue.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le relief, les coordonnées et l'altitude. Un extracteur posé sur un gisement peut recevoir une Foreuse dans son éditeur ; celle-ci produit une roche avec une composition géologique conservée par les traitements.
-- Le catalogue affiche les coûts et l'assemblage des infrastructures. Pour cette V1, la réserve de la colonie est infinie et une éolienne terminée fournit une puissance illimitée à sa planète. Ces modes temporaires sont déclarés dans `src/data/processes.js`.
+- Le catalogue affiche les coûts et l'assemblage des infrastructures. Le prototype utilise temporairement une réserve de colonie infinie et une puissance illimitée par éolienne terminée ; le modèle final prévoit des stocks limités par réseau logistique local. Les modes temporaires sont déclarés dans `src/data/processes.js`.
 - Le bouton construction active un aperçu de placement. Déplacez-le sur le terrain valide et touchez pour lancer l’assemblage ; Échap annule le mode. **Modifier** ouvre l'espace de processus du bâtiment : ajoutez et déplacez les blocs, puis glissez une sortie vers un point d'entrée ou vers le centre d’un bloc ayant une seule entrée logique. Une sortie possède une seule connexion ; plusieurs connexions peuvent rejoindre une même entrée et se partagent son débit. Division et Fusion organisent les branches. Glisser un trait existant le décroche. Le pinch suit le milieu entre les doigts ; la molette garde le curseur comme point focal.
 - Dans **Stocks**, choisissez une matière et une quantité à approvisionner depuis la réserve infinie. Ajoutez une Entrée et configurez son filtre pour alimenter le processus. Les cartes de machines affichent état, vitesse, temps par unité, barre de cycle, entrées, sorties nommées au niveau de leurs ports et énergie ; le panneau au clic détaille les recettes et les problèmes. Les entrées absurdes passent inchangées, produisent des déchets ou sont physiquement refusées selon les règles du bloc. Les quais ont un stock extérieur limité, qui se remplit en attendant une future destination logistique.
 - Les plans, buffers, métadonnées et cycles en cours sont sauvegardés avec le bâtiment. Supprimer un bloc restitue ses matières d'entrée en cours, pas ses produits encore prévus. L'excédent d'un stock plein reste conservé en déchets. La démolition récupère également les matières du bâtiment.
@@ -49,7 +58,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - Des cartes planétaires reproductibles avec archipels, côtes détaillées, hauts fonds turquoise, relief ombré, textures de terrain CC0, courbes de niveau et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
-Les coûts, délais et remboursements restent déclaratifs. L'extraction et les blocs internes sont simulés par cycles et buffers, avec conservation des matières. Le catalogue comprend le traitement minéral, le recyclage des déchets et la séparation pétrolière simple. Analyse qualité est présent mais désactivé. Le transport logistique extérieur reste à implémenter ; les routes et leur construction restent sauvegardées. Le contrat du moteur et le relais vers l'agent de validation sont décrits dans [docs/PROCESS_SYSTEM.md](docs/PROCESS_SYSTEM.md).
+Les coûts, délais et remboursements restent déclaratifs. L'extraction et les blocs internes sont simulés par cycles et buffers, avec conservation des matières. Le catalogue comprend le traitement minéral, le recyclage des déchets et la séparation pétrolière simple. Analyse qualité est présent mais désactivé. Le transport logistique extérieur reste à implémenter ; les routes et leur construction restent sauvegardées. Le contrat du moteur est décrit dans [docs/PROCESS_SYSTEM.md](docs/PROCESS_SYSTEM.md), et l'architecture du réseau de surface dans [docs/ROAD_SYSTEM.md](docs/ROAD_SYSTEM.md).
 
 ## Vérification manuelle
 
