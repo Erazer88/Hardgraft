@@ -103,7 +103,7 @@
       };
       const packet = node.preview?.ready ? node.preview : null;
       card.dataset.state = node.state;
-      set('rate', `DÉBIT · ${fmt(node.telemetry.outputRate)} u/s`);
+      set('rate', `DÉBIT · ${fmt(node.telemetry.displayRate)} u/s`);
       set('energy', `${fmt(node.telemetry.energyMW || node.job?.energyUse || packet?.energyUse || definition.energyUse)} MW`);
       updateNodeProgress(card, node);
       for (const label of card.querySelectorAll('[data-output-label-index]')) {
@@ -183,7 +183,7 @@
       detail(summary, 'Entrée actuelle', stackSummary(node.internalBuffer.inputs.some(Boolean) ? node.internalBuffer.inputs : job?.inputs || []));
       detail(summary, 'Sortie actuelle', stackSummary(node.internalBuffer.outputs));
       if (job) detail(summary, 'Production prévue', stackSummary(job.outputs.map(item => item.stack)));
-      detail(summary, 'Débit', `${fmt(node.telemetry.outputRate)} / ${fmt(definition.baseThroughput)} u/s`);
+      detail(summary, 'Débit', `${fmt(node.telemetry.displayRate)} / ${fmt(definition.baseThroughput)} u/s`);
       detail(summary, 'Énergie', `${fmt(node.telemetry.energyMW)} MW · nominal ${fmt(job?.energyUse ?? definition.energyUse)} MW`);
       detail(summary, 'Recette active', job ? `${[...new Set(job.inputs.map(stack => resourceName(stack.resourceId)))].join(' + ') || 'Gisement'} → ` +
         [...new Set(job.outputs.map(item => resourceName(item.stack.resourceId)))].join(' + ') : definition.detail);

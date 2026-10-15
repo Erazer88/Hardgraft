@@ -24,7 +24,8 @@
       outputs: value.job.outputs.flatMap(item => {
         const stack = Stack.create(item.stack);
         return stack && Number.isInteger(item.port) ? [{ port: item.port, stack }] : [];
-      }), destination: value.job.destination || null, geologicalSource: value.job.geologicalSource === true
+      }), destination: value.job.destination || null, geologicalSource: value.job.geologicalSource === true,
+      rateProfile: value.job.rateProfile && typeof value.job.rateProfile === 'object' ? clone(value.job.rateProfile) : null
     } : null;
     const settings = value.settings || {};
     return { id: value.id, type, x: number(value.x, 24), y: number(value.y, 24),
@@ -38,7 +39,7 @@
         filter: typeof settings.filter === 'string' && settings.filter ? root.OrbitResourceData.canonicalId(settings.filter) : null
       }, job, state: definition ? 'waiting' : 'incompatible',
       message: definition ? '' : 'Type inconnu : matière conservée, aucun traitement automatique.',
-      recipeId: null, mode: 'valid', telemetry: { inputRate: 0, outputRate: 0, energyMW: 0,
+      recipeId: null, mode: 'valid', telemetry: { inputRate: 0, outputRate: 0, displayRate: 0, energyMW: 0,
         inputAmounts: {}, outputAmounts: {} } };
   }
 

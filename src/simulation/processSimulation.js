@@ -22,6 +22,92 @@
       return sum + (packet.ready && outputsFit(node, graph, packet) ? packet.energyUse : 0);
     }, 0);
   }
+
+  function rateProfile(node, packet) {
+    if (!packet || !Number.isFinite(packet.rate) || packet.rate <= EPS) return null;
+    const definition = Graph.definitionOf(node), generated = ['source', 'import'].includes(definition.operation);
+    const mainPorts = definition.operation === 'merge'
+      ? definition.inputPorts.map((_, index) => index) : (definition.mainInputPorts || [0]);
+    const inputAmounts = new Map(); let externalAmount = 0;
+    for (const input of packet.inputs || []) {
+      if (input.external) externalAmount += input.amount;
+      else if (Number.isInteger(input.port)) inputAmounts.set(input.port,
+        (inputAmounts.get(input.port) || 0) + input.amount);
+    }
+    const mainAmount = generated ? externalAmount : mainPorts.reduce((sum, port) => sum + (inputAmounts.get(port) || 0), 0);
+    const denominator = definition.operation === 'import' ? externalAmount :
+      (generated ? packet.rate * (packet.duration || 1) : mainAmount);
+    if (denominator <= EPS) return null;
+    const outputRatios = {};
+    for (const item of packet.outputs || []) {
+      outputRatios[item.port] = (outputRatios[item.port] || 0) + item.stack.amount / denominator;
+    }
+    const secondaryRatios = {};
+    if (!generated) for (const [port, amount] of inputAmounts) {
+      if (!mainPorts.includes(port) && amount > EPS) secondaryRatios[port] = amount / mainAmount;
+    }
+    return { rate: packet.rate, generated, mainPorts, outputRatios, secondaryRatios };
+  }
+
+  function estimateDisplayRates(graph) {
+    const byId = new Map(graph.nodes.map(node => [node.id, node]));
+    const profiles = new Map(graph.nodes.map(node => [node.id, node.state === 'no_energy' ? null :
+      (node.job?.rateProfile || rateProfile(node, node.preview?.ready ? node.preview : null))]));
+    const incomingLinks = new Map(graph.nodes.map(node => [node.id, []]));
+    for (const link of graph.connections) incomingLinks.get(link.toNodeId)?.push(link);
+    let previous = new Map(graph.nodes.map(node => [node.id, {}]));
+    for (let iteration = 0; iteration < 64; iteration++) {
+      const estimates = new Map(), visiting = new Set();
+      function calculate(node) {
+        if (estimates.has(node.id)) return estimates.get(node.id);
+        if (visiting.has(node.id)) return previous.get(node.id) || {};
+        visiting.add(node.id);
+        const profile = profiles.get(node.id);
+        if (!profile) { estimates.set(node.id, {}); visiting.delete(node.id); return {}; }
+        const incoming = new Map();
+        for (const link of incomingLinks.get(node.id) || []) {
+          const source = byId.get(link.fromNodeId);
+          if (!source) continue;
+          const sourceRates = calculate(source), sourceRate = sourceRates[link.fromPort] || 0;
+          const maxLinkRate = Math.min(Number.isFinite(link.maxThroughput) ? link.maxThroughput : Infinity,
+            source.outputPorts[link.fromPort]?.maxThroughput ?? Infinity,
+            node.inputPorts[link.toPort]?.maxThroughput ?? Infinity);
+          incoming.set(link.toPort, (incoming.get(link.toPort) || 0) + Math.min(sourceRate, maxLinkRate));
+        }
+        for (const [port, amount] of incoming) incoming.set(port,
+          Math.min(amount, node.inputPorts[port]?.maxThroughput ?? amount));
+        let workRate = profile.rate * (node.job ? node.job.powerFactor : 1);
+        if (!profile.generated) {
+          const primaryRate = profile.mainPorts.reduce((sum, port) => sum + (incoming.get(port) || 0), 0);
+          workRate = Math.min(workRate, primaryRate);
+          for (const [port, ratio] of Object.entries(profile.secondaryRatios)) {
+            if (ratio > EPS) workRate = Math.min(workRate, (incoming.get(Number(port)) || 0) / ratio);
+          }
+        }
+        const rates = {};
+        for (const [portText, ratio] of Object.entries(profile.outputRatios)) {
+          const port = Number(portText), cap = port >= 0
+            ? (node.outputPorts[port]?.maxThroughput ?? Infinity) : Infinity;
+          rates[port] = Math.min(workRate * ratio, cap);
+        }
+        estimates.set(node.id, rates); visiting.delete(node.id); return rates;
+      }
+      for (const node of graph.nodes) calculate(node);
+      let settled = true;
+      for (const node of graph.nodes) {
+        const current = estimates.get(node.id) || {}, prior = previous.get(node.id) || {};
+        const ports = new Set([...Object.keys(current), ...Object.keys(prior)]);
+        if ([...ports].some(port => Math.abs((current[port] || 0) - (prior[port] || 0)) > EPS)) {
+          settled = false; break;
+        }
+      }
+      previous = estimates;
+      if (settled) break;
+    }
+    for (const node of graph.nodes) node.telemetry.displayRate = Object.values(previous.get(node.id) || {})
+      .reduce((sum, rate) => sum + rate, 0);
+  }
+
   function startJob(node, graph, packet, powerFactor = 1) {
     const consumed = [];
     for (const input of packet.inputs) {
@@ -50,7 +136,7 @@
     node.job = { recipeId: packet.recipeId, mode: packet.mode, message: packet.message,
       remainingSeconds: packet.duration, duration: packet.duration, energyUse: packet.energyUse,
       inputs: consumed, outputs: packet.outputs, destination: packet.destination || null,
-      powerFactor, geologicalSource: packet.geologicalSource === true };
+      powerFactor, geologicalSource: packet.geologicalSource === true, rateProfile: rateProfile(node, packet) };
     return true;
   }
 
@@ -135,6 +221,7 @@
         link._seconds = 0; link._transferred = 0;
       }
     }
+    estimateDisplayRates(graph);
   }
 
   function tick(graph, seconds) {

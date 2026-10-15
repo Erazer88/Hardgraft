@@ -268,3 +268,11 @@ déclarés et validés dans le moteur.
 La suite complète `npm test` passe : 78/78. Les tests du moteur passent :
 41/41. Le smoke test de l'éditeur mobile paysage 844×390 passe. Aucun test de
 bureau n'a été lancé.
+
+## Débit affiché déterministe en 0.34.81
+
+Le débit de la carte et de l'inspecteur est estimé à partir de la cadence de la
+recette active, des rendements de ses sorties, des limites de ports et du flux
+disponible en amont, y compris les coentrées comme l'eau et le carbone. Les
+cycles de recyclage sont résolus de manière stable. La télémétrie de production
+réelle reste séparée pour la simulation économique.
