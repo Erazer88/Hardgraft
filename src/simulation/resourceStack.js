@@ -3,7 +3,7 @@
   const Data = root.OrbitResourceData;
   const EPSILON = 1e-9;
   const qualities = Object.freeze(['impure', 'standard', 'superior']);
-  const sizes = Object.freeze(['raw', 'fragment', 'powder']);
+  const sizes = Object.freeze(['raw', 'oversized', 'fragment', 'calibrated', 'powder']);
   const elements = Object.freeze(['iron', 'copper', 'silicon', 'carbon']);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const copy = value => value == null ? null : JSON.parse(JSON.stringify(value));

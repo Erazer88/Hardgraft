@@ -1,4 +1,4 @@
-# Processus industriels V1 — cartes et connexions partagées 0.34.75
+# Processus industriels V1 — équilibrage et cycles proportionnels 0.34.80
 
 Cette couche implémente les processus internes demandés le 14 octobre 2026.
 Elle ne lance pas de tests, ne publie pas le jeu et ne modifie pas l'historique Git.
@@ -46,7 +46,7 @@ Chaque stack possède `resourceId`, `amount`, `quality`, `moisture`,
 `reprocessingPasses`.
 
 - Les qualités sont `impure`, `standard`, `superior`.
-- Les tailles sont `raw`, `fragment`, `powder`.
+- Les tailles sont `raw`, `oversized`, `fragment`, `calibrated`, `powder`.
 - Les phases physiques viennent des ressources : solide, liquide ou gaz.
 - L'humidité est un attribut de préparation, pas une quantité d'eau implicite.
   L'eau consommée par une laveuse est une matière séparée, comptée dans les boues.
@@ -90,9 +90,12 @@ Une connexion accepte des indices de ports ou des identifiants stables
 sont prioritaires à la restauration. Une sortie ne peut alimenter qu'une seule
 connexion, mais plusieurs sorties peuvent rejoindre la même entrée. Elles
 occupent alors des points d'accroche distincts et se partagent le débit maximal
-de ce port. Si les matières reçues diffèrent, le port conserve la première et
-signale le flux incompatible sans le retirer de sa source. Les boucles entre
-plusieurs blocs sont autorisées.
+de ce port. Les ports n'excèdent jamais leur limite déclarée : 12 u/s pour les
+matières, 6 u/s pour l'eau et 4 u/s pour le carbone, même avec des bonus
+technologiques. Si les matières reçues diffèrent, le port conserve la première
+et signale le flux incompatible sans le retirer de sa source. Le concasseur a
+un port de retour dédié afin que roche fraîche et trop-gros puissent être
+traités en alternance. Les boucles entre plusieurs blocs sont autorisées.
 
 ## Règles temporelles et conservation
 
@@ -101,6 +104,9 @@ en unités/seconde mais aucun objet voyage sur les traits. Une seule passe utili
 les sorties disponibles ; une arrivée ne peut pas retraverser un second bloc
 instantanément. `maxTransfersPerTick` borne la passe et une rotation de l'ordre
 des connexions évite de toujours privilégier les mêmes sous une limite.
+Un lot partiel prend le temps correspondant à sa quantité au débit courant,
+avec un minimum d'un pas de simulation ; il ne monopolise pas un cycle complet
+quand peu de matière est disponible.
 
 Un cycle commence uniquement si ses ingrédients et la place pour ses sorties
 sont disponibles. Les ingrédients deviennent alors les matières en cours de
@@ -133,18 +139,22 @@ construction correspondant.
 | Cas | Résultat V1 |
 | --- | --- |
 | Roche → Foreuse | Connexion impossible : aucune entrée |
-| Roche → Concasseur | Fragments, composition conservée |
+| Roche → Concasseur | Fragments, composition conservée, 10 u/s |
+| Trop-gros → entrée de retour du concasseur | Fragments, composition conservée, partagé avec le débit nominal |
 | Fragments/poudre/métal industriel → Concasseur | Inchangé, TRAITEMENT INUTILE |
 | Déchets bruts → Concasseur | Déchets fragmentés, identifiant de déchet conservé |
-| Fragments → Broyeur | Poudre, composition conservée |
-| Roche brute → Broyeur | Poudre ; cadence ×0,18, puissance ×3, cycle ×2 |
+| Fragments calibrés → Broyeur | Poudre, composition conservée, jusqu'à 9 u/s |
+| Roche brute → Broyeur | Poudre à 2 u/s, puissance ×3 |
 | Poudre → Broyeur | Inchangé, TRAITEMENT INUTILE |
-| Roche/fragments/poudre → Crible | Brut vers Trop gros ; fragment/poudre vers Taille correcte |
-| Roche → Trieuse magnétique/gravitaire/charbon | Récupération fortement dégradée + rejets |
-| Fragments/poudre → Trieuse | Récupération de la fraction ciblée ; poudre favorisée |
+| Roche brute → Crible | 100 % vers Trop gros |
+| Fragments → Crible | 85 % calibrés, 15 % trop-gros ; poudre vers la sortie calibrée à 100 % |
+| Roche → Trieuse magnétique/gravitaire/charbon | 3,6 u/s, rendement respectif 25 %, 20 %, 30 %, puis rejets |
+| Fragments → Trieuse magnétique/gravitaire/charbon | 8 u/s, rendement respectif 86 %, 82 %, 85 % |
+| Fragments calibrés → Trieuse magnétique/gravitaire/charbon | 9 u/s, rendement respectif 89 %, 86 %, 87 % |
+| Poudre → Trieuse magnétique/gravitaire/charbon | 10 u/s, rendement respectif 92 %, 91 %, 88 % |
 | Fer standard → Trieuse magnétique | Inchangé côté produit, TRAITEMENT INUTILE |
 | Cuivre pur → Trieuse magnétique | Inchangé côté rejets/non-ferreux |
-| Roche contenant silicium + eau → Laveuse silicium | Silicium impur humide + boues |
+| Roche contenant silicium + eau → Laveuse silicium | Débit 3/8/9/10 u/s (brut/fragments/calibrés/poudre), eau 0,25R |
 | Laveuse silicium sans eau | ENTRÉE MANQUANTE : EAU |
 | Solide sans silicium + eau → Laveuse silicium | Boues, traitement inutile |
 | Silicium humide → Sécheur | Silicium impur sec |
@@ -154,12 +164,12 @@ construction correspondant.
 | Roche/fer/cuivre → Lavage charbon | Inchangé, TRAITEMENT INUTILE, eau non consommée |
 | Fer/cuivre/silicium impur sans carbone → Fonderie | ENTRÉE MANQUANTE : CARBONE |
 | Matière impure + carbone → Fonderie | Matériau standard + déchets |
-| Matière humide + carbone → Fonderie | Moins de produit, plus de déchets, plus lent, plus de puissance |
+| Matière humide (>25 %) + carbone → Fonderie | 2,6 u/s ; 0,736R de produit + 0,364R de déchets, plus de puissance |
 | Roche/fragments/poudre/charbon/déchets → Fonderie | Déchets, puissance consommée, PROCÉDÉ INADAPTÉ |
 | Métal standard/acier → Fonderie | Inchangé, TRAITEMENT INUTILE |
 | Fer standard + carbone → Affineur | Acier + déchets |
 | Cuivre/silicium standard → Affineur | Matériau pur + déchets |
-| Matière impure → Affineur | Matériau standard, récupération 35 %, davantage de déchets |
+| Matière impure → Affineur | 1 u/s ; 0,25R de matériau standard + 0,75R de déchets |
 | Roche/déchets → Affineur | Déchets, PROCÉDÉ INADAPTÉ |
 | Gaz/liquide → Concasseur/Broyeur/Fonderie | Refus physique, connexion en erreur, matière en amont |
 | Eau → Fonderie | Refus physique ; aucune matière utile |
@@ -173,6 +183,28 @@ construction correspondant.
 | Déchets → Analyseur | Minerai résiduel + déchets appauvris, récupération restante diminuée |
 | Pétrole brut → Séparateur triphasé | Gaz + pétrole + déchets, masses issues de la composition |
 
+Les débits ci-dessus sont les maxima nominaux niveau 1 à pleine puissance. Les
+recettes normales de fonderie traitent jusqu'à 4 u/s et consomment 0,10R de
+carbone ; elles rendent 0,92R de métal standard et 0,18R de déchets. Le lavage
+charbon traite jusqu'à 6 u/s avec 0,25R d'eau ; il sort 0,85R de carbone et
+0,40R de boues. Un stock tampon a une capacité de 500 unités et n'accepte
+qu'une matière à la fois. Division, Fusion et chaque quai restent limités à
+12 u/s. Le séparateur triphasé traite 8 u/s ; la pompe pétrolière part de 8 u/s
+et dépend de la richesse et de la dureté du gisement.
+
+L'Analyseur de déchets récupère `R × recoverableFraction × 0,65`. Le déchet
+appauvri conserve 35 % de son potentiel récupérable précédent à chaque passage
+(20 % → 7 % → 2,45 % → 0,86 %), ce qui permet le retraitement sans boucle
+créatrice de matière. Les rendements technologiques augmentent de 3, 6 puis 8
+points aux niveaux 2, 3 et 4, avec un plafond de 95 % ; les niveaux suivants
+ne font pas disparaître l'intérêt de la préparation granulométrique.
+
+Les blocs inconnus se règlent par `invalidInputBehavior` : `pass_through`,
+`waste` ou `reject`. Les phases physiquement incompatibles sont déjà rejetées
+par le port avant le traitement. La fonderie convertit à 2 u/s la roche, les
+minerais et les déchets non préparés en déchets, avec une énergie multipliée
+par trois ; les métaux finis, le charbon et le carbone y passent inchangés.
+
 Les recettes et chiffres d'équilibrage se trouvent dans les données et peuvent
 être ajustés sans changer le rendu. Les valeurs de récupération restent
 provisoires, conformément à la spécification.
@@ -184,6 +216,8 @@ Il conserve les buffers, métadonnées, cycles en cours, stocks extérieurs,
 historiques, réglages et restes de pas fixe. Aucun progrès industriel hors ligne
 n'est ajouté. Les anciens types génériques sont migrés : Transformation vers
 Fonderie, Assemblage vers Affineur, Séparation vers Division, Sortie vers Quai.
+Le graphe de processus passe en version 2 ; les plans existants reçoivent le
+second port du concasseur réservé au retour des trop-gros.
 Les anciennes connexions dupliquant une sortie sont écartées avec un diagnostic
 de migration. Les types inconnus et leurs matières restent conservés.
 
@@ -193,9 +227,8 @@ extérieur. Les cartes reprennent la densité de référence d'Upload Labs : ét
 vitesse de traitement, durée par unité, progression du cycle, flux d'entrée,
 sorties nommées à côté de leurs ports et énergie. Le panneau d'information au
 clic est temporairement masqué; son contenu et les réglages restent dans le code.
-Les traits restent sans flèche ; leur couleur dépend de cinq familles et leur
-texte affiche matière dominante et débit actuel/maximal. Un toucher sur un trait
-ouvre ses détails ; le glisser décroche la connexion.
+Les traits restent sans flèche et sans étiquette de débit ou de ressource ; leur
+couleur dépend de cinq familles. Le glisser décroche la connexion.
 
 ## Relais avant validation initiale
 
@@ -221,3 +254,17 @@ du moteur ciblée passe (32/32), la suite complète passe (69/69) et le smoke te
 de l'éditeur en paysage mobile 844×390 passe. Il vérifie les statistiques
 Upload Labs, les noms de sortie et le raccordement de deux sources à la même
 entrée. Aucun contrôle de bureau n'a été lancé.
+
+## Équilibrage, recyclage et cycles partiels en 0.34.80
+
+Le crible sépare désormais les fragments en 85 % calibrés et 15 % trop-gros ;
+le concasseur possède une entrée de retour dédiée et alterne les deux flux. Les
+lots partiels se traitent en proportion de leur quantité, avec un plancher d'un
+pas de simulation. Les limites physiques des ports restent fixes malgré les
+bonus technologiques. Les rendements, débits, fonderie humide, raccourci de
+l'affineur, filtre à deux sorties et décroissance du potentiel des déchets sont
+déclarés et validés dans le moteur.
+
+La suite complète `npm test` passe : 78/78. Les tests du moteur passent :
+41/41. Le smoke test de l'éditeur mobile paysage 844×390 passe. Aucun test de
+bureau n'a été lancé.

@@ -139,7 +139,7 @@
         const label = document.createElement('label'); label.textContent = name; label.append(control); parent.append(label);
       };
       if (['input', 'dock', 'filter', 'storage'].includes(node.type)) {
-        field('Filtre matière', resourceSelector(node.settings.filter, value => {
+        field(node.type === 'filter' ? 'Matière conforme' : 'Filtre matière', resourceSelector(node.settings.filter, value => {
           node.settings.filter = value; savePlanStatus();
         }));
       }

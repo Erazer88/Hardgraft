@@ -34,6 +34,7 @@
       recipes: definition?.recipes || [], settings: {
         ratio: Number.isFinite(settings.ratio) ? Math.max(0, Math.min(1, settings.ratio)) : .5,
         phase: ['solid', 'liquid', 'gas'].includes(settings.phase) ? settings.phase : definition?.storagePhase || 'solid',
+        nextMainPort: Number.isInteger(settings.nextMainPort) && settings.nextMainPort >= 0 ? settings.nextMainPort : 0,
         filter: typeof settings.filter === 'string' && settings.filter ? root.OrbitResourceData.canonicalId(settings.filter) : null
       }, job, state: definition ? 'waiting' : 'incompatible',
       message: definition ? '' : 'Type inconnu : matière conservée, aucun traitement automatique.',
@@ -99,6 +100,10 @@
       ...(node.job?.outputs.map(item => item.stack) || [])].find(Boolean)?.resourceId || null;
   }
 
+  function bufferedAmount(node) {
+    return Stack.total([...node.internalBuffer.inputs, ...node.internalBuffer.outputs, ...(node.job?.inputs || [])]);
+  }
+
   function acceptance(node, portIndex, stack) {
     const port = node.inputPorts[portIndex], definition = definitionOf(node), resource = root.OrbitResourceData.get(stack.resourceId);
     if (!port) return { ok: false, state: 'incompatible', kind: 'impossible', reason: 'Ce bloc ne possède pas cette entrée.' };
@@ -110,14 +115,16 @@
         !port.acceptedResources.includes(stack.resourceId) && !port.acceptedTags.some(tag => stack.tags.includes(tag))) {
       return { ok: false, state: 'incompatible', kind: 'incompatible', reason: `Le port ${port.id} n’accepte pas cette matière.` };
     }
-    if (['filter', 'dock', 'storage'].includes(node.type) && node.settings.filter && node.settings.filter !== stack.resourceId) {
+    if (['dock', 'storage'].includes(node.type) && node.settings.filter && node.settings.filter !== stack.resourceId) {
       return { ok: false, state: 'incompatible', kind: 'incompatible', reason: 'Matière refusée par le filtre du bloc.' };
     }
     const current = node.internalBuffer.inputs[portIndex];
     const lock = ['storage', 'merger'].includes(node.type) ? lockedResource(node) : current?.resourceId;
     if (lock && lock !== stack.resourceId) return { ok: false, state: 'incompatible', kind: 'incompatible',
       reason: node.type === 'merger' ? 'Fusion refusée : les matières diffèrent.' : 'Une autre matière occupe ce stock.' };
-    const capacity = Math.max(0, definition.inputCapacity - (current?.amount || 0));
+    const capacity = node.type === 'storage'
+      ? Math.max(0, definition.inputCapacity - bufferedAmount(node))
+      : Math.max(0, definition.inputCapacity - (current?.amount || 0));
     return capacity > Stack.EPSILON ? { ok: true, capacity } :
       { ok: false, state: 'saturated', kind: 'capacity', reason: 'Buffer d’entrée plein.' };
   }
@@ -125,7 +132,10 @@
   function outputRoom(node, index, stack) {
     const current = node.internalBuffer.outputs[index];
     if (current && stack && current.resourceId !== stack.resourceId) return 0;
-    return Math.max(0, definitionOf(node).outputCapacity - (current?.amount || 0));
+    const definition = definitionOf(node), portRoom = Math.max(0, definition.outputCapacity - (current?.amount || 0));
+    const sharedRoom = node.type === 'storage'
+      ? Math.max(0, definition.inputCapacity - bufferedAmount(node) + (stack?.amount || 0)) : Infinity;
+    return Math.min(portRoom, sharedRoom);
   }
 
   function salvage(graph, stack) {

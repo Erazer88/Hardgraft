@@ -8,15 +8,23 @@
 
   function timing(definition, graph, recipe = {}) {
     const level = Math.max(0, graph.technologyLevel - 1);
+    const port = definition.inputPorts[0] || definition.outputPorts[0];
+    const portCap = port?.maxThroughput ?? Infinity;
     return { duration: Math.max(.01, definition.processingTime * (recipe.timeMultiplier ?? 1)),
-      rate: definition.baseThroughput * (recipe.rateMultiplier ?? 1) * (1 + level * Data.config.throughputPerLevel),
+      rate: Math.min(portCap, definition.baseThroughput * (recipe.rateMultiplier ?? 1) *
+        (1 + level * Data.config.throughputPerLevel)),
       energyUse: definition.energyUse * (recipe.energyMultiplier ?? 1) };
   }
   function result(definition, graph, recipe, inputs, outputs, extra = {}) {
     const time = timing(definition, graph, recipe), mode = recipe.mode || 'valid';
     if (time.rate <= EPS) return blocked('waiting', 'Débit nul pour ce bloc.');
+    const workAmount = inputs.length ? (definition.operation === 'merge'
+      ? inputs.reduce((sum, item) => sum + item.amount, 0) : inputs[0].amount)
+      : Stack.total(outputs.filter(item => item.port >= 0).map(item => item.stack));
+    const duration = workAmount > EPS
+      ? Math.min(time.duration, Math.max(Data.config.fixedStepSeconds, workAmount / time.rate)) : time.duration;
     return { ready: true, state: stateOf(mode), mode, message: recipe.message || '', recipeId: recipe.id || definition.operation,
-      duration: time.duration, energyUse: time.energyUse, rate: time.rate, inputs, outputs, ...extra };
+      duration, energyUse: time.energyUse, rate: time.rate, inputs, outputs, ...extra };
   }
   function budget(definition, graph, stack, recipe = {}) {
     const time = timing(definition, graph, recipe);
@@ -53,7 +61,7 @@
       (recipe.minMoisture == null || stack.moisture > recipe.minMoisture);
   }
 
-  function ingredientBatch(node, graph, definition, recipe, main) {
+  function ingredientBatch(node, graph, definition, recipe, main, mainPort = 0) {
     let amount = budget(definition, graph, main, recipe), secondary = null;
     if (recipe.secondary) {
       const required = recipe.secondary, available = node.internalBuffer.inputs[required.port];
@@ -64,21 +72,25 @@
       secondary = Stack.portion(available, amount * required.ratio);
     }
     return { amount, main: Stack.portion(main, amount), secondary,
-      inputs: [{ port: 0, amount }, ...(secondary ? [{ port: recipe.secondary.port, amount: secondary.amount }] : [])] };
+      inputs: [{ port: mainPort, amount }, ...(secondary ? [{ port: recipe.secondary.port, amount: secondary.amount }] : [])] };
   }
 
-  function recover(node, graph, definition, recipe, main) {
+  function recover(node, graph, definition, recipe, main, mainPort = 0) {
     let adjusted = { ...recipe };
-    if (main.particleSize === 'raw') adjusted = { ...adjusted, mode: 'degraded',
+    const grain = main.particleSize === 'oversized' ? 'raw' : main.particleSize;
+    if (grain === 'raw') adjusted = { ...adjusted, mode: 'degraded',
       rateMultiplier: recipe.rawRateMultiplier, message: 'Roche non préparée : récupération et cadence réduites.' };
-    if (main.particleSize === 'powder') adjusted.rateMultiplier = recipe.powderRateMultiplier;
-    const batch = ingredientBatch(node, graph, definition, adjusted, main);
+    else if (grain === 'fragment') adjusted.rateMultiplier = recipe.fragmentRateMultiplier;
+    else if (grain === 'calibrated') adjusted.rateMultiplier = recipe.calibratedRateMultiplier;
+    else if (grain === 'powder') adjusted.rateMultiplier = recipe.powderRateMultiplier;
+    const batch = ingredientBatch(node, graph, definition, adjusted, main, mainPort);
     if (batch.error) return batch.error;
     const mineralFraction = Stack.elements.reduce((sum, id) => sum + (main.composition[id] || 0), 0);
     const accessibleFraction = (main.composition[recipe.element] || 0) * (mineralFraction > EPS
       ? Math.min(1, main.recoverableFraction / mineralFraction) : 0);
-    const efficiency = clamp(recipe.recovery[main.particleSize] +
-      Math.max(0, graph.technologyLevel - 1) * Data.config.recoveryPerLevel, 0, .99);
+    const recoveryBonusIndex = Math.min(Data.config.recoveryBonusByLevel.length - 1, Math.max(0, graph.technologyLevel - 1));
+    const recoveryBonus = Data.config.recoveryBonusByLevel[recoveryBonusIndex] || 0;
+    const efficiency = clamp(recipe.recovery[grain] + recoveryBonus, 0, Data.config.maxRecovery);
     const product = usefulStack(batch.main, recipe.outputResource, batch.amount * accessibleFraction * efficiency,
       { moisture: recipe.outputMoisture ?? main.moisture });
     const inputs = [batch.main, ...(batch.secondary ? [batch.secondary] : [])];
@@ -89,11 +101,11 @@
     return result(definition, graph, adjusted, batch.inputs, [...output(0, product), ...output(1, rejection)]);
   }
 
-  function purify(node, graph, definition, recipe, main) {
+  function purify(node, graph, definition, recipe, main, mainPort = 0) {
     const wet = recipe.wet && main.moisture > recipe.wet.threshold;
     const adjusted = wet ? { ...recipe, mode: 'degraded', rateMultiplier: recipe.wet.rateMultiplier,
       energyMultiplier: recipe.wet.energyMultiplier, message: 'Matière humide : moins de produit, plus de déchets et d’énergie.' } : recipe;
-    const batch = ingredientBatch(node, graph, definition, adjusted, main);
+    const batch = ingredientBatch(node, graph, definition, adjusted, main, mainPort);
     if (batch.error) return batch.error;
     const ingredients = [batch.main, ...(batch.secondary ? [batch.secondary] : [])];
     let usefulAmount = batch.amount * recipe.yield * (wet ? recipe.wet.yieldMultiplier : 1);
@@ -117,13 +129,21 @@
     const residual = recoveredAmount > EPS ? Stack.convert(consumed, residualId, recoveredAmount,
       { composition, recoverableFraction: 1, reprocessingPasses: main.reprocessingPasses + 1 }) : null;
     const waste = remainder([consumed], residual, 'residual_waste', { reprocessingPasses: main.reprocessingPasses + 1 });
-    if (waste) waste.recoverableFraction *= recipe.recoverabilityDecay;
+    if (waste) waste.recoverableFraction = Math.min(waste.recoverableFraction,
+      consumed.recoverableFraction * recipe.remainingRecoverability);
     return result(definition, graph, residual ? recipe : { ...recipe, mode: 'useless', message: 'Aucune matière récupérable restante.' },
       [{ port: 0, amount }], [...output(0, residual), ...output(1, waste)]);
   }
 
   function resolve(node, graph) {
-    const definition = Graph.definitionOf(node), main = node.internalBuffer.inputs[0];
+    const definition = Graph.definitionOf(node), mainPorts = definition.mainInputPorts || [0];
+    const nextPortIndex = mainPorts.indexOf(node.settings.nextMainPort);
+    const firstPort = nextPortIndex >= 0 ? nextPortIndex : 0;
+    let mainPort = mainPorts[firstPort] ?? 0, main = null;
+    for (let step = 0; step < mainPorts.length; step++) {
+      const candidate = mainPorts[(firstPort + step) % mainPorts.length];
+      if (node.internalBuffer.inputs[candidate]) { mainPort = candidate; main = node.internalBuffer.inputs[candidate]; break; }
+    }
     if (definition.operation === 'disabled' || definition.enabled === false) return blocked('waiting', 'Bloc désactivé pour cette version.');
     if (definition.operation === 'source') {
       const oil = definition.sourceResource === 'raw_oil';
@@ -160,21 +180,32 @@
       return result(definition, graph, {}, inputs, output(0, portions.reduce((a, b) => Stack.merge(a, b), null)));
     }
     if (!main) return blocked('missing_input', 'Aucune matière dans le buffer d’entrée.');
-    const acceptance = Graph.acceptance(node, 0, main);
+    const acceptance = Graph.acceptance(node, mainPort, main);
     if (!acceptance.ok && acceptance.kind !== 'capacity') return blocked(acceptance.state, acceptance.reason, acceptance.kind);
     if (definition.operation === 'export') {
       const amount = Math.min(budget(definition, graph, main), graph.exportCapacity - Stack.total(graph.exportStock));
       if (amount <= EPS) return blocked('output_blocked', 'Stock du quai plein : aucune destination extérieure ne l’a vidé.');
-      return result(definition, graph, {}, [{ port: 0, amount }], output(-1, Stack.portion(main, amount)), { destination: 'exportStock' });
+      return result(definition, graph, {}, [{ port: mainPort, amount }], output(-1, Stack.portion(main, amount)), { destination: 'exportStock' });
     }
     if (definition.operation === 'dump') {
       const amount = budget(definition, graph, main);
-      return result(definition, graph, {}, [{ port: 0, amount }], output(-1, Stack.convert(main, 'waste', amount)), { destination: 'history' });
+      return result(definition, graph, {}, [{ port: mainPort, amount }], output(-1, Stack.convert(main, 'waste', amount)), { destination: 'history' });
     }
     if (definition.operation === 'screen') {
-      const amount = budget(definition, graph, main), port = main.particleSize === 'raw' ? 0 : 1;
-      return result(definition, graph, {}, [{ port: 0, amount }], output(port, Stack.portion(main, amount)),
-        { message: port === 0 ? 'Granulométrie trop grosse.' : 'Granulométrie correcte.' });
+      const amount = budget(definition, graph, main);
+      const stack = (particleSize, portion) => Stack.convert(main, main.resourceId, portion, { particleSize });
+      if (main.particleSize === 'raw' || main.particleSize === 'oversized') {
+        return result(definition, graph, {}, [{ port: mainPort, amount }], output(0, stack('oversized', amount)),
+          { message: 'Roche brute : tout le flux est trop gros.' });
+      }
+      if (main.particleSize === 'fragment') {
+        const oversized = amount * .15, calibrated = amount - oversized;
+        return result(definition, graph, {}, [{ port: mainPort, amount }], [
+          ...output(0, stack('oversized', oversized)), ...output(1, stack('calibrated', calibrated))
+        ], { message: 'Tri granulométrique : 15 % trop gros, 85 % calibrés.' });
+      }
+      return result(definition, graph, {}, [{ port: mainPort, amount }], output(1, stack(main.particleSize, amount)),
+        { message: 'Granulométrie correcte.' });
     }
     if (definition.operation === 'split') {
       const desired = budget(definition, graph, main), roomA = Graph.outputRoom(node, 0, main), roomB = Graph.outputRoom(node, 1, main);
@@ -182,24 +213,30 @@
       if (amount <= EPS) return blocked('output_blocked', 'Les deux branches sont pleines.');
       let amountA = Math.min(amount * clamp(node.settings.ratio, 0, 1), roomA);
       const amountB = Math.min(amount - amountA, roomB); amountA += Math.min(amount - amountA - amountB, roomA - amountA);
-      return result(definition, graph, {}, [{ port: 0, amount: amountA + amountB }],
+      return result(definition, graph, {}, [{ port: mainPort, amount: amountA + amountB }],
         [...output(0, Stack.portion(main, amountA)), ...output(1, Stack.portion(main, amountB))]);
+    }
+    if (definition.operation === 'filter') {
+      const amount = budget(definition, graph, main), conforming = !node.settings.filter || node.settings.filter === main.resourceId;
+      return result(definition, graph, {}, [{ port: mainPort, amount }],
+        output(conforming ? 0 : 1, Stack.portion(main, amount)),
+        { message: conforming ? 'Matière conforme.' : 'Matière dirigée vers les rejets.' });
     }
     if (definition.operation === 'pass' || definition.passResources?.includes(main.resourceId)) {
       const amount = budget(definition, graph, main), recipe = definition.passResources?.includes(main.resourceId)
         ? { mode: 'useless', energyMultiplier: 0, message: 'Matière déjà préparée : aucune transformation.' } : {};
-      return result(definition, graph, recipe, [{ port: 0, amount }], output(0, Stack.portion(main, amount)),
+      return result(definition, graph, recipe, [{ port: mainPort, amount }], output(0, Stack.portion(main, amount)),
         definition.passResources?.includes(main.resourceId) ? { energyUse: 0 } : {});
     }
     const recipe = definition.recipes.find(item => matches(item, main));
-    if (recipe?.operation === 'recover') return recover(node, graph, definition, recipe, main);
-    if (recipe?.operation === 'purify') return purify(node, graph, definition, recipe, main);
+    if (recipe?.operation === 'recover') return recover(node, graph, definition, recipe, main, mainPort);
+    if (recipe?.operation === 'purify') return purify(node, graph, definition, recipe, main, mainPort);
     if (recipe?.operation === 'recycle') return recycle(node, graph, definition, recipe, main);
     if (recipe?.operation === 'resize' || recipe?.operation === 'dry') {
       const amount = budget(definition, graph, main, recipe);
       const stack = recipe.operation === 'dry' ? Stack.create({ ...main, amount, moisture: 0 }) :
         Stack.convert(main, recipe.outputMap[main.resourceId] || main.resourceId, amount, { particleSize: recipe.particleSize, quality: main.quality });
-      return result(definition, graph, recipe, [{ port: 0, amount }], output(0, stack));
+      return result(definition, graph, recipe, [{ port: mainPort, amount }], output(0, stack));
     }
     if (recipe?.operation === 'triphasic') {
       const amount = budget(definition, graph, main, recipe), gas = usefulStack(main, 'gas', amount * (main.composition.gas || 0));
@@ -208,11 +245,19 @@
         { composition: { sterile: 1 }, recoverableFraction: 0 });
       return result(definition, graph, recipe, [{ port: 0, amount }], [...output(0, gas), ...output(1, oil), ...output(2, waste)]);
     }
-    const amount = budget(definition, graph, main), destructive = definition.destructiveTags?.some(tag => main.tags.includes(tag));
-    return result(definition, graph, { mode: destructive ? 'destructive' : 'useless',
-      message: destructive ? 'Aucun métal séparé exploitable : matière convertie en déchets.' : 'Cette matière ressort inchangée.' },
-      [{ port: 0, amount }], output(destructive ? 1 : 0,
-        destructive ? Stack.convert(main, 'waste', amount) : Stack.portion(main, amount)),
+    const behavior = definition.invalidInputBehavior || 'pass_through';
+    if (behavior === 'reject') return blocked('incompatible', definition.invalidInputMessage ||
+      'Cette matière ne peut pas entrer physiquement dans ce procédé.', 'impossible');
+    const destructive = behavior === 'waste' &&
+      (!definition.destructiveTags?.length || definition.destructiveTags.some(tag => main.tags.includes(tag)));
+    const fallback = destructive ? { mode: 'destructive',
+      rateMultiplier: definition.invalidInputRate ? definition.invalidInputRate / definition.baseThroughput : 1,
+      energyMultiplier: definition.invalidInputEnergyMultiplier ?? 1,
+      message: 'Procédé inadapté : cette matière est convertie en déchets.' } : {
+      mode: 'useless', energyMultiplier: 0, message: 'Cette matière ressort inchangée.' };
+    const amount = budget(definition, graph, main, fallback);
+    return result(definition, graph, fallback, [{ port: mainPort, amount }], output(destructive ? 1 : 0,
+      destructive ? Stack.convert(main, 'waste', amount) : Stack.portion(main, amount)),
       destructive ? {} : { energyUse: 0 });
   }
 

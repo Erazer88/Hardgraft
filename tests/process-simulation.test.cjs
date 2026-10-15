@@ -75,6 +75,14 @@ test('graph links are directional, allow shared inputs, and require real ports',
   assert.equal(Graph.connect(graph, { id: 'no-input', fromNodeId: 'n3', fromPort: 0, toNodeId: 'n5', toPort: 0 }).ok, false);
 });
 
+test('existing process graphs rebuild with the additional crusher return port', () => {
+  const graph = Graph.create({ version: 1, nodes: [{ id: 'old-crusher', type: 'crusher',
+    internalBuffer: { inputs: [null], outputs: [null] } }] });
+  assert.equal(Data.config.version, 2); assert.equal(graph.version, 2);
+  assert.equal(node(graph, 'old-crusher').inputPorts.length, 2);
+  assert.equal(node(graph, 'old-crusher').internalBuffer.inputs.length, 2);
+});
+
 test('crusher turns raw rock into fragments without changing its mass or composition', () => {
   const graph = makeGraph(['crusher']), crusher = node(graph);
   feed(crusher, 0, material('raw_rock', 10, { composition: { iron: .52, copper: .08, sterile: .4 } }));
@@ -86,12 +94,30 @@ test('crusher turns raw rock into fragments without changing its mass or composi
   close(crusher.internalBuffer.outputs[0].amount, 10); close(Graph.materialTotal(graph), before);
 });
 
+test('crusher can alternate mined rock and a separate oversized return port', () => {
+  const graph = makeGraph(['crusher']), crusher = node(graph);
+  assert.equal(crusher.inputPorts[1].id, 'rework');
+  feed(crusher, 0, material('raw_rock', 10));
+  feed(crusher, 1, material('rock_fragments', 4, { particleSize: 'oversized' }));
+  advance(graph, .1);
+  assert.equal(crusher.job.inputs[0].resourceId, 'raw_rock');
+  assert.equal(crusher.settings.nextMainPort, 1);
+  advance(graph, 1);
+  assert.equal(crusher.job.inputs[0].resourceId, 'rock_fragments');
+  assert.equal(crusher.settings.nextMainPort, 0);
+  assert.equal(crusher.job.outputs[0].stack.particleSize, 'fragment');
+
+  const loop = makeGraph(['screen', 'crusher']);
+  const returnLink = link(loop, 'n1', 'n2', 'oversized-return', 0, 1);
+  assert.equal(returnLink.toPortId, 'rework');
+});
+
 test('grinder accepts raw rock slowly and rejects already powdered material unchanged', () => {
   const graph = makeGraph(['grinder']), grinder = node(graph);
   feed(grinder, 0, material('raw_rock', 10));
   const raw = Resolver.resolve(grinder, graph);
   assert.equal(raw.mode, 'degraded'); assert.equal(outputAt(raw, 0).resourceId, 'rock_powder');
-  assert.ok(raw.duration > 1); assert.ok(raw.energyUse > Data.get('grinder').energyUse);
+  close(raw.rate, 2); close(raw.duration, 1); close(raw.energyUse, Data.get('grinder').energyUse * 3);
   assertConservative(raw);
   feed(grinder, 0, material('rock_powder', 10, { particleSize: 'powder' }));
   const powder = Resolver.resolve(grinder, graph);
@@ -103,10 +129,60 @@ test('screen routes raw and processed grain sizes to different outputs', () => {
   const graph = makeGraph(['screen']), screen = node(graph);
   feed(screen, 0, material('raw_rock', 4, { particleSize: 'raw' }));
   let packet = Resolver.resolve(screen, graph);
-  assert.equal(outputAt(packet, 0).particleSize, 'raw'); assert.equal(outputAt(packet, 1), null); assertConservative(packet);
+  assert.equal(outputAt(packet, 0).particleSize, 'oversized'); assert.equal(outputAt(packet, 1), null);
+  close(packet.duration, 4 / 12); assertConservative(packet);
   feed(screen, 0, material('rock_fragments', 4, { particleSize: 'fragment' }));
   packet = Resolver.resolve(screen, graph);
-  assert.equal(outputAt(packet, 0), null); assert.equal(outputAt(packet, 1).particleSize, 'fragment'); assertConservative(packet);
+  close(outputAt(packet, 0).amount, .6); close(outputAt(packet, 1).amount, 3.4);
+  assert.equal(outputAt(packet, 0).particleSize, 'oversized');
+  assert.equal(outputAt(packet, 1).particleSize, 'calibrated'); assertConservative(packet);
+  feed(screen, 0, material('rock_powder', 4, { particleSize: 'powder' }));
+  packet = Resolver.resolve(screen, graph);
+  assert.equal(outputAt(packet, 0), null); assert.equal(outputAt(packet, 1).particleSize, 'powder'); assertConservative(packet);
+});
+
+test('nominal rates match the recommended processing choices and preserve hard port caps', () => {
+  assert.equal(Data.get('crusher').baseThroughput, 10);
+  assert.equal(Data.get('grinder').baseThroughput, 9);
+  assert.equal(Data.get('screen').baseThroughput, 12);
+  for (const type of ['magnetic_sorter', 'gravity_sorter', 'coal_sorter', 'silicon_washer']) {
+    assert.equal(Data.get(type).baseThroughput, 10);
+  }
+  const graph = makeGraph(['crusher']); graph.technologyLevel = 20;
+  const crusher = node(graph); feed(crusher, 0, material('raw_rock', 50));
+  close(Resolver.resolve(crusher, graph).rate, 12);
+  assert.equal(Data.get('smelter').inputPorts[1].maxThroughput, 4);
+  assert.equal(Data.get('silicon_washer').inputPorts[1].maxThroughput, 6);
+});
+
+test('magnetic recovery uses the four grain-size yields and modest technology bonuses', () => {
+  const expected = { raw: [.25, 3.6], fragment: [.86, 8], calibrated: [.89, 9], powder: [.92, 10] };
+  for (const [size, [efficiency, rate]] of Object.entries(expected)) {
+    const graph = makeGraph(['magnetic_sorter']), sorter = node(graph);
+    feed(sorter, 0, material(size === 'raw' ? 'raw_rock' : size === 'powder' ? 'rock_powder' : 'rock_fragments', 100,
+      { particleSize: size, composition: { iron: .52, sterile: .48 }, recoverableFraction: .52 }));
+    const packet = Resolver.resolve(sorter, graph), product = outputAt(packet, 0);
+    close(packet.rate, rate); close(product.amount / inputMass(packet), .52 * efficiency); assertConservative(packet);
+  }
+  for (const [level, recovery] of [[1, .86], [2, .89], [3, .92], [4, .94]]) {
+    const graph = makeGraph(['magnetic_sorter']); graph.technologyLevel = level;
+    const sorter = node(graph);
+    feed(sorter, 0, material('rock_fragments', 100, { particleSize: 'fragment',
+      composition: { iron: .52, sterile: .48 }, recoverableFraction: .52 }));
+    const packet = Resolver.resolve(sorter, graph);
+    close(outputAt(packet, 0).amount / inputMass(packet) / .52, recovery);
+  }
+});
+
+test('filter routes matching and rejected resources separately without changing either stack', () => {
+  const graph = makeGraph(['filter']), filter = node(graph);
+  filter.settings.filter = 'raw_rock';
+  feed(filter, 0, material('standard_iron', 3));
+  let packet = Resolver.resolve(filter, graph);
+  assert.equal(outputAt(packet, 0), null); assert.equal(outputAt(packet, 1).resourceId, 'standard_iron');
+  assert.equal(outputAt(packet, 1).amount, 3); assertConservative(packet);
+  feed(filter, 0, material('raw_rock', 2)); packet = Resolver.resolve(filter, graph);
+  assert.equal(outputAt(packet, 0).resourceId, 'raw_rock'); assert.equal(outputAt(packet, 1), null); assertConservative(packet);
 });
 
 test('magnetic and gravity sorters recover the matching geological fraction and conserve mass', () => {
@@ -171,7 +247,18 @@ test('smelter waits for carbon, converts prepared iron, and routes raw ore to wa
 
   feed(smelter, 0, material('raw_rock', 10)); packet = Resolver.resolve(smelter, graph);
   assert.equal(packet.mode, 'destructive'); assert.equal(outputAt(packet, 1).resourceId, 'waste');
+  close(packet.rate, 2); close(packet.energyUse, Data.get('smelter').energyUse * 3);
   assertConservative(packet);
+});
+
+test('wet smelting runs at 2.6 u/s with the reduced yield and matching waste', () => {
+  const graph = makeGraph(['smelter']), smelter = node(graph);
+  feed(smelter, 0, material('impure_silicon', 10, { moisture: .3 }));
+  feed(smelter, 1, material('carbon', 4));
+  const packet = Resolver.resolve(smelter, graph), main = packet.inputs.find(input => input.port === 0).amount,
+    product = outputAt(packet, 0), waste = outputAt(packet, 1);
+  close(packet.rate, 2.6); close(product.amount / main, .736); close(waste.amount / main, .364);
+  close(packet.energyUse, Data.get('smelter').energyUse * 1.6); assertConservative(packet);
 });
 
 test('refiner produces steel and pure copper, while impure feed is degraded', () => {
@@ -183,6 +270,8 @@ test('refiner produces steel and pure copper, while impure feed is degraded', ()
   assert.equal(outputAt(packet, 0).resourceId, 'pure_copper'); assertConservative(packet);
   feed(refiner, 0, material('impure_iron', 10)); packet = Resolver.resolve(refiner, graph);
   assert.equal(packet.mode, 'degraded'); assert.equal(outputAt(packet, 0).resourceId, 'standard_iron');
+  close(packet.rate, 1); close(outputAt(packet, 0).amount / inputMass(packet), .25);
+  close(outputAt(packet, 1).amount / inputMass(packet), .75);
   assertConservative(packet);
 });
 
@@ -212,6 +301,18 @@ test('storage enforces phase, filters, and a single-resource lock', () => {
   storage.settings.filter = null; feed(storage, 0, material('gas', 1));
   assert.equal(Graph.acceptance(storage, 0, material('oil', 1)).ok, false);
   assert.equal(Graph.acceptance(storage, 0, material('gas', 1)).ok, true);
+});
+
+test('storage capacity 500 is shared by its input, output, and active batch buffers', () => {
+  const graph = makeGraph(['storage']), storage = node(graph);
+  feed(storage, 0, material('raw_rock', 500));
+  const packet = Resolver.resolve(storage, graph);
+  close(packet.inputs[0].amount, 12); close(Graph.outputRoom(storage, 0, packet.outputs[0].stack), 12);
+  advance(graph, .1);
+  assert.equal(storage.job.inputs[0].resourceId, 'raw_rock');
+  assert.equal(Graph.acceptance(storage, 0, material('raw_rock', 1)).state, 'saturated');
+  assert.equal(Graph.acceptance(storage, 0, material('raw_rock', 1)).ok, false);
+  close(Graph.materialTotal(graph), 500);
 });
 
 test('splitter redistributes around a full branch and merger refuses different resources', () => {
@@ -258,8 +359,17 @@ test('waste analyzer creates residual ore and reduces recoverable potential', ()
     recoverableFraction: .15, particleSize: 'fragment' }));
   const packet = Resolver.resolve(analyzer, graph), residual = outputAt(packet, 0), depleted = outputAt(packet, 1);
   assert.equal(residual.resourceId, 'residual_ore_fragment');
-  assert.equal(residual.reprocessingPasses, 1); assert.ok(depleted.recoverableFraction < .15);
+  assert.equal(residual.reprocessingPasses, 1); close(depleted.recoverableFraction, .15 * .35);
   assertConservative(packet);
+
+  let next = depleted;
+  for (let pass = 2; pass <= 4; pass++) {
+    feed(analyzer, 0, next);
+    const repeated = Resolver.resolve(analyzer, graph);
+    next = outputAt(repeated, 1);
+    close(next.recoverableFraction, .15 * (.35 ** pass));
+    assertConservative(repeated);
+  }
 });
 
 test('triphasic separator conserves crude oil across gas, oil, and waste outputs', () => {
@@ -283,6 +393,12 @@ test('oil pump only extracts from an oil deposit and creates crude at cycle comp
 
   const invalidGraph = makeGraph(['oil_pump'], { geology: { ...geology, resourceId: 'iron' } });
   assert.equal(Resolver.resolve(node(invalidGraph), invalidGraph).state, 'missing_input');
+});
+
+test('geological extraction follows abundance and hardness, capped by its 12 u/s output port', () => {
+  const building = { id: 'mine', type: 'extractor', resourceId: 'iron', planetId: 'p', x: 1, y: 2, depositAbundance: 1 };
+  const geology = Industry.geology({ seed: 7 }, building);
+  close(geology.throughput, Math.min(12, 10 / geology.hardness));
 });
 
 test('quality analyzer stays disabled and cannot consume input', () => {
@@ -350,9 +466,10 @@ test('building input stock enters the graph once and advances at the connection 
   const before = Graph.materialTotal(graph); advance(graph, 1.1);
   assert.equal(graph.externalStock.length, 0);
   assert.equal(importer.internalBuffer.outputs[0].resourceId, 'raw_rock');
-  close(importer.internalBuffer.outputs[0].amount, 8.8);
+  close(importer.internalBuffer.outputs[0].amount, 7.6);
   assert.equal(crusher.job.inputs[0].resourceId, 'raw_rock');
-  close(crusher.job.inputs[0].amount, 1.2); close(Graph.materialTotal(graph), before);
+  close(crusher.job.inputs[0].amount, 1.2); close(crusher.internalBuffer.inputs[0].amount, 1.2);
+  close(Graph.materialTotal(graph), before);
 });
 
 test('loops transfer at most one buffer snapshot per tick and preserve all material', () => {
@@ -396,8 +513,8 @@ test('live process rates are exact from the first active tick and scale with ava
 
   const grinderGraph = makeGraph(['grinder']), grinder = node(grinderGraph);
   feed(grinder, 0, material('raw_rock', 10)); advance(grinderGraph, .1);
-  close(grinder.telemetry.inputRate, 1.08); close(grinder.telemetry.outputRate, 1.08);
-  close(grinder.telemetry.outputAmounts.rock_powder, 1.08);
+  close(grinder.telemetry.inputRate, 2); close(grinder.telemetry.outputRate, 2);
+  close(grinder.telemetry.outputAmounts.rock_powder, 2);
 
   const smelterGraph = makeGraph(['smelter']), smelter = node(smelterGraph);
   feed(smelter, 0, material('impure_iron', 10)); feed(smelter, 1, material('carbon', 2));
@@ -409,7 +526,7 @@ test('live process rates are exact from the first active tick and scale with ava
 
   const stoppedGraph = makeGraph(['crusher']), stopped = node(stoppedGraph);
   feed(stopped, 0, material('raw_rock', 2)); advance(stoppedGraph, .1);
-  close(stopped.telemetry.outputRate, 2);
+  close(stopped.telemetry.outputRate, 10);
   advance(stoppedGraph, 1.1);
   assert.equal(stopped.job, null); close(stopped.telemetry.outputRate, 0);
 });

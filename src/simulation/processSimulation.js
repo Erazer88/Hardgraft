@@ -42,6 +42,11 @@
         if (source.amount <= EPS) node.internalBuffer.inputs[input.port] = null;
       }
     }
+    const primaryInputPorts = Graph.definitionOf(node).mainInputPorts;
+    if (primaryInputPorts?.length > 1 && Number.isInteger(packet.inputs[0]?.port)) {
+      const index = primaryInputPorts.indexOf(packet.inputs[0].port);
+      if (index >= 0) node.settings.nextMainPort = primaryInputPorts[(index + 1) % primaryInputPorts.length];
+    }
     node.job = { recipeId: packet.recipeId, mode: packet.mode, message: packet.message,
       remainingSeconds: packet.duration, duration: packet.duration, energyUse: packet.energyUse,
       inputs: consumed, outputs: packet.outputs, destination: packet.destination || null,
@@ -71,7 +76,7 @@
     for (let offset = 0; offset < Math.min(links.length, Config.maxTransfersPerTick); offset++) {
       const link = links[(start + offset) % links.length], source = byId.get(link.fromNodeId), destination = byId.get(link.toNodeId);
       if (source && destination) link.maxThroughput = Math.min(source.outputPorts[link.fromPort].maxThroughput,
-        destination.inputPorts[link.toPort].maxThroughput) * (1 + Math.max(0, graph.technologyLevel - 1) * Config.throughputPerLevel);
+        destination.inputPorts[link.toPort].maxThroughput);
       const stack = source?.internalBuffer.outputs[link.fromPort];
       link.state = 'waiting'; link.message = '';
       if (!source || !destination || !stack) continue;
@@ -87,8 +92,7 @@
       }
       const key = `${source.id}:${link.fromPort}`;
       const targetKey = `${destination.id}:${link.toPort}`;
-      const technology = 1 + Math.max(0, graph.technologyLevel - 1) * Config.throughputPerLevel;
-      const portBudget = destination.inputPorts[link.toPort].maxThroughput * technology * seconds;
+      const portBudget = destination.inputPorts[link.toPort].maxThroughput * seconds;
       const remainingPortBudget = Math.max(0, portBudget - (incomingUsed.get(targetKey) || 0));
       const amount = Math.min(available.get(key) || 0, stack.amount, acceptance.capacity,
         link.maxThroughput * seconds, remainingPortBudget);

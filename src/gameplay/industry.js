@@ -19,8 +19,8 @@
     return { id, planetId: building.planetId, resourceId: building.resourceId, composition: { ...composition }, hardness,
       moisture: definition.moistureRange[0] + fraction(state.seed + id + ':moisture') *
         (definition.moistureRange[1] - definition.moistureRange[0]),
-      throughput: (building.resourceId === 'oil' ? Data.get('oil_pump').baseThroughput : definition.baseThroughput) *
-        (.5 + (building.depositAbundance ?? .5) * .5) / hardness };
+      throughput: Math.min(12, (building.resourceId === 'oil' ? Data.get('oil_pump').baseThroughput : definition.baseThroughput) *
+        (.5 + (building.depositAbundance ?? .5) * .5) / hardness) };
   }
 
   function ensureGraph(state, building) {
