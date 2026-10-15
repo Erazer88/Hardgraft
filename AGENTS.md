@@ -38,8 +38,9 @@ Lancer la suite complète et les smoke tests pertinents, incrémenter `package.j
 exécuter `python3 build.py`, vérifier les exports, puis committer et pousser sur
 `codex/nereide-prototype`. `src/data/version.js` et `dist/` sont générés : ne pas les
 éditer à la main. Dans la réponse de livraison, fournir le commit, la version et
-l'aperçu RawGit testable dans Firefox. Un aperçu publié ne représente pas les
-changements d'une itération qui n'a pas été poussée.
+l'aperçu testable dans Firefox. Préférer RawGithack ; si le service est indisponible,
+utiliser HTMLPreview. Ne pas présenter un aperçu inaccessible comme testable, ni un
+aperçu publié comme contenant les changements d'une itération qui n'a pas été poussée.
 
 ## Repères rapides
 

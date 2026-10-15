@@ -15,7 +15,7 @@ pas requis de les lire intégralement.
 
 ## Ouvrir le prototype
 
-[Lancer le jeu dans Firefox](https://raw.githack.com/Erazer88/Hardgraft/codex/nereide-prototype/dist/nereide-zoom-continu.html). Le numéro de version apparaît en bas de l'écran.
+[Lancer le jeu dans Firefox](https://htmlpreview.github.io/?https://github.com/Erazer88/Hardgraft/blob/codex/nereide-prototype/dist/nereide-zoom-continu.html). Le numéro de version apparaît en bas de l'écran.
 
 Les exports autonomes sont disponibles dans `dist/` : `nereide-zoom-continu.html`, `nereide-prototype.html` et `nereide-sources.zip`. `python3 build.py` les régénère. Le HTML autonome embarque le JavaScript et le CSS ; il n'a pas besoin de dépendances réseau.
 
