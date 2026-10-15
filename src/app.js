@@ -35,11 +35,6 @@
     onSave(buildingId, plan) {
       state.factoryPlans[buildingId] = plan;
       persist();
-    },
-    isPaused: () => state.paused,
-    onSupply(building, resourceId, amount) {
-      const result = globalThis.OrbitIndustry.supply(state, building, resourceId, amount);
-      persist(); return result;
     }
   });
   let galaxy, home, terrainTexture, terrainData;

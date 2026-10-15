@@ -8,27 +8,23 @@ const path = require('node:path');
 const { CDP, launchChrome } = require('./browser-smoke.cjs');
 
 const BASE_URL = process.env.ORBITAL_BASE_URL || 'http://127.0.0.1:8000';
-const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 async function main() {
-  const profile = await mkdtemp(path.join(tmpdir(), 'factory-editor-'));
+  const profile = await mkdtemp(path.join(tmpdir(), 'factory-editor-v1-'));
   let chrome, cdp;
   try {
     const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(10000) });
     assert.ok(response.ok, `App server response: ${response.status}`);
     await response.arrayBuffer();
-
     chrome = await launchChrome(profile);
     const endpoint = new URL(chrome.url);
     const targetResponse = await fetch(`http://${endpoint.host}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' });
-    assert.ok(targetResponse.ok, 'Chromium created page target');
+    assert.ok(targetResponse.ok, 'Chromium creates the test page');
     cdp = await CDP.connect((await targetResponse.json()).webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
-    await cdp.send('Emulation.setDeviceMetricsOverride', {
-      width: 844, height: 390, deviceScaleFactor: 2, mobile: true,
-    });
-    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
       (() => {
         let moduleValue;
@@ -47,220 +43,215 @@ async function main() {
     ` });
     const navigation = await cdp.send('Page.navigate', { url: BASE_URL });
     if (navigation.errorText) throw new Error(`Navigation failed: ${navigation.errorText}`);
-    await cdp.until('Boolean(window.__factoryEditorTest && window.OrbitBuildingData)', 'factory editor startup', 20000);
+    await cdp.until('Boolean(window.__factoryEditorTest && window.OrbitProcessGraph)', 'factory V1 startup', 20000);
     if (await cdp.evaluate('document.querySelector("#menu-dialog").open')) await cdp.click('#continue-button');
-    await cdp.until('!document.querySelector("#menu-dialog").open', 'initial game menu closing');
-    await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, {
-      nodes: [{ id: 'node-1', type: 'smelter', x: 500, y: 700 }], connections: []
-    })`);
-    await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
+    await cdp.until('!document.querySelector("#menu-dialog").open', 'main menu closing');
 
-    const layout = await cdp.evaluate(`(() => {
-      const viewport = document.querySelector('#factory-viewport');
-      const bounds = viewport.getBoundingClientRect();
-      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
-        zoomControls: document.querySelectorAll('[data-factory-zoom], #factory-editor-fit').length };
+    const openTwoMachines = async () => cdp.evaluate(`(() => {
+      const version = window.OrbitProcessData.config.version;
+      const graph = window.OrbitProcessGraph.create({ version, geology: { resourceId: 'iron' }, machines: [
+        { id: 'drill-test', type: 'drill', x: 520, y: 700 },
+        { id: 'crusher-test', type: 'crusher', x: 890, y: 700 }
+      ], connections: [] });
+      window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, graph);
     })()`);
-    assert.ok(layout.width > 500 && layout.height > 200, `Landscape work area is visible: ${JSON.stringify(layout)}`);
-    assert.equal(layout.zoomControls, 0, 'Process view has no zoom or reframe controls');
-    await cdp.click('#factory-block-list [data-add-node="crusher"]');
-    const addedBlocks = await cdp.evaluate(`({ count: document.querySelectorAll('#factory-nodes .factory-node').length,
-      addButton: (() => { const item = document.querySelector('#factory-block-list [data-add-node="crusher"]');
-        const bounds = item.getBoundingClientRect(); return { disabled: item.disabled, bounds: bounds.toJSON(),
-          hit: document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)?.outerHTML.slice(0, 120) }; })(),
-      status: document.querySelector('#factory-editor-status').textContent })`);
-    assert.equal(addedBlocks.count, 2, `Factory block was added: ${JSON.stringify(addedBlocks)}`);
-    const cardReadouts = await cdp.evaluate(`(() => {
-      const card = document.querySelector('.factory-node');
-      return { rate: card.querySelector('[data-readout="rate"]').textContent,
-        energy: card.querySelector('[data-readout="energy"]').textContent,
-        removedReadouts: ['state', 'cycle', 'input', 'output'].filter(key => card.querySelector('[data-readout="' + key + '"]')),
-        progress: Boolean(card.querySelector('.factory-progress-fill')),
-        outputs: [...card.querySelectorAll('.factory-port-label.output b')].map(item => item.textContent) };
-    })()`);
-    assert.match(cardReadouts.rate, /DÉBIT/);
-    assert.match(cardReadouts.energy, /MW/);
-    assert.deepEqual(cardReadouts.removedReadouts, [], 'Redundant status, cycle, input, and output rows are absent');
-    assert.equal(cardReadouts.progress, true, 'Process cards show a cycle progress bar');
-    assert.ok(cardReadouts.outputs.includes('Métal') && cardReadouts.outputs.includes('Déchets'),
-      `Smelter outputs are labeled beside their ports: ${JSON.stringify(cardReadouts.outputs)}`);
-
     const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
-    const snapshot = async () => cdp.evaluate(`(() => {
-      const viewport = document.querySelector('#factory-viewport');
-      const world = document.querySelector('#factory-world');
-      const node = document.querySelector('.factory-node');
-      const matrix = new DOMMatrixReadOnly(getComputedStyle(world).transform);
-      const bounds = node.getBoundingClientRect();
-      return { transform: { x: matrix.e, y: matrix.f, scale: matrix.a },
-        node: { x: bounds.x, y: bounds.y }, viewport: viewport.getBoundingClientRect().toJSON() };
+    const editorSnapshot = async () => cdp.evaluate(`(() => {
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const state = window.__factoryEditorTest.getViewportState();
+      return { camera: state.camera, mode: state.mode,
+        viewport: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },
+        cards: [...document.querySelectorAll('.factory-node')].map(card => ({
+          id: card.dataset.machineId, rect: card.getBoundingClientRect().toJSON() })) };
     })()`);
-    const beforeGestures = await snapshot();
-    const blank = { x: layout.x + layout.width * .8, y: layout.y + layout.height * .8 };
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...blank, id: 1 }] });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: blank.x + 36, y: blank.y - 18, id: 1 }] });
-    await frame();
-    const afterOneFinger = await snapshot();
-    assert.ok(Math.abs(afterOneFinger.transform.x - (beforeGestures.transform.x + 36)) < .05 &&
-      Math.abs(afterOneFinger.transform.y - (beforeGestures.transform.y - 18)) < .05 &&
-      afterOneFinger.transform.scale === beforeGestures.transform.scale,
-    'One-finger movement pans the process view exactly with the finger');
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await frame();
-
-    const pinchCenter = { x: layout.x + layout.width * .58, y: layout.y + layout.height * .56 };
-    const pair = (spread, offsetX = 0, offsetY = 0) => [
-      { x: pinchCenter.x - spread + offsetX, y: pinchCenter.y + offsetY, id: 2 },
-      { x: pinchCenter.x + spread + offsetX, y: pinchCenter.y + offsetY, id: 3 },
-    ];
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(28) });
-    await frame();
-    const pinchBase = await snapshot();
-    const startFocusX = pinchCenter.x - layout.x, startFocusY = pinchCenter.y - layout.y;
-    const anchorWorldX = (startFocusX - pinchBase.transform.x) / pinchBase.transform.scale;
-    const anchorWorldY = (startFocusY - pinchBase.transform.y) / pinchBase.transform.scale;
-    let afterPinch = pinchBase;
-    for (let step = 1; step <= 4; step++) {
-      const spread = 28 + step * 7.5, offsetX = step * 4, offsetY = step * 2;
-      await cdp.send('Input.dispatchTouchEvent', {
-        type: 'touchMove', touchPoints: pair(spread, offsetX, offsetY),
-      });
-      await frame();
-      afterPinch = await snapshot();
-      const stepScale = Math.min(3.2, Math.max(.12, pinchBase.transform.scale * (spread / 28)));
-      const stepFocusX = startFocusX + offsetX, stepFocusY = startFocusY + offsetY;
-      assert.ok(Math.abs(afterPinch.transform.scale - stepScale) < .00001 &&
-        Math.abs(afterPinch.transform.x - (stepFocusX - anchorWorldX * stepScale)) < .05 &&
-        Math.abs(afterPinch.transform.y - (stepFocusY - anchorWorldY * stepScale)) < .05,
-      `Pinch stays aligned with the moving midpoint at step ${step}`);
-    }
-    const currentFocusX = startFocusX + 16, currentFocusY = startFocusY + 8;
-    const expectedPinchScale = Math.min(3.2, Math.max(.12, pinchBase.transform.scale * (116 / 56)));
-    assert.ok(Math.abs(afterPinch.transform.scale - expectedPinchScale) < .00001,
-      `Pinch updates zoom from distance ratio (got ${afterPinch.transform.scale}, expected ${expectedPinchScale}, start ${pinchBase.transform.scale})`);
-    assert.ok(afterPinch.transform.scale > 1.45,
-      'Pinch zoom is not capped immediately above the fitted process view');
-    assert.ok(Math.abs(afterPinch.transform.x - (currentFocusX - anchorWorldX * expectedPinchScale)) < .05 &&
-      Math.abs(afterPinch.transform.y - (currentFocusY - anchorWorldY * expectedPinchScale)) < .05,
-    'Pinch tracks its moving midpoint while keeping the world point under the fingers stable');
-
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(28) });
-    await frame();
-    const afterPinchReturns = await snapshot();
-    assert.ok(Math.abs(afterPinchReturns.transform.scale - pinchBase.transform.scale) < .00001 &&
-      Math.abs(afterPinchReturns.transform.x - pinchBase.transform.x) < .05 &&
-      Math.abs(afterPinchReturns.transform.y - pinchBase.transform.y) < .05,
-    'Returning both fingers to their starting distance and midpoint restores the exact starting view');
-
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await frame();
-    const afterLift = await snapshot();
-    assert.deepEqual(afterLift.transform, afterPinchReturns.transform,
-      'Lifting both fingers does not change the zoom');
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pair(30, 8, 3) });
-    await frame();
-    const afterSecondPinchStart = await snapshot();
-    assert.deepEqual(afterSecondPinchStart.transform, afterPinchReturns.transform,
-      'Starting a second pinch does not jump the process view');
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pair(20, 8, 3) });
-    await frame();
-    const afterSecondPinchZoom = await snapshot();
-    assert.ok(Math.abs(afterSecondPinchZoom.transform.scale - afterPinchReturns.transform.scale * (40 / 60)) < .00001,
-      `A second pinch uses its own distance baseline (got ${afterSecondPinchZoom.transform.scale}, expected ${afterPinchReturns.transform.scale * (40 / 60)})`);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await frame();
-
-    const wheelPoint = { x: layout.x + layout.width * .34, y: layout.y + layout.height * .42 };
-    const beforeWheel = await snapshot();
-    const wheelFocusX = wheelPoint.x - layout.x, wheelFocusY = wheelPoint.y - layout.y;
-    const wheelAnchorX = (wheelFocusX - beforeWheel.transform.x) / beforeWheel.transform.scale;
-    const wheelAnchorY = (wheelFocusY - beforeWheel.transform.y) / beforeWheel.transform.scale;
-    await cdp.evaluate(`(() => {
-      globalThis.__factoryWheelEvent = null;
-      document.querySelector('#factory-viewport').addEventListener('wheel', event => {
-        globalThis.__factoryWheelEvent = { deltaY: event.deltaY, target: event.target.id,
-          deltaMode: event.deltaMode, defaultPrevented: event.defaultPrevented };
-      }, { once: true });
+    const point = async selector => cdp.evaluate(`(() => {
+      const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     })()`);
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wheelPoint.x, y: wheelPoint.y });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', ...wheelPoint, deltaX: 0, deltaY: 120 });
-    await frame();
-    const afterWheel = await snapshot();
-    const wheelEvent = await cdp.evaluate('window.__factoryWheelEvent');
-    const wheelUnit = wheelEvent.deltaMode === 1 ? 16 : wheelEvent.deltaMode === 2 ? layout.height : 1;
-    const expectedWheelScale = beforeWheel.transform.scale * Math.exp(-wheelEvent.deltaY * wheelUnit * .0012);
-    assert.ok(Math.abs(afterWheel.transform.scale - expectedWheelScale) < .00001,
-      `Mouse wheel changes the process zoom smoothly (got ${afterWheel.transform.scale}, expected ${expectedWheelScale})`);
-    assert.ok(Math.abs(afterWheel.transform.x - (wheelFocusX - wheelAnchorX * expectedWheelScale)) < .05 &&
-      Math.abs(afterWheel.transform.y - (wheelFocusY - wheelAnchorY * expectedWheelScale)) < .05,
-    'Mouse wheel keeps the cursor focal point fixed');
-
-    const beforeNodeDrag = await cdp.evaluate(`(() => {
-      const bounds = document.querySelector('.factory-node-header').getBoundingClientRect();
-      return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2,
-        node: document.querySelector('.factory-node').getBoundingClientRect().toJSON() };
-    })()`);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: beforeNodeDrag.x, y: beforeNodeDrag.y, id: 4 }] });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: beforeNodeDrag.x + 24, y: beforeNodeDrag.y + 12, id: 4 }] });
-    await frame();
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    const afterNodeDrag = await snapshot();
-    assert.ok(Math.abs(afterNodeDrag.node.x - beforeNodeDrag.node.x - 24) < .1 &&
-      Math.abs(afterNodeDrag.node.y - beforeNodeDrag.node.y - 12) < .1,
-    'Blocks remain individually draggable');
-
-    await cdp.evaluate(`window.__factoryEditorTest.open({ id: 'editor-links', type: 'factory', upgradeLevel: 1 }, {
-      nodes: [
-        { id: 'source-a', type: 'input', x: 320, y: 560 },
-        { id: 'source-b', type: 'input', x: 320, y: 850 },
-        { id: 'crusher', type: 'crusher', x: 780, y: 700 }
-      ], connections: []
-    })`);
-    await cdp.until('document.querySelectorAll("#factory-nodes .factory-node").length === 3', 'shared-input test plan loaded');
-    let touchId = 10;
-    const tap = async selector => {
-      const point = await cdp.evaluate(`(() => {
-        const selector = ${JSON.stringify(selector)};
-        const bounds = document.querySelector(selector).getBoundingClientRect();
-        return { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
-      })()`);
-      const id = touchId++;
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id }] });
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const mouseDrag = async (from, to) => {
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: to.x, y: to.y, button: 'left' });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
       await frame();
     };
-    await tap('.factory-node[data-node-id="source-a"] .factory-port.output');
-    await tap('.factory-node[data-node-id="crusher"] .factory-port.input[data-port-index="0"][data-port-slot="0"]');
-    await tap('.factory-node[data-node-id="source-b"] .factory-port.output');
-    await tap('.factory-node[data-node-id="crusher"] .factory-port.input[data-port-index="0"][data-port-slot="1"]');
-    const sharedInput = await cdp.evaluate(`(() => {
-      const card = document.querySelector('.factory-node[data-node-id="crusher"]');
-      return { links: document.querySelectorAll('.factory-link-hit').length,
-        linkLabels: document.querySelectorAll('.factory-link-label').length,
-        linkTooltips: [...document.querySelectorAll('.factory-link')].filter(path => path.querySelector('title')).length,
-        slots: [...card.querySelectorAll('.factory-port.input[data-port-index="0"]')]
-          .map(port => ({ slot: Number(port.dataset.portSlot), connected: port.dataset.connected === 'true' })) };
-    })()`);
-    assert.equal(sharedInput.links, 2, 'Two sources can connect to one crusher input');
-    assert.equal(sharedInput.linkLabels, 0, 'Connections have no overlaid data labels');
-    assert.equal(sharedInput.linkTooltips, 0, 'Connections have no hidden data tooltips');
-    assert.deepEqual(sharedInput.slots.slice(0, 2), [{ slot: 0, connected: true }, { slot: 1, connected: true }]);
-    assert.ok(sharedInput.slots.some(item => !item.connected), 'The shared input exposes the next free snap point');
 
-    process.stdout.write('PASS 844x390 mobile landscape factory editor: Upload Labs-style readouts, multi-source input snapping, pan, pinch/wheel zoom, block drag\n');
+    await openTwoMachines();
+    await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
+    const ui = await cdp.evaluate(`(() => ({ count: document.querySelectorAll('.factory-node').length,
+      oldSystems: ['#factory-stock-toggle', '#factory-process-details', '[data-add-machine="screen"]', '[data-add-machine="smelter"]']
+        .some(selector => document.querySelector(selector)),
+      ports: [...document.querySelectorAll('.factory-port')].map(port => port.dataset.outputId || port.dataset.inputId),
+      fields: [...document.querySelectorAll('.factory-node [data-readout]')].map(item => item.dataset.readout),
+      drillRate: document.querySelector('.factory-node[data-machine-id="drill-test"] [data-readout="rate"]').textContent,
+      crusherRate: document.querySelector('.factory-node[data-machine-id="crusher-test"] [data-readout="rate"]').textContent
+    }))()`);
+    assert.equal(ui.count, 2);
+    assert.equal(ui.oldSystems, false, 'removed stocks, inspectors, screen and smelter controls are absent');
+    assert.ok(ui.ports.includes('raw_ore') && ui.ports.includes('crushed_ore'));
+    assert.ok(ui.fields.includes('rate') && ui.fields.includes('energy') && ui.fields.includes('cycle') && ui.fields.includes('state'));
+    assert.match(ui.drillRate, /∞/);
+    assert.match(ui.crusherRate, /2 u\/s/);
+
+    let before = await editorSnapshot();
+    const blank = { x: before.viewport.x + before.viewport.width * .91, y: before.viewport.y + before.viewport.height * .87 };
+    await mouseDrag(blank, { x: blank.x + 42, y: blank.y - 24 });
+    let after = await editorSnapshot();
+    assert.ok(Math.abs(after.camera.x - before.camera.x - 42) < .1 &&
+      Math.abs(after.camera.y - before.camera.y + 24) < .1 && after.camera.scale === before.camera.scale,
+    'desktop dragging on the background pans the shared world transform');
+
+    const wheel = { x: before.viewport.x + before.viewport.width * .34,
+      y: before.viewport.y + before.viewport.height * .42 };
+    before = await editorSnapshot();
+    const local = { x: wheel.x - before.viewport.x, y: wheel.y - before.viewport.y };
+    const anchor = { x: (local.x - before.camera.x) / before.camera.scale,
+      y: (local.y - before.camera.y) / before.camera.scale };
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...wheel });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', ...wheel, deltaX: 0, deltaY: 100 });
+    await frame();
+    after = await editorSnapshot();
+    assert.ok(after.camera.scale !== before.camera.scale);
+    assert.ok(Math.abs(local.x - after.camera.x - anchor.x * after.camera.scale) < .35 &&
+      Math.abs(local.y - after.camera.y - anchor.y * after.camera.scale) < .35,
+    `desktop wheel zoom keeps the pointer anchor fixed: ${JSON.stringify({ before, after, local, anchor })}`);
+
+    const cardBefore = await cdp.evaluate(`(() => {
+      const node = document.querySelector('[data-machine-id="crusher-test"]');
+      const header = node.querySelector('.factory-node-header').getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
+      return { point: { x: header.x + header.width / 2, y: header.y + header.height / 2 },
+        rect: { x: rect.x, y: rect.y } };
+    })()`);
+    await mouseDrag(cardBefore.point, { x: cardBefore.point.x + 34, y: cardBefore.point.y + 18 });
+    const cardAfter = await cdp.evaluate(`(() => { const rect = document.querySelector('[data-machine-id="crusher-test"]').getBoundingClientRect();
+      return { x: rect.x, y: rect.y }; })()`);
+    assert.ok(Math.abs(cardAfter.x - cardBefore.rect.x - 34) < .2 &&
+      Math.abs(cardAfter.y - cardBefore.rect.y - 18) < .2,
+    'desktop machine drag follows the pointer without changing the camera');
+
+    let source = await point('.factory-port.output[data-output-id="raw_ore"]');
+    let target = await point('.factory-port.input[data-input-id="raw_ore"]');
+    await mouseDrag(source, target);
+    let connections = await cdp.evaluate('window.__factoryEditorTest.isOpen() && document.querySelectorAll(".factory-link-hit").length');
+    assert.equal(connections, 1, 'desktop drag snaps an output port to the compatible input');
+    const connectionShape = await cdp.evaluate(`(() => {
+      const path = document.querySelector('.factory-link-hit');
+      const camera = window.__factoryEditorTest.getViewportState().camera;
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const toWorld = selector => {
+        const rect = document.querySelector(selector).getBoundingClientRect();
+        return { x: (rect.left + rect.width / 2 - viewport.left - camera.x) / camera.scale,
+          y: (rect.top + rect.height / 2 - viewport.top - camera.y) / camera.scale };
+      };
+      const start = path.getPointAtLength(0), end = path.getPointAtLength(path.getTotalLength());
+      const output = toWorld('.factory-port.output[data-output-id="raw_ore"]');
+      const input = toWorld('.factory-port.input[data-input-id="raw_ore"]');
+      return { path: path.getAttribute('d') || '',
+        startError: Math.hypot(start.x - output.x, start.y - output.y),
+        endError: Math.hypot(end.x - input.x, end.y - input.y),
+        markup: [...document.querySelectorAll('.factory-link')].some(item => item.textContent || item.querySelector('title')) };
+    })()`);
+    assert.match(connectionShape.path, /^M /);
+    assert.ok(connectionShape.startError < .8 && connectionShape.endError < .8,
+      `line endpoints stay centered on their ports through transforms: ${JSON.stringify(connectionShape)}`);
+    assert.equal(connectionShape.markup, false, 'connections carry no labels or hidden payloads');
+
+    const linePoint = await cdp.evaluate(`(() => {
+      const path = document.querySelector('.factory-link-hit');
+      const point = path.getPointAtLength(path.getTotalLength() / 2);
+      const camera = window.__factoryEditorTest.getViewportState().camera;
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      return { x: viewport.left + camera.x + point.x * camera.scale,
+        y: viewport.top + camera.y + point.y * camera.scale };
+    })()`);
+    await mouseDrag(linePoint, { x: blank.x, y: blank.y });
+    connections = await cdp.evaluate('document.querySelectorAll(".factory-link-hit").length');
+    assert.equal(connections, 0, 'dragging an existing connection away detaches it');
+    await cdp.evaluate('window.__factoryEditorTest.close()');
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 2, mobile: true });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+    await openTwoMachines();
+    await cdp.until('!document.querySelector("#factory-editor").hidden', 'touch editor opening');
+    before = await editorSnapshot();
+    assert.ok(before.viewport.width > 500 && before.viewport.height > 220,
+      `landscape touch workspace is usable: ${JSON.stringify(before.viewport)}`);
+
+    const touch = async (type, points) => cdp.send('Input.dispatchTouchEvent', {
+      type, touchPoints: points.map(point => ({ ...point, radiusX: 1, radiusY: 1, force: 1 }))
+    });
+    const touchBlank = { x: before.viewport.x + before.viewport.width * .9,
+      y: before.viewport.y + before.viewport.height * .88 };
+    await touch('touchStart', [{ ...touchBlank, id: 1 }]);
+    await touch('touchMove', [{ x: touchBlank.x + 30, y: touchBlank.y - 15, id: 1 }]);
+    await frame();
+    await touch('touchEnd', []);
+    after = await editorSnapshot();
+    assert.ok(Math.abs(after.camera.x - before.camera.x - 30) < .2 &&
+      Math.abs(after.camera.y - before.camera.y + 15) < .2,
+    'one-finger background drag pans the view');
+
+    const focus = { x: after.viewport.x + after.viewport.width * .78,
+      y: after.viewport.y + after.viewport.height * .78 };
+    const pair = (spread, offsetX = 0, offsetY = 0) => [
+      { x: focus.x - spread + offsetX, y: focus.y + offsetY, id: 2 },
+      { x: focus.x + spread + offsetX, y: focus.y + offsetY, id: 3 }
+    ];
+    before = await editorSnapshot();
+    const localFocus = { x: focus.x - before.viewport.x, y: focus.y - before.viewport.y };
+    const pinchAnchor = { x: (localFocus.x - before.camera.x) / before.camera.scale,
+      y: (localFocus.y - before.camera.y) / before.camera.scale };
+    await touch('touchStart', pair(24));
+    await touch('touchMove', pair(31, 5, 3));
+    await frame();
+    after = await editorSnapshot();
+    const scaleExpected = Math.min(4, Math.max(.16, before.camera.scale * 62 / 48));
+    assert.ok(Math.abs(after.camera.scale - scaleExpected) < .0001 &&
+      Math.abs(after.camera.x - ((localFocus.x + 5) - pinchAnchor.x * scaleExpected)) < .2 &&
+      Math.abs(after.camera.y - ((localFocus.y + 3) - pinchAnchor.y * scaleExpected)) < .2,
+    'touch pinch zoom follows its moving midpoint without jumps');
+    await touch('touchEnd', []);
+    const afterLift = await editorSnapshot();
+    assert.deepEqual(afterLift.camera, after.camera, 'lifting one finger does not alter the camera');
+    const followPoint = { x: focus.x + 36, y: focus.y + 26 };
+    await touch('touchStart', [{ ...followPoint, id: 6 }]);
+    await touch('touchMove', [{ x: followPoint.x + 15, y: followPoint.y + 6, id: 6 }]);
+    await frame();
+    const afterPinchPan = await editorSnapshot();
+    assert.ok(Math.abs(afterPinchPan.camera.x - after.camera.x - 15) < .2 &&
+      Math.abs(afterPinchPan.camera.y - after.camera.y - 6) < .2,
+    `one-finger panning resumes from the exact pinch endpoint: ${JSON.stringify({ after, afterLift, afterPinchPan })}`);
+    await touch('touchEnd', []);
+
+    const machineStart = await point('[data-machine-id="crusher-test"] .factory-node-header');
+    const machineRect = await cdp.evaluate('document.querySelector("[data-machine-id=crusher-test]").getBoundingClientRect().toJSON()');
+    await touch('touchStart', [{ ...machineStart, id: 4 }]);
+    await touch('touchMove', [{ x: machineStart.x + 22, y: machineStart.y + 12, id: 4 }]);
+    await touch('touchEnd', []);
+    const movedMachine = await cdp.evaluate('document.querySelector("[data-machine-id=crusher-test]").getBoundingClientRect().toJSON()');
+    assert.ok(Math.abs(movedMachine.x - machineRect.x - 22) < .3 && Math.abs(movedMachine.y - machineRect.y - 12) < .3,
+      'touch drag moves a machine independently from the camera');
+
+    source = await point('.factory-port.output[data-output-id="raw_ore"]');
+    target = await point('.factory-port.input[data-input-id="raw_ore"]');
+    await touch('touchStart', [{ ...source, id: 5 }]);
+    await touch('touchMove', [{ ...target, id: 5 }]);
+    await touch('touchEnd', []);
+    connections = await cdp.evaluate('document.querySelectorAll(".factory-link-hit").length');
+    assert.equal(connections, 1, 'touch connection snapping still works after pinch and pan');
+
+    process.stdout.write('PASS V1 factory editor in Chromium: desktop pan/wheel/machine drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {
       const stopped = new Promise(resolve => chrome.child.once('exit', resolve));
       chrome.child.kill('SIGTERM');
-      await Promise.race([stopped, sleep(2000)]);
+      await Promise.race([stopped, new Promise(resolve => setTimeout(resolve, 2000))]);
       if (chrome.child.exitCode === null) chrome.child.kill('SIGKILL');
     }
     await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
-main().catch(error => {
-  process.stderr.write(`FAIL ${error.stack || error}\n`);
-  process.exitCode = 1;
-});
+main().catch(error => { console.error(error); process.exitCode = 1; });

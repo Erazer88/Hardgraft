@@ -501,12 +501,12 @@ async function checkDeveloperDepositSettings(cdp, name) {
     const missing = window.OrbitInventory.missing(stock, cost);
     const consumed = window.OrbitInventory.consume(stock, cost);
     return { enabled: window.OrbitDeveloperSettings.get('infiniteMinerals'), missing,
-      consumed, stock, waterStillFinite: !window.OrbitInventory.isInfinite('water') };
+      consumed, stock, waterIsInfinite: window.OrbitInventory.isInfinite('water') };
   })()`);
   assert.deepEqual(infiniteMinerals, { enabled: true, missing: [], consumed: true,
-    stock: {}, waterStillFinite: true }, `${name} infinite minerals bypass and do not consume mineral costs`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
-    `${name} infinite mineral stock display`);
+    stock: {}, waterIsInfinite: true }, `${name} prototype colony reserve covers resource costs`);
+  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
+    `${name} prototype colony reserve display`);
 
   const scalesWithZoom = await cdp.evaluate(`(() => ({
     zoomedOut: window.OrbitalDebug.getResourceRenderStyle('iron', 40, .5),
@@ -533,8 +533,8 @@ async function checkDeveloperDepositSettings(cdp, name) {
     `${name} reset restores the default deposit appearance`);
   assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
     `${name} developer reset disables infinite minerals`);
-  await cdp.until('!document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
-    `${name} finite mineral stock display after reset`);
+  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
+    `${name} colony reserve display remains active after developer reset`);
   await cdp.click('#developer-tools-close');
 }
 

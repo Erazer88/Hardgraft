@@ -15,7 +15,7 @@ minimales par tâche sont dans [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 | `src/navigation/` | Projection, caméra, zoom et transitions de repère |
 | `src/storage/`, `src/state.js` | État de session et sauvegarde/restauration locale |
 | `src/rendering/` | Dessin Canvas/WebGL et orchestration des couches visuelles |
-| `src/ui/` | HUD, éditeur de processus et outils développeur |
+| `src/ui/` | HUD, vues interactives et outils développeur |
 | `src/app.js` | Initialisation, état partagé, événements globaux, boucle et raccord entre modules |
 
 Points d'entrée spécialisés :
@@ -25,10 +25,10 @@ Points d'entrée spécialisés :
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
 Les fichiers importants comprennent `src/data/processes.js`,
-`src/simulation/processGraph.js`, `recipeResolver.js` et `processSimulation.js`,
+`src/simulation/processGraph.js` et `processSimulation.js`,
 `src/gameplay/industry.js`, `src/navigation/camera.js`,
 `src/rendering/renderer.js`, `src/rendering/surfaceRenderer.js`,
-`src/ui/factoryEditor.js` et `src/app.js`.
+`src/ui/factoryEditor.js`, `src/ui/factoryViewport.js` et `src/app.js`.
 
 ## Dépendances et chargement
 
@@ -62,9 +62,9 @@ le repli lorsque WebGL2 est indisponible.
   placements et la boucle. Les algorithmes de placement de bâtiments, de routes et
   de processus ont déjà des modules séparés. Les gestionnaires d'interaction restants
   partagent beaucoup d'état ; une extraction demande d'abord un contrat d'état clair.
-- `src/ui/factoryEditor.js` rassemble rendu DOM et interactions du composant, mais
-  le graphe et sa simulation sont déjà hors de l'UI. Le découper uniquement par taille
-  créerait du couplage entre plusieurs fichiers d'interface.
+- `src/ui/factoryEditor.js` rend les cartes, ports et connexions. Les gestes de la vue
+  industrielle sont isolés dans `src/ui/factoryViewport.js` ; le graphe et sa simulation
+  restent indépendants du DOM.
 - `src/rendering/surfaceRenderer.js` gère rendu, caches de détails et contours ; le
   rendu WebGL des matières est déjà isolé dans `surfaceMaterialRenderer.js`. C'est le
   prochain candidat d'extraction si les contours ou la préparation des détails
@@ -77,7 +77,7 @@ le repli lorsque WebGL2 est indisponible.
 
 - Tests unitaires et d'intégration : `npm test`.
 - Processus : `node --test tests/process-simulation.test.cjs`.
-- Éditeur de processus : `npm run test:factory-editor`.
+- Éditeur et gestes desktop/tactile : `npm run test:factory-editor`.
 - Smoke navigateur : `node tests/browser-smoke.cjs`, pertinent si l'application,
   la navigation ou l'UI changent ; Chromium et un serveur sur le port 8000 sont requis.
 - Export autonome : `python3 build.py` lors d'une livraison.

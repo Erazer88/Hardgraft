@@ -150,11 +150,12 @@
       panel.hidden = false;
       $('toast').classList.remove('visible');
       const isBuilding = item.kind === 'building';
+      const hasFactoryEditor = isBuilding && ['factory', 'extractor'].includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
       if (!isBuilding) clearBuildingPanelPosition();
       $('building-readout').hidden = !isBuilding;
       $('demolish-button').hidden = !isBuilding;
-      $('factory-edit-button').hidden = !isBuilding;
+      $('factory-edit-button').hidden = !hasFactoryEditor;
       $('selection-info').hidden = isBuilding;
       $('selection-meta').hidden = isBuilding;
       if (state.level === 'galaxy') {

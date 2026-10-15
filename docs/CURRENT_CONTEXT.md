@@ -20,20 +20,21 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 
 ## Systèmes en place et frontières
 
-- Les processus industriels sont des graphes propres à chaque bâtiment. Définitions,
-  recettes et ports sont déclaratifs ; simulation, résolution de recettes et piles de
-  ressources sont indépendantes de l'éditeur. Les cycles avancent au pas fixe. Une
-  barre correspond à 1 u et les transferts se font par unités entières ; les restes
-  fractionnaires de rendement s'accumulent jusqu'à former une unité. Le débit affiché
-  est une estimation déterministe de la cadence, des recettes et des contraintes
-  amont. Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- La foreuse ne plafonne pas l'extraction ; le concasseur niveau 1 est le premier
-  goulot à 5 u/s. Ces paramètres et recettes se trouvent dans
-  `src/data/processes.js`, avec leur résolution dans `src/simulation/recipeResolver.js`.
-- Pour une modification industrielle, lancer d'abord
-  `node --test tests/process-simulation.test.cjs`. Le contrat courant est le graphe
-  v3, concasseur niveau 1 à 5 u/s, cycles et transferts par unités entières, avec
-  rendements fractionnaires accumulés en buffer.
+- L'usine V1 est limitée à la chaîne du fer : Foreuse → Concasseur → Broyeur →
+  Séparateur magnétique → Four de réduction. Les définitions et recettes sont
+  déclaratives ; les buffers et quantités de matière sont entiers. Référence :
+  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+- La Foreuse n'a pas de plafond nominal. Le Concasseur niveau 1 traite 2 u/s et forme
+  le premier goulot ; les autres capacités sont temporaires et équilibrables dans
+  `src/data/processes.js`.
+- Le graphe V1 est version 4. Les sauvegardes générales sont préservées ; les plans
+  industriels antérieurs sont réinitialisés plutôt que migrés. Les connexions
+  nomment explicitement les deux machines et leurs ports.
+- Le moteur pur est dans `processGraph.js` et `processSimulation.js`. L'éditeur garde
+  son affichage dans `factoryEditor.js` et les gestes dans `factoryViewport.js`.
+  `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
+  `npm run test:factory-editor` valide les gestes dans un vrai navigateur desktop et
+  en émulation tactile.
 - Les routes de surface enregistrent géométrie, connexions et progression de
   construction. Elles ne constituent pas encore le transport de ressources entre
   bâtiments. Les quartiers et véhicules visibles sont des représentations séparées.
@@ -56,9 +57,8 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - Traiter localement réduit la matière envoyée dans le réseau ; expédier du brut vers
   une méga-usine reste une autre stratégie viable. Une foreuse sans plafond laisse le
   premier bloc de traitement limiter sa chaîne.
-- Les processus peuvent accepter un branchement sous-optimal ou destructif et en
-  simuler les conséquences. Ils ne doivent pas refuser silencieusement une entrée
-  absurde.
+- Les recettes du prototype restent temporairement abstraites : le Four de réduction
+  ne consomme pas de carbone explicite.
 
 ## Modes temporaires et écarts actuels
 
@@ -70,7 +70,6 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   logistique cible ; ne pas confondre ce contrat avec cette implémentation temporaire.
 - Le réseau logistique de ressources entre bâtiments, ses dépôts, sa contre-pression,
   les importations spatiales et la construction dépendante du réseau restent à venir.
-  Le stock d'approvisionnement manuel des graphes est temporaire.
 - Les routes actuelles sont des infrastructures de surface constructibles, pas le
   réseau économique agrégé décrit plus haut. Ne leur ajouter ni transport ni cargaisons
   en travaillant sur une tâche sans rapport.
@@ -83,11 +82,11 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 | Tâche | Lecture minimale | Vérification ciblée |
 | --- | --- | --- |
 | Valeur de recette ou débit | `src/data/processes.js`, puis au besoin `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
-| Moteur de processus ou transfert | `processGraph.js`, `recipeResolver.js`, `processSimulation.js` et `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
+| Moteur de processus ou transfert | `processGraph.js`, `processSimulation.js` et `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
 | Génération / graine | `src/data/worldgen.js`, `src/world.js`, `docs/WORLDGEN.md` | `node --test src/world.test.cjs` |
 | Caméra / navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs`; navigateur si interaction modifiée |
 | Routes / quartiers | `ROAD_SYSTEM.md` puis le module touché | `node --test tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs` |
-| Interface de processus | `src/ui/factoryEditor.js`, puis modules de graphe concernés | `npm run test:factory-editor` |
+| Interface ou gestes de processus | `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js`, puis modules de graphe concernés | `npm run test:factory-editor` |
 | Sauvegarde | `src/storage/save.js`, `src/state.js`, `tests/architecture.test.cjs` | `node --test tests/architecture.test.cjs` |
 | Export autonome | `build.py`, `index.html`, références depuis le script concerné | `python3 build.py` lors d'une livraison |
 

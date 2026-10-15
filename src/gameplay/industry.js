@@ -1,60 +1,34 @@
 (function (root) {
   'use strict';
-  const Data = root.OrbitProcessData, Stack = root.OrbitResourceStack;
-  const Graph = root.OrbitProcessGraph, Simulation = root.OrbitProcessSimulation;
-  const legacyInventoryId = id => ({ standard_iron: 'iron', standard_copper: 'copper', standard_silicon: 'silicon' })[id] || id;
+
+  const Data = root.OrbitProcessData;
+  const Graph = root.OrbitProcessGraph;
+  const Simulation = root.OrbitProcessSimulation;
+  const Stack = root.OrbitResourceStack;
 
   function fraction(seed) {
     let hash = 2166136261;
     for (const letter of String(seed)) hash = Math.imul(hash ^ letter.charCodeAt(0), 16777619);
     return (hash >>> 0) / 4294967296;
   }
+
   function geology(state, building) {
-    if (!['extractor', 'oil_platform'].includes(building.type) || !building.resourceId) return null;
-    const definition = Data.config.geology, composition = definition.signatures[building.resourceId];
-    if (!composition) return null;
+    if (building.type !== 'extractor' || !building.resourceId) return null;
     const id = `${building.planetId}:${building.resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
-    const hardness = definition.hardnessRange[0] + fraction(state.seed + id + ':hardness') *
-      (definition.hardnessRange[1] - definition.hardnessRange[0]);
-    return { id, planetId: building.planetId, resourceId: building.resourceId, composition: { ...composition }, hardness,
-      moisture: definition.moistureRange[0] + fraction(state.seed + id + ':moisture') *
-        (definition.moistureRange[1] - definition.moistureRange[0]),
-      throughput: Math.min(12, (building.resourceId === 'oil' ? Data.get('oil_pump').baseThroughput : definition.baseThroughput) *
-        (.5 + (building.depositAbundance ?? .5) * .5) / hardness) };
+    return { id, planetId: building.planetId, resourceId: building.resourceId,
+      hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
+        (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]) };
   }
 
   function ensureGraph(state, building) {
     const previous = state.factoryPlans[building.id];
-    let graph = previous;
-    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.externalStock) ||
-        !previous.nodes?.every(node => node.internalBuffer && node.telemetry && node.inputPorts)) {
-      graph = Graph.create(previous || {});
-      if (!previous?.externalStock) for (const [resourceId, amount] of Object.entries(building.inventory || {})) {
-        Stack.addToStock(graph.externalStock, Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
-      }
-      state.factoryPlans[building.id] = graph;
+    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines)) {
+      state.factoryPlans[building.id] = Graph.create({ version: Data.config.version,
+        geology: geology(state, building) });
     }
-    graph.buildingType = building.type;
-    graph.technologyLevel = building.upgradeLevel || 1;
-    if (!Number.isFinite(graph.geology?.throughput) || !graph.geology?.composition) graph.geology = geology(state, building);
+    const graph = state.factoryPlans[building.id];
+    graph.geology ||= geology(state, building);
     return graph;
-  }
-
-  function supply(state, building, resourceId, amount) {
-    const definition = root.OrbitResourceData.get(resourceId);
-    if (!definition || definition.canonicalId || !Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
-      return { ok: false, message: 'La matière est invalide ou la quantité n’est pas un nombre entier.' };
-    }
-    const graph = ensureGraph(state, building), room = Math.max(0, graph.inputCapacity - Stack.total(graph.externalStock));
-    const accepted = Math.floor(Math.min(amount, room) + Stack.EPSILON);
-    if (accepted < 1) return { ok: false, message: room < 1 ? 'Stock d’entrée du bâtiment plein.' : 'La quantité doit contenir au moins 1 u entière.' };
-    const inventoryId = legacyInventoryId(resourceId);
-    if (!Data.config.colonyReserveInfinite && !root.OrbitInventory.consume(state.inventory, { [inventoryId]: accepted })) {
-      return { ok: false, message: 'Réserve de la colonie insuffisante.' };
-    }
-    Stack.addToStock(graph.externalStock, Stack.create({ resourceId, amount: accepted,
-      origin: { kind: 'colony', seed: state.seed }, moisture: resourceId === 'sludge' ? .9 : 0 }));
-    return { ok: true, amount: accepted, message: `${accepted} u ajoutées au stock d’entrée.` };
   }
 
   function step(state, seconds) {
@@ -69,27 +43,34 @@
         building.energyOutputWatts = building.energyOutputUnlimited ? 0 : Data.config.windPowerMW * 1e6;
         if (!building.energyOutputUnlimited) entry.megawatts += Data.config.windPowerMW;
       }
-      if (building.type === 'geothermal') { building.energyOutputWatts = Data.config.geothermalPowerMW * 1e6; entry.megawatts += Data.config.geothermalPowerMW; }
+      if (building.type === 'geothermal') {
+        building.energyOutputWatts = Data.config.geothermalPowerMW * 1e6;
+        entry.megawatts += Data.config.geothermalPowerMW;
+      }
       power.set(building.planetId, entry);
-      if (!state.factoryPlans[building.id]) continue;
+      const savedGraph = state.factoryPlans[building.id];
+      if (!savedGraph) continue;
       const graph = ensureGraph(state, building), demand = Simulation.demand(graph);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
+
     for (const building of state.surfaceBuildings) {
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
-      const graph = ensureGraph(state, building), available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
-      const demand = Simulation.demand(graph), total = demands.get(building.planetId) || 0;
-      Simulation.advance(graph, seconds, { energyUnlimited: available.unlimited,
-        energyAvailableMW: total > Stack.EPSILON ? available.megawatts * demand / total : 0 });
+      const graph = ensureGraph(state, building);
+      const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
+      const demand = Simulation.demand(graph), planetDemand = demands.get(building.planetId) || 0;
+      Simulation.advance(graph, seconds, {
+        energyUnlimited: available.unlimited,
+        energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
+      });
       building.energyUse = graph.energyUsedMW * 1e6;
-      building.flowPerMinute = graph.nodes.filter(node => ['extractor', 'oil_platform'].includes(building.type)
-        ? Graph.definitionOf(node).operation === 'source' : node.type === 'dock')
-        .reduce((sum, node) => sum + node.telemetry.outputRate * 60, 0);
-      building.inventory = {};
-      for (const stack of [...graph.externalStock, ...graph.exportStock, ...graph.retainedWaste]) {
-        building.inventory[stack.resourceId] = (building.inventory[stack.resourceId] || 0) + stack.amount;
-      }
-      building.status = graph.nodes.some(node => ['active', 'degraded', 'useless', 'destructive'].includes(node.state)) ? 'active' : 'waiting';
+      building.flowPerMinute = graph.machines.reduce((sum, machine) => {
+        if (machine.type !== 'reduction_furnace') return sum;
+        const def = Graph.definitionOf(machine), input = def.recipe.inputs.reduce((total, item) => total + item.amount, 0);
+        const iron = def.recipe.outputs.find(item => item.resourceId === 'raw_iron');
+        return sum + (iron ? machine.currentRate * iron.amount / input * 60 : 0);
+      }, 0);
+      building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
     }
   }
 
@@ -97,9 +78,10 @@
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError('Industry duration must be finite and non-negative');
     state.industryAccumulator = (state.industryAccumulator || 0) + seconds;
     let count = 0;
-    while (state.industryAccumulator + Stack.EPSILON >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {
+    while (state.industryAccumulator + 1e-9 >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {
       step(state, Data.config.fixedStepSeconds);
-      state.industryAccumulator = Math.max(0, state.industryAccumulator - Data.config.fixedStepSeconds); count++;
+      state.industryAccumulator = Math.max(0, state.industryAccumulator - Data.config.fixedStepSeconds);
+      count++;
     }
   }
 
@@ -107,16 +89,22 @@
     const graph = state.factoryPlans[building.id];
     if (!graph) return;
     const resolved = ensureGraph(state, building);
-    const stocks = [...resolved.externalStock, ...resolved.exportStock, ...resolved.retainedWaste];
-    for (const node of resolved.nodes) stocks.push(...node.internalBuffer.inputs, ...node.internalBuffer.outputs,
-      node.internalBuffer.history, ...(node.internalBuffer.ingredientCredits || []),
-      ...(node.internalBuffer.yieldRemainders || []).map(item => item.stack), ...(node.job?.inputs || []));
     state.colonyMaterials ||= [];
-    for (const stack of stocks.filter(Boolean)) {
-      Stack.addToStock(state.colonyMaterials, stack);
-      root.OrbitInventory.add(state.inventory, { [legacyInventoryId(stack.resourceId)]: stack.amount });
+    for (const machine of resolved.machines) {
+      const def = Graph.definitionOf(machine);
+      for (const input of def.inputPorts) {
+        const amount = machine.inputBuffer[input.id];
+        if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: input.resourceId,
+          amount, origin: { kind: 'building', id: building.id } }));
+      }
+      for (const output of def.outputPorts) {
+        const amount = machine.outputBuffer[output.id];
+        if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: output.resourceId,
+          amount, origin: { kind: 'building', id: building.id } }));
+      }
     }
     delete state.factoryPlans[building.id];
   }
-  root.OrbitIndustry = Object.freeze({ ensureGraph, supply, advance, reclaimBuilding, geology });
+
+  root.OrbitIndustry = Object.freeze({ ensureGraph, advance, reclaimBuilding, geology });
 })(globalThis);

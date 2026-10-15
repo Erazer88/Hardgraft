@@ -139,40 +139,20 @@
   }
 
   function snapshotFactoryPlans(value, buildings) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !root.OrbitProcessGraph) return {};
     const buildingIds = new Set((buildings || []).map(building => building.id));
     return Object.fromEntries(Object.entries(value).flatMap(([buildingId, plan]) => {
       if (!buildingIds.has(buildingId) || !plan || typeof plan !== 'object') return [];
-      if (root.OrbitProcessGraph) {
-        const graph = plan.version === root.OrbitProcessData.config.version && Array.isArray(plan.externalStock)
-          ? plan : root.OrbitProcessGraph.create(plan);
-        return [[buildingId, root.OrbitProcessGraph.snapshot(graph)]];
-      }
-      const nodes = Array.isArray(plan.nodes) ? plan.nodes.filter(node => node && typeof node.id === 'string' &&
-        typeof node.type === 'string' && Number.isFinite(node.x) && Number.isFinite(node.y))
-        .map(node => ({ id: node.id, type: node.type, x: node.x, y: node.y })) : [];
-      const nodeIds = new Set(nodes.map(node => node.id));
-      const connections = Array.isArray(plan.connections) ? plan.connections.filter(connection => connection &&
-        typeof connection.id === 'string' && nodeIds.has(connection.fromNodeId) && nodeIds.has(connection.toNodeId) &&
-        Number.isInteger(connection.fromPort) && Number.isInteger(connection.toPort))
-        .map(connection => ({ id: connection.id, fromNodeId: connection.fromNodeId,
-          fromPort: connection.fromPort, toNodeId: connection.toNodeId, toPort: connection.toPort })) : [];
-      return [[buildingId, { nodes, connections }]];
+      // V1 plans use a fresh schema; incompatible plans become an empty graph.
+      const graph = root.OrbitProcessGraph.create(plan);
+      return [[buildingId, root.OrbitProcessGraph.snapshot(graph)]];
     }));
   }
 
   function restoreFactoryPlans(value, buildings) {
     const plans = snapshotFactoryPlans(value, buildings);
     if (!root.OrbitProcessGraph) return plans;
-    return Object.fromEntries(Object.entries(plans).map(([id, plan]) => {
-      const graph = root.OrbitProcessGraph.create(plan);
-      if (!Array.isArray(value?.[id]?.externalStock)) {
-        const building = buildings.find(item => item.id === id);
-        for (const [resourceId, amount] of Object.entries(building?.inventory || {})) root.OrbitResourceStack.addToStock(graph.externalStock,
-          root.OrbitResourceStack.create({ resourceId, amount, origin: { kind: 'building', id } }));
-      }
-      return [id, graph];
-    }));
+    return Object.fromEntries(Object.entries(plans).map(([id, plan]) => [id, root.OrbitProcessGraph.create(plan)]));
   }
 
   function restoreRoadNetworks(value, buildings) {

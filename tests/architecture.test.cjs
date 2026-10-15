@@ -13,6 +13,10 @@ for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/res
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
+const processContext = vm.createContext({});
+for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/processGraph.js']) {
+  vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), processContext);
+}
 const { OrbitConfig: Config, OrbitSimulation: Simulation, OrbitExploration: Exploration,
   OrbitState: State, OrbitSave: Save, OrbitCamera: Camera } = context;
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -170,24 +174,37 @@ test('versioned saves round-trip exploration and clock state without serializing
   assert.equal('context' in saved, false); assert.equal('camera' in saved, false);
 });
 
-test('factory process plans persist with their building and discard orphaned plans', () => {
+test('general saves preserve buildings while legacy industrial graphs reset to the current schema', () => {
+  context.OrbitProcessData = { config: { version: processContext.OrbitProcessData.config.version } };
+  context.OrbitProcessGraph = processContext.OrbitProcessGraph;
   const state = State.create(), world = galaxy();
   state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'factory-1', type: 'factory',
     planetId: 'planet-1', x: 20, y: 30, constructionState: 'complete' })];
   state.factoryPlans = {
-    'factory-1': { nodes: [
-      { id: 'node-1', type: 'input', x: 140, y: 90 },
-      { id: 'node-2', type: 'transform', x: 420, y: 90 }
-    ], connections: [{ id: 'link-1', fromNodeId: 'node-1', fromPort: 0, toNodeId: 'node-2', toPort: 0 }] },
+    'factory-1': { version: 3, nodes: [{ id: 'node-1', type: 'smelter', x: 140, y: 90 }], connections: [] },
     'missing-building': { nodes: [], connections: [] }
   };
   let stored;
   const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
   assert.equal(Save.save(storage, state, world), true);
   const saved = Save.load(storage), restored = State.create();
-  assert.deepEqual(plain(saved.factoryPlans), { 'factory-1': state.factoryPlans['factory-1'] });
+  assert.deepEqual(plain(saved.factoryPlans['factory-1']), {
+    version: processContext.OrbitProcessData.config.version, accumulator: 0, tick: 0, geology: null,
+    machines: [], connections: []
+  });
+  assert.deepEqual(Object.keys(saved.factoryPlans), ['factory-1']);
   assert.equal(Save.restore(restored, galaxy(), saved), true);
-  assert.deepEqual(plain(restored.factoryPlans), { 'factory-1': state.factoryPlans['factory-1'] });
+  assert.equal(restored.surfaceBuildings[0].id, 'factory-1');
+  assert.deepEqual(plain(restored.factoryPlans['factory-1'].machines), []);
+
+  const graph = processContext.OrbitProcessGraph.create({ version: processContext.OrbitProcessData.config.version,
+    machines: [{ id: 'crusher-1', type: 'crusher', x: 140, y: 90 }] });
+  restored.factoryPlans['factory-1'] = graph;
+  assert.equal(Save.save(storage, restored, galaxy()), true);
+  const latest = Save.load(storage), next = State.create();
+  assert.equal(Save.restore(next, galaxy(), latest), true);
+  assert.deepEqual(plain(next.factoryPlans['factory-1'].machines.map(machine => ({ id: machine.id, type: machine.type }))),
+    [{ id: 'crusher-1', type: 'crusher' }]);
 });
 
 test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {
