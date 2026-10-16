@@ -68,11 +68,12 @@
       const byType = {
         factory: [
           ['DÉBIT EN SORTIE', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCES TRAITÉES', mineralLabels.join(' · ')]
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée']
         ],
         extractor: [
           ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible']
+          ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible'],
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée']
         ],
         oil_platform: [
           ['VITESSE D’EXTRACTION', `${fmtDecimal(flow)} / min`],

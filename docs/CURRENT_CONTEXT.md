@@ -21,9 +21,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 ## Systèmes en place et frontières
 
 - L'usine V1 couvre la chaîne du fer (Foreuse → Concasseur → Broyeur → Séparateur
-  magnétique → Four de réduction) et une Poubelle qui détruit toute ressource reçue.
-  Les définitions et recettes sont déclaratives ; les buffers et quantités de matière
-  sont entiers. Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+  magnétique → Four de réduction), une Poubelle et un Dock de sortie. Le Dock transfère
+  une matière vers le stock local du bâtiment, consultable en vue planète. Les
+  définitions et recettes sont déclaratives ; les buffers et quantités sont entiers.
+  Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - La Foreuse n'a pas de plafond nominal. Tous les autres bâtiments tournent à 2 u/s,
   comme le Concasseur niveau 1, premier goulot de la chaîne. La Poubelle détruit les
   unités à cette cadence. Paramètres : `src/data/processes.js`.
@@ -68,8 +69,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - Le code de prototype conserve encore `state.inventory` pour les coûts et
   l'approvisionnement manuel. L'absence de stock global dépensable décrit le modèle
   logistique cible ; ne pas confondre ce contrat avec cette implémentation temporaire.
-- Le réseau logistique de ressources entre bâtiments, ses dépôts, sa contre-pression,
-  les importations spatiales et la construction dépendante du réseau restent à venir.
+- Le transport des stocks de Dock entre bâtiments, le réseau logistique, ses dépôts,
+  sa contre-pression, les importations spatiales et la construction dépendante du
+  réseau restent à venir. Le Dock constitue une sortie vers le stock du bâtiment,
+  pas un transfert automatique entre bâtiments.
 - Les routes actuelles sont des infrastructures de surface constructibles, pas le
   réseau économique agrégé décrit plus haut. Ne leur ajouter ni transport ni cargaisons
   en travaillant sur une tâche sans rapport.

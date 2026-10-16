@@ -66,15 +66,25 @@
       const state = card.querySelector('[data-readout="state"]');
       state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = machine.type === 'drill';
+      const continuous = machine.type === 'drill' || def.externalOutput;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
       cycleLabel.textContent = machine.type === 'drill' ? 'EXTRACTION CONTINUE'
+        : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
         : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
           : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
       for (const port of def.inputPorts) {
         const label = card.querySelector(`[data-input-label="${port.id}"]`);
-        if (label) label.innerHTML = resourceLine(port, machine.inputBuffer[port.id]);
+        if (label) {
+          const connection = def.externalOutput && connections.find(item =>
+            item.toMachineId === machine.id && item.toInputId === port.id);
+          const source = connection && machineById(connection.fromMachineId);
+          const resource = source && typeOf(source.type).outputPorts
+            .find(output => output.id === connection.fromOutputId);
+          label.innerHTML = resource
+            ? resourceLine({ ...port, label: `${resource.label} → PLANÈTE` }, machine.inputBuffer[port.id])
+            : resourceLine(port, machine.inputBuffer[port.id]);
+        }
       }
       for (const port of def.outputPorts) {
         const label = card.querySelector(`[data-output-label="${port.id}"]`);
@@ -183,7 +193,7 @@
 
     function freeInput(machine) {
       const def = typeOf(machine.type);
-      return def.inputPorts.find(input => def.sink || !connections.some(connection =>
+      return def.inputPorts.find(input => (def.sink && !def.externalOutput) || !connections.some(connection =>
         connection.toMachineId === machine.id && connection.toInputId === input.id)) || null;
     }
 
@@ -271,7 +281,8 @@
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
         const detail = document.createElement('small');
-        detail.textContent = def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
+        detail.textContent = def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
+          : def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
           : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
         copy.append(title, detail); button.append(icon, copy); palette.append(button);
       }
@@ -321,10 +332,17 @@
     }
 
     function removeMachine(id) {
+      const machine = machineById(id);
+      const discardedUnits = machine
+        ? [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)].reduce((sum, amount) => sum + amount, 0)
+        : 0;
       const result = Graph.removeMachine(graph, id);
       if (!result.ok) { status(result.reason); return; }
       machines = graph.machines; connections = graph.connections;
       renderNodes(); persist();
+      status(discardedUnits
+        ? `CARTE SUPPRIMÉE · ${fmt(discardedUnits)} ${discardedUnits === 1 ? 'UNITÉ RETIRÉE' : 'UNITÉS RETIRÉES'}`
+        : 'CARTE SUPPRIMÉE');
     }
 
     function open(building, savedPlan) {

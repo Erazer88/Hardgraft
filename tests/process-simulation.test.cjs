@@ -7,8 +7,8 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/processGraph.js',
-  'simulation/processSimulation.js', 'gameplay/industry.js']) {
+for (const relative of ['data/resources.js', 'simulation/resourceStack.js', 'data/processes.js',
+  'simulation/processGraph.js', 'simulation/processSimulation.js', 'gameplay/industry.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitProcessData;
@@ -57,6 +57,8 @@ test('V1 exposes the iron-chain machines at crusher pace and integer recipes', (
   assert.equal(Data.get('magnetic_separator').throughput, 2);
   assert.equal(Data.get('reduction_furnace').throughput, 2);
   assert.equal(Data.get('trash').throughput, 2);
+  assert.equal(Data.get('output_dock').throughput, 2);
+  assert.equal(Data.get('output_dock').externalOutput, true);
   for (const def of Object.values(Data.definitions)) {
     for (const part of [...(def.recipe?.inputs || []), ...(def.recipe?.outputs || [])]) {
       assert.ok(Number.isInteger(part.amount) && part.amount > 0, `${def.id} quantities are positive integers`);
@@ -262,12 +264,46 @@ test('the trash accepts different output resources and processes exactly two uni
   assert.equal(furnace.outputBuffer.slag, 0);
 });
 
-test('occupied machines cannot be deleted until all buffered material is recovered', () => {
+test('an output dock accepts a single resource stream and exposes it in planet stock', () => {
+  const graph = Graph.create();
+  const crusher = machine(graph, 'crusher', 'crusher');
+  const dock = machine(graph, 'dock', 'output_dock', 300);
+  crusher.outputBuffer.crushed_ore = 1;
+  connect(graph, 'crusher-dock', 'crusher', 'crushed_ore', 'dock', 'material');
+  assert.equal(Graph.connect(graph, { id: 'second-dock-input', fromMachineId: 'crusher',
+    fromOutputId: 'crushed_ore', toMachineId: 'dock', toInputId: 'material' }).ok, false,
+  'one dock has one source so its exported resource remains unambiguous');
+
+  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {} };
+  const state = { seed: 'factory-seed', surfaceBuildings: [building], factoryPlans: { factory: graph } };
+  Industry.advance(state, .1);
+  assert.equal(dock.inputBuffer.material, 0);
+  assert.equal(building.inventory.iron_ore_crushed, 1);
+  assert.ok(building.flowPerMinute > 0);
+});
+
+test('a machine with buffered resources can be deleted immediately', () => {
   const graph = Graph.create();
   const crusher = machine(graph, 'crusher', 'crusher');
   crusher.inputBuffer.raw_ore = 1;
-  assert.equal(Graph.removeMachine(graph, 'crusher').ok, false);
-  crusher.inputBuffer.raw_ore = 0;
-  assert.equal(Graph.removeMachine(graph, 'crusher').ok, true);
+  const result = Graph.removeMachine(graph, 'crusher');
+  assert.equal(result.ok, true);
+  assert.equal(result.discardedUnits, 1);
   assert.equal(graph.machines.length, 0);
+});
+
+test('demolishing a building reclaims resources already exported through its dock', () => {
+  const graph = Graph.create();
+  const crusher = machine(graph, 'crusher', 'crusher');
+  const dock = machine(graph, 'dock', 'output_dock', 300);
+  dock.inputBuffer.material = 2;
+  connect(graph, 'crusher-dock', 'crusher', 'crushed_ore', 'dock', 'material');
+  const building = { id: 'factory', type: 'factory', constructionState: 'complete',
+    inventory: { iron_ore_crushed: 3 } };
+  const state = { seed: 'factory-seed', surfaceBuildings: [building], factoryPlans: { factory: graph }, colonyMaterials: [] };
+  Industry.reclaimBuilding(state, building);
+  assert.equal(state.colonyMaterials.reduce((sum, stack) => sum +
+    (stack.resourceId === 'iron_ore_crushed' ? stack.amount : 0), 0), 5,
+  'docked stock and the dock buffer both return to colony materials');
+  assert.equal(state.factoryPlans.factory, undefined);
 });

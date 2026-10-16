@@ -65,12 +65,28 @@
       });
       building.energyUse = graph.energyUsedMW * 1e6;
       building.flowPerMinute = graph.machines.reduce((sum, machine) => {
-        if (machine.type !== 'reduction_furnace') return sum;
-        const def = Graph.definitionOf(machine), input = def.recipe.inputs.reduce((total, item) => total + item.amount, 0);
-        const iron = def.recipe.outputs.find(item => item.resourceId === 'raw_iron');
-        return sum + (iron ? machine.currentRate * iron.amount / input * 60 : 0);
+        return Graph.definitionOf(machine).externalOutput ? sum + machine.currentRate * 60 : sum;
       }, 0);
+      collectDockedResources(building, graph);
       building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
+    }
+  }
+
+  function collectDockedResources(building, graph) {
+    building.inventory ||= {};
+    for (const machine of graph.machines) {
+      const definition = Graph.definitionOf(machine);
+      if (!definition.externalOutput) continue;
+      const input = definition.inputPorts[0];
+      const amount = machine.inputBuffer[input.id] || 0;
+      if (!amount) continue;
+      const connection = graph.connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
+      const source = connection && graph.machines.find(item => item.id === connection.fromMachineId);
+      const resource = source && Graph.definitionOf(source).outputPorts
+        .find(port => port.id === connection.fromOutputId)?.resourceId;
+      if (!resource) continue;
+      building.inventory[resource] = (building.inventory[resource] || 0) + amount;
+      machine.inputBuffer[input.id] = 0;
     }
   }
 
@@ -87,23 +103,32 @@
 
   function reclaimBuilding(state, building) {
     const graph = state.factoryPlans[building.id];
-    if (!graph) return;
-    const resolved = ensureGraph(state, building);
     state.colonyMaterials ||= [];
-    for (const machine of resolved.machines) {
-      const def = Graph.definitionOf(machine);
-      for (const input of def.inputPorts) {
-        const amount = machine.inputBuffer[input.id];
-        if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: input.resourceId,
-          amount, origin: { kind: 'building', id: building.id } }));
+    if (graph) {
+      const resolved = ensureGraph(state, building);
+      for (const machine of resolved.machines) {
+        const def = Graph.definitionOf(machine);
+        for (const input of def.inputPorts) {
+          const amount = machine.inputBuffer[input.id];
+          const connection = graph.connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
+          const source = connection && resolved.machines.find(item => item.id === connection.fromMachineId);
+          const resourceId = input.resourceId || (source && Graph.definitionOf(source).outputPorts
+            .find(port => port.id === connection.fromOutputId)?.resourceId);
+          if (amount && resourceId) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId,
+            amount, origin: { kind: 'building', id: building.id } }));
+        }
+        for (const output of def.outputPorts) {
+          const amount = machine.outputBuffer[output.id];
+          if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: output.resourceId,
+            amount, origin: { kind: 'building', id: building.id } }));
+        }
       }
-      for (const output of def.outputPorts) {
-        const amount = machine.outputBuffer[output.id];
-        if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: output.resourceId,
-          amount, origin: { kind: 'building', id: building.id } }));
-      }
+      delete state.factoryPlans[building.id];
     }
-    delete state.factoryPlans[building.id];
+    for (const [resourceId, amount] of Object.entries(building.inventory || {})) {
+      if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
+        Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
+    }
   }
 
   root.OrbitIndustry = Object.freeze({ ensureGraph, advance, reclaimBuilding, geology });

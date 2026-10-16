@@ -88,7 +88,7 @@
     if (graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id)) {
       return { ok: false, reason: 'Cette sortie est déjà reliée.' };
     }
-    if (!definitionOf(to).sink && graph.connections.some(connection =>
+    if ((!definitionOf(to).sink || definitionOf(to).externalOutput) && graph.connections.some(connection =>
       connection.toMachineId === to.id && connection.toInputId === input.id)) {
       return { ok: false, reason: 'Cette entrée est déjà reliée.' };
     }
@@ -108,12 +108,12 @@
   function removeMachine(graph, id) {
     const machine = graph.machines.find(item => item.id === id);
     if (!machine) return { ok: false, reason: 'Machine introuvable.' };
-    const occupied = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)].some(amount => amount > 0);
-    if (occupied) return { ok: false, reason: 'Videz les flux avant de supprimer cette machine.' };
+    const discardedUnits = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)]
+      .reduce((sum, amount) => sum + amount, 0);
     graph.machines = graph.machines.filter(item => item !== machine);
     graph.connections = graph.connections.filter(connection =>
       connection.fromMachineId !== id && connection.toMachineId !== id);
-    return { ok: true };
+    return { ok: true, discardedUnits };
   }
 
   function topologicalOrder(graph) {

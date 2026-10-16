@@ -70,6 +70,11 @@
       id: 'trash', label: 'POUBELLE', mark: 'PO', sink: true,
       inputPorts: [{ id: 'material', label: 'Toutes ressources', resourceId: null, acceptsAnyResource: true }],
       outputPorts: [], recipe: null, throughput: 2, energyMW: 0
+    },
+    output_dock: {
+      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', sink: true, externalOutput: true,
+      inputPorts: [{ id: 'material', label: 'Sortie planétaire', resourceId: null, acceptsAnyResource: true }],
+      outputPorts: [], recipe: null, throughput: 2, energyMW: 0
     }
   };
 

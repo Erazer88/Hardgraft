@@ -47,6 +47,7 @@ Les consommations nominales sont des valeurs de départ à équilibrer.
 | Séparateur magnétique | 5 minerais broyés | 2 concentrés + 3 résidus | 2 u/s | 3 MW |
 | Four de réduction | 2 concentrés | 1 fer brut + 1 laitier | 2 u/s | 10 MW |
 | Poubelle | Toute ressource | Aucune, destruction par unité | 2 u/s | 0 MW |
+| Dock de sortie | Toute ressource, une connexion | Stock local du bâtiment, même matière 1:1 | 2 u/s | 0 MW |
 
 La Foreuse ne limite pas le débit : elle fournit des unités entières à la capacité
 de son premier consommateur. Le Concasseur niveau 1 constitue donc le premier
@@ -61,6 +62,13 @@ La Poubelle accepte tout identifiant de ressource. Plusieurs sorties peuvent vis
 son entrée partagée. Elle détruit les unités entières à 2 u/s, sans sortie ni
 consommation électrique ; son buffer partagé applique une limite de capacité de 20
 unités et transmet le blocage en amont lorsqu'il est plein.
+
+Le Dock de sortie accepte toute matière, mais une seule connexion par carte afin de
+garder sa matière exportée explicite. Il transfère les unités entières vers
+`building.inventory` (stock visible sur la fiche du bâtiment en vue planète), sans
+les détruire et sans consommer d'énergie. Plusieurs cartes Dock permettent d'exposer
+plusieurs matières séparément. Ce stock est sauvegardé avec le bâtiment ; sa
+distribution vers d'autres bâtiments attend le réseau logistique planétaire.
 
 ## Cycle, débit et énergie
 
@@ -91,9 +99,10 @@ et la progression du jeu. Les graphes industriels antérieurs à la version 4 so
 volontairement réinitialisés ; ils ne sont pas convertis. Les graphes V1 et leurs
 buffers sont sauvegardés avec leurs bâtiments.
 
-La suppression d’une machine occupée est refusée jusqu’à ce que ses buffers soient
-vides. La démolition d’un bâtiment rend les matières de ses buffers à l’inventaire
-de matériaux de la colonie.
+Une machine peut être supprimée même si ses buffers contiennent des unités ; son
+contenu est alors supprimé avec elle et l'éditeur indique combien d'unités ont été
+retirées. La démolition d’un bâtiment rend les matières présentes dans les buffers
+et le stock local exporté à l’inventaire de matériaux de la colonie.
 
 ## Modules
 

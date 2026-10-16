@@ -102,6 +102,8 @@ async function main() {
         (placement.viewport.y + placement.viewport.height / 2)) < 1,
     `first palette machine appears at the visible camera center: ${JSON.stringify(placement)}`);
     await cdp.click('[data-add-machine="grinder"]');
+    assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="output_dock"]\'))'),
+      'the output dock is available in the machine palette');
     placement = await cdp.evaluate(`(() => {
       const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
       const cards = [...document.querySelectorAll('.factory-node')].map(card => card.getBoundingClientRect());
@@ -313,7 +315,19 @@ async function main() {
       `mobile palette machine appears at viewport center: ${JSON.stringify(mobilePlacement)}`);
     assert.ok(mobilePlacement.targetSize.width >= 43.9 && mobilePlacement.targetSize.height >= 43.9);
 
-    process.stdout.write('PASS V1 factory editor in Chromium: world sizing, centered placement, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
+    await cdp.evaluate(`(() => {
+      const graph = window.OrbitProcessGraph.create({ version: window.OrbitProcessData.config.version,
+        machines: [{ id: 'occupied-crusher', type: 'crusher', inputBuffer: { raw_ore: 1 } }] });
+      window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, graph);
+    })()`);
+    await cdp.click('[data-remove-machine="occupied-crusher"]');
+    const removal = await cdp.evaluate(`({ count: document.querySelectorAll('.factory-node').length,
+      status: document.querySelector('#factory-editor-status').textContent })`);
+    assert.equal(removal.count, 0, 'a machine with buffered resources can be removed');
+    assert.match(removal.status, /1 UNITÉ RETIRÉE/,
+      `buffered resources are reported when their card is removed: ${removal.status}`);
+
+    process.stdout.write('PASS V1 factory editor in Chromium: world sizing, centered placement, output dock palette, occupied-card deletion, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

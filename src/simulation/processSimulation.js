@@ -105,6 +105,7 @@
         return;
       }
       machine.state = 'active';
+      if (def.externalOutput) return;
       machine.cycleProgress += Data.config.fixedStepSeconds * batchRate;
       while (machine.cycleProgress + CYCLE_EPSILON >= 1 && machine.inputBuffer[inputId] >= 1) {
         machine.inputBuffer[inputId] -= 1;
