@@ -57,11 +57,12 @@
       const state = card.querySelector('[data-readout="state"]');
       state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = machine.type === 'drill' || def.sink;
+      const continuous = machine.type === 'drill';
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
       cycleLabel.textContent = machine.type === 'drill' ? 'EXTRACTION CONTINUE'
-        : def.sink ? 'DESTRUCTION IMMÉDIATE' : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
+        : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
+          : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
       for (const port of def.inputPorts) {
         const label = card.querySelector(`[data-input-label="${port.id}"]`);
         if (label) label.innerHTML = resourceLine(port, machine.inputBuffer[port.id]);
@@ -261,7 +262,7 @@
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
         const detail = document.createElement('small');
-        detail.textContent = def.sink ? 'TOUTES RESSOURCES · DESTRUCTION IMMÉDIATE'
+        detail.textContent = def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
           : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
         copy.append(title, detail); button.append(icon, copy); palette.append(button);
       }

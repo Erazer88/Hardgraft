@@ -31,8 +31,8 @@ connexions sur le même port, sauf l'entrée partagée de la Poubelle.
 Les machines de traitement gardent un buffer de 20 unités par port. Elles ne
 terminent un cycle que si elles possèdent les ingrédients entiers de la recette et
 de la place pour toutes leurs sorties. Un sous-produit bloqué remplit son buffer et
-arrête le cycle sans perdre de matière. La Poubelle n'a pas de buffer : les unités
-arrivées sont supprimées immédiatement.
+arrête le cycle sans perdre de matière. L'entrée partagée de la Poubelle utilise
+également un buffer de 20 unités ; les unités y attendent leur cycle de destruction.
 
 ## Machines et recettes
 
@@ -43,29 +43,31 @@ Les consommations nominales sont des valeurs de départ à équilibrer.
 | --- | --- | --- | ---: | ---: |
 | Foreuse | Gisement de fer | 1 roche ferrifère brute | Sans plafond nominal | 2,5 MW |
 | Concasseur | 1 roche ferrifère brute | 1 minerai concassé | 2 u/s | 2 MW |
-| Broyeur | 1 minerai concassé | 1 minerai broyé | 8 u/s | 6 MW |
-| Séparateur magnétique | 5 minerais broyés | 2 concentrés + 3 résidus | 10 u/s | 3 MW |
-| Four de réduction | 2 concentrés | 1 fer brut + 1 laitier | 8 u/s | 10 MW |
-| Poubelle | Toute ressource | Aucune, destruction immédiate | Sans plafond | 0 MW |
+| Broyeur | 1 minerai concassé | 1 minerai broyé | 2 u/s | 6 MW |
+| Séparateur magnétique | 5 minerais broyés | 2 concentrés + 3 résidus | 2 u/s | 3 MW |
+| Four de réduction | 2 concentrés | 1 fer brut + 1 laitier | 2 u/s | 10 MW |
+| Poubelle | Toute ressource | Aucune, destruction par unité | 2 u/s | 0 MW |
 
 La Foreuse ne limite pas le débit : elle fournit des unités entières à la capacité
 de son premier consommateur. Le Concasseur niveau 1 constitue donc le premier
-goulot de la chaîne complète. Le minerai ferrifère n’est disponible que sur un
-gisement de fer.
+goulot de la chaîne complète. Tous les bâtiments sauf la Foreuse ont un débit
+nominal de 2 u/s, identique au Concasseur niveau 1. Le minerai ferrifère n’est
+disponible que sur un gisement de fer.
 
 Le réducteur métallurgique du Four de réduction reste abstrait en V1. Il n’y a pas
 de ressource carbone ni de consommable explicite pour cette recette.
 
 La Poubelle accepte tout identifiant de ressource. Plusieurs sorties peuvent viser
-son entrée partagée ; chaque unité transférée est détruite immédiatement, sans
-buffer, sortie, débit limite ni consommation électrique.
+son entrée partagée. Elle détruit les unités entières à 2 u/s, sans sortie ni
+consommation électrique ; son buffer partagé applique une limite de capacité de 20
+unités et transmet le blocage en amont lorsqu'il est plein.
 
 ## Cycle, débit et énergie
 
 Une recette consomme et produit uniquement des quantités entières. Le cycle est
 exprimé comme une progression de travail, pas comme une quantité de matière : une
-machine à 2 u/s avance d’un cycle de 1 u toutes les 0,5 secondes. Une recette de
-5 unités avec un débit maximal de 10 u/s a un cycle nominal de 0,5 seconde.
+machine à 2 u/s traite 1 unité toutes les 0,5 secondes. Le cycle de 5 unités du
+Séparateur magnétique dure donc 2,5 secondes à débit nominal.
 
 Le débit courant affiché suit la capacité soutenable de l’amont et le débit nominal
 de la machine. La barre se remplit selon ce débit ; son animation est visuelle et ne

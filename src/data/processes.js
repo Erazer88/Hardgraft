@@ -40,7 +40,7 @@
       outputPorts: [output('ground_ore', 'Minerai broyé', 'iron_ore_ground')],
       recipe: { inputs: [{ inputId: 'crushed_ore', amount: 1 }],
         outputs: [{ outputId: 'ground_ore', resourceId: 'iron_ore_ground', amount: 1 }] },
-      throughput: 8, energyMW: 6
+      throughput: 2, energyMW: 6
     },
     magnetic_separator: {
       id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
@@ -51,7 +51,7 @@
         { outputId: 'concentrate', resourceId: 'iron_concentrate', amount: 2 },
         { outputId: 'tailings', resourceId: 'iron_tailings', amount: 3 }
       ] },
-      throughput: 10, energyMW: 3
+      throughput: 2, energyMW: 3
     },
     reduction_furnace: {
       id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
@@ -62,14 +62,14 @@
         { outputId: 'raw_iron', resourceId: 'raw_iron', amount: 1 },
         { outputId: 'slag', resourceId: 'iron_slag', amount: 1 }
       ] },
-      throughput: 8, energyMW: 10
+      throughput: 2, energyMW: 10
     }
   };
   const utilities = {
     trash: {
       id: 'trash', label: 'POUBELLE', mark: 'PO', sink: true,
       inputPorts: [{ id: 'material', label: 'Toutes ressources', resourceId: null, acceptsAnyResource: true }],
-      outputPorts: [], recipe: null, throughput: null, energyMW: 0
+      outputPorts: [], recipe: null, throughput: 2, energyMW: 0
     }
   };
 

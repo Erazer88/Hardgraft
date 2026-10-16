@@ -28,10 +28,14 @@
     for (const machine of Graph.topologicalOrder(graph)) {
       const def = definition(machine), rates = {};
       if (def.sink) {
-        machine.currentRate = graph.connections.reduce((sum, connection) => {
+        const incomingRate = graph.connections.reduce((sum, connection) => {
           if (connection.toMachineId !== machine.id) return sum;
           return sum + (outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0);
         }, 0);
+        const inputId = def.inputPorts[0]?.id;
+        const hasBufferedUnits = inputId && machine.inputBuffer[inputId] > 0;
+        machine.currentRate = Math.min(def.throughput,
+          incomingRate > 0 || hasBufferedUnits ? Math.max(incomingRate, hasBufferedUnits ? def.throughput : 0) : 0);
       } else if (def.source) {
         const outgoing = graph.connections.find(connection => connection.fromMachineId === machine.id);
         const target = outgoing && byId.get(outgoing.toMachineId);
@@ -39,7 +43,7 @@
         const targetDefinition = target && definition(target);
         const targetBlocked = target && !targetDefinition.sink && !outputsReady(target);
         rates[def.outputPorts[0].id] = validDeposit && target && !targetBlocked
-          ? (targetDefinition.sink ? 1 / Data.config.fixedStepSeconds : targetDefinition.throughput || 0) * powerRatio : 0;
+          ? (targetDefinition.throughput || 0) * powerRatio : 0;
       } else {
         const recipe = def.recipe;
         const feedRates = recipe.inputs.map(item => {
@@ -73,15 +77,7 @@
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
       if (!out || !input) continue;
-      if (definition(to).sink) {
-        if (definition(from).source) {
-          if (powerRatio > 0 && graph.geology?.resourceId === 'iron') continue;
-        } else {
-          from.outputBuffer[out.id] = 0;
-        }
-        continue;
-      }
-      if (definition(from).source) {
+      if (definition(from).source && !definition(to).sink) {
         if (powerRatio <= 0 || graph.geology?.resourceId !== 'iron') continue;
         const needed = inputBatch(to, input.id);
         const room = Math.max(0, Data.config.inputCapacity - to.inputBuffer[input.id]);
@@ -101,14 +97,40 @@
     const def = definition(machine);
     machine.energyMW = 0;
     if (def.sink) {
-      machine.state = machine.currentRate > 0 ? 'active' : 'waiting_input';
-      machine.cycleProgress = 0;
+      const inputId = def.inputPorts[0]?.id;
+      const batchRate = def.throughput;
+      if (!inputId || machine.inputBuffer[inputId] < 1) {
+        machine.state = 'waiting_input';
+        return;
+      }
+      machine.state = 'active';
+      machine.cycleProgress += Data.config.fixedStepSeconds * batchRate;
+      while (machine.cycleProgress >= 1 && machine.inputBuffer[inputId] >= 1) {
+        machine.inputBuffer[inputId] -= 1;
+        machine.cycleProgress -= 1;
+      }
       return;
     }
     if (def.source) {
       const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
       const target = link && graph.machines.find(item => item.id === link.toMachineId);
       const validDeposit = graph.geology?.resourceId === 'iron';
+      if (validDeposit && target && definition(target).sink) {
+        const outputId = def.outputPorts[0].id;
+        if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
+        if (machine.outputBuffer[outputId] >= Data.config.outputCapacity) {
+          machine.state = 'output_full';
+          return;
+        }
+        machine.state = 'active';
+        machine.energyMW = def.energyMW * powerRatio;
+        machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
+        while (machine.cycleProgress >= 1 && machine.outputBuffer[outputId] < Data.config.outputCapacity) {
+          machine.outputBuffer[outputId] += 1;
+          machine.cycleProgress -= 1;
+        }
+        return;
+      }
       machine.state = !validDeposit || !target ? 'waiting_input'
         : powerRatio <= 0 ? 'no_energy'
           : !definition(target).sink && !outputsReady(target) ? 'output_full' : 'active';
