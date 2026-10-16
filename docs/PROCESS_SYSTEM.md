@@ -112,6 +112,13 @@ La simulation ne dépend ni du DOM ni de Canvas. `factoryViewport.js` ne simule 
 de matière ; il fournit une caméra commune aux cartes et aux connexions, et émet les
 gestes de l’éditeur.
 
+L'espace 2D mesure 7 800 × 5 400 unités, soit trois fois l'ancienne largeur et
+hauteur. À l'ouverture d'un plan vide, la caméra se centre sur cet espace ; chaque
+nouvelle carte apparaît au centre visible, puis légèrement décalée si nécessaire
+pour garder son en-tête accessible. Les ports ont une cible tactile de 44 × 44 unités
+et les entrées acceptent aussi un accrochage de proximité. Le smoke navigateur vérifie
+la pose, la taille de l'espace, l'accrochage et les gestes sur ordinateur et tactile.
+
 ## Vérifications
 
 - Contrat du moteur : `node --test tests/process-simulation.test.cjs`.

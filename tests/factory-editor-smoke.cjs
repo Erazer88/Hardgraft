@@ -55,6 +55,11 @@ async function main() {
       ], connections: [] });
       window.__factoryEditorTest.open({ id: 'editor-test', type: 'factory', upgradeLevel: 1 }, graph);
     })()`);
+    const openEmpty = async () => cdp.evaluate(`(() => {
+      const graph = window.OrbitProcessGraph.create({ version: window.OrbitProcessData.config.version,
+        geology: { resourceId: 'iron' } });
+      window.__factoryEditorTest.open({ id: 'editor-test', type: 'extractor', upgradeLevel: 1 }, graph);
+    })()`);
     const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
     const editorSnapshot = async () => cdp.evaluate(`(() => {
       const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
@@ -75,6 +80,40 @@ async function main() {
       await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', clickCount: 1 });
       await frame();
     };
+
+    await openEmpty();
+    await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
+    const worldSize = await cdp.evaluate(`(() => ({
+      width: document.querySelector('#factory-world').clientWidth,
+      height: document.querySelector('#factory-world').clientHeight,
+      linkWidth: document.querySelector('#factory-link-layer').ownerSVGElement.clientWidth,
+      linkHeight: document.querySelector('#factory-link-layer').ownerSVGElement.clientHeight
+    }))()`);
+    assert.deepEqual(worldSize, { width: 7800, height: 5400, linkWidth: 7800, linkHeight: 5400 });
+    await cdp.click('[data-add-machine="crusher"]');
+    let placement = await cdp.evaluate(`(() => {
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const card = document.querySelector('.factory-node').getBoundingClientRect();
+      return { viewport: viewport.toJSON(), card: card.toJSON() };
+    })()`);
+    assert.ok(Math.abs((placement.card.x + placement.card.width / 2) -
+      (placement.viewport.x + placement.viewport.width / 2)) < 1 &&
+      Math.abs((placement.card.y + placement.card.height / 2) -
+        (placement.viewport.y + placement.viewport.height / 2)) < 1,
+    `first palette machine appears at the visible camera center: ${JSON.stringify(placement)}`);
+    await cdp.click('[data-add-machine="grinder"]');
+    placement = await cdp.evaluate(`(() => {
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.factory-node')].map(card => card.getBoundingClientRect());
+      return { viewport: viewport.toJSON(), cards: cards.map(rect => rect.toJSON()) };
+    })()`);
+    assert.equal(placement.cards.length, 2, 'a second palette machine is created');
+    assert.ok(placement.cards.every(card => card.right > placement.viewport.left &&
+      card.left < placement.viewport.right && card.bottom > placement.viewport.top &&
+      card.top < placement.viewport.bottom), 'new machines remain visible near the camera center');
+    assert.ok(placement.cards[0].x !== placement.cards[1].x || placement.cards[0].y !== placement.cards[1].y,
+      'new machine headers do not become inaccessible under an exact overlap');
+    await cdp.evaluate('window.__factoryEditorTest.close()');
 
     await openTwoMachines();
     await cdp.until('!document.querySelector("#factory-editor").hidden', 'factory editor opening');
@@ -165,7 +204,15 @@ async function main() {
       return { x: viewport.left + camera.x + point.x * camera.scale,
         y: viewport.top + camera.y + point.y * camera.scale };
     })()`);
-    await mouseDrag(linePoint, { x: blank.x, y: blank.y });
+    const detachTarget = await cdp.evaluate(`(() => {
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.factory-node')].map(card => card.getBoundingClientRect());
+      const points = [[.95,.92],[.95,.08],[.05,.92],[.05,.08],[.8,.92],[.2,.92]]
+        .map(([x,y]) => ({ x: viewport.left + viewport.width*x, y: viewport.top + viewport.height*y }));
+      return points.find(point => cards.every(card => point.x < card.left || point.x > card.right ||
+        point.y < card.top || point.y > card.bottom));
+    })()`);
+    await mouseDrag(linePoint, detachTarget);
     connections = await cdp.evaluate('document.querySelectorAll(".factory-link-hit").length');
     assert.equal(connections, 0, 'dragging an existing connection away detaches it');
     await cdp.evaluate('window.__factoryEditorTest.close()');
@@ -235,13 +282,38 @@ async function main() {
 
     source = await point('.factory-port.output[data-output-id="raw_ore"]');
     target = await point('.factory-port.input[data-input-id="raw_ore"]');
+    const portTargetSize = await cdp.evaluate(`(() => {
+      const port = document.querySelector('.factory-port.input[data-input-id="raw_ore"]').getBoundingClientRect();
+      const scale = window.__factoryEditorTest.getViewportState().camera.scale;
+      return { width: port.width / scale, height: port.height / scale };
+    })()`);
+    assert.ok(portTargetSize.width >= 43.9 && portTargetSize.height >= 43.9,
+      `input port target is at least 44 by 44 CSS pixels: ${JSON.stringify(portTargetSize)}`);
+    target = { x: target.x + 17, y: target.y };
     await touch('touchStart', [{ ...source, id: 5 }]);
     await touch('touchMove', [{ ...target, id: 5 }]);
     await touch('touchEnd', []);
     connections = await cdp.evaluate('document.querySelectorAll(".factory-link-hit").length');
     assert.equal(connections, 1, 'touch connection snapping still works after pinch and pan');
 
-    process.stdout.write('PASS V1 factory editor in Chromium: desktop pan/wheel/machine drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
+    await cdp.evaluate('window.__factoryEditorTest.close()');
+    await openEmpty();
+    await cdp.until('!document.querySelector("#factory-editor").hidden', 'empty mobile editor opening');
+    await cdp.click('[data-add-machine="crusher"]');
+    const mobilePlacement = await cdp.evaluate(`(() => {
+      const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
+      const card = document.querySelector('.factory-node').getBoundingClientRect();
+      const port = document.querySelector('.factory-port.input').getBoundingClientRect();
+      const scale = window.__factoryEditorTest.getViewportState().camera.scale;
+      return { centerError: Math.hypot(card.left + card.width / 2 - viewport.left - viewport.width / 2,
+        card.top + card.height / 2 - viewport.top - viewport.height / 2),
+        targetSize: { width: port.width / scale, height: port.height / scale } };
+    })()`);
+    assert.ok(mobilePlacement.centerError < 1,
+      `mobile palette machine appears at viewport center: ${JSON.stringify(mobilePlacement)}`);
+    assert.ok(mobilePlacement.targetSize.width >= 43.9 && mobilePlacement.targetSize.height >= 43.9);
+
+    process.stdout.write('PASS V1 factory editor in Chromium: world sizing, centered placement, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

@@ -4,6 +4,7 @@
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
   const integer = value => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  const CYCLE_EPSILON = 1e-9;
 
   function definition(machine) { return Graph.definitionOf(machine); }
   function port(machine, direction, id) {
@@ -78,7 +79,7 @@
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
       if (!out || !input) continue;
       if (definition(from).source && !definition(to).sink) {
-        if (powerRatio <= 0 || graph.geology?.resourceId !== 'iron') continue;
+        if (powerRatio <= 0 || graph.geology?.resourceId !== 'iron' || !outputsReady(to)) continue;
         const needed = inputBatch(to, input.id);
         const room = Math.max(0, Data.config.inputCapacity - to.inputBuffer[input.id]);
         const amount = integer(Math.min(room, Math.max(0, needed - to.inputBuffer[input.id])));
@@ -105,9 +106,9 @@
       }
       machine.state = 'active';
       machine.cycleProgress += Data.config.fixedStepSeconds * batchRate;
-      while (machine.cycleProgress >= 1 && machine.inputBuffer[inputId] >= 1) {
+      while (machine.cycleProgress + CYCLE_EPSILON >= 1 && machine.inputBuffer[inputId] >= 1) {
         machine.inputBuffer[inputId] -= 1;
-        machine.cycleProgress -= 1;
+        machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
       }
       return;
     }
@@ -125,9 +126,10 @@
         machine.state = 'active';
         machine.energyMW = def.energyMW * powerRatio;
         machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
-        while (machine.cycleProgress >= 1 && machine.outputBuffer[outputId] < Data.config.outputCapacity) {
+        while (machine.cycleProgress + CYCLE_EPSILON >= 1 &&
+          machine.outputBuffer[outputId] < Data.config.outputCapacity) {
           machine.outputBuffer[outputId] += 1;
-          machine.cycleProgress -= 1;
+          machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
         }
         return;
       }
@@ -145,10 +147,10 @@
     const batch = def.recipe.inputs.reduce((sum, item) => sum + item.amount, 0);
     const rate = machine.currentRate > 0 ? machine.currentRate : def.throughput * powerRatio;
     machine.cycleProgress += Data.config.fixedStepSeconds * rate / batch;
-    while (machine.cycleProgress >= 1 && inputsReady(machine) && outputsReady(machine)) {
+    while (machine.cycleProgress + CYCLE_EPSILON >= 1 && inputsReady(machine) && outputsReady(machine)) {
       for (const item of def.recipe.inputs) machine.inputBuffer[item.inputId] -= item.amount;
       for (const item of def.recipe.outputs) machine.outputBuffer[item.outputId] += item.amount;
-      machine.cycleProgress -= 1;
+      machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
     }
   }
 

@@ -217,7 +217,8 @@
     function setCamera(value) { apply(value); }
     function fit(machines, cardSize) {
       if (!machines.length) {
-        apply({ x: viewport.clientWidth / 2, y: viewport.clientHeight / 2, scale: 1 }); return;
+        apply({ x: (viewport.clientWidth - world.clientWidth) / 2,
+          y: (viewport.clientHeight - world.clientHeight) / 2, scale: 1 }); return;
       }
       const bounds = machines.reduce((box, machine) => ({
         minX: Math.min(box.minX, machine.x), minY: Math.min(box.minY, machine.y),

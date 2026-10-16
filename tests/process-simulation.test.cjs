@@ -8,12 +8,13 @@ const { test } = require('node:test');
 
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/processGraph.js',
-  'simulation/processSimulation.js']) {
+  'simulation/processSimulation.js', 'gameplay/industry.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitProcessData;
 const Graph = context.OrbitProcessGraph;
 const Simulation = context.OrbitProcessSimulation;
+const Industry = context.OrbitIndustry;
 const plain = value => JSON.parse(JSON.stringify(value));
 
 function machine(graph, id, type, x = 0) {
@@ -46,15 +47,16 @@ function advance(graph, seconds, context = { energyUnlimited: true }) {
   return Simulation.advance(graph, seconds, context);
 }
 
-test('V1 exposes only the five iron-chain machines and integer recipes', () => {
+test('V1 exposes the iron-chain machines at crusher pace and integer recipes', () => {
   assert.deepEqual(Object.keys(Data.definitions), [
     'drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace'
   ]);
   assert.equal(Data.get('drill').throughput, null, 'the drill has no nominal rate ceiling');
   assert.equal(Data.get('crusher').throughput, 2);
-  assert.equal(Data.get('grinder').throughput, 8);
-  assert.equal(Data.get('magnetic_separator').throughput, 10);
-  assert.equal(Data.get('reduction_furnace').throughput, 8);
+  assert.equal(Data.get('grinder').throughput, 2);
+  assert.equal(Data.get('magnetic_separator').throughput, 2);
+  assert.equal(Data.get('reduction_furnace').throughput, 2);
+  assert.equal(Data.get('trash').throughput, 2);
   for (const def of Object.values(Data.definitions)) {
     for (const part of [...(def.recipe?.inputs || []), ...(def.recipe?.outputs || [])]) {
       assert.ok(Number.isInteger(part.amount) && part.amount > 0, `${def.id} quantities are positive integers`);
@@ -127,14 +129,14 @@ test('the separator and reduction furnace conserve their integer recipe batches'
   const graph = Graph.create();
   const separator = machine(graph, 'separator', 'magnetic_separator');
   separator.inputBuffer.ground_ore = 10;
-  advance(graph, 1);
+  advance(graph, 5);
   assert.equal(separator.outputBuffer.concentrate, 4);
   assert.equal(separator.outputBuffer.tailings, 6);
   assert.equal(separator.inputBuffer.ground_ore, 0);
 
   const furnace = machine(graph, 'furnace', 'reduction_furnace');
   furnace.inputBuffer.concentrate = 4;
-  advance(graph, 1);
+  advance(graph, 2);
   assert.equal(furnace.outputBuffer.raw_iron, 2);
   assert.equal(furnace.outputBuffer.slag, 2);
   assert.equal(furnace.inputBuffer.concentrate, 0);
@@ -173,4 +175,99 @@ test('graph snapshots retain port connections and integer buffers', () => {
   assert.deepEqual(plain(restored.connections), plain(graph.connections));
   assert.equal(restored.machines.find(item => item.id === 'crusher').inputBuffer.raw_ore, 7);
   assert.equal(restored.machines.length, 5);
+});
+
+test('foreuse activates only on an iron deposit, a receiver, and available power', () => {
+  const missingDeposit = Graph.create({ geology: { resourceId: 'copper' } });
+  machine(missingDeposit, 'drill', 'drill');
+  machine(missingDeposit, 'crusher', 'crusher');
+  connect(missingDeposit, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+  advance(missingDeposit, .5);
+  assert.equal(missingDeposit.machines[0].state, 'waiting_input');
+
+  const missingReceiver = Graph.create({ geology: { resourceId: 'iron' } });
+  machine(missingReceiver, 'drill', 'drill');
+  advance(missingReceiver, .5);
+  assert.equal(missingReceiver.machines[0].state, 'waiting_input');
+
+  const unpowered = Graph.create({ geology: { resourceId: 'iron' } });
+  machine(unpowered, 'drill', 'drill');
+  machine(unpowered, 'crusher', 'crusher');
+  connect(unpowered, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+  advance(unpowered, .5, { energyAvailableMW: 0 });
+  assert.equal(unpowered.machines[0].state, 'no_energy');
+
+  advance(unpowered, .5);
+  assert.equal(unpowered.machines[0].state, 'active');
+  assert.ok(unpowered.machines[1].outputBuffer.crushed_ore > 0);
+});
+
+test('a saturated first processor pauses the foreuse without discarding ore', () => {
+  const graph = Graph.create({ geology: { resourceId: 'iron' } });
+  const drill = machine(graph, 'drill', 'drill');
+  const crusher = machine(graph, 'crusher', 'crusher');
+  crusher.outputBuffer.crushed_ore = Data.config.outputCapacity;
+  connect(graph, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+  advance(graph, .5);
+  assert.equal(drill.state, 'output_full');
+  assert.equal(drill.outputBuffer.raw_ore, 0);
+  assert.equal(crusher.inputBuffer.raw_ore, 0);
+});
+
+test('the extractor building supplies the foreuse with deterministic iron geology', () => {
+  const extractor = { id: 'extractor-1', type: 'extractor', resourceId: 'iron', planetId: 'planet-1',
+    x: 25, y: 30, constructionState: 'complete' };
+  const wind = { id: 'wind-1', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
+  const state = { seed: 'factory-seed', surfaceBuildings: [extractor, wind], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, extractor);
+  machine(graph, 'drill', 'drill');
+  machine(graph, 'crusher', 'crusher');
+  connect(graph, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+  Industry.advance(state, 1);
+  assert.equal(graph.geology.resourceId, 'iron');
+  assert.equal(graph.machines[0].state, 'active');
+  assert.ok(graph.machines[1].outputBuffer.crushed_ore > 0);
+});
+
+test('the shared trash accepts several resource connections and destroys at two units per second', () => {
+  const graph = Graph.create({ geology: { resourceId: 'iron' } });
+  machine(graph, 'drill-a', 'drill');
+  machine(graph, 'drill-b', 'drill', 300);
+  machine(graph, 'trash', 'trash', 600);
+  connect(graph, 'trash-a', 'drill-a', 'raw_ore', 'trash', 'material');
+  connect(graph, 'trash-b', 'drill-b', 'raw_ore', 'trash', 'material');
+  advance(graph, 5);
+  const sink = graph.machines.find(item => item.id === 'trash');
+  assert.equal(sink.currentRate, 2);
+  assert.ok(sink.inputBuffer.material <= Data.config.inputCapacity);
+  assert.ok(graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
+    .every(Number.isInteger)));
+  assert.ok(graph.machines.some(item => item.outputBuffer.raw_ore > 0),
+    'excess feed queues in the drills instead of being deleted faster than the sink');
+});
+
+test('the trash accepts different output resources and processes exactly two units per second', () => {
+  const graph = Graph.create();
+  const crusher = machine(graph, 'crusher', 'crusher');
+  const furnace = machine(graph, 'furnace', 'reduction_furnace', 300);
+  const trash = machine(graph, 'trash', 'trash', 600);
+  crusher.outputBuffer.crushed_ore = 3;
+  furnace.outputBuffer.slag = 3;
+  connect(graph, 'ore-trash', 'crusher', 'crushed_ore', 'trash', 'material');
+  connect(graph, 'slag-trash', 'furnace', 'slag', 'trash', 'material');
+  advance(graph, 1.5);
+  assert.equal(trash.inputBuffer.material, 3,
+    'six integer units enter; exactly three are destroyed during 1.5 seconds');
+  assert.equal(crusher.outputBuffer.crushed_ore, 0);
+  assert.equal(furnace.outputBuffer.slag, 0);
+});
+
+test('occupied machines cannot be deleted until all buffered material is recovered', () => {
+  const graph = Graph.create();
+  const crusher = machine(graph, 'crusher', 'crusher');
+  crusher.inputBuffer.raw_ore = 1;
+  assert.equal(Graph.removeMachine(graph, 'crusher').ok, false);
+  crusher.inputBuffer.raw_ore = 0;
+  assert.equal(Graph.removeMachine(graph, 'crusher').ok, true);
+  assert.equal(graph.machines.length, 0);
 });

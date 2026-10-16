@@ -4,7 +4,7 @@
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
   const NODE = Object.freeze({ width: 258, height: 162 });
-  const WORLD = Object.freeze({ width: 2600, height: 1800 });
+  const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
@@ -25,6 +25,15 @@
       const ports = side === 'input' ? typeOf(machine.type).inputPorts : typeOf(machine.type).outputPorts;
       const index = ports.findIndex(port => port.id === portId);
       return machine.y + 55 + Math.max(0, index) * 24;
+    };
+    const portPoint = (machine, side, portId) => {
+      const port = cards.get(machine.id)?.querySelector(
+        `.factory-port.${side}[data-${side === 'input' ? 'input' : 'output'}-id="${portId}"]`);
+      if (port) {
+        const bounds = port.getBoundingClientRect();
+        return viewportController.worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      }
+      return { x: side === 'output' ? machine.x + NODE.width : machine.x, y: portY(machine, side, portId) };
     };
 
     function status(message) { $('factory-editor-status').textContent = message; }
@@ -79,7 +88,7 @@
       button.className = `factory-port ${side}`;
       button.dataset.machineId = machine.id;
       button.dataset[side === 'input' ? 'inputId' : 'outputId'] = port.id;
-      button.style.top = `${47.5 + index * 24}px`;
+      button.style.top = `${55 + index * 24}px`;
       button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine.type).label}`);
       return button;
     }
@@ -147,9 +156,9 @@
       const source = machineById(connection.fromMachineId || connection.source?.machineId);
       if (!source) return;
       const fromOutputId = connection.fromOutputId || connection.source?.outputId;
-      const start = { x: source.x + NODE.width, y: portY(source, 'output', fromOutputId) };
+      const start = portPoint(source, 'output', fromOutputId);
       const target = connection.toMachineId ? machineById(connection.toMachineId) : null;
-      const end = target ? { x: target.x, y: portY(target, 'input', connection.toInputId) } : connection.point;
+      const end = target ? portPoint(target, 'input', connection.toInputId) : connection.point;
       if (!end) return;
       if (!pending) {
         const hit = document.createElementNS(SVG, 'path');
@@ -179,7 +188,7 @@
     }
 
     function findInputTarget(clientX, clientY) {
-      let candidate = null, distance = 31;
+      let candidate = null, distance = 46;
       for (const machine of machines) {
         const input = freeInput(machine);
         if (!input) continue;
@@ -274,11 +283,39 @@
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,
         viewportBounds.top + viewportBounds.height / 2);
-      const last = machines.at(-1);
-      const x = last ? last.x + NODE.width + 88 : center.x - NODE.width / 2;
-      const y = last ? last.y : center.y - NODE.height / 2;
+      const topLeft = { x: center.x - NODE.width / 2, y: center.y - NODE.height / 2 };
+      const visibleTopLeft = viewportController.worldPoint(viewportBounds.left, viewportBounds.top);
+      const visibleBottomRight = viewportController.worldPoint(viewportBounds.right, viewportBounds.bottom);
+      const minX = Math.max(8, visibleTopLeft.x + 8);
+      const maxX = Math.min(WORLD.width - NODE.width - 8, visibleBottomRight.x - NODE.width - 8);
+      const minY = Math.max(8, visibleTopLeft.y + 8);
+      const maxY = Math.min(WORLD.height - NODE.height - 8, visibleBottomRight.y - NODE.height - 8);
+      const positions = [{ ...topLeft }];
+      const stepX = NODE.width + 20, stepY = NODE.height + 20;
+      for (let ring = 1; ring <= 8; ring++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          for (const dy of [-ring, ring]) positions.push({ x: topLeft.x + dx * stepX, y: topLeft.y + dy * stepY });
+        }
+        for (let dy = -ring + 1; dy < ring; dy++) {
+          for (const dx of [-ring, ring]) positions.push({ x: topLeft.x + dx * stepX, y: topLeft.y + dy * stepY });
+        }
+      }
+      positions.sort((a, b) => Math.hypot(a.x - topLeft.x, a.y - topLeft.y) -
+        Math.hypot(b.x - topLeft.x, b.y - topLeft.y));
+      const visible = position => position.x >= minX && position.x <= maxX &&
+        position.y >= minY && position.y <= maxY;
+      const available = positions.find(position => visible(position) &&
+        machines.every(machine =>
+          position.x + NODE.width + 12 <= machine.x || machine.x + NODE.width + 12 <= position.x ||
+          position.y + NODE.height + 12 <= machine.y || machine.y + NODE.height + 12 <= position.y));
+      const visibleEnough = position => position.x + NODE.width > visibleTopLeft.x &&
+        position.x < visibleBottomRight.x && position.y + NODE.height > visibleTopLeft.y &&
+        position.y < visibleBottomRight.y;
+      const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
+      const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
       const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
-        x: clamp(x, 8, WORLD.width - NODE.width - 8), y: clamp(y, 8, WORLD.height - NODE.height - 8) });
+        x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
+        y: clamp(placement.y, 8, WORLD.height - NODE.height - 8) });
       if (!result.ok) { status(result.reason); return; }
       machines = graph.machines; renderNodes(); persist();
     }
