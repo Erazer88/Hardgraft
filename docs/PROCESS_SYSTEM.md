@@ -26,12 +26,13 @@ Une connexion a exactement cette forme :
 Une connexion ne possède pas de débit. Les transferts sont immédiats et déplacent
 des unités entières dans les buffers. Les machines et leurs cycles déterminent le
 débit de la chaîne. La V1 n’autorise ni boucles, ni mélange de matières, ni plusieurs
-connexions sur le même port.
+connexions sur le même port, sauf l'entrée partagée de la Poubelle.
 
-La simulation garde un buffer de 20 unités par port. Une machine ne termine un cycle
-que si elle possède les ingrédients entiers de la recette et de la place pour toutes
-ses sorties. Un sous-produit bloqué remplit son buffer et arrête le cycle sans perdre
-de matière.
+Les machines de traitement gardent un buffer de 20 unités par port. Elles ne
+terminent un cycle que si elles possèdent les ingrédients entiers de la recette et
+de la place pour toutes leurs sorties. Un sous-produit bloqué remplit son buffer et
+arrête le cycle sans perdre de matière. La Poubelle n'a pas de buffer : les unités
+arrivées sont supprimées immédiatement.
 
 ## Machines et recettes
 
@@ -45,6 +46,7 @@ Les consommations nominales sont des valeurs de départ à équilibrer.
 | Broyeur | 1 minerai concassé | 1 minerai broyé | 8 u/s | 6 MW |
 | Séparateur magnétique | 5 minerais broyés | 2 concentrés + 3 résidus | 10 u/s | 3 MW |
 | Four de réduction | 2 concentrés | 1 fer brut + 1 laitier | 8 u/s | 10 MW |
+| Poubelle | Toute ressource | Aucune, destruction immédiate | Sans plafond | 0 MW |
 
 La Foreuse ne limite pas le débit : elle fournit des unités entières à la capacité
 de son premier consommateur. Le Concasseur niveau 1 constitue donc le premier
@@ -53,6 +55,10 @@ gisement de fer.
 
 Le réducteur métallurgique du Four de réduction reste abstrait en V1. Il n’y a pas
 de ressource carbone ni de consommable explicite pour cette recette.
+
+La Poubelle accepte tout identifiant de ressource. Plusieurs sorties peuvent viser
+son entrée partagée ; chaque unité transférée est détruite immédiatement, sans
+buffer, sortie, débit limite ni consommation électrique.
 
 ## Cycle, débit et énergie
 

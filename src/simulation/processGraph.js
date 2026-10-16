@@ -82,11 +82,14 @@
     const output = definitionOf(from).outputPorts.find(port => port.id === value.fromOutputId);
     const input = definitionOf(to).inputPorts.find(port => port.id === value.toInputId);
     if (!output || !input) return { ok: false, reason: 'Port de sortie ou d’entrée invalide.' };
-    if (output.resourceId !== input.resourceId) return { ok: false, reason: 'Ces ports ne transportent pas la même matière.' };
+    if (!input.acceptsAnyResource && output.resourceId !== input.resourceId) {
+      return { ok: false, reason: 'Ces ports ne transportent pas la même matière.' };
+    }
     if (graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id)) {
       return { ok: false, reason: 'Cette sortie est déjà reliée.' };
     }
-    if (graph.connections.some(connection => connection.toMachineId === to.id && connection.toInputId === input.id)) {
+    if (!definitionOf(to).sink && graph.connections.some(connection =>
+      connection.toMachineId === to.id && connection.toInputId === input.id)) {
       return { ok: false, reason: 'Cette entrée est déjà reliée.' };
     }
     if (reaches(graph, to.id, from.id)) return { ok: false, reason: 'Les boucles sont désactivées dans l’usine V1.' };

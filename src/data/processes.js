@@ -65,6 +65,13 @@
       throughput: 8, energyMW: 10
     }
   };
+  const utilities = {
+    trash: {
+      id: 'trash', label: 'POUBELLE', mark: 'PO', sink: true,
+      inputPorts: [{ id: 'material', label: 'Toutes ressources', resourceId: null, acceptsAnyResource: true }],
+      outputPorts: [], recipe: null, throughput: null, energyMW: 0
+    }
+  };
 
   const statuses = Object.freeze({
     active: 'ACTIF',
@@ -81,13 +88,16 @@
 
   freeze(config);
   freeze(definitions);
+  freeze(utilities);
   root.OrbitProcessData = Object.freeze({
     config,
     definitions,
+    utilities,
     statuses,
-    get(type) { return definitions[type] || null; },
+    get(type) { return definitions[type] || utilities[type] || null; },
     catalog(buildingType) {
-      return ['factory', 'extractor'].includes(buildingType) ? Object.values(definitions) : [];
+      return ['factory', 'extractor'].includes(buildingType)
+        ? [...Object.values(definitions), ...Object.values(utilities)] : [];
     }
   });
 })(globalThis);

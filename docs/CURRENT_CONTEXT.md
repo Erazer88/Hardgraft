@@ -20,10 +20,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 
 ## Systèmes en place et frontières
 
-- L'usine V1 est limitée à la chaîne du fer : Foreuse → Concasseur → Broyeur →
-  Séparateur magnétique → Four de réduction. Les définitions et recettes sont
-  déclaratives ; les buffers et quantités de matière sont entiers. Référence :
-  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+- L'usine V1 couvre la chaîne du fer (Foreuse → Concasseur → Broyeur → Séparateur
+  magnétique → Four de réduction) et une Poubelle qui détruit toute ressource reçue.
+  Les définitions et recettes sont déclaratives ; les buffers et quantités de matière
+  sont entiers. Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - La Foreuse n'a pas de plafond nominal. Le Concasseur niveau 1 traite 2 u/s et forme
   le premier goulot ; les autres capacités sont temporaires et équilibrables dans
   `src/data/processes.js`.
