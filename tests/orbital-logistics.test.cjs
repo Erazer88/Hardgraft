@@ -42,6 +42,25 @@ function fixture({ builtLength = 100, dockStock = { raw_iron: 8 }, inventory = {
     inventory: { iron: 50 }, orbitalLogistics: Transit.createState() } };
 }
 
+function orbitalCase({ planetOrbit, planetRadius = 5, planetPhase = 0, planetSpeed,
+  arkOrbit, arkPhase, arkSpeed, departureTime = 0, arrivalTime = 40, starRadius = 8 }) {
+  const planet = { id: 'case:p-0', orbit: planetOrbit, radius: planetRadius, phase: planetPhase, speed: planetSpeed };
+  const system = { id: 'case', star: { mass: 1, radius: starRadius }, extent: Math.max(planetOrbit, arkOrbit) * 1.8,
+    planets: [planet], ark: { id: 'case:ark', orbit: arkOrbit, phase: arkPhase, speed: arkSpeed } };
+  const lot = { corridorId: 'platform->case:ark', resourceId: 'raw_iron', amount: 1,
+    systemId: system.id, originPlanetId: planet.id, departureTime, arrivalTime, trajectoryVersion: 2 };
+  return { system, planet, lot, curve: Transit.trajectoryFor(lot, system) };
+}
+
+function assertPrograde(trajectory) {
+  const points = Transit.trajectorySamples(trajectory, 128);
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1], current = points[index];
+    const angularCross = previous.x * current.y - previous.y * current.x;
+    assert.ok(angularCross > 0, `angular motion must stay prograde at sample ${index}`);
+  }
+}
+
 test('orbital launch values and export resources remain declarative', () => {
   assert.deepEqual(plain(Data.launch), { capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
   assert.equal(Data.transit.cargoSpeedMultiplier, .7);
@@ -130,6 +149,7 @@ test('each whole-unit transit lot arrives at its exact simulation time and is sa
   assert.equal(resumed.orbitalLogistics.transit.length, 0);
   assert.deepEqual(Object.keys(saved), ['version', 'corridors', 'transit', 'hubs', 'nextDispatchTime']);
   assert.ok(saved.transit.every(item => Number.isInteger(item.amount)));
+  assert.ok(saved.transit.every(item => item.trajectoryVersion === 2), 'new lots retain their trajectory model on reload');
 });
 
 test('several materials share one corridor in integer packets', () => {
@@ -145,13 +165,14 @@ test('several materials share one corridor in integer packets', () => {
   assert.ok(lots.every(lot => Number.isInteger(lot.amount) && lot.amount > 0));
 });
 
-test('cargo positions use fixed departure and predicted arrival endpoints', () => {
+test('new cargo follows a fixed prograde polar transfer to the predicted Ark position', () => {
   const { platform, state } = fixture({ dockStock: {} });
   platform.launchStock.raw_iron = 1; platform.exportEnabled.raw_iron = true;
   Transit.advance(state, 10, systems);
   const lot = state.orbitalLogistics.transit[0];
   const curve = Transit.trajectoryFor(lot, system);
   assert.deepEqual(plain(curve), plain(Transit.trajectoryFor(lot, system)));
+  assert.equal(curve.kind, 'orbital');
   assert.deepEqual(plain(Transit.cargoPosition(lot, system, lot.departureTime)),
     plain(curve.p0));
   assert.deepEqual(plain(Transit.cargoPosition(lot, system, lot.arrivalTime)),
@@ -159,14 +180,112 @@ test('cargo positions use fixed departure and predicted arrival endpoints', () =
   const planetCenter = World.planetPosition(system.planets[0], lot.departureTime);
   assert.ok(Math.abs(Math.hypot(curve.p0.x - planetCenter.x, curve.p0.y - planetCenter.y) - system.planets[0].radius) < 1e-8,
     'the visual departure begins at the planet surface rather than its center');
-  const sourceAngle = system.planets[0].phase + system.planets[0].speed * lot.departureTime;
-  const sourceTangent = { x: -Math.sin(sourceAngle), y: Math.cos(sourceAngle) };
-  assert.ok((curve.p1.x - curve.p0.x) * sourceTangent.x + (curve.p1.y - curve.p0.y) * sourceTangent.y > 0,
-    'the departure curve follows the planet’s prograde orbital direction');
-  const arrivalAngle = system.ark.phase + system.ark.speed * lot.arrivalTime;
-  const arrivalTangent = { x: -Math.sin(arrivalAngle), y: Math.cos(arrivalAngle) };
-  assert.ok((curve.p3.x - curve.p2.x) * arrivalTangent.x + (curve.p3.y - curve.p2.y) * arrivalTangent.y > 0,
-    'the arrival curve approaches along the Ark’s prograde orbital direction');
+  assertPrograde(curve);
+  assert.equal(curve.sourceAngle, system.planets[0].phase + system.planets[0].speed * lot.departureTime);
+  assert.equal(curve.targetAngle, system.ark.phase + system.ark.speed * lot.arrivalTime);
+});
+
+test('transfer mode accounts for radial difference and natural angular advance at interception', () => {
+  const aheadButSlowerAtMeanRadius = orbitalCase({ planetOrbit: 100, planetSpeed: .04,
+    arkOrbit: 400, arkPhase: .04, arkSpeed: .005, arrivalTime: 40 });
+  assert.ok(aheadButSlowerAtMeanRadius.curve.correction < -.12,
+    'a slightly-ahead Ark at a much larger orbit falls behind the neutral intercept angle');
+  assert.equal(aheadButSlowerAtMeanRadius.curve.mode, 'outer');
+  assert.ok(aheadButSlowerAtMeanRadius.curve.radialExcursion > 0);
+  assertPrograde(aheadButSlowerAtMeanRadius.curve);
+
+  const behindButFasterAtMeanRadius = orbitalCase({ planetOrbit: 400, planetSpeed: .005,
+    arkOrbit: 100, arkPhase: -.04, arkSpeed: .04, arrivalTime: 40 });
+  assert.ok(behindButFasterAtMeanRadius.curve.correction > .12,
+    'a slightly-behind Ark at a much smaller orbit advances beyond the neutral intercept angle');
+  assert.equal(behindButFasterAtMeanRadius.curve.mode, 'inner');
+  assert.ok(behindButFasterAtMeanRadius.curve.radialExcursion < 0);
+  assertPrograde(behindButFasterAtMeanRadius.curve);
+});
+
+test('inner and outer transfer profiles accelerate and retard angular progress', () => {
+  const planetOrbit = 200, arkOrbit = 205, planetSpeed = .02;
+  const neutralSpeed = planetSpeed * Math.pow(planetOrbit / ((planetOrbit + arkOrbit) / 2), 1.5);
+  const inner = orbitalCase({ planetOrbit, planetSpeed, arkOrbit, arkSpeed: neutralSpeed,
+    arkPhase: .4, arrivalTime: 40 });
+  const outer = orbitalCase({ planetOrbit, planetSpeed, arkOrbit, arkSpeed: neutralSpeed,
+    arkPhase: -.4, arrivalTime: 40 });
+  const middle = Math.floor(inner.curve.angularSegments / 2);
+  assert.equal(inner.curve.mode, 'inner');
+  assert.equal(outer.curve.mode, 'outer');
+  assert.ok(inner.curve.angularProfile[middle] > .5,
+    'the cargo gains more than half its angle by the inner turning point');
+  assert.ok(outer.curve.angularProfile[middle] < .5,
+    'the cargo gains less than half its angle by the outer turning point');
+});
+
+test('flight duration converges on the length of its final predicted transfer curve', () => {
+  const { system, planet } = orbitalCase({ planetOrbit: 150, planetSpeed: .025,
+    arkOrbit: 360, arkPhase: 1.1, arkSpeed: .006 });
+  const departureTime = 12, duration = Transit.travelTime(system, planet, departureTime);
+  const lot = { corridorId: 'duration', resourceId: 'raw_iron', amount: 1, systemId: system.id,
+    originPlanetId: planet.id, departureTime, arrivalTime: departureTime + duration, trajectoryVersion: 2 };
+  const points = Transit.trajectorySamples(Transit.trajectoryFor(lot, system), 48);
+  const length = points.slice(1).reduce((sum, point, index) =>
+    sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
+  const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * planet.orbit))) / .7;
+  assert.ok(Math.abs(duration - expected) < .02,
+    'arrival time is calculated from the route that reaches the Ark’s future position');
+});
+
+test('generated planetary transfers remain deterministic through radial and phase edge cases', () => {
+  const galaxy = World.createGalaxy('prograde-transfer-cases');
+  const generated = World.createSystem('prograde-transfer-cases', galaxy.homeId, galaxy);
+  for (const planet of generated.planets.filter(item => item.kind !== 'gazeuse')) {
+    for (const departureTime of [0, 10, 30]) {
+      const duration = Transit.travelTime(generated, planet, departureTime);
+      const lot = { corridorId: 'generated', resourceId: 'raw_iron', amount: 1,
+        systemId: generated.id, originPlanetId: planet.id, departureTime,
+        arrivalTime: departureTime + duration, trajectoryVersion: 2 };
+      const curve = Transit.trajectoryFor(lot, generated);
+      const points = Transit.trajectorySamples(curve, 48);
+      const length = points.slice(1).reduce((sum, point, index) =>
+        sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
+      const median = [...generated.planets].sort((a, b) => a.orbit - b.orbit)[Math.floor(generated.planets.length / 2)].orbit;
+      const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * median))) / .7;
+      assert.ok(Math.abs(duration - expected) < .03,
+        `${planet.id} at t=${departureTime} uses its final route length for transit time`);
+      assertPrograde(curve);
+    }
+  }
+});
+
+test('near-alignment selects direct transfer and phase wrapping never reverses angular motion', () => {
+  const aligned = orbitalCase({ planetOrbit: 200, planetSpeed: .02,
+    arkOrbit: 200, arkPhase: .01, arkSpeed: .02, arrivalTime: 30 });
+  assert.ok(Math.abs(aligned.curve.correction) < .12);
+  assert.equal(aligned.curve.mode, 'direct');
+  assert.equal(aligned.curve.radialExcursion, 0);
+  assertPrograde(aligned.curve);
+
+  const acrossZero = orbitalCase({ planetOrbit: 200, planetPhase: Math.PI * 2 - .01, planetSpeed: .02,
+    arkOrbit: 200, arkPhase: 0, arkSpeed: .02, arrivalTime: 30 });
+  assert.equal(acrossZero.curve.mode, 'direct');
+  assert.ok(acrossZero.curve.angularSweep > 0 && acrossZero.curve.angularSweep < Math.PI);
+  assertPrograde(acrossZero.curve);
+});
+
+test('a prograde path behind the source takes the long route and old in-flight lots keep their legacy path', () => {
+  const source = { id: 'case:p-0', orbit: 200, radius: 5, phase: 0, speed: .02 };
+  const behind = { id: 'case:ark', orbit: 200, phase: -.05, speed: 0 };
+  const systemCase = { id: 'case', star: { mass: 1, radius: 8 }, extent: 500, planets: [source], ark: behind };
+  const longRouteTime = Transit.travelTime(systemCase, source, 0);
+  assert.ok(longRouteTime > 50, 'the prograde almost-full orbit must not use the short retrograde gap');
+  assert.equal(longRouteTime, Transit.travelTime(systemCase, source, 0), 'route duration is deterministic');
+
+  const oldLot = { corridorId: 'old', resourceId: 'raw_iron', amount: 1, systemId: 'case',
+    originPlanetId: source.id, departureTime: 0, arrivalTime: 20 };
+  const oldCurve = Transit.trajectoryFor(oldLot, systemCase);
+  const reloaded = Transit.normalize({ transit: [oldLot] }).transit[0];
+  assert.equal(Transit.trajectoryFor(reloaded, systemCase).kind, 'legacy');
+  assert.deepEqual(plain(Transit.trajectoryFor(reloaded, systemCase)), plain(oldCurve),
+    'an already launched lot keeps its historical trajectory and arrival time');
+  assert.equal(reloaded.arrivalTime, oldLot.arrivalTime);
 });
 
 test('the primary Ark is deterministic and remains independent from the system wreck', () => {

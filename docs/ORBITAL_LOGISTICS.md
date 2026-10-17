@@ -33,10 +33,21 @@ Les lancements utilisent des lots à quantité entière. Leur `departureTime` et
 n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmente qu’à l’arrivée.
 
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
-primaire. L’épave conserve sa propre identité, sa position et son rendu. La courbe du
-cargo est recalculée depuis la surface de la planète d’origine, avec des tangentes
-alignées sur le mouvement orbital prograde, jusqu’à la position future de l’Arche à
-l’arrivée. La vitesse de transit est réglée à 70 % de la valeur précédente ; le cargo
+primaire. L’épave conserve sa propre identité, sa position et son rendu. Les nouveaux
+lots portent le marqueur `trajectoryVersion: 2` ; leur courbe polaire relie la surface
+de la planète à la position future de l’Arche à `arrivalTime`. Le mode intérieur,
+extérieur ou direct dépend de la correction angulaire à l’interception par rapport à
+l’avance naturelle attendue sur un rayon moyen. L’angle reste strictement prograde ;
+le rayon varie vers l’intérieur ou l’extérieur selon le mode et borne l’écart pour ne
+pas traverser l’étoile ni dépasser l’étendue du système. La progression angulaire suit
+une approximation de Kepler (`vitesse angulaire ∝ rayon⁻¹·⁵`). La durée des nouveaux
+trajets est résolue à partir de la longueur de cette courbe, avec les bornes et le
+ralentissement déclarés dans `src/data/orbitalLogistics.js`.
+
+Les anciens lots sans marqueur gardent leur courbe et leur heure d’arrivée historiques
+jusqu’à leur réception. Les nouveaux trajets sont reconstruits de façon déterministe
+depuis le marqueur, la planète d’origine et les heures du lot ; aucun point de contrôle
+graphique n’est sauvegardé. Le renderer met en cache les courbes actives. Le cargo
 visuel ne porte aucune matière et ne pilote pas la simulation.
 
 ## Modules

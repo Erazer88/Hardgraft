@@ -47,7 +47,9 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   est de 5 MW, déclarée dans `src/data/orbitalLogistics.js`.
 - Le transit spatial est sauvegardé en lots entiers avec des heures absolues de départ
   et d’arrivée en temps simulé. Les cargos sont un rendu séparé et ne portent aucune
-  matière. Aucun flux Hub → planète n’est implémenté. Voir
+  matière. Les nouveaux cargos utilisent un transfert orbital prograde déterministe ;
+  les lots déjà en transit conservent leur échéance et leur modèle visuel. Aucun flux
+  Hub → planète n’est implémenté. Voir
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ## Décisions de conception validées

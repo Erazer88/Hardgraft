@@ -28,9 +28,11 @@
           !Number.isInteger(item.amount) || item.amount <= 0 || !Number.isFinite(item.departureTime) ||
           !Number.isFinite(item.arrivalTime) || item.arrivalTime < item.departureTime ||
           typeof item.systemId !== 'string' || typeof item.originPlanetId !== 'string') return [];
-      return [{ corridorId: item.corridorId, resourceId: item.resourceId, amount: item.amount,
+      const lot = { corridorId: item.corridorId, resourceId: item.resourceId, amount: item.amount,
         departureTime: item.departureTime, arrivalTime: item.arrivalTime,
-        systemId: item.systemId, originPlanetId: item.originPlanetId }];
+        systemId: item.systemId, originPlanetId: item.originPlanetId };
+      if (item.trajectoryVersion === 2) lot.trajectoryVersion = 2;
+      return [lot];
     }) : [];
     if (value.hubs && typeof value.hubs === 'object' && !Array.isArray(value.hubs)) {
       for (const [systemId, hub] of Object.entries(value.hubs)) {
@@ -54,18 +56,129 @@
     return { x: Math.cos(angle) * ark.orbit, y: Math.sin(angle) * ark.orbit };
   }
 
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const positiveAngle = angle => ((angle % TAU) + TAU) % TAU;
+
+  function medianOrbit(system, fallback) {
+    const orbits = (system.planets || []).map(item => item.orbit)
+      .filter(value => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+    return orbits.length ? orbits[Math.floor(orbits.length / 2)] : fallback;
+  }
+
+  function orbitalGeometry(system, planet, departureTime, duration) {
+    const ark = system?.ark;
+    if (!ark || !planet || !Number.isFinite(duration) || duration <= 0) return null;
+    const sourceAngle = planet.phase + planet.speed * departureTime;
+    const targetAngle = ark.phase + ark.speed * (departureTime + duration);
+    const startRadius = planet.orbit + planet.radius;
+    const endRadius = ark.orbit;
+    const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
+    const neutralSpeed = planet.speed * Math.pow(Math.max(.01, planet.orbit) / meanRadius, 1.5);
+    const neutralAngle = sourceAngle + neutralSpeed * duration;
+    let liftedTargetAngle = targetAngle + TAU * Math.round((neutralAngle - targetAngle) / TAU);
+    if (liftedTargetAngle < sourceAngle - EPSILON) {
+      liftedTargetAngle += TAU * Math.ceil((sourceAngle - liftedTargetAngle) / TAU);
+    }
+    if (liftedTargetAngle < sourceAngle) liftedTargetAngle = sourceAngle;
+    const correction = liftedTargetAngle - neutralAngle;
+    const threshold = Data.transfer.directCorrectionRadians;
+    const mode = Math.abs(correction) <= threshold ? 'direct' : correction > 0 ? 'inner' : 'outer';
+    const angularSweep = Math.max(0, liftedTargetAngle - sourceAngle);
+
+    const systemExtent = Number.isFinite(system.extent) ? system.extent : Math.max(startRadius, endRadius) * 1.6;
+    const starRadius = Math.max(0, system.star?.radius || 0);
+    const margin = Math.max(3, starRadius * .12);
+    const availableExcursion = mode === 'inner'
+      ? Math.max(0, Math.min(startRadius, endRadius) - starRadius - margin)
+      : mode === 'outer'
+        ? Math.max(0, systemExtent - Math.max(startRadius, endRadius) - margin) : 0;
+    const strength = .35 + .65 * Math.min(1, Math.abs(correction) / Math.PI);
+    const requestedExcursion = meanRadius * Data.transfer.radialExcursionFraction * strength;
+    const radialExcursion = mode === 'inner' ? -Math.min(availableExcursion, requestedExcursion)
+      : mode === 'outer' ? Math.min(availableExcursion, requestedExcursion) : 0;
+    return { kind: 'orbital', version: 2, mode, correction, sourceAngle, targetAngle,
+      angularSweep, startRadius, endRadius, meanRadius, radialExcursion };
+  }
+
+  function radiusAt(trajectory, progress) {
+    const u = clamp(progress, 0, 1);
+    return trajectory.startRadius + (trajectory.endRadius - trajectory.startRadius) * u +
+      trajectory.radialExcursion * Math.sin(Math.PI * u) ** 2;
+  }
+
+  function addAngularProfile(trajectory) {
+    const segments = Math.max(8, Data.transfer.routeSamples), values = [0];
+    let previous = Math.pow(trajectory.meanRadius / Math.max(.01, radiusAt(trajectory, 0)), 1.5), total = 0;
+    for (let index = 1; index <= segments; index++) {
+      const weight = Math.pow(trajectory.meanRadius / Math.max(.01, radiusAt(trajectory, index / segments)), 1.5);
+      total += (previous + weight) * .5 / segments;
+      values.push(total);
+      previous = weight;
+    }
+    trajectory.angularProfile = values.map(value => value / Math.max(EPSILON, total));
+    trajectory.angularSegments = segments;
+    return trajectory;
+  }
+
+  function angularProgressAt(trajectory, progress) {
+    const u = clamp(progress, 0, 1), scaled = u * trajectory.angularSegments;
+    const index = Math.min(trajectory.angularSegments - 1, Math.floor(scaled));
+    const fraction = scaled - index, profile = trajectory.angularProfile;
+    return profile[index] + (profile[index + 1] - profile[index]) * fraction;
+  }
+
+  function positionOnTrajectory(trajectory, progress) {
+    if (!trajectory) return null;
+    const u = clamp(progress, 0, 1);
+    if (trajectory.kind === 'legacy') {
+      const t = u, v = 1 - t, { p0, p1, p2, p3 } = trajectory;
+      return { x: v ** 3 * p0.x + 3 * v ** 2 * t * p1.x + 3 * v * t ** 2 * p2.x + t ** 3 * p3.x,
+        y: v ** 3 * p0.y + 3 * v ** 2 * t * p1.y + 3 * v * t ** 2 * p2.y + t ** 3 * p3.y };
+    }
+    if (u === 0) return { x: Math.cos(trajectory.sourceAngle) * trajectory.startRadius,
+      y: Math.sin(trajectory.sourceAngle) * trajectory.startRadius };
+    if (u === 1) return { x: Math.cos(trajectory.targetAngle) * trajectory.endRadius,
+      y: Math.sin(trajectory.targetAngle) * trajectory.endRadius };
+    const radius = radiusAt(trajectory, u);
+    const angle = trajectory.sourceAngle + trajectory.angularSweep * angularProgressAt(trajectory, u);
+    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+  }
+
+  function trajectoryLength(trajectory) {
+    const segments = Math.max(24, Data.transfer.routeSamples), first = positionOnTrajectory(trajectory, 0);
+    let length = 0, previous = first;
+    for (let index = 1; index <= segments; index++) {
+      const point = positionOnTrajectory(trajectory, index / segments);
+      length += Math.hypot(point.x - previous.x, point.y - previous.y);
+      previous = point;
+    }
+    return length;
+  }
+
+  function durationForLength(system, planet, length) {
+    const referenceOrbit = Math.max(.01, medianOrbit(system, system.ark.orbit));
+    const nominal = clamp(Data.transit.referenceHalfOrbitSeconds * length /
+      (Math.PI * referenceOrbit), Data.transit.minimumSeconds, Data.transit.maximumSeconds);
+    return nominal / Data.transit.cargoSpeedMultiplier;
+  }
+
   function travelTime(system, planet, departureTime) {
     const ark = system?.ark;
     if (!ark || !planet) return null;
     const sourceAngle = planet.phase + planet.speed * departureTime;
     const arkAngle = ark.phase + ark.speed * departureTime;
-    let angularDistance = Math.abs(((sourceAngle - arkAngle + Math.PI) % TAU + TAU) % TAU - Math.PI);
-    const orbitList = (system.planets || []).map(item => item.orbit).filter(value => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
-    const middle = orbitList.length ? orbitList[Math.floor(orbitList.length / 2)] : ark.orbit;
+    const startRadius = planet.orbit + planet.radius, endRadius = ark.orbit;
     const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
-    const nominalDuration = Math.max(Data.transit.minimumSeconds, Math.min(Data.transit.maximumSeconds,
-      Data.transit.referenceHalfOrbitSeconds * (angularDistance / Math.PI) * (meanRadius / Math.max(.01, middle))));
-    return nominalDuration / Data.transit.cargoSpeedMultiplier;
+    const forwardSweep = positiveAngle(arkAngle - sourceAngle) || TAU;
+    const initialLength = Math.hypot(meanRadius * forwardSweep, endRadius - startRadius);
+    let duration = durationForLength(system, planet, initialLength);
+    for (let iteration = 0; iteration < Data.transfer.durationIterations; iteration++) {
+      const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration));
+      const nextDuration = durationForLength(system, planet, trajectoryLength(trajectory));
+      if (Math.abs(nextDuration - duration) <= Data.transfer.durationToleranceSeconds) return nextDuration;
+      duration = (duration + nextDuration) * .5;
+    }
+    return duration;
   }
 
   function corridorFor(logistics, platform, ark) {
@@ -138,7 +251,7 @@
     const arrivalTime = departureTime + duration;
     for (const [resourceId, amount] of Object.entries(batchByResource)) {
       appendLot(logistics, { corridorId: corridor.id, resourceId, amount,
-        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id });
+        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id, trajectoryVersion: 2 });
       recordDispatch(logistics, corridor.id, system.id, resourceId, amount, departureTime);
     }
     platform.energyUse = launched ? Data.launch.energyMW * 1e6 : 0;
@@ -194,6 +307,18 @@
   function trajectoryFor(lot, system) {
     const planet = system?.planets.find(item => item.id === lot.originPlanetId), ark = system?.ark;
     if (!planet || !ark || !Number.isFinite(lot.arrivalTime) || lot.arrivalTime <= lot.departureTime) return null;
+    if (lot.trajectoryVersion === 2) {
+      const trajectory = addAngularProfile(orbitalGeometry(system, planet, lot.departureTime,
+        lot.arrivalTime - lot.departureTime));
+      if (!trajectory) return null;
+      trajectory.p0 = positionOnTrajectory(trajectory, 0);
+      trajectory.p3 = positionOnTrajectory(trajectory, 1);
+      return trajectory;
+    }
+    return legacyTrajectoryFor(lot, system, planet, ark);
+  }
+
+  function legacyTrajectoryFor(lot, system, planet, ark) {
     const center = World.planetPosition(planet, lot.departureTime);
     const sourceAngle = planet.phase + planet.speed * lot.departureTime;
     const sourceRadial = { x: Math.cos(sourceAngle), y: Math.sin(sourceAngle) };
@@ -209,17 +334,20 @@
       y: start.y + sourceTangent.y * controlLength };
     const p2 = { x: end.x - arrivalTangent.x * controlLength,
       y: end.y - arrivalTangent.y * controlLength };
-    return { p0: start, p1, p2, p3: end };
+    return { kind: 'legacy', p0: start, p1, p2, p3: end };
   }
 
-  function cargoPosition(lot, system, time) {
-    const curve = trajectoryFor(lot, system);
+  function trajectorySamples(trajectory, segments = Data.transfer.routeSamples) {
+    if (!trajectory) return [];
+    const count = Math.max(2, Math.floor(segments));
+    return Array.from({ length: count + 1 }, (_, index) =>
+      positionOnTrajectory(trajectory, index / count));
+  }
+
+  function cargoPosition(lot, system, time, curve = trajectoryFor(lot, system)) {
     if (!curve) return null;
-    const { p0, p1, p2, p3 } = curve;
     const progress = Math.max(0, Math.min(1, (time - lot.departureTime) / (lot.arrivalTime - lot.departureTime)));
-    const t = progress, u = 1 - t;
-    return { x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
-      y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y };
+    return positionOnTrajectory(curve, progress);
   }
 
   function currentHubMetrics(state, systemId, currentTime) {
@@ -251,5 +379,6 @@
   }
 
   root.OrbitOrbitalTransit = Object.freeze({ createState, normalize, snapshot, travelTime, arkPosition,
-    ensureHub, corridorFor, advance, trajectoryFor, cargoPosition, currentHubMetrics, currentPlatformMetrics });
+    ensureHub, corridorFor, advance, trajectoryFor, trajectorySamples, cargoPosition,
+    currentHubMetrics, currentPlatformMetrics });
 })(globalThis);

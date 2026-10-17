@@ -3,6 +3,14 @@
 
   const Transit = root.OrbitOrbitalTransit;
   const Resources = root.OrbitResourceData;
+  const trajectoryCache = new Map();
+
+  function flightKey(lot, system) {
+    const planet = system.planets.find(item => item.id === lot.originPlanetId), ark = system.ark;
+    return [lot.systemId, lot.corridorId, lot.originPlanetId, lot.departureTime,
+      lot.arrivalTime, lot.trajectoryVersion || 1, planet?.orbit, planet?.radius,
+      planet?.phase, planet?.speed, ark?.orbit, ark?.phase, ark?.speed].join('|');
+  }
 
   function cargoColor(resourceId) {
     const family = Resources.get(resourceId)?.family;
@@ -28,16 +36,20 @@
       lot.departureTime <= time && lot.arrivalTime > time).slice(0, 32);
     const paths = new Set();
     for (const lot of lots) {
-      const curve = Transit.trajectoryFor(lot, system);
-      if (!curve) continue;
-      const p0 = project(curve.p0.x, curve.p0.y, camera), p1 = project(curve.p1.x, curve.p1.y, camera);
-      const p2 = project(curve.p2.x, curve.p2.y, camera), p3 = project(curve.p3.x, curve.p3.y, camera);
+      const key = flightKey(lot, system);
+      let route = trajectoryCache.get(key);
+      if (!route) {
+        const curve = Transit.trajectoryFor(lot, system);
+        if (!curve) continue;
+        route = { curve, samples: Transit.trajectorySamples(curve, 48) };
+        trajectoryCache.set(key, route);
+        while (trajectoryCache.size > 128) trajectoryCache.delete(trajectoryCache.keys().next().value);
+      }
       if (!paths.has(lot.corridorId)) {
         paths.add(lot.corridorId);
-        ctx.save(); ctx.strokeStyle = '#8cb6ba28'; ctx.lineWidth = .8; ctx.setLineDash([3, 5]);
-        ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); ctx.stroke(); ctx.restore();
+        line(ctx, route.samples.map(point => project(point.x, point.y, camera)), '#8cb6ba28', .8, [3, 5]);
       }
-      const current = Transit.cargoPosition(lot, system, time);
+      const current = Transit.cargoPosition(lot, system, time, route.curve);
       if (!current) continue;
       const point = project(current.x, current.y, camera), color = cargoColor(lot.resourceId);
       circle(ctx, point.x, point.y, 5.5, color + '52', 2);
