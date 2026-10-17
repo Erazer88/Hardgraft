@@ -181,6 +181,16 @@
     return duration;
   }
 
+  function previewTrajectory(system, planet, departureTime) {
+    const duration = travelTime(system, planet, departureTime);
+    if (!Number.isFinite(duration) || duration <= 0) return null;
+    const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration));
+    if (!trajectory) return null;
+    trajectory.p0 = positionOnTrajectory(trajectory, 0);
+    trajectory.p3 = positionOnTrajectory(trajectory, 1);
+    return trajectory;
+  }
+
   function corridorFor(logistics, platform, ark) {
     const id = `${platform.id}->${ark.id}`;
     let corridor = logistics.corridors.find(item => item.id === id);
@@ -379,6 +389,6 @@
   }
 
   root.OrbitOrbitalTransit = Object.freeze({ createState, normalize, snapshot, travelTime, arkPosition,
-    ensureHub, corridorFor, advance, trajectoryFor, trajectorySamples, cargoPosition,
+    ensureHub, corridorFor, advance, trajectoryFor, previewTrajectory, trajectorySamples, cargoPosition,
     currentHubMetrics, currentPlatformMetrics });
 })(globalThis);

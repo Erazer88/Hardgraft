@@ -47,7 +47,12 @@
       }
       if (!paths.has(lot.corridorId)) {
         paths.add(lot.corridorId);
-        line(ctx, route.samples.map(point => project(point.x, point.y, camera)), '#efbd7f38', .8, [3, 5]);
+        const planet = system.planets.find(item => item.id === lot.originPlanetId);
+        const liveRoute = Transit.previewTrajectory(system, planet, time);
+        if (liveRoute) {
+          const samples = Transit.trajectorySamples(liveRoute, 64);
+          line(ctx, samples.map(point => project(point.x, point.y, camera)), '#efbd7f38', 1.1, [4, 5]);
+        }
       }
       const current = Transit.cargoPosition(lot, system, time, route.curve);
       if (!current) continue;

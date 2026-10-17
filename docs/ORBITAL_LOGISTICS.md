@@ -47,8 +47,10 @@ ralentissement déclarés dans `src/data/orbitalLogistics.js`.
 Les anciens lots sans marqueur gardent leur courbe et leur heure d’arrivée historiques
 jusqu’à leur réception. Les nouveaux trajets sont reconstruits de façon déterministe
 depuis le marqueur, la planète d’origine et les heures du lot ; aucun point de contrôle
-graphique n’est sauvegardé. Le renderer met en cache les courbes actives. Le cargo
-visuel ne porte aucune matière et ne pilote pas la simulation.
+graphique n’est sauvegardé. Le renderer met en cache les trajectoires des cargos, tandis
+que le guide pointillé du fret est recalculé à chaque image depuis la position actuelle
+de la planète jusqu’à la future position de l’Arche. Le cargo visuel ne porte aucune
+matière et ne pilote pas la simulation.
 
 ## Modules
 
