@@ -185,6 +185,30 @@ test('a dock destination can be changed per resource and cleared', () => {
   assert.equal(Logistics.setDockDestination(factory, 'unknown-resource', 'platform-1'), false);
 });
 
+test('a stale dispatch clock is repaired without resetting stock or existing transit', () => {
+  const { state, platform } = fixture({ dockStock: {} });
+  platform.launchStock = { raw_iron: 8 };
+  state.orbitalLogistics.nextDispatchTime = 3610;
+  state.orbitalLogistics.hubs.home = { id: system.ark.id, stock: { raw_iron: 320 } };
+  state.orbitalLogistics.transit.push({ corridorId: 'old-corridor', systemId: 'home',
+    originPlanetId: planetId, resourceId: 'iron_slag', amount: 3, departureTime: 0, arrivalTime: 25 });
+  Transit.advance(state, 0, systems, false);
+  assert.equal(state.orbitalLogistics.nextDispatchTime, 10);
+  assert.equal(platform.launchStock.raw_iron, 8);
+  assert.equal(state.orbitalLogistics.hubs.home.stock.raw_iron, 320);
+  assert.equal(state.orbitalLogistics.transit[0].amount, 3);
+  Transit.advance(state, 9.9, systems);
+  assert.equal(platform.launchStock.raw_iron, 8);
+  Transit.advance(state, 10, systems);
+  const shipment = state.orbitalLogistics.transit.find(lot => lot.resourceId === 'raw_iron');
+  assert.equal(shipment.amount, 8);
+  assert.equal(shipment.departureTime, 10);
+  assert.equal(platform.launchStock.raw_iron, 0);
+  Transit.advance(state, Math.max(25, shipment.arrivalTime), systems);
+  assert.equal(state.orbitalLogistics.hubs.home.stock.raw_iron, 328);
+  assert.equal(state.orbitalLogistics.hubs.home.stock.iron_slag, 3);
+});
+
 test('road delivery feeds a receiving factory processor through its input dock', () => {
   const { factory, state } = fixture({ dockStock: { copper_ore_raw: 8 },
     dockDestinations: { copper_ore_raw: 'receiver' } });

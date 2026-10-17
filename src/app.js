@@ -285,6 +285,7 @@
     state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {}; state.factoryPlans = {};
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
+    state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
     cancelRoadDrag();

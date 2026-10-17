@@ -313,7 +313,12 @@
     const logistics = state.orbitalLogistics;
     logistics.dispatchHistory = history;
     const interval = Data.launch.batchIntervalSeconds;
-    if (!hadDispatchClock) logistics.nextDispatchTime = (Math.floor(currentTime / interval) + 1) * interval;
+    const nextBoundary = (Math.floor(currentTime / interval) + 1) * interval;
+    // Older seed changes could reset simulation time while keeping the previous
+    // universe's dispatch clock. Repair only that clock, preserving stocks/lots.
+    if (!hadDispatchClock || logistics.nextDispatchTime > nextBoundary + EPSILON) {
+      logistics.nextDispatchTime = nextBoundary;
+    }
     const systems = systemsById instanceof Map ? systemsById : new Map(Object.entries(systemsById || {}));
     const platformById = new Map((state.surfaceBuildings || []).filter(item => item.type === 'launch_platform').map(item => [item.id, item]));
     for (const platform of platformById.values()) {

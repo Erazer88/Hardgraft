@@ -39,6 +39,12 @@ Les lancements utilisent des lots à quantité entière. Leur `departureTime` et
 `arrivalTime` sont mesurés sur `state.simulation.time` ; pause, sauvegarde et rendu
 n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmente qu’à l’arrivée.
 
+La génération d'un nouvel univers réinitialise aussi les corridors, les stocks orbitaux,
+les lots et l'horloge de départ. La restauration d'une sauvegarde conserve ces données.
+Pour les sauvegardes affectées par l'ancien changement de graine, une échéance de départ
+au-delà de la prochaine fenêtre de 10 secondes est recalée sur cette fenêtre, sans
+modifier les stocks ni les lots déjà en transit.
+
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
 primaire. L’épave conserve sa propre identité, sa position et son rendu. Les nouveaux
 lots portent le marqueur `trajectoryVersion: 3` ; leur courbe polaire relie la surface
@@ -80,5 +86,6 @@ Vérifications ciblées :
 
 ```sh
 node --test tests/orbital-logistics.test.cjs tests/architecture.test.cjs
+npm run test:orbital-seed-reset
 npm run test:browser
 ```
