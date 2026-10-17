@@ -35,10 +35,11 @@ n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmen
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
 primaire. L’épave conserve sa propre identité, sa position et son rendu. Les nouveaux
 lots portent le marqueur `trajectoryVersion: 3` ; leur courbe polaire relie la surface
-de la planète à la position future de l’Arche à `arrivalTime`. Près du passage angulaire
-entre une planète et l’Arche, une fenêtre calculée depuis leur vitesse relative et
-l’intervalle d’envoi stabilise le choix du trajet prograde. Les lots `trajectoryVersion: 2`
-gardent leur géométrie précédente. Le mode intérieur,
+de la planète à la position future de l’Arche à `arrivalTime`. Quand l’Arche est derrière
+la planète dans le sens prograde, les départs gardent une trajectoire enroulée ; pour une
+Arche plus lente, cette règle s’active légèrement avant l’alignement afin d’éviter un
+changement de branche autour du passage. Les trajets déjà en cours sont redessinés avec
+la géométrie actuelle, sans modifier leur quantité ni leur heure d’arrivée. Le mode intérieur,
 extérieur ou direct dépend de la correction angulaire à l’interception par rapport à
 l’avance naturelle attendue sur un rayon moyen. L’angle reste strictement prograde ;
 le rayon varie vers l’intérieur ou l’extérieur selon le mode et borne l’écart pour ne
@@ -47,10 +48,10 @@ une approximation de Kepler (`vitesse angulaire ∝ rayon⁻¹·⁵`). La durée
 trajets est résolue à partir de la longueur de cette courbe, avec les bornes et le
 ralentissement déclarés dans `src/data/orbitalLogistics.js`.
 
-Les anciens lots sans marqueur gardent leur courbe et leur heure d’arrivée historiques
-jusqu’à leur réception. Les nouveaux trajets sont reconstruits de façon déterministe
-depuis le marqueur, la planète d’origine et les heures du lot ; aucun point de contrôle
-graphique n’est sauvegardé. Le renderer met en cache les trajectoires des cargos, tandis
+À la normalisation d’une sauvegarde, tous les lots encore en transit adoptent la géométrie
+actuelle ; leurs quantités et heures d’arrivée restent inchangées. Les trajets sont
+reconstruits de façon déterministe depuis le marqueur, la planète d’origine et les heures
+du lot ; aucun point de contrôle graphique n’est sauvegardé. Le renderer met en cache les trajectoires des cargos, tandis
 que le guide pointillé du fret est recalculé à chaque image depuis la position actuelle
 de la planète jusqu’à la position actuelle de l’Arche. Le cargo visuel ne porte aucune
 matière et ne pilote pas la simulation.

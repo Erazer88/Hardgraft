@@ -31,7 +31,9 @@
       const lot = { corridorId: item.corridorId, resourceId: item.resourceId, amount: item.amount,
         departureTime: item.departureTime, arrivalTime: item.arrivalTime,
         systemId: item.systemId, originPlanetId: item.originPlanetId };
-      if (item.trajectoryVersion === 2 || item.trajectoryVersion === 3) lot.trajectoryVersion = item.trajectoryVersion;
+      // Pending cargo keeps its economic schedule, but old visual curves are normalized
+      // to the current prograde route model when a save is loaded.
+      lot.trajectoryVersion = 3;
       return [lot];
     }) : [];
     if (value.hubs && typeof value.hubs === 'object' && !Array.isArray(value.hubs)) {
@@ -65,16 +67,19 @@
 
   function departureAlignment(system, planet, departureTime) {
     const ark = system?.ark;
-    if (!ark || !planet) return { phaseOffset: 0, active: false };
+    if (!ark || !planet) return { phaseOffset: 0, wrap: false };
     const sourceAngle = planet.phase + planet.speed * departureTime;
     const arkAngle = ark.phase + ark.speed * departureTime;
     const phaseOffset = signedAngle(arkAngle - sourceAngle);
-    const relativeSpeed = Math.abs(ark.speed - planet.speed);
-    const alignmentWindow = relativeSpeed > EPSILON
-      ? clamp(relativeSpeed * Data.launch.batchIntervalSeconds * Data.transfer.alignmentLaunchIntervalFactor,
+    const relativeSpeed = ark.speed - planet.speed;
+    // If the Ark is falling behind the source, begin the prograde wrap slightly
+    // before alignment and keep it after the crossing. If it is ahead, only wrap
+    // while it is still behind the source at departure.
+    const leadWindow = relativeSpeed < -EPSILON
+      ? clamp(Math.abs(relativeSpeed) * Data.launch.batchIntervalSeconds * Data.transfer.alignmentLaunchIntervalFactor,
         Data.transfer.alignmentMinimumRadians, Data.transfer.alignmentMaximumRadians)
       : 0;
-    return { phaseOffset, active: alignmentWindow > 0 && Math.abs(phaseOffset) <= alignmentWindow };
+    return { phaseOffset, wrap: phaseOffset < 0 || (leadWindow > 0 && phaseOffset <= leadWindow) };
   }
 
   function medianOrbit(system, fallback) {
@@ -95,8 +100,8 @@
     const neutralSpeed = planet.speed * Math.pow(Math.max(.01, planet.orbit) / meanRadius, 1.5);
     const neutralAngle = sourceAngle + neutralSpeed * duration;
     let liftedTargetAngle;
-    if (stabilizeAlignment && departureAlignment(system, planet, departureTime).active) {
-      // Keep one consistent prograde wrap while the Ark crosses the source's orbital longitude.
+    if (stabilizeAlignment && departureAlignment(system, planet, departureTime).wrap) {
+      // Keep one consistent prograde wrap while the Ark is trailing the source.
       liftedTargetAngle = sourceAngle + TAU + signedAngle(targetAngle - sourceAngle);
     } else {
       liftedTargetAngle = targetAngle + TAU * Math.round((neutralAngle - targetAngle) / TAU);
@@ -195,7 +200,7 @@
     const startRadius = planet.orbit + planet.radius, endRadius = ark.orbit;
     const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
     const alignment = departureAlignment(system, planet, departureTime);
-    const forwardSweep = alignment.active ? TAU + alignment.phaseOffset : positiveAngle(arkAngle - sourceAngle) || TAU;
+    const forwardSweep = alignment.wrap ? TAU + alignment.phaseOffset : positiveAngle(arkAngle - sourceAngle) || TAU;
     const initialLength = Math.hypot(meanRadius * forwardSweep, endRadius - startRadius);
     let duration = durationForLength(system, planet, initialLength);
     for (let iteration = 0; iteration < Data.transfer.durationIterations; iteration++) {

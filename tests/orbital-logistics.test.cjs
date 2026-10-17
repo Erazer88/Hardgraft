@@ -301,7 +301,7 @@ test('near-alignment selects direct transfer and phase wrapping never reverses a
   assertPrograde(acrossZero.curve);
 });
 
-test('a prograde path behind the source takes the long route and old in-flight lots keep their legacy path', () => {
+test('a prograde path behind the source takes the long route and pending cargo upgrades visually without rescheduling', () => {
   const source = { id: 'case:p-0', orbit: 200, radius: 5, phase: 0, speed: .02 };
   const behind = { id: 'case:ark', orbit: 200, phase: -.05, speed: 0 };
   const systemCase = { id: 'case', star: { mass: 1, radius: 8 }, extent: 500, planets: [source], ark: behind };
@@ -311,12 +311,16 @@ test('a prograde path behind the source takes the long route and old in-flight l
 
   const oldLot = { corridorId: 'old', resourceId: 'raw_iron', amount: 1, systemId: 'case',
     originPlanetId: source.id, departureTime: 0, arrivalTime: 20 };
-  const oldCurve = Transit.trajectoryFor(oldLot, systemCase);
-  const reloaded = Transit.normalize({ transit: [oldLot] }).transit[0];
-  assert.equal(Transit.trajectoryFor(reloaded, systemCase).kind, 'legacy');
-  assert.deepEqual(plain(Transit.trajectoryFor(reloaded, systemCase)), plain(oldCurve),
-    'an already launched lot keeps its historical trajectory and arrival time');
-  assert.equal(reloaded.arrivalTime, oldLot.arrivalTime);
+  const oldVersion2Lot = { ...oldLot, corridorId: 'old-v2', trajectoryVersion: 2 };
+  const pending = Transit.normalize({ transit: [oldLot, oldVersion2Lot] }).transit;
+  assert.ok(pending.every(lot => lot.trajectoryVersion === 3), 'legacy and V2 routes migrate to the current prograde renderer');
+  for (const lot of pending) {
+    const curve = Transit.trajectoryFor(lot, systemCase);
+    assert.equal(curve.version, 3);
+    assertPrograde(curve);
+    assert.equal(lot.arrivalTime, oldLot.arrivalTime, 'migration leaves the scheduled arrival unchanged');
+    assert.equal(lot.amount, oldLot.amount, 'migration leaves the resource amount unchanged');
+  }
 });
 
 test('the primary Ark is deterministic and remains independent from the system wreck', () => {
