@@ -641,6 +641,15 @@ async function runViewport(cdp, viewport, runtimeErrors) {
     `${name} launch platform opens its dedicated panel`);
   assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#platform-logistics .logistics-card > strong")].map(item => item.textContent)'),
     ['RÉCEPTION', 'LANCEMENT', 'EXPORTS'], `${name} platform panel contains only its three V1 cards`);
+  assert.ok(await cdp.evaluate('document.querySelector("#platform-export-data button").getBoundingClientRect().height >= 40'),
+    `${name} export switches have a reliable touch target`);
+  const exportHitTest = await cdp.evaluate(`(() => {
+    const button = document.querySelector('#platform-export-data [data-resource-id="raw_iron"]');
+    const box = button.getBoundingClientRect(), hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return { target: button === hit || button.contains(hit), hitId: hit?.id || '', hitClass: hit?.className || '',
+      bounds: { x: box.x, y: box.y, width: box.width, height: box.height } };
+  })()`);
+  assert.equal(exportHitTest.target, true, `${name} export switch receives input at its center: ${JSON.stringify(exportHitTest)}`);
   assert.equal(await cdp.evaluate('document.querySelector("#platform-export-data [data-resource-id=raw_iron]").getAttribute("aria-pressed")'),
     'false', `${name} orbital exports start OFF`);
 

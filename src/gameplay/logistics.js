@@ -26,7 +26,10 @@
     if (!hasConnectedDock) return 'PAS DE CONNEXION';
     const stock = platform.launchStock || {}, enabled = Data.exportResources.filter(item => platform.exportEnabled?.[item.id]);
     const hasEnabledStock = enabled.some(item => (stock[item.id] || 0) > 0);
+    const hasExportableStock = Data.exportResources.some(item => (stock[item.id] || 0) > 0);
     if (platform.lastLaunchTime !== null && platform.lastLaunchTime !== undefined && currentTime - platform.lastLaunchTime < 1) return 'ACTIF';
+    if (hasExportableStock && !hasEnabledStock) return 'EXPORT DÉSACTIVÉ';
+    if (!hasExportableStock && Object.values(stock).some(amount => amount > 0)) return 'RESSOURCE NON EXPORTABLE';
     if (enabled.length && hasEnabledStock && enabled.reduce((sum, item) => sum + (stock[item.id] || 0), 0) > Data.launch.capacityUPerSecond) return 'SATURÉ';
     return 'EN ATTENTE';
   }

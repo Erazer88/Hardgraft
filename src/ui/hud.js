@@ -246,6 +246,7 @@
       const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
       const hasFactoryEditor = isBuilding && ['factory', 'extractor'].includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
+      panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);
       if (!isBuilding) clearBuildingPanelPosition();
       $('building-readout').hidden = !isBuilding || isLaunchPlatform;

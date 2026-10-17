@@ -94,6 +94,7 @@ test('disabled export keeps resources at the platform; missing routes never expo
   const disabled = fixture();
   Logistics.advance(disabled.state, 2, systems);
   assert.equal(disabled.platform.launchStock.raw_iron, 8);
+  assert.equal(Logistics.platformStatus(disabled.state, disabled.platform, system, 2), 'EXPORT DÉSACTIVÉ');
   assert.equal(disabled.state.orbitalLogistics.transit.length, 0);
 
   const disconnected = fixture({ builtLength: 0 });
