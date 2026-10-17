@@ -298,11 +298,29 @@ test('settlement saves use compact asset keys and restore buildings, routes and 
 test('unavailable storage, invalid saves and different seeds do not break a new session', () => {
   assert.equal(Save.load({ getItem() { throw new Error('Storage unavailable'); } }), null);
   assert.equal(Save.load({ getItem: () => '{broken' }), null);
-  assert.equal(Save.load({ getItem: () => '{"seed":"future","version":999}' }), null);
+  assert.equal(Save.load({ getItem: () => '{"seed":"future","version":999}' }).version, 999,
+    'an app update must not discard a save just because its schema version is newer');
   const state = State.create();
   assert.equal(Save.save({ setItem() { throw new Error('Read only'); } }, state, galaxy()), false);
   assert.equal(Save.restore(state, galaxy(), { seed: 'different', time: 200 }), false);
   assert.equal(state.simulation.time, 0);
+});
+
+test('best-effort save migration preserves buildings from a newer save version', () => {
+  const saved = { version: 999, seed: 'NEREIDE-01', surfaceBuildings: [
+    { id: 'factory-1', type: 'factory', planetId: 'home:p-0', x: 20, y: 30, constructionState: 'complete' }
+  ] };
+  let raw = JSON.stringify(saved);
+  const storage = { getItem: () => raw, setItem: (_, value) => { raw = value; } };
+  const loaded = Save.load(storage);
+  const restored = State.create();
+  assert.equal(Save.restore(restored, galaxy(), loaded), true);
+  assert.deepEqual(plain(restored.surfaceBuildings.map(building => building.id)), ['factory-1']);
+  assert.equal(Save.save(storage, restored, galaxy()), true);
+  const restoredAgain = State.create();
+  assert.equal(Save.restore(restoredAgain, galaxy(), Save.load(storage)), true);
+  assert.deepEqual(plain(restoredAgain.surfaceBuildings.map(building => building.id)), ['factory-1'],
+    'the next autosave retains buildings after migration');
 });
 
 test('probes discover only when their existing travel timer completes', () => {

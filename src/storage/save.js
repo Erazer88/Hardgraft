@@ -2,7 +2,6 @@
   'use strict';
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const supportedSaveVersions = [2, 3, 4, 5, 6, 7, 8, config.saveVersion];
 
   // Houses are kept both in the settlement-wide list and on each road for
   // rendering. The settlement-wide list is authoritative when restoring, so
@@ -54,7 +53,8 @@
     try {
       const saved = JSON.parse(storage.getItem(config.storageKey) || 'null');
       if (!saved || typeof saved !== 'object' || !['string', 'number'].includes(typeof saved.seed)) return null;
-      if (saved.version !== undefined && !supportedSaveVersions.includes(saved.version)) return null;
+      // App releases often change without changing the save schema. Keep unknown
+      // versions available for best-effort restoration rather than starting over.
       return saved;
     } catch (_) { return null; }
   }
@@ -92,7 +92,11 @@
   }
 
   function restore(state, galaxy, saved, now = 0) {
-    if (!saved || saved.seed !== state.seed || (saved.version !== undefined && !supportedSaveVersions.includes(saved.version))) return false;
+    if (!saved || !['string', 'number'].includes(typeof saved.seed)) return false;
+    const savedSeed = root.OrbitState?.normalizedSeed(saved.seed) ?? saved.seed;
+    if (savedSeed !== state.seed) return false;
+    // Do not gate restoration by format version: current normalizers keep known
+    // world data instead of discarding the save because a newer field is unknown.
     const discovered = new Set(Array.isArray(saved.discovered) ? saved.discovered : []);
     galaxy.systems.forEach(system => { system.discovered = system.discovered || discovered.has(system.id); });
     if (Array.isArray(saved.scans) && saved.scans.length) state.exploration.scans = copy(saved.scans);

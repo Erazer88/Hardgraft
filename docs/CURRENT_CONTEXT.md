@@ -28,9 +28,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - La Foreuse n'a pas de plafond nominal. Tous les autres bâtiments tournent à 2 u/s,
   comme le Concasseur niveau 1, premier goulot de la chaîne. La Poubelle détruit les
   unités à cette cadence. Paramètres : `src/data/processes.js`.
-- Le graphe V1 est version 4. Les sauvegardes générales sont préservées ; les plans
-  industriels antérieurs sont réinitialisés plutôt que migrés. Les connexions
-  nomment explicitement les deux machines et leurs ports.
+- Le graphe V1 est version 4. Les sauvegardes générales sont restaurées au mieux,
+  même si leur numéro de format est inconnu ; les plans industriels antérieurs sont
+  réinitialisés plutôt que migrés. Les connexions nomment explicitement les deux
+  machines et leurs ports.
 - Le moteur pur est dans `processGraph.js` et `processSimulation.js`. L'éditeur garde
   son affichage dans `factoryEditor.js` et les gestes dans `factoryViewport.js`.
   `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
