@@ -6,9 +6,11 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/resources.js', 'data/buildings.js',
+for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/resources.js', 'data/orbitalLogistics.js',
+  'data/worldgen.js', 'data/buildings.js', 'world.js',
   'data/roads.js', 'data/settlements.js', 'simulation/simulation.js', 'simulation/inventory.js',
   'simulation/buildings.js', 'simulation/construction.js', 'simulation/roadNetwork.js',
+  'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js',
   'simulation/settlements.js', 'gameplay/exploration.js', 'state.js', 'storage/save.js',
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
@@ -34,6 +36,32 @@ test('sessions keep their navigation and orbital state separate', () => {
   first.exploration.visited.add('home');
   assert.equal(second.simulation.time, 0);
   assert.equal(second.exploration.visited.size, 0);
+});
+
+test('launch stocks, orbital hub inventory and an in-flight whole-unit lot survive saving', () => {
+  const state = State.create(), world = galaxy();
+  state.seed = 'orbital-save';
+  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'platform-1', type: 'launch_platform',
+    planetId: 'home:p-0', x: 10, y: 20, constructionState: 'complete',
+    inventory: { iron: 77 }, launchStock: { raw_iron: 3 }, launchReceivedTotal: { raw_iron: 8 },
+    exportEnabled: { raw_iron: true } })];
+  state.orbitalLogistics = { version: 1,
+    corridors: [{ id: 'platform-1->home:ark', fromEntityId: 'platform-1', toEntityId: 'home:ark' }],
+    transit: [{ corridorId: 'platform-1->home:ark', resourceId: 'raw_iron', amount: 2,
+      departureTime: 115, arrivalTime: 120, systemId: 'home', originPlanetId: 'home:p-0' }],
+    hubs: { home: { id: 'home:ark', stock: { raw_iron: 320, iron_slag: 41 } } }, nextDispatchTime: 121 };
+  state.simulation.time = 117;
+  let stored;
+  const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
+  assert.equal(Save.save(storage, state, world), true);
+  const restored = State.create(); restored.seed = state.seed;
+  assert.equal(Save.restore(restored, world, Save.load(storage)), true);
+  assert.deepEqual(plain(restored.orbitalLogistics.hubs.home.stock), { raw_iron: 320, iron_slag: 41 });
+  assert.equal(restored.orbitalLogistics.transit[0].amount, 2);
+  assert.equal(restored.orbitalLogistics.transit[0].arrivalTime, 120);
+  assert.equal(restored.surfaceBuildings[0].launchStock.raw_iron, 3);
+  assert.equal(restored.surfaceBuildings[0].exportEnabled.raw_iron, true);
+  assert.equal(restored.surfaceBuildings[0].inventory.iron, 77, 'the building inventory remains separate');
 });
 
 test('simulation clock advances explicitly and pauses cleanly', () => {
@@ -209,10 +237,10 @@ test('general saves preserve buildings while legacy industrial graphs reset to t
 
 test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {
   const state = State.create(), world = galaxy();
-  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'hub-1', type: 'hub',
+  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'launch-platform-1', type: 'launch_platform',
     planetId: 'planet-1', x: 20, y: 30, constructionState: 'complete' })];
   const network = context.OrbitRoadNetwork.create('planet-1');
-  const from = context.OrbitRoadNetwork.addNode(network, { x: 20, y: 30, buildingId: 'hub-1' });
+  const from = context.OrbitRoadNetwork.addNode(network, { x: 20, y: 30, buildingId: 'launch-platform-1' });
   const to = context.OrbitRoadNetwork.addNode(network, { x: 120, y: 60, type: 'intersection' });
   context.OrbitRoadNetwork.addSegment(network, { from: from.id, to: to.id,
     points: [{ x: 20, y: 30 }, { x: 120, y: 60 }], builtLength: 35 });

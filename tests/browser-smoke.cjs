@@ -601,6 +601,20 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await checkLayout(cdp, width, height);
   await cdp.screenshot(`${name}-system.png`);
 
+  const arkPoint = await cdp.evaluate('window.OrbitalDebug.getArkScreenPosition()');
+  assert.ok(arkPoint && arkPoint.x > 18 && arkPoint.x < width - 18 && arkPoint.y > 170 && arkPoint.y < height - 120,
+    `${name} primary Ark is visible and reachable independently in system view`);
+  await cdp.tapAt({ x: arkPoint.x, y: arkPoint.y }, mobile);
+  assert.equal((await cdp.evaluate(stateExpression)).selectedId, arkPoint.id, `${name} real tap selects the Ark`);
+  assert.equal(await cdp.evaluate('document.querySelector("#orbital-hub-logistics").hidden'), false,
+    `${name} Ark selection opens its logistics panel`);
+  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#orbital-hub-logistics .logistics-card > strong")].map(item => item.textContent)'),
+    ['QUAIS', 'CORE', 'STOCK · ∞', 'ÉNERGIE', 'FLUX ENTRANTS'], `${name} hub panel shows the five V1 cards`);
+  assert.equal(await cdp.evaluate('document.querySelector("#enter-button").hidden'), true,
+    `${name} Ark cannot be mistaken for a planet surface`);
+  await cdp.screenshot(`${name}-ark-hub.png`);
+  await cdp.click('#close-inspector');
+
   const startingPlanetId = await cdp.evaluate(startingPlanetIdExpression);
   const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify(startingPlanetId)} && p.x > 35 && p.x < innerWidth - 35 && p.y > 245 && p.y < innerHeight - 145)`);
   assert.ok(planetPoint, `${name} starting planet can be tapped in the viewport`);
@@ -617,9 +631,54 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   assert.ok(resourceMetrics.every(resource => resource.radius > 0), `${name} resource fields have visible areas`);
   await cdp.screenshot(`${name}-surface.png`);
 
+  const fixture = await cdp.evaluate('window.OrbitalDebug.createOrbitalLogisticsFixture()');
+  const platformPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(fixture.platformId)})`);
+  assert.ok(platformPoint && platformPoint.x > 12 && platformPoint.x < width - 12 && platformPoint.y > 100 && platformPoint.y < height - 100,
+    `${name} launch platform can be selected on the actual planetary map`);
+  await cdp.tapAt({ x: platformPoint.x, y: platformPoint.y }, mobile);
+  assert.equal((await cdp.evaluate(stateExpression)).selectedId, fixture.platformId, `${name} real tap selects the launch platform`);
+  assert.equal(await cdp.evaluate('document.querySelector("#platform-logistics").hidden'), false,
+    `${name} launch platform opens its dedicated panel`);
+  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#platform-logistics .logistics-card > strong")].map(item => item.textContent)'),
+    ['RÉCEPTION', 'LANCEMENT', 'EXPORTS'], `${name} platform panel contains only its three V1 cards`);
+  assert.equal(await cdp.evaluate('document.querySelector("#platform-export-data [data-resource-id=raw_iron]").getAttribute("aria-pressed")'),
+    'false', `${name} orbital exports start OFF`);
+
+  await cdp.evaluate('window.OrbitalDebug.setPause(false)');
+  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).launchStock.raw_iron === 8`,
+    `${name} connected Dock stock reaches the platform`);
+  const sourceInventory = await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.sourceId)})`);
+  assert.equal(sourceInventory.inventory.iron, 77, `${name} unrelated factory inventory remains untouched`);
+  assert.deepEqual(sourceInventory.dockStock, {}, `${name} connected Dock stock is transferred locally`);
+
+  await cdp.click('#platform-export-data [data-resource-id="raw_iron"]');
+  assert.equal(await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).exportEnabled.raw_iron`),
+    true, `${name} actual export toggle enables raw iron`);
+  await cdp.until('window.OrbitalDebug.getOrbitalLogistics().transit.some(lot => lot.resourceId === "raw_iron")',
+    `${name} whole iron units enter spatial transit`, 6000);
+  const cargo = await cdp.evaluate('window.OrbitalDebug.getOrbitalLogistics().transit.find(lot => lot.resourceId === "raw_iron")');
+  assert.ok(Number.isInteger(cargo.amount) && cargo.amount > 0, `${name} cargo contains only whole units`);
+  assert.ok(cargo.arrivalTime > cargo.departureTime, `${name} cargo has a scheduled arrival time`);
+  await cdp.evaluate('window.OrbitalDebug.setPause(true)');
+  await cdp.screenshot(`${name}-launch-platform.png`);
+
   await cdp.evaluate('window.OrbitalDebug.back()');
   await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} return to system`);
   assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} surface returns to system`);
+  const arkArrivalPoint = await cdp.evaluate('window.OrbitalDebug.getArkScreenPosition()');
+  await cdp.tapAt({ x: arkArrivalPoint.x, y: arkArrivalPoint.y }, mobile);
+  assert.equal((await cdp.evaluate(stateExpression)).selectedId, arkArrivalPoint.id, `${name} Ark remains selectable after a launch`);
+  const inTransit = await cdp.evaluate('document.querySelector("#hub-incoming-data").textContent');
+  assert.match(inTransit, /Transit/);
+  assert.match(inTransit, /Entrée/);
+  assert.match(inTransit, /Fer brut/);
+  const firstArrival = cargo.arrivalTime;
+  await cdp.evaluate(`window.OrbitalDebug.advanceOrbitalSimulationTo(${firstArrival})`);
+  const storedAtHub = await cdp.evaluate(`window.OrbitalDebug.getOrbitalLogistics().hubs[${JSON.stringify(startingPlanetId.split(':p-')[0])}].stock.raw_iron`);
+  assert.ok(storedAtHub >= cargo.amount, `${name} whole iron stock arrives at the exact scheduled simulation time`);
+  await cdp.until('document.querySelector("#hub-incoming-data").textContent.includes("Stock")', `${name} Hub stock display refreshes`);
+  await cdp.screenshot(`${name}-ark-arrival.png`);
+
   await cdp.evaluate('window.OrbitalDebug.back()');
   await cdp.until('window.OrbitalDebug.getState().level === "galaxy" && !window.OrbitalDebug.getState().moving', `${name} return to galaxy`);
   assert.equal((await cdp.evaluate(stateExpression)).level, 'galaxy', `${name} system returns to galaxy`);

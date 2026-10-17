@@ -56,6 +56,15 @@
 
     const inventory = properties.inventory ?? {};
     if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) throw new TypeError('Building inventory must be a resource map');
+    const integerStock = value => value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).filter(([, amount]) => Number.isInteger(amount) && amount > 0)) : {};
+    const dockStock = integerStock(properties.dockStock);
+    const launchStock = integerStock(properties.launchStock);
+    const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
+    const exportEnabled = {};
+    const exportResources = root.OrbitOrbitalLogisticsData?.exportResources || [];
+    for (const resource of exportResources) exportEnabled[resource.id] = properties.exportEnabled?.[resource.id] === true;
+    const exportCursorResourceId = typeof properties.exportCursorResourceId === 'string' ? properties.exportCursorResourceId : null;
     const logisticsNodeId = properties.logisticsNodeId ?? null;
     if (logisticsNodeId !== null && typeof logisticsNodeId !== 'string') throw new TypeError('Logistics node id must be a string or null');
     const customName = properties.customName ?? null;
@@ -87,6 +96,11 @@
       waterPort,
       logisticsNodeId,
       inventory: { ...inventory },
+      dockStock,
+      launchStock,
+      launchReceivedTotal,
+      exportEnabled,
+      exportCursorResourceId,
       energyUse,
       energyOutputWatts,
       energyOutputUnlimited: properties.energyOutputUnlimited === true,

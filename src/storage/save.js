@@ -77,6 +77,7 @@
       colonyMaterials: copy(state.colonyMaterials || []),
       industryAccumulator: state.industryAccumulator || 0,
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
+      orbitalLogistics: root.OrbitOrbitalTransit.snapshot(state.orbitalLogistics),
       factoryPlans: snapshotFactoryPlans(state.factoryPlans, state.surfaceBuildings),
       surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
       view: {
@@ -99,6 +100,10 @@
     state.exploration.visited = new Set(Array.isArray(saved.visited) ? saved.visited : []);
     state.reveal = Boolean(saved.reveal);
     state.surfaceBuildings = restoreBuildings(saved.surfaceBuildings);
+    state.orbitalLogistics = root.OrbitOrbitalTransit.normalize(saved.orbitalLogistics);
+    if (!saved.orbitalLogistics || !Number.isFinite(saved.orbitalLogistics.nextDispatchTime)) {
+      state.orbitalLogistics.nextDispatchTime = Math.floor(saved.simulation?.time ?? saved.time ?? 0) + 1;
+    }
     state.roadNetworks = restoreRoadNetworks(saved.roadNetworks, state.surfaceBuildings);
     state.factoryPlans = restoreFactoryPlans(saved.factoryPlans, state.surfaceBuildings);
     state.surfaceSettlements = restoreSettlements(saved.surfaceSettlements);
@@ -132,8 +137,9 @@
     return value.flatMap(saved => {
       if (!saved || typeof saved.id !== 'string' || typeof saved.type !== 'string' ||
           typeof saved.planetId !== 'string' || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) return [];
-      if (definitions && !definitions.get(saved.type)) return [];
-      try { return [Building ? Building.create(saved) : copy(saved)]; }
+      const properties = saved.type === 'hub' ? { ...saved, type: 'launch_platform' } : saved;
+      if (definitions && !definitions.get(properties.type)) return [];
+      try { return [Building ? Building.create(properties) : copy(properties)]; }
       catch (_) { return []; }
     });
   }

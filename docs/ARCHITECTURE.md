@@ -8,10 +8,10 @@ minimales par tâche sont dans [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 
 | Zone | Responsabilité principale |
 | --- | --- |
-| `src/data/` | Configuration, ressources, recettes, bâtiments, génération et styles déclaratifs |
+| `src/data/` | Configuration, ressources, recettes, bâtiments, logistique orbitale, génération et styles déclaratifs |
 | `src/world.js`, `src/world/` | Génération déterministe des galaxies, systèmes et terrains |
-| `src/simulation/` | Horloge, inventaires, constructions, graphes industriels, routes et quartiers |
-| `src/gameplay/` | Raccord des règles aux bâtiments, à l'exploration et aux interactions de placement |
+| `src/simulation/` | Horloge, inventaires, constructions, graphes industriels, routes, connectivité logistique et transit orbital |
+| `src/gameplay/` | Raccord des règles aux bâtiments, à l'exploration, aux exports orbitaux et aux interactions de placement |
 | `src/navigation/` | Projection, caméra, zoom et transitions de repère |
 | `src/storage/`, `src/state.js` | État de session et sauvegarde/restauration locale |
 | `src/rendering/` | Dessin Canvas/WebGL et orchestration des couches visuelles |
@@ -22,6 +22,7 @@ Points d'entrée spécialisés :
 
 - `docs/PROCESS_SYSTEM.md` décrit le graphe industriel et son moteur.
 - `docs/ROAD_SYSTEM.md` décrit les routes constructibles et les quartiers décoratifs.
+- `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → plateforme et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
 Les fichiers importants comprennent `src/data/processes.js`,

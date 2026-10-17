@@ -9,6 +9,7 @@
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
+  const Logistics = globalThis.OrbitLogistics;
   const SettlementSimulation = globalThis.OrbitSettlementSimulation;
   const SettlementConfig = globalThis.OrbitSettlementConfig;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
@@ -20,7 +21,14 @@
   const renderer = globalThis.OrbitRenderer.create(canvas, {
     isCameraInteracting: () => pointers.size > 0 && pointerMoved
   });
-  const hud = globalThis.OrbitHUD.create(document);
+  const hud = globalThis.OrbitHUD.create(document, {
+    onExportToggle(platformId, resourceId) {
+      const platform = state.surfaceBuildings.find(building => building.id === platformId);
+      if (!platform) return;
+      Logistics.setExportEnabled(platform, resourceId, platform.exportEnabled?.[resourceId] !== true);
+      persist(); updateUI();
+    }
+  });
   globalThis.OrbitDeveloperTools.create(document);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -93,6 +101,18 @@
     const scale = Math.max(.001, Math.min(.012, neighborDistance * .32 / model.extent));
     const context = { star, model, frame: { x: star.x, y: star.y, scale }, terrains: new Map() };
     contexts.set(star.id, context); return context;
+  }
+  function logisticsSystemModels() {
+    const models = new Map();
+    for (const building of state.surfaceBuildings) {
+      if (building.type !== 'launch_platform') continue;
+      const systemId = building.planetId.split(':p-')[0];
+      if (models.has(systemId)) continue;
+      const star = galaxy?.systems.find(item => item.id === systemId);
+      if (star) models.set(systemId, prepareSystem(star).model);
+    }
+    if (state.system?.ark) models.set(state.system.id, state.system);
+    return models;
   }
   function planetWorldPosition(planet, context = state.context) {
     return Camera.worldPoint(context.frame, World.planetPosition(planet, state.simulation.time));
@@ -315,7 +335,7 @@
       const center = project(frame.x, frame.y), visibleRadius = context.model.extent * localZoom;
       if (localZoom >= Math.min(.08, systemViewZoom(context.model) * .85) && center.x + visibleRadius >= 0 && center.x - visibleRadius <= W && center.y + visibleRadius >= 0 && center.y - visibleRadius <= H) {
         state.level = 'system'; state.system = context.model; state.exploration.visited.add(context.star.id);
-        const selectedPlanet = state.selected?.kind ? state.selected : null;
+        const selectedPlanet = context.model.planets.some(planet => planet.id === state.selected?.id) ? state.selected : null;
         const candidates = context.model.planets.filter(p => p.kind !== 'gazeuse');
         const nearest = [...candidates].sort((a, b) => distance(planetWorldPosition(a, context), state.camera) - distance(planetWorldPosition(b, context), state.camera))[0];
         let planet = state.tracking?.planet || selectedPlanet || state.focusPlanet || nearest;
@@ -391,9 +411,6 @@
       buildings: state.surfaceBuildings });
     state.placement = { type, ...position, rotation: 0, ...validation };
   }
-  function hasOrbitalHub(planetId = state.planet?.id) {
-    return state.surfaceBuildings.some(building => building.planetId === planetId && building.type === 'hub');
-  }
   function placeSurfaceBuilding() {
     const preview = state.placement;
     if (!preview?.valid) {
@@ -414,10 +431,7 @@
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
-    const message = preview.type === 'hub'
-      ? 'Hub orbital posé. Les autres bâtiments sont maintenant déverrouillés. Reliez-le au réseau pour acheminer les marchandises.'
-      : `${definition.label} posé. Assemblage en cours.${routeHint}`;
-    toast(message); updateUI(); persist();
+    toast(`${definition.label} posé. Assemblage en cours.${routeHint}`); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
@@ -427,12 +441,6 @@
       const details = shortage?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
       toast(details ? `Ressources insuffisantes : ${details}.` : 'Coût de construction invalide.');
       return;
-    }
-    if (type === 'hub' && hasOrbitalHub()) {
-      toast('Un hub orbital est déjà installé sur cette planète.'); return;
-    }
-    if (type !== 'hub' && !hasOrbitalHub()) {
-      toast('Le hub orbital doit être le premier bâtiment posé sur cette planète.'); return;
     }
     cancelRoadDrag();
     state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
@@ -676,7 +684,8 @@
   }
   function enterPlanet() {
     if (state.level !== 'system') return;
-    const planet = state.selected?.kind ? state.selected : state.system.planets.find(p => p.kind !== 'gazeuse');
+    const selectedPlanet = state.system.planets.find(item => item.id === state.selected?.id);
+    const planet = selectedPlanet || state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
     prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
@@ -721,7 +730,7 @@
 
   function select(item) {
     state.selected = item;
-    if (state.level === 'system') state.focusPlanet = item;
+    if (state.level === 'system' && state.system?.planets.some(planet => planet.id === item.id)) state.focusPlanet = item;
     const systemModel = state.level === 'galaxy' ? prepareSystem(item).model : state.system;
     hud.showSelection(item, { state, systemModel }); updateUI();
   }
@@ -758,11 +767,18 @@
       else { $('inspector').hidden = true; state.selected = null; }
     } else if (state.level === 'system') {
       let best = null, bestDistance = 24;
+      const ark = state.system?.ark;
+      if (ark) {
+        const position = globalThis.OrbitOrbitalTransit.arkPosition(ark, state.system.star, state.simulation.time);
+        const worldPosition = Camera.worldPoint(state.context.frame, position), pointOnScreen = project(worldPosition.x, worldPosition.y);
+        const separation = Math.hypot(pointOnScreen.x - x, pointOnScreen.y - y);
+        if (separation < bestDistance) { best = ark; bestDistance = separation; }
+      }
       for (const planet of state.system.planets) {
         const pos = planetWorldPosition(planet), p = project(pos.x, pos.y), d = Math.hypot(p.x - x, p.y - y);
         if (d < bestDistance) { best = planet; bestDistance = d; }
       }
-      if (best) { select(best); if (doubleClick) enterPlanet(); }
+      if (best) { select(best); if (doubleClick && best.kind !== 'orbital-hub') enterPlanet(); }
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
       if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
@@ -1018,6 +1034,38 @@
   addEventListener('pagehide', persist);
   document.addEventListener('visibilitychange', () => { persist(); lastTime = 0; });
 
+  function createOrbitalLogisticsFixture() {
+    if (state.level !== 'surface' || !state.planet) throw new Error('Open a planetary surface before creating the logistics fixture');
+    const frame = surfaceFrame(), center = unproject(W / 2, H / 2);
+    const width = terrainData.width * Config.terrain.textureScale, height = terrainData.height * Config.terrain.textureScale;
+    const centerX = clamp((center.x - frame.x) / frame.scale, 70, width - 170);
+    const centerY = clamp((center.y - frame.y) / frame.scale, 50, height - 50);
+    const planetId = state.planet.id, suffix = `${planetId}-${Math.floor(state.simulation.time)}`;
+    const source = BuildingModel.create({ id: `fixture-factory-${suffix}`, type: 'factory', planetId,
+      x: centerX - 50, y: centerY, constructionState: 'complete', inventory: { iron: 77 }, dockStock: { raw_iron: 8 } });
+    source.dockFlowByResource = { raw_iron: 4 };
+    const platform = BuildingModel.create({ id: `fixture-platform-${suffix}`, type: 'launch_platform', planetId,
+      x: centerX + 50, y: centerY, constructionState: 'complete' });
+    const network = RoadNetwork.create(planetId);
+    const from = RoadNetwork.addNode(network, { x: source.x, y: source.y, buildingId: source.id });
+    const to = RoadNetwork.addNode(network, { x: platform.x, y: platform.y, buildingId: platform.id });
+    RoadNetwork.addSegment(network, { from: from.id, to: to.id,
+      points: [{ x: source.x, y: source.y }, { x: platform.x, y: platform.y }], builtLength: 100 });
+    state.surfaceBuildings.push(source, platform);
+    state.roadNetworks[planetId] = network;
+    updateUI(); persist();
+    return { sourceId: source.id, platformId: platform.id };
+  }
+
+  function advanceOrbitalSimulationTo(time) {
+    if (!Number.isFinite(time) || time < state.simulation.time) throw new RangeError('Target time must not precede simulation time');
+    if (!state.paused) setPause(true);
+    state.simulation.time = time;
+    Logistics.advance(state, time, logisticsSystemModels(), true);
+    updateUI(); persist();
+    return time;
+  }
+
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
@@ -1027,6 +1075,7 @@
       SettlementSimulation.advance(state.surfaceSettlements, dt, refreshSettlements);
       globalThis.OrbitIndustry.advance(state, dt);
     }
+    Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;
@@ -1070,6 +1119,27 @@
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),
     getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y), id: p.id, kind: p.kind }; }),
+    getArkScreenPosition: () => {
+      if (!state.system?.ark || !state.context) return null;
+      const position = globalThis.OrbitOrbitalTransit.arkPosition(state.system.ark, state.system.star, state.simulation.time);
+      const worldPosition = Camera.worldPoint(state.context.frame, position);
+      return { ...project(worldPosition.x, worldPosition.y), id: state.system.ark.id };
+    },
+    getOrbitalLogistics: () => JSON.parse(JSON.stringify(state.orbitalLogistics)),
+    getBuildingScreenPosition: id => {
+      const building = state.surfaceBuildings.find(item => item.id === id);
+      if (!building || !state.planet || building.planetId !== state.planet.id) return null;
+      const frame = surfaceFrame(), point = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
+      return { ...point, id };
+    },
+    getOrbitalBuildingState: id => {
+      const building = state.surfaceBuildings.find(item => item.id === id);
+      return building ? { id: building.id, type: building.type, dockStock: { ...building.dockStock },
+        launchStock: { ...building.launchStock }, inventory: { ...building.inventory },
+        exportEnabled: { ...building.exportEnabled } } : null;
+    },
+    createOrbitalLogisticsFixture,
+    advanceOrbitalSimulationTo,
     scanAt, setPause
   });
   resize(); const previous = stored(); menuStarted = Boolean(previous);

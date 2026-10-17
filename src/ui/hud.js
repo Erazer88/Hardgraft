@@ -4,8 +4,9 @@
   const BuildingData = root.OrbitBuildingData;
   const ResourceData = root.OrbitResourceData;
   const Inventory = root.OrbitInventory;
+  const Data = root.OrbitOrbitalLogisticsData;
 
-  function create(document) {
+  function create(document, callbacks = {}) {
     const $ = id => document.getElementById(id);
     $('game-version').textContent = `Version ${root.OrbitVersion}`;
     const TAU = Math.PI * 2;
@@ -52,8 +53,101 @@
       return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Aucun coût';
     }
 
-    function inventoryEntries(building) {
-      return Object.entries(building.inventory || {})
+    function appendLogisticsRow(container, name, value, detail = '') {
+      const row = document.createElement('div'); row.className = 'logistics-row';
+      const label = document.createElement('span'); label.textContent = name;
+      const reading = document.createElement('span'); reading.textContent = value;
+      row.append(label, reading);
+      if (detail) { const small = document.createElement('small'); small.textContent = detail; row.append(small); }
+      container.append(row);
+    }
+
+    function renderPlatformLogistics(platform, { state, systemsById = new Map() }) {
+      const systemId = platform.planetId.split(':p-')[0], system = systemsById.get(systemId);
+      const stock = platform.launchStock || {}, received = platform.launchReceivedTotal || {};
+      const connectedSources = (state.surfaceBuildings || []).filter(source => source.id !== platform.id &&
+        source.planetId === platform.planetId && source.constructionState === 'complete' &&
+        root.OrbitLogisticsNetwork.hasBuiltLandPath(state.roadNetworks?.[platform.planetId], source.id, platform.id));
+      const inbound = {};
+      for (const source of connectedSources) for (const [resourceId, rate] of Object.entries(source.dockFlowByResource || {})) {
+        inbound[resourceId] = (inbound[resourceId] || 0) + Math.max(0, rate || 0);
+      }
+      const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, platform.id, state.simulation.time);
+      const reception = $('platform-reception-data'); reception.replaceChildren();
+      const resources = new Set([...Object.keys(stock), ...Object.keys(inbound)]);
+      if (!resources.size) appendLogisticsRow(reception, 'Aucune ressource reçue', '—');
+      for (const resourceId of [...resources].sort()) {
+        appendLogisticsRow(reception, resourceName(resourceId), fmt(stock[resourceId] || 0),
+          `Entrée · ${fmtDecimal(inbound[resourceId] || 0)} u/s`);
+      }
+      const receivedTotal = Object.values(received).reduce((sum, amount) => sum + amount, 0);
+      $('platform-received-total').textContent = `TOTAL REÇU · ${fmt(receivedTotal)} u`;
+
+      const launch = $('platform-launch-data'); launch.replaceChildren();
+      const status = root.OrbitLogistics.platformStatus(state, platform, system, state.simulation.time);
+      appendLogisticsRow(launch, 'Débit actuel', `${fmtDecimal(metrics.throughput)} / ${fmt(Data.launch.capacityUPerSecond)} u/s`);
+      const energyMW = (platform.energyUse || 0) / 1e6;
+      appendLogisticsRow(launch, 'Énergie', `${fmtDecimal(energyMW)} / ${fmt(Data.launch.energyMW)} MW`);
+      appendLogisticsRow(launch, 'État', status);
+
+      const exports = $('platform-export-data'); exports.replaceChildren();
+      for (const resource of Data.exportResources) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'logistics-export-toggle';
+        button.dataset.resourceId = resource.id; button.dataset.platformId = platform.id;
+        button.setAttribute('aria-pressed', String(platform.exportEnabled?.[resource.id] === true));
+        const title = document.createElement('span'); title.textContent = resource.label;
+        const enabled = platform.exportEnabled?.[resource.id] === true;
+        const toggle = document.createElement('strong'); toggle.textContent = enabled ? 'ON' : 'OFF';
+        const rate = document.createElement('small'); rate.textContent = `${fmtDecimal(metrics.rates[resource.id] || 0)} u/s`;
+        button.append(title, toggle, rate); exports.append(button);
+      }
+    }
+
+    function renderOrbitalHub(state, system) {
+      const hub = state.orbitalLogistics.hubs?.[system.id] || { id: system.ark.id, stock: {} };
+      const metrics = root.OrbitOrbitalTransit.currentHubMetrics(state, system.id, state.simulation.time);
+      const platforms = (state.surfaceBuildings || []).filter(building => building.type === 'launch_platform' &&
+        building.planetId.startsWith(system.id + ':p-'));
+      const connectedPlatforms = platforms.filter(platform => (state.surfaceBuildings || []).some(source => source.id !== platform.id &&
+        source.planetId === platform.planetId && source.constructionState === 'complete' &&
+        root.OrbitLogisticsNetwork.hasBuiltLandPath(state.roadNetworks?.[platform.planetId], source.id, platform.id)));
+      const currentRate = Object.values(metrics.rates).reduce((sum, rate) => sum + rate, 0);
+      const quays = $('hub-quays-data'); quays.replaceChildren();
+      appendLogisticsRow(quays, 'Plateformes reliées', String(connectedPlatforms.length));
+      appendLogisticsRow(quays, 'Débit / capacité', `${fmtDecimal(currentRate)} / ${fmt(connectedPlatforms.length * Data.launch.capacityUPerSecond)} u/s`);
+      appendLogisticsRow(quays, 'État', connectedPlatforms.length && currentRate >= connectedPlatforms.length * Data.launch.capacityUPerSecond ? 'SATURÉ' : 'DISPONIBLE');
+
+      const core = $('hub-core-data'); core.replaceChildren();
+      appendLogisticsRow(core, 'Débit traité', `${fmtDecimal(currentRate)} u/s`);
+      appendLogisticsRow(core, 'Stockage', 'Direct · sans limite');
+
+      const stock = $('hub-stock-data'); stock.replaceChildren();
+      const stocked = Object.entries(metrics.stock).sort(([a], [b]) => a.localeCompare(b));
+      if (!stocked.length) appendLogisticsRow(stock, 'En attente de matières', '—');
+      for (const [resourceId, amount] of stocked) appendLogisticsRow(stock, resourceName(resourceId), `${fmt(amount)} u`);
+
+      const energy = $('hub-energy-data'); energy.replaceChildren();
+      const activeLaunches = platforms.filter(platform => Number.isFinite(platform.lastLaunchTime) &&
+        state.simulation.time - platform.lastLaunchTime < 1).length;
+      appendLogisticsRow(energy, 'Consommation actuelle', `${fmt(activeLaunches * Data.launch.energyMW)} MW`);
+      appendLogisticsRow(energy, 'Par plateforme active', `${fmt(Data.launch.energyMW)} MW`);
+
+      const incoming = $('hub-incoming-data'); incoming.replaceChildren();
+      const resourceIds = new Set([...Object.keys(metrics.stock), ...Object.keys(metrics.inTransit), ...Object.keys(metrics.rates)]);
+      if (!resourceIds.size) appendLogisticsRow(incoming, 'Aucun flux en transit', '—');
+      for (const resourceId of [...resourceIds].sort()) appendLogisticsRow(incoming, resourceName(resourceId),
+        `Stock ${fmt(metrics.stock[resourceId] || 0)} · Transit ${fmt(metrics.inTransit[resourceId] || 0)} u`,
+        `Entrée · +${fmtDecimal(metrics.rates[resourceId] || 0)} u/s`);
+      return hub;
+    }
+
+    $('platform-export-data').addEventListener('click', event => {
+      const button = event.target.closest('button[data-resource-id]');
+      if (button) callbacks.onExportToggle?.(button.dataset.platformId, button.dataset.resourceId);
+    });
+
+    function inventoryEntries(building, property = 'inventory') {
+      return Object.entries(building[property] || {})
         .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([id, amount]) => ({ name: resourceName(id), amount }));
@@ -61,7 +155,8 @@
 
     function buildingStats(building) {
       const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
-      const inventory = inventoryEntries(building), total = inventory.reduce((sum, item) => sum + item.amount, 0);
+      const property = ['factory', 'extractor'].includes(building.type) ? 'dockStock' : 'inventory';
+      const inventory = inventoryEntries(building, property), total = inventory.reduce((sum, item) => sum + item.amount, 0);
       const stockText = inventory.length
         ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
         : 'Aucune ressource en stock';
@@ -80,11 +175,7 @@
           ['RESSOURCE', 'Hydrocarbures']
         ],
         wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
-        hub: [
-          ['ARRIVÉES', 'Personnel orbital'],
-          ['DÉBIT D’EXPORT', `${fmtDecimal(flow)} / min`],
-          ['MARCHANDISES', inventory.length ? stockText : 'En attente de matériaux']
-        ],
+        launch_platform: [['FONCTION', 'Export orbital vers l’Arche']],
         storage: [
           ['RESSOURCES', stockText],
           ['QUANTITÉ TOTALE', fmtDecimal(total)]
@@ -151,14 +242,19 @@
       panel.hidden = false;
       $('toast').classList.remove('visible');
       const isBuilding = item.kind === 'building';
+      const isArk = item.kind === 'orbital-hub';
+      const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
       const hasFactoryEditor = isBuilding && ['factory', 'extractor'].includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
+      panel.classList.toggle('orbital-hub-panel', isArk);
       if (!isBuilding) clearBuildingPanelPosition();
-      $('building-readout').hidden = !isBuilding;
+      $('building-readout').hidden = !isBuilding || isLaunchPlatform;
+      $('platform-logistics').hidden = !isLaunchPlatform;
+      $('orbital-hub-logistics').hidden = !isArk;
       $('demolish-button').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
-      $('selection-info').hidden = isBuilding;
-      $('selection-meta').hidden = isBuilding;
+      $('selection-info').hidden = isBuilding || isArk;
+      $('selection-meta').hidden = isBuilding || isArk;
       if (state.level === 'galaxy') {
         const planets = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE';
@@ -168,6 +264,13 @@
         $('enter-label').textContent = 'Zoomer sur le système';
         $('enter-button').hidden = false;
         $('enter-button').disabled = false;
+      } else if (isArk) {
+        $('selection-type').textContent = 'HUB ORBITAL · VAISSEAU-MÈRE';
+        $('selection-name').textContent = item.name || 'L’ARCHE';
+        $('selection-info').textContent = '';
+        $('selection-meta').textContent = '';
+        $('enter-button').hidden = true;
+        renderOrbitalHub(state, systemModel);
       } else if (state.level === 'system') {
         $('selection-type').textContent = 'CORPS PLANÉTAIRE';
         $('selection-name').textContent = item.name;
@@ -183,7 +286,8 @@
         $('selection-name').textContent = item.customName || definition?.label || 'BÂTIMENT';
         $('selection-info').textContent = '';
         $('selection-meta').textContent = '';
-        renderBuildingReadout(item);
+        if (!isLaunchPlatform) renderBuildingReadout(item);
+        else renderPlatformLogistics(item, { state, systemsById: new Map([[state.system?.id, state.system]]) });
         $('enter-button').hidden = true;
         const refundRate = Number.isFinite(item.demolitionRefundRate) ? item.demolitionRefundRate : 1;
         $('demolish-button').textContent = `DÉMOLIR · RÉCUPÉRER ${Math.round(refundRate * 100)} %`;
@@ -202,6 +306,15 @@
       if (selectedBuilding && !$('building-readout').hidden) {
         renderBuildingReadout(selectedBuilding);
         positionBuildingPanel(buildingPosition);
+      }
+      const systemsById = new Map();
+      if (state.system) systemsById.set(state.system.id, state.system);
+      if (selectedBuilding?.type === 'launch_platform' && !$('platform-logistics').hidden) {
+        renderPlatformLogistics(selectedBuilding, { state, systemsById });
+        positionBuildingPanel(buildingPosition);
+      }
+      if (state.selected?.kind === 'orbital-hub' && !$('orbital-hub-logistics').hidden && state.system) {
+        renderOrbitalHub(state, state.system);
       }
       const known = galaxy.systems.filter(system => system.discovered || state.reveal).length;
       const level = state.level;
@@ -231,22 +344,20 @@
       $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
       $('road-button').setAttribute('aria-pressed', String(state.tool === 'road'));
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
-      const hasOrbitalHub = level === 'surface' && state.planet && (state.surfaceBuildings || []).some(building =>
-        building.planetId === state.planet.id && building.type === 'hub');
-      const orbitalHubRequired = level === 'surface' && state.planet && !hasOrbitalHub;
       for (const option of buildOptions.children) {
         const definition = BuildingData.get(option.dataset.buildingType);
-        const isHub = definition?.id === 'hub';
-        option.hidden = orbitalHubRequired ? !isHub : isHub;
-        option.disabled = !Inventory.canAfford(state.inventory, definition?.cost || {});
-        if (definition) option.title = option.disabled
+        const alreadyHasPlatform = definition?.id === 'launch_platform' && (state.surfaceBuildings || []).some(building =>
+          building.planetId === state.planet?.id && building.type === 'launch_platform');
+        option.hidden = false;
+        option.disabled = alreadyHasPlatform || !Inventory.canAfford(state.inventory, definition?.cost || {});
+        if (definition) option.title = alreadyHasPlatform ? 'Une plateforme existe déjà sur cette planète.' : option.disabled
           ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
-      $('build-menu-title').textContent = orbitalHubRequired ? 'HUB ORBITAL REQUIS' : 'INFRASTRUCTURES';
-      $('build-menu-hint').hidden = !orbitalHubRequired;
+      $('build-menu-title').textContent = 'INFRASTRUCTURES';
+      $('build-menu-hint').hidden = true;
       $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');

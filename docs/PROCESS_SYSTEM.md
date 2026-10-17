@@ -65,10 +65,11 @@ unités et transmet le blocage en amont lorsqu'il est plein.
 
 Le Dock de sortie accepte toute matière, mais une seule connexion par carte afin de
 garder sa matière exportée explicite. Il transfère les unités entières vers
-`building.inventory` (stock visible sur la fiche du bâtiment en vue planète), sans
-les détruire et sans consommer d'énergie. Plusieurs cartes Dock permettent d'exposer
-plusieurs matières séparément. Ce stock est sauvegardé avec le bâtiment ; sa
-distribution vers d'autres bâtiments attend le réseau logistique planétaire.
+`building.dockStock`, sans détruire ni consommer la ressource. Plusieurs cartes Dock
+permettent d'exposer plusieurs matières séparément. Ce stock est sauvegardé avec le
+bâtiment et affiché dans sa fiche. Il ne peut être déplacé vers une Plateforme de
+lancement que si un chemin terrestre entièrement construit les relie ; les inventaires
+de construction et les autres propriétés `building.inventory` ne sont pas consultés.
 
 ## Cycle, débit et énergie
 
@@ -101,8 +102,8 @@ buffers sont sauvegardés avec leurs bâtiments.
 
 Une machine peut être supprimée même si ses buffers contiennent des unités ; son
 contenu est alors supprimé avec elle et l'éditeur indique combien d'unités ont été
-retirées. La démolition d’un bâtiment rend les matières présentes dans les buffers
-et le stock local exporté à l’inventaire de matériaux de la colonie.
+retirées. La démolition d’un bâtiment rend les matières présentes dans les buffers,
+`dockStock` et le stock de plateforme à l’inventaire de matériaux de la colonie.
 
 ## Modules
 

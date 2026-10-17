@@ -67,13 +67,14 @@
       building.flowPerMinute = graph.machines.reduce((sum, machine) => {
         return Graph.definitionOf(machine).externalOutput ? sum + machine.currentRate * 60 : sum;
       }, 0);
+      building.dockFlowByResource = dockFlowByResource(building, graph);
       collectDockedResources(building, graph);
       building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
     }
   }
 
   function collectDockedResources(building, graph) {
-    building.inventory ||= {};
+    building.dockStock ||= {};
     for (const machine of graph.machines) {
       const definition = Graph.definitionOf(machine);
       if (!definition.externalOutput) continue;
@@ -85,9 +86,24 @@
       const resource = source && Graph.definitionOf(source).outputPorts
         .find(port => port.id === connection.fromOutputId)?.resourceId;
       if (!resource) continue;
-      building.inventory[resource] = (building.inventory[resource] || 0) + amount;
+      building.dockStock[resource] = (building.dockStock[resource] || 0) + amount;
       machine.inputBuffer[input.id] = 0;
     }
+  }
+
+  function dockFlowByResource(building, graph) {
+    const rates = {};
+    for (const machine of graph.machines) {
+      const definition = Graph.definitionOf(machine);
+      if (!definition.externalOutput) continue;
+      const input = definition.inputPorts[0];
+      const connection = graph.connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
+      const source = connection && graph.machines.find(item => item.id === connection.fromMachineId);
+      const resource = source && Graph.definitionOf(source).outputPorts
+        .find(port => port.id === connection.fromOutputId)?.resourceId;
+      if (resource) rates[resource] = (rates[resource] || 0) + Math.max(0, machine.currentRate || 0);
+    }
+    return rates;
   }
 
   function advance(state, seconds) {
@@ -126,6 +142,14 @@
       delete state.factoryPlans[building.id];
     }
     for (const [resourceId, amount] of Object.entries(building.inventory || {})) {
+      if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
+        Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
+    }
+    for (const [resourceId, amount] of Object.entries(building.dockStock || {})) {
+      if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
+        Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
+    }
+    for (const [resourceId, amount] of Object.entries(building.launchStock || {})) {
       if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
         Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
     }

@@ -14,6 +14,7 @@
       paused: false, reveal: false, tool: 'pan', context: null,
       tracking: null, focusPlanet: null, surfaceBuildings: [], roadNetworks: {}, placement: null,
       surfaceSettlements: {}, factoryPlans: {}, colonyMaterials: [], industryAccumulator: 0,
+      orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }
 

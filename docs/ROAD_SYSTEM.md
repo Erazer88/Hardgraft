@@ -1,8 +1,9 @@
 # Routes de surface et quartiers décoratifs
 
 Cette référence décrit les routes actuellement constructibles et les rues
-résidentielles décoratives. Elles ne transportent pas encore les ressources entre
-bâtiments. Pour le modèle logistique validé, voir
+résidentielles décoratives. La seule interaction économique actuelle vérifie qu’un
+chemin terrestre terminé relie un Dock à une Plateforme de lancement. Les routes
+n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle logistique, voir
 [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 
 ## Modules
@@ -30,6 +31,12 @@ Les intersections terrestres sont détectées sur la géométrie réelle, puis l
 segment est découpé et rattaché au nouveau nœud. Les routes maritimes relient les
 ports de surface aux plateformes pétrolières, restent isolées en mer et partagent
 les points d'amarrage des ports.
+
+Pour les exports orbitaux, `src/simulation/logisticsNetwork.js` parcourt uniquement
+les segments terrestres dont `builtLength` atteint `length`. Le stock dédié `dockStock`
+est transféré instantanément vers la plateforme de la même planète. Les segments en
+construction et les liaisons maritimes ne connectent pas ces stocks ; les routes ne
+consomment ni ressources de construction ni autres inventaires.
 
 Le placement construit un champ de coût déterministe à partir du relief, des
 obstacles et des routes existantes. A* choisit un trajet ; la géométrie est ensuite

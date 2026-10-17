@@ -1,0 +1,55 @@
+# Logistique orbitale V1
+
+Cette tranche relie les sorties d’une usine au stock de l’Arche. Elle ne simule ni
+transport terrestre physique, ni flux Hub → planète.
+
+## Flux
+
+```text
+Dock de sortie → dockStock → route terrestre terminée → Plateforme de lancement
+                → export ON → lot spatial entier → arrivée → stock de l’Arche
+```
+
+`building.dockStock` est distinct de `building.inventory` et de l’inventaire de
+construction global. La plateforme ne prélève que `dockStock` des bâtiments terminés
+de sa planète qui sont reliés par un chemin terrestre entièrement construit. Les
+segments en construction et les routes maritimes ne comptent pas. Le transfert terrestre
+est instantané et agrégé, sans débit de route ni véhicules économiques.
+
+Les exports sont OFF par défaut. La V1 expose Fer brut (`raw_iron`), Résidus
+(`iron_tailings`) et Laitier (`iron_slag`). Les matières reçues restent dans
+`launchStock` tant que leur export n’est pas activé. Les valeurs de départ — 4 u/s et
+5 MW — sont déclarées dans `src/data/orbitalLogistics.js`. Une seule plateforme par
+planète est permise actuellement par le placement V1 ; ce n’est pas une limite du
+modèle à long terme.
+
+## Simulation et rendu
+
+Chaque corridor sauvegardé contient seulement `id`, `fromEntityId` et `toEntityId`.
+Les lancements utilisent des lots à quantité entière. Leur `departureTime` et leur
+`arrivalTime` sont mesurés sur `state.simulation.time` ; pause, sauvegarde et rendu
+n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmente qu’à l’arrivée.
+
+L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
+primaire. L’épave conserve sa propre identité, sa position et son rendu. La courbe du
+cargo est recalculée depuis la planète d’origine et la position future de l’Arche à
+l’arrivée ; le cargo visuel ne porte aucune matière et ne pilote pas la simulation.
+
+## Modules
+
+| Fichier | Responsabilité |
+| --- | --- |
+| `src/data/orbitalLogistics.js` | Capacité, énergie, ressources exportables et durées de transit |
+| `src/simulation/logisticsNetwork.js` | Chemin terrestre terminé et transfert Dock → plateforme |
+| `src/simulation/orbitalTransit.js` | Corridors, lots, arrivées, mesures et géométrie orbitale pure |
+| `src/gameplay/logistics.js` | Orchestration du transfert, de l’export et des états de plateforme |
+| `src/rendering/orbitalTrafficRenderer.js` | Dessin de l’Arche et des cargos sans effet économique |
+| `src/ui/hud.js` | Cartes de réception, lancement, exports et stock orbital |
+| `src/storage/save.js` | Sauvegarde des stocks, corridors minimaux et lots en transit |
+
+Vérifications ciblées :
+
+```sh
+node --test tests/orbital-logistics.test.cjs tests/architecture.test.cjs
+npm run test:browser
+```

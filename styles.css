@@ -20,9 +20,24 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .building-stat{display:grid;grid-template-columns:minmax(100px,.85fr) minmax(0,1.15fr);gap:12px;align-items:start;padding:6px 0;border-bottom:1px solid #829eaf16}
 .building-stat-label{font-size:8px;line-height:1.45;letter-spacing:.7px;color:#708c9e}
 .building-stat-value{font-size:10px;line-height:1.5;text-align:right;color:#c5d6df;overflow-wrap:anywhere}
+.orbital-logistics{display:grid;gap:7px;margin-top:9px}
+.logistics-card{padding:8px 9px;border:1px solid #829eaf20;border-radius:4px;background:#09172565}
+.logistics-card>strong{display:block;margin-bottom:6px;color:#d7a76e;font-size:8px;font-weight:500;letter-spacing:1.3px}
+.logistics-row{display:grid;grid-template-columns:minmax(85px,1fr) auto;gap:8px;align-items:center;padding:3px 0;color:#91a7b4;font-size:9px;line-height:1.4}
+.logistics-row>span:last-of-type{color:#d1dce2;text-align:right}
+.logistics-row small{grid-column:1/-1;margin-top:-2px;color:#637f90;font-size:8px;text-align:right}
+.logistics-card>small{display:block;margin-top:6px;padding-top:5px;border-top:1px solid #829eaf1c;color:#6d8da0;font-size:7px;letter-spacing:.8px;text-align:right}
+.logistics-export-toggle{display:grid;grid-template-columns:minmax(0,1fr) 32px 50px;align-items:center;gap:6px;width:100%;padding:5px 3px;border-bottom:1px solid #829eaf16;color:#b5c6cf;text-align:left;font-size:9px}
+.logistics-export-toggle:last-child{border-bottom:0}
+.logistics-export-toggle strong{color:#718d9d;font-size:8px;font-weight:500;text-align:center}
+.logistics-export-toggle[aria-pressed="true"] strong{color:#64cfb4}
+.logistics-export-toggle small{color:#7e9bab;font-size:8px;text-align:right}
+.orbital-hub-panel{width:min(370px,calc(100vw - 22px));max-height:min(68dvh,560px);overflow:auto}
+.orbital-hub-panel .orbital-logistics{margin-top:12px}
 .demolish-button{display:block;width:100%;margin-top:12px;padding:10px 12px;border:1px solid #b86d5555;border-radius:4px;color:#d9947d;background:#9d43300d;font-size:9px;letter-spacing:.7px;text-align:center}
 .demolish-button:hover{border-color:#d9947d99;background:#9d43301c}
 @media(max-width:600px){.inspector.building-panel{max-height:min(47dvh,390px);padding-bottom:calc(13px + var(--safe-bottom))}.building-stat{grid-template-columns:minmax(92px,.8fr) minmax(0,1.2fr);gap:8px}.building-stat-label{font-size:7px}.building-stat-value{font-size:9px}}
+@media(max-width:600px){.logistics-card{padding:7px}.logistics-row{font-size:8px}.logistics-row small,.logistics-export-toggle small{font-size:7px}.orbital-hub-panel{max-height:calc(100dvh - 150px - var(--safe-top) - var(--safe-bottom))}}
 
 .game-version{position:absolute;left:14px;right:14px;bottom:calc(9px + var(--safe-bottom));font-size:9px;line-height:12px;letter-spacing:.4px;color:#a5bdcd;text-align:center;pointer-events:none}
 body[data-level="surface"] .corner-note{display:none}

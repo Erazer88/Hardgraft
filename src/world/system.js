@@ -123,10 +123,17 @@
     debris.sort((a, b) => a.orbit - b.orbit);
     const wreck = natal || random() < settings.wreckChance ?
       { orbit: (debris[0]?.orbit || Math.max(inner, settings.orbits.emptyExtent)) + 38, phase: random() * TAU } : null;
+    const arkOrbit = natal
+      ? planets.length > 1 ? (planets[0].orbit + planets.at(-1).orbit) / 2 : planets[0]?.orbit * 1.7 || star.radius + 120
+      : null;
+    const ark = natal ? { id: `${systemId}:ark`, systemId, name: 'L’Arche', kind: 'orbital-hub',
+      orbit: arkOrbit, phase: World.hashSeed(String(seed) + ':' + systemId + ':ark-orbit') / 4294967296 * TAU,
+      speed: .05 * Math.sqrt(star.mass) * Math.pow(220 / arkOrbit, 1.5) } : null;
     const extent = Math.max(settings.orbits.emptyExtent, star.radius,
-      ...planets.map(planet => planet.orbit + planet.radius), ...debris.map(belt => belt.orbit + belt.width), wreck?.orbit || 0) + settings.orbits.edgePadding;
+      ...planets.map(planet => planet.orbit + planet.radius), ...debris.map(belt => belt.orbit + belt.width), wreck?.orbit || 0,
+      ark?.orbit || 0) + settings.orbits.edgePadding;
     return { id: systemId, name: source.name, generationVersion: settings.version, layout: layout.id,
-      star, planets, debris, wreck, extent, auPerUnit,
+      star, planets, debris, wreck, ark, extent, auPerUnit,
       startingPlanetId: planets.find(planet => planet.startingCandidate)?.id || null };
   }
   root.OrbitSystemGeneration = Object.freeze({ create, environment });

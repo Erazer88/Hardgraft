@@ -264,7 +264,7 @@ test('the trash accepts different output resources and processes exactly two uni
   assert.equal(furnace.outputBuffer.slag, 0);
 });
 
-test('an output dock accepts a single resource stream and exposes it in planet stock', () => {
+test('an output dock accepts one stream and writes only to the dedicated dock export stock', () => {
   const graph = Graph.create();
   const crusher = machine(graph, 'crusher', 'crusher');
   const dock = machine(graph, 'dock', 'output_dock', 300);
@@ -274,11 +274,12 @@ test('an output dock accepts a single resource stream and exposes it in planet s
     fromOutputId: 'crushed_ore', toMachineId: 'dock', toInputId: 'material' }).ok, false,
   'one dock has one source so its exported resource remains unambiguous');
 
-  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {} };
+  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {}, dockStock: {} };
   const state = { seed: 'factory-seed', surfaceBuildings: [building], factoryPlans: { factory: graph } };
   Industry.advance(state, .1);
   assert.equal(dock.inputBuffer.material, 0);
-  assert.equal(building.inventory.iron_ore_crushed, 1);
+  assert.equal(building.dockStock.iron_ore_crushed, 1);
+  assert.deepEqual(building.inventory, {}, 'Dock output does not enter another building inventory');
   assert.ok(building.flowPerMinute > 0);
 });
 
@@ -299,7 +300,7 @@ test('demolishing a building reclaims resources already exported through its doc
   dock.inputBuffer.material = 2;
   connect(graph, 'crusher-dock', 'crusher', 'crushed_ore', 'dock', 'material');
   const building = { id: 'factory', type: 'factory', constructionState: 'complete',
-    inventory: { iron_ore_crushed: 3 } };
+    inventory: {}, dockStock: { iron_ore_crushed: 3 } };
   const state = { seed: 'factory-seed', surfaceBuildings: [building], factoryPlans: { factory: graph }, colonyMaterials: [] };
   Industry.reclaimBuilding(state, building);
   assert.equal(state.colonyMaterials.reduce((sum, stack) => sum +

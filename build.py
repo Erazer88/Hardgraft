@@ -65,7 +65,7 @@ print(f'Aperçu versionné : {versioned_preview}')
 with zipfile.ZipFile(OUT / 'nereide-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     sources = ['index.html', 'styles.css', 'manifest.webmanifest', 'build.py', 'README.md', 'package.json', '.gitignore', 'AGENTS.md',
         'docs/CURRENT_CONTEXT.md', 'docs/ARCHITECTURE.md', 'docs/WORLDGEN.md',
-        'docs/PROCESS_SYSTEM.md', 'docs/ROAD_SYSTEM.md']
+        'docs/PROCESS_SYSTEM.md', 'docs/ROAD_SYSTEM.md', 'docs/ORBITAL_LOGISTICS.md']
     sources += [str(path.relative_to(ROOT)) for folder in ('src', 'tests', 'docs/reference')
                 for path in sorted((ROOT / folder).rglob('*'))
                 if path.is_file() and path.suffix in ('.js', '.cjs', '.txt', '.pdf')]

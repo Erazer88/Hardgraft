@@ -57,11 +57,11 @@
       roadPortOffset: { x: 0, y: 12 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
     },
-    hub: {
-      id: 'hub', label: 'HUB ORBITAL', shortLabel: 'HO', category: 'logistics', icon: 'hub',
+    launch_platform: {
+      id: 'launch_platform', label: 'PLATEFORME DE LANCEMENT', shortLabel: 'PL', category: 'logistics', icon: 'hub',
       sprite: 'assets/buildings/orbital-hub.webp',
-      description: 'Accueille les arrivées orbitales et exporte les marchandises.',
-      functions: { receivesPersonnel: true, exportsMerchandise: true, exportsToOrbit: true },
+      description: 'Reçoit les stocks des Docks reliés par route et les exporte vers l’Arche.',
+      functions: { exportsToOrbit: true },
       cost: { iron: 25, copper: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },
@@ -89,7 +89,7 @@
     }
   };
   const catalogOrder = Object.freeze([
-    'hub', 'factory', 'extractor', 'surface_port', 'oil_platform', 'storage', 'wind_turbine'
+    'factory', 'extractor', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'wind_turbine'
   ]);
 
   for (const definition of Object.values(definitions)) {

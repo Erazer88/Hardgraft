@@ -238,6 +238,11 @@
         label(ctx, name, lx, ly, selected ? '#d9c1a1' : '#91aeba', 9, align);
         if (selected || cam.zoom > .38) label(ctx, planet.kind.toUpperCase(), lx, ly + 14, '#5f8195', 7, align);
       }
+      if (detailed && system.ark) {
+        circle(ctx, star.x, star.y, system.ark.orbit * cam.zoom, '#91b8bb24', .6, [2, 6]);
+        root.OrbitOrbitalTrafficRenderer.drawArk(ctx, { state, system, camera: cam, project, circle, line, label });
+        root.OrbitOrbitalTrafficRenderer.drawTraffic(ctx, { state, system, camera: cam, project, circle, line, label });
+      }
       if (detailed && system.wreck) {
         const wa = system.wreck.phase + state.simulation.time * .002;
         const wreck = project(Math.cos(wa) * system.wreck.orbit, Math.sin(wa) * system.wreck.orbit, cam);
