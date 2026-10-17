@@ -68,8 +68,10 @@
       const connectedSources = (state.surfaceBuildings || []).filter(source => source.id !== platform.id &&
         source.planetId === platform.planetId && source.constructionState === 'complete' &&
         root.OrbitLogisticsNetwork.hasBuiltLandPath(state.roadNetworks?.[platform.planetId], source.id, platform.id));
+      const routedSources = connectedSources.filter(source => Object.values(source.dockDestinations || {}).includes(platform.id));
       const inbound = {};
-      for (const source of connectedSources) for (const [resourceId, rate] of Object.entries(source.dockFlowByResource || {})) {
+      for (const source of routedSources) for (const [resourceId, rate] of Object.entries(source.dockFlowByResource || {})) {
+        if (source.dockDestinations?.[resourceId] !== platform.id) continue;
         inbound[resourceId] = (inbound[resourceId] || 0) + Math.max(0, rate || 0);
       }
       const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, platform.id, state.simulation.time);
@@ -89,18 +91,6 @@
       const energyMW = (platform.energyUse || 0) / 1e6;
       appendLogisticsRow(launch, 'Énergie', `${fmtDecimal(energyMW)} / ${fmt(Data.launch.energyMW)} MW`);
       appendLogisticsRow(launch, 'État', status);
-
-      const exports = $('platform-export-data'); exports.replaceChildren();
-      for (const resource of Data.exportResources) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'logistics-export-toggle';
-        button.dataset.resourceId = resource.id; button.dataset.platformId = platform.id;
-        button.setAttribute('aria-pressed', String(platform.exportEnabled?.[resource.id] === true));
-        const title = document.createElement('span'); title.textContent = resource.label;
-        const enabled = platform.exportEnabled?.[resource.id] === true;
-        const toggle = document.createElement('strong'); toggle.textContent = enabled ? 'ON' : 'OFF';
-        const rate = document.createElement('small'); rate.textContent = `${fmtDecimal(metrics.rates[resource.id] || 0)} u/s`;
-        button.append(title, toggle, rate); exports.append(button);
-      }
     }
 
     function renderOrbitalHub(state, system) {
@@ -141,11 +131,6 @@
       return hub;
     }
 
-    $('platform-export-data').addEventListener('click', event => {
-      const button = event.target.closest('button[data-resource-id]');
-      if (button) callbacks.onExportToggle?.(button.dataset.platformId, button.dataset.resourceId);
-    });
-
     function inventoryEntries(building, property = 'inventory') {
       return Object.entries(building[property] || {})
         .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
@@ -160,15 +145,21 @@
       const stockText = inventory.length
         ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
         : 'Aucune ressource en stock';
+      const received = inventoryEntries(building, 'inventory');
+      const receivedText = received.length
+        ? received.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
+        : 'Aucune ressource reçue';
       const byType = {
         factory: [
           ['DÉBIT EN SORTIE', `${fmtDecimal(flow)} / min`],
-          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée']
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
+          ['STOCK REÇU', receivedText]
         ],
         extractor: [
           ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
           ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible'],
-          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée']
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
+          ['STOCK REÇU', receivedText]
         ],
         oil_platform: [
           ['VITESSE D’EXTRACTION', `${fmtDecimal(flow)} / min`],

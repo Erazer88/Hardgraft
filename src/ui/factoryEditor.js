@@ -3,14 +3,14 @@
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
-  const NODE = Object.freeze({ width: 258, height: 162 });
+  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 212 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
 
-  function create(document, { onSave = () => {} } = {}) {
+  function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -20,6 +20,7 @@
     const cards = new Map();
 
     const typeOf = type => Graph.definitionOf({ type });
+    const heightOf = type => typeOf(type).externalOutput ? NODE.outputDockHeight : NODE.height;
     const machineById = id => machines.find(machine => machine.id === id);
     const portY = (machine, side, portId) => {
       const ports = side === 'input' ? typeOf(machine.type).inputPorts : typeOf(machine.type).outputPorts;
@@ -82,7 +83,7 @@
           const resource = source && typeOf(source.type).outputPorts
             .find(output => output.id === connection.fromOutputId);
           label.innerHTML = resource
-            ? resourceLine({ ...port, label: `${resource.label} → PLANÈTE` }, machine.inputBuffer[port.id])
+            ? resourceLine({ ...port, label: resource.label }, machine.inputBuffer[port.id])
             : resourceLine(port, machine.inputBuffer[port.id]);
         }
       }
@@ -90,6 +91,41 @@
         const label = card.querySelector(`[data-output-label="${port.id}"]`);
         if (label) label.innerHTML = resourceLine(port, machine.outputBuffer[port.id]);
       }
+      updateDockDestination(machine);
+    }
+
+    function connectedDockResource(machine) {
+      const input = typeOf(machine.type).inputPorts[0];
+      const connection = input && connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
+      const source = connection && machineById(connection.fromMachineId);
+      return source && typeOf(source.type).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
+    }
+
+    function updateDockDestination(machine) {
+      if (!typeOf(machine.type).externalOutput) return;
+      const select = cards.get(machine.id)?.querySelector('[data-dock-destination]');
+      if (!select) return;
+      const resourceId = connectedDockResource(machine);
+      const options = getDestinations(activeBuilding) || [];
+      const selected = resourceId ? activeBuilding?.dockDestinations?.[resourceId] || '' : '';
+      const routeKey = JSON.stringify([resourceId, options.map(option => option.id), selected]);
+      if (select.dataset.routeKey === routeKey) return;
+      select.dataset.routeKey = routeKey;
+      select.dataset.resourceId = resourceId || '';
+      select.disabled = !resourceId || !options.length;
+      select.replaceChildren();
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = !resourceId ? 'Reliez une ressource' : options.length ? 'Choisir une destination' : 'Aucun bâtiment disponible';
+      select.append(placeholder);
+      for (const destination of options) {
+        const option = document.createElement('option');
+        option.value = destination.id;
+        const def = root.OrbitBuildingData.get(destination.type);
+        option.textContent = destination.customName || `${def?.label || destination.type} · ${destination.id.slice(-5)}`;
+        select.append(option);
+      }
+      select.value = options.some(option => option.id === selected) ? selected : '';
     }
 
     function createPort(machine, side, port, index) {
@@ -128,6 +164,15 @@
         row.append(inputLabel, outputLabel); rows.append(row);
         if (input) card.append(createPort(machine, 'input', input, index));
         if (output) card.append(createPort(machine, 'output', output, index));
+      }
+      if (def.externalOutput) {
+        card.classList.add('factory-node-output-dock');
+        const destination = document.createElement('label'); destination.className = 'factory-dock-route';
+        const label = document.createElement('span'); label.textContent = 'DESTINATION DU QUAI';
+        const select = document.createElement('select'); select.dataset.dockDestination = machine.id;
+        select.setAttribute('aria-label', 'Choisir le bâtiment destinataire pour cette ressource');
+        destination.append(label, select);
+        card.append(destination);
       }
       const rate = document.createElement('div'); rate.className = 'factory-readout-row';
       const rateLabel = document.createElement('span'); rateLabel.dataset.readout = 'rate';
@@ -234,7 +279,7 @@
       onMachineMove(id, point) {
         const machine = machineById(id); if (!machine) return;
         machine.x = clamp(point.x, 8, WORLD.width - NODE.width - 8);
-        machine.y = clamp(point.y, 8, WORLD.height - NODE.height - 8);
+        machine.y = clamp(point.y, 8, WORLD.height - heightOf(machine.type) - 8);
         updateMachinePosition(machine);
       },
       onMachineEnd() { persist(); },
@@ -256,7 +301,10 @@
       onRestoreConnection(connection) {
         if (connections.some(item => item.id === connection.id)) return;
         const result = Graph.connect(graph, connection);
-        if (result.ok) { connections = graph.connections; renderConnections(); }
+        if (result.ok) {
+          connections = graph.connections; renderConnections();
+          for (const machine of machines) updateMachineReadout(machine);
+        }
       },
       onConnectionDrop(source, target, previous, detached) {
         if (target) {
@@ -268,7 +316,9 @@
         } else if (detached) status('CONNEXION DÉCROCHÉE');
         else status('RELIEZ UNE SORTIE À UNE ENTRÉE');
         pendingConnection = null;
-        renderConnections(); persist();
+        renderConnections();
+        for (const machine of machines) updateMachineReadout(machine);
+        persist();
       }
     });
 
@@ -294,15 +344,16 @@
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,
         viewportBounds.top + viewportBounds.height / 2);
-      const topLeft = { x: center.x - NODE.width / 2, y: center.y - NODE.height / 2 };
+      const height = heightOf(type);
+      const topLeft = { x: center.x - NODE.width / 2, y: center.y - height / 2 };
       const visibleTopLeft = viewportController.worldPoint(viewportBounds.left, viewportBounds.top);
       const visibleBottomRight = viewportController.worldPoint(viewportBounds.right, viewportBounds.bottom);
       const minX = Math.max(8, visibleTopLeft.x + 8);
       const maxX = Math.min(WORLD.width - NODE.width - 8, visibleBottomRight.x - NODE.width - 8);
       const minY = Math.max(8, visibleTopLeft.y + 8);
-      const maxY = Math.min(WORLD.height - NODE.height - 8, visibleBottomRight.y - NODE.height - 8);
+      const maxY = Math.min(WORLD.height - height - 8, visibleBottomRight.y - height - 8);
       const positions = [{ ...topLeft }];
-      const stepX = NODE.width + 20, stepY = NODE.height + 20;
+      const stepX = NODE.width + 20, stepY = NODE.outputDockHeight + 20;
       for (let ring = 1; ring <= 8; ring++) {
         for (let dx = -ring; dx <= ring; dx++) {
           for (const dy of [-ring, ring]) positions.push({ x: topLeft.x + dx * stepX, y: topLeft.y + dy * stepY });
@@ -318,15 +369,15 @@
       const available = positions.find(position => visible(position) &&
         machines.every(machine =>
           position.x + NODE.width + 12 <= machine.x || machine.x + NODE.width + 12 <= position.x ||
-          position.y + NODE.height + 12 <= machine.y || machine.y + NODE.height + 12 <= position.y));
+          position.y + height + 12 <= machine.y || machine.y + heightOf(machine.type) + 12 <= position.y));
       const visibleEnough = position => position.x + NODE.width > visibleTopLeft.x &&
-        position.x < visibleBottomRight.x && position.y + NODE.height > visibleTopLeft.y &&
+        position.x < visibleBottomRight.x && position.y + height > visibleTopLeft.y &&
         position.y < visibleBottomRight.y;
       const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
       const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
       const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
-        y: clamp(placement.y, 8, WORLD.height - NODE.height - 8) });
+        y: clamp(placement.y, 8, WORLD.height - height - 8) });
       if (!result.ok) { status(result.reason); return; }
       machines = graph.machines; renderNodes(); persist();
     }
@@ -358,7 +409,8 @@
       addPalette();
       editor.hidden = false; document.body.classList.add('factory-editor-open');
       renderNodes();
-      viewportController.fit(machines, NODE);
+      const fitHeight = Math.max(NODE.height, ...machines.map(machine => heightOf(machine.type)));
+      viewportController.fit(machines, { width: NODE.width, height: fitHeight });
       status('PLAN ENREGISTRÉ');
       $('factory-editor-close').focus();
     }
@@ -386,6 +438,24 @@
     viewport.addEventListener('click', event => {
       const button = event.target.closest('[data-remove-machine]');
       if (button) removeMachine(button.dataset.removeMachine);
+    });
+    nodeLayer.addEventListener('change', event => {
+      const select = event.target.closest('select[data-dock-destination]');
+      if (!select || !activeBuilding || !select.dataset.resourceId) return;
+      const resourceId = select.dataset.resourceId, destinationId = select.value || null;
+      if (onDockDestinationChange) {
+        if (onDockDestinationChange(activeBuilding.id, resourceId, destinationId) === false) {
+          updateDockDestination(machineById(select.dataset.dockDestination));
+          status('DESTINATION INVALIDE');
+          return;
+        }
+      } else {
+        activeBuilding.dockDestinations ||= {};
+        if (destinationId) activeBuilding.dockDestinations[resourceId] = destinationId;
+        else delete activeBuilding.dockDestinations[resourceId];
+      }
+      persist();
+      status(destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
     });
 
     return Object.freeze({ open, close, refresh, refreshProgress: refresh,

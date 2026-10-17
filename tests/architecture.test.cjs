@@ -44,7 +44,7 @@ test('launch stocks, orbital hub inventory and an in-flight whole-unit lot survi
   state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'platform-1', type: 'launch_platform',
     planetId: 'home:p-0', x: 10, y: 20, constructionState: 'complete',
     inventory: { iron: 77 }, launchStock: { raw_iron: 3 }, launchReceivedTotal: { raw_iron: 8 },
-    exportEnabled: { raw_iron: true } })];
+    exportEnabled: { raw_iron: true }, dockDestinations: { raw_iron: 'factory-2' } })];
   state.orbitalLogistics = { version: 1,
     corridors: [{ id: 'platform-1->home:ark', fromEntityId: 'platform-1', toEntityId: 'home:ark' }],
     transit: [{ corridorId: 'platform-1->home:ark', resourceId: 'raw_iron', amount: 2,
@@ -61,6 +61,7 @@ test('launch stocks, orbital hub inventory and an in-flight whole-unit lot survi
   assert.equal(restored.orbitalLogistics.transit[0].arrivalTime, 120);
   assert.equal(restored.surfaceBuildings[0].launchStock.raw_iron, 3);
   assert.equal(restored.surfaceBuildings[0].exportEnabled.raw_iron, true);
+  assert.equal(restored.surfaceBuildings[0].dockDestinations.raw_iron, 'factory-2');
   assert.equal(restored.surfaceBuildings[0].inventory.iron, 77, 'the building inventory remains separate');
 });
 

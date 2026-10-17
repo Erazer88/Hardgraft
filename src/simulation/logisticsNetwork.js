@@ -27,26 +27,28 @@
     return false;
   }
 
-  function transferDockStockToPlatforms(state, seconds = 0) {
+  function transferDockStockToBuildings(state, seconds = 0) {
     const transferred = new Map();
-    for (const platform of state.surfaceBuildings || []) {
-      if (platform.type !== 'launch_platform' || platform.constructionState !== 'complete') continue;
-      const network = state.roadNetworks?.[platform.planetId];
-      platform.launchStock ||= {};
-      platform.launchReceivedTotal ||= {};
-      for (const source of state.surfaceBuildings || []) {
-        if (source.id === platform.id || source.planetId !== platform.planetId ||
-            source.constructionState !== 'complete' || !hasBuiltLandPath(network, source.id, platform.id)) continue;
-        const stock = source.dockStock;
-        if (!stock || typeof stock !== 'object') continue;
-        for (const [resourceId, rawAmount] of Object.entries(stock)) {
-          const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
-          if (!amount) continue;
-          delete stock[resourceId];
-          platform.launchStock[resourceId] = (platform.launchStock[resourceId] || 0) + amount;
-          platform.launchReceivedTotal[resourceId] = (platform.launchReceivedTotal[resourceId] || 0) + amount;
-          transferred.set(`${platform.id}:${resourceId}`, (transferred.get(`${platform.id}:${resourceId}`) || 0) + amount);
+    const buildings = state.surfaceBuildings || [];
+    const byId = new Map(buildings.map(building => [building.id, building]));
+    for (const source of buildings) {
+      if (source.constructionState !== 'complete' || !source.dockStock || typeof source.dockStock !== 'object') continue;
+      const network = state.roadNetworks?.[source.planetId];
+      for (const [resourceId, rawAmount] of Object.entries(source.dockStock)) {
+        const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
+        const destinationId = source.dockDestinations?.[resourceId];
+        const destination = byId.get(destinationId);
+        if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
+            destination.constructionState !== 'complete' || !hasBuiltLandPath(network, source.id, destination.id)) continue;
+        const stock = destination.type === 'launch_platform'
+          ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
+        stock[resourceId] = (stock[resourceId] || 0) + amount;
+        if (destination.type === 'launch_platform') {
+          destination.launchReceivedTotal ||= {};
+          destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
         }
+        delete source.dockStock[resourceId];
+        transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
       }
     }
     const rates = {};
@@ -54,5 +56,6 @@
     return { transferred, rates };
   }
 
-  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, transferDockStockToPlatforms });
+  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath,
+    transferDockStockToBuildings, transferDockStockToPlatforms: transferDockStockToBuildings });
 })(globalThis);

@@ -29,9 +29,10 @@ const system = {
 };
 const systems = { home: system };
 
-function fixture({ builtLength = 100, dockStock = { raw_iron: 8 }, inventory = { raw_iron: 90 } } = {}) {
+function fixture({ builtLength = 100, dockStock = { raw_iron: 8 }, inventory = { raw_iron: 90 },
+  dockDestinations = { raw_iron: 'platform-1' } } = {}) {
   const factory = Building.create({ id: 'factory-1', type: 'factory', planetId, x: 10, y: 10,
-    constructionState: 'complete', dockStock, inventory });
+    constructionState: 'complete', dockStock, inventory, dockDestinations });
   const platform = Building.create({ id: 'platform-1', type: 'launch_platform', planetId, x: 80, y: 10,
     constructionState: 'complete' });
   const network = Road.create(planetId);
@@ -61,18 +62,21 @@ function assertPrograde(trajectory) {
   }
 }
 
-test('orbital launch values and export resources remain declarative', () => {
+test('orbital launch values remain declarative and every transportable resource can be routed', () => {
   assert.deepEqual(plain(Data.launch), { capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
   assert.equal(Data.transit.cargoSpeedMultiplier, .7);
   assert.equal(Data.transfer.alignmentLaunchIntervalFactor, 1.5);
   assert.deepEqual([Data.transfer.alignmentMinimumRadians, Data.transfer.alignmentMaximumRadians], [.12, .7]);
-  assert.deepEqual(plain(Data.exportResources.map(item => item.id)), ['raw_iron', 'iron_tailings', 'iron_slag']);
+  const resources = plain(Data.exportResources.map(item => item.id));
+  assert.ok(resources.includes('raw_iron'));
+  assert.ok(resources.includes('water'));
+  assert.ok(resources.includes('gas'));
 });
 
 test('only completed, fully built land routes connect source docks to a launch platform', () => {
   const partial = fixture({ builtLength: 50 });
   assert.equal(Network.hasBuiltLandPath(partial.state.roadNetworks[planetId], 'factory-1', 'platform-1'), false);
-  Network.transferDockStockToPlatforms(partial.state);
+  Network.transferDockStockToBuildings(partial.state);
   assert.equal(partial.factory.dockStock.raw_iron, 8);
   assert.deepEqual(plain(partial.platform.launchStock), {});
 
@@ -82,7 +86,7 @@ test('only completed, fully built land routes connect source docks to a launch p
 
 test('ground transfer drains only dock-exposed integer stock and leaves other inventories untouched', () => {
   const { factory, platform, state } = fixture();
-  const result = Network.transferDockStockToPlatforms(state);
+  const result = Network.transferDockStockToBuildings(state);
   assert.equal(result.transferred.get('platform-1:raw_iron'), 8);
   assert.deepEqual(plain(factory.dockStock), {});
   assert.deepEqual(plain(platform.launchStock), { raw_iron: 8 });
@@ -90,19 +94,19 @@ test('ground transfer drains only dock-exposed integer stock and leaves other in
   assert.deepEqual(plain(state.inventory), { iron: 50 });
 });
 
-test('platform exports default OFF and launch whole-unit packets average four units per second', () => {
+test('platform launches every dock-routed resource in whole-unit packets averaging four units per second', () => {
   const { platform, state } = fixture();
   Logistics.advance(state, 0, systems);
-  assert.equal(platform.exportEnabled.raw_iron, false);
-  assert.equal(Logistics.setExportEnabled(platform, 'raw_iron', true), true);
-  platform.launchStock.raw_iron = 80;
+  platform.launchStock.raw_iron = 40;
+  platform.launchStock.water = 40;
   Logistics.advance(state, 9, systems);
-  assert.equal(platform.launchStock.raw_iron, 80, 'no packet departs before its ten-second accumulation interval');
+  assert.equal(platform.launchStock.raw_iron, 40, 'no packet departs before its ten-second accumulation interval');
   assert.equal(state.orbitalLogistics.transit.length, 0);
   Logistics.advance(state, 10, systems);
-  assert.equal(platform.launchStock.raw_iron, 40);
-  assert.equal(state.orbitalLogistics.transit.length, 1, 'one visual cargo represents the full packet');
-  assert.equal(state.orbitalLogistics.transit[0].amount, 40);
+  assert.deepEqual(plain(platform.launchStock), { raw_iron: 20, water: 20 });
+  assert.equal(state.orbitalLogistics.transit.length, 2, 'one cargo per resource represents the shared packet');
+  assert.deepEqual(plain(Object.fromEntries(state.orbitalLogistics.transit.map(lot => [lot.resourceId, lot.amount]))),
+    { raw_iron: 20, water: 20 });
   assert.ok(state.orbitalLogistics.transit.every(lot => Number.isInteger(lot.amount)));
   assert.equal(state.orbitalLogistics.transit[0].departureTime, 10);
   assert.equal(state.orbitalLogistics.transit[0].arrivalTime, 10 + Transit.travelTime(system, system.planets[0], 10));
@@ -110,32 +114,57 @@ test('platform exports default OFF and launch whole-unit packets average four un
   assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 40,
     'repeated frames at the same simulation time do not dispatch twice');
   Logistics.advance(state, 20, systems);
-  assert.equal(platform.launchStock.raw_iron, 0);
+  assert.deepEqual(plain(platform.launchStock), { raw_iron: 0, water: 0 });
   assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 80);
   assert.equal(Transit.currentPlatformMetrics(state, platform.id, 20).throughput, 4,
     'two 40-unit packets over twenty seconds represent four units per second');
-  assert.deepEqual(plain(Transit.currentHubMetrics(state, 'home', 20).rates), { raw_iron: 4 });
+  assert.deepEqual(plain(Transit.currentHubMetrics(state, 'home', 20).rates), { raw_iron: 2, water: 2 });
 });
 
-test('disabled export keeps resources at the platform; missing routes never export them', () => {
-  const disabled = fixture();
-  Logistics.advance(disabled.state, 2, systems);
-  assert.equal(disabled.platform.launchStock.raw_iron, 8);
-  assert.equal(Logistics.platformStatus(disabled.state, disabled.platform, system, 2), 'EXPORT DÉSACTIVÉ');
-  assert.equal(disabled.state.orbitalLogistics.transit.length, 0);
+test('an unassigned dock keeps its stock; a destination without a built route never receives it', () => {
+  const unassigned = fixture({ dockDestinations: {} });
+  Logistics.advance(unassigned.state, 2, systems);
+  assert.equal(unassigned.factory.dockStock.raw_iron, 8);
+  assert.equal(Logistics.platformStatus(unassigned.state, unassigned.platform, system, 2), 'AUCUN FLUX ASSIGNÉ');
+  assert.equal(unassigned.state.orbitalLogistics.transit.length, 0);
 
   const disconnected = fixture({ builtLength: 0 });
-  disconnected.platform.exportEnabled.raw_iron = true;
   Logistics.advance(disconnected.state, 2, systems);
   assert.equal(disconnected.factory.dockStock.raw_iron, 8);
   assert.deepEqual(plain(disconnected.platform.launchStock), {});
   assert.equal(disconnected.state.orbitalLogistics.transit.length, 0);
 });
 
+test('a dock can route a resource to another built factory inventory instead of the platform', () => {
+  const { factory, platform, state } = fixture({ dockStock: { water: 7 }, dockDestinations: { water: 'factory-2' } });
+  const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
+    constructionState: 'complete' });
+  state.surfaceBuildings.push(receiver);
+  const network = Road.create(planetId);
+  state.roadNetworks[planetId] = network;
+  const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
+  const receiverNode = Road.addNode(network, { x: receiver.x, y: receiver.y, buildingId: receiver.id });
+  Road.addSegment(network, { from: sourceNode.id, to: receiverNode.id,
+    points: [{ x: factory.x, y: factory.y }, { x: receiver.x, y: receiver.y }], builtLength: 110 });
+  const result = Network.transferDockStockToBuildings(state);
+  assert.equal(result.transferred.get('factory-2:water'), 7);
+  assert.deepEqual(plain(receiver.inventory), { water: 7 });
+  assert.deepEqual(plain(factory.dockStock), {});
+  assert.deepEqual(plain(platform.launchStock), {});
+});
+
+test('a dock destination can be changed per resource and cleared', () => {
+  const { factory } = fixture({ dockStock: {} });
+  assert.equal(Logistics.setDockDestination(factory, 'gas', 'platform-1'), true);
+  assert.equal(factory.dockDestinations.gas, 'platform-1');
+  assert.equal(Logistics.setDockDestination(factory, 'gas', null), true);
+  assert.equal(Object.hasOwn(factory.dockDestinations, 'gas'), false);
+  assert.equal(Logistics.setDockDestination(factory, 'unknown-resource', 'platform-1'), false);
+});
+
 test('each whole-unit transit lot arrives at its exact simulation time and is saved without render state', () => {
   const { platform, state } = fixture({ dockStock: {} });
   platform.launchStock.raw_iron = 4;
-  platform.exportEnabled.raw_iron = true;
   Logistics.advance(state, 10, systems);
   const lot = state.orbitalLogistics.transit[0], arrival = lot.arrivalTime;
   assert.equal(Number.isInteger(lot.amount), true);
@@ -156,20 +185,18 @@ test('each whole-unit transit lot arrives at its exact simulation time and is sa
 
 test('several materials share one corridor in integer packets', () => {
   const { platform, state } = fixture({ dockStock: {} });
-  platform.launchStock = { raw_iron: 8, iron_tailings: 8 };
-  platform.exportEnabled.raw_iron = true;
-  platform.exportEnabled.iron_tailings = true;
+  platform.launchStock = { raw_iron: 8, iron_tailings: 8, gas: 8 };
   Transit.advance(state, 10, systems);
   const lots = state.orbitalLogistics.transit;
   assert.equal(new Set(lots.map(lot => lot.corridorId)).size, 1);
   assert.deepEqual(plain(Object.fromEntries(lots.map(lot => [lot.resourceId, lot.amount]))),
-    { raw_iron: 8, iron_tailings: 8 });
+    { gas: 8, iron_tailings: 8, raw_iron: 8 });
   assert.ok(lots.every(lot => Number.isInteger(lot.amount) && lot.amount > 0));
 });
 
 test('new cargo follows a fixed prograde polar transfer to the predicted Ark position', () => {
   const { platform, state } = fixture({ dockStock: {} });
-  platform.launchStock.raw_iron = 1; platform.exportEnabled.raw_iron = true;
+  platform.launchStock.raw_iron = 1;
   Transit.advance(state, 10, systems);
   const lot = state.orbitalLogistics.transit[0];
   const curve = Transit.trajectoryFor(lot, system);

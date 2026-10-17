@@ -61,6 +61,11 @@
     const dockStock = integerStock(properties.dockStock);
     const launchStock = integerStock(properties.launchStock);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
+    const dockDestinations = properties.dockDestinations && typeof properties.dockDestinations === 'object' &&
+      !Array.isArray(properties.dockDestinations)
+      ? Object.fromEntries(Object.entries(properties.dockDestinations)
+        .filter(([resourceId, buildingId]) => resourceId.trim() && typeof buildingId === 'string' && buildingId.trim()))
+      : {};
     const exportEnabled = {};
     const exportResources = root.OrbitOrbitalLogisticsData?.exportResources || [];
     for (const resource of exportResources) exportEnabled[resource.id] = properties.exportEnabled?.[resource.id] === true;
@@ -97,6 +102,7 @@
       logisticsNodeId,
       inventory: { ...inventory },
       dockStock,
+      dockDestinations,
       launchStock,
       launchReceivedTotal,
       exportEnabled,

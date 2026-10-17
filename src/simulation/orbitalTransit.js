@@ -260,8 +260,9 @@
   }
 
   function enabledResources(platform) {
-    return Data.exportResources.filter(resource => platform.exportEnabled?.[resource.id] === true)
-      .map(resource => resource.id);
+    return Object.entries(platform.launchStock || {})
+      .filter(([, amount]) => Number.isInteger(amount) && amount > 0)
+      .map(([resourceId]) => resourceId).sort();
   }
 
   function launchBatch(state, platform, system, departureTime) {

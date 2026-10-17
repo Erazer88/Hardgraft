@@ -38,13 +38,15 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   `npm run test:factory-editor` valide les gestes dans un vrai navigateur desktop et
   en émulation tactile.
 - La Plateforme de lancement (`launch_platform`) reçoit instantanément les stocks de
-  Dock des bâtiments reliés par un chemin terrestre entièrement construit. Les routes
-  n'ont ni capacité ni temps de trajet. Référence : [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
+  Dock dont la destination est choisie au quai et reliée par un chemin terrestre
+  entièrement construit. Toute matière transportable peut être envoyée vers un autre
+  bâtiment ; une plateforme lance automatiquement ce qu'elle reçoit. Les routes n'ont
+  ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
+  et [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
 - L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
-  Son stock entier infini est sauvegardé. Les plateformes gardent les ressources en
-  attente jusqu’à l’autorisation d’export, désactivée par défaut. Le lancement traite
-  en moyenne 4 u/s par paquets entiers de 10 secondes ; la capacité énergétique de test
-  est de 5 MW, déclarée dans `src/data/orbitalLogistics.js`.
+  Son stock entier infini est sauvegardé. Le lancement traite en moyenne 4 u/s par
+  paquets entiers de 10 secondes ; la capacité énergétique de test est de 5 MW,
+  déclarée dans `src/data/orbitalLogistics.js`.
 - Le transit spatial est sauvegardé en lots entiers avec des heures absolues de départ
   et d’arrivée en temps simulé. Les cargos sont un rendu séparé et ne portent aucune
   matière. Les nouveaux cargos utilisent un transfert orbital prograde déterministe ;

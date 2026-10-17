@@ -64,12 +64,16 @@ consommation électrique ; son buffer partagé applique une limite de capacité 
 unités et transmet le blocage en amont lorsqu'il est plein.
 
 Le Dock de sortie accepte toute matière, mais une seule connexion par carte afin de
-garder sa matière exportée explicite. Il transfère les unités entières vers
-`building.dockStock`, sans détruire ni consommer la ressource. Plusieurs cartes Dock
-permettent d'exposer plusieurs matières séparément. Ce stock est sauvegardé avec le
-bâtiment et affiché dans sa fiche. Il ne peut être déplacé vers une Plateforme de
-lancement que si un chemin terrestre entièrement construit les relie ; les inventaires
-de construction et les autres propriétés `building.inventory` ne sont pas consultés.
+garder sa matière explicite. Il transfère les unités entières vers `building.dockStock`,
+sans détruire ni consommer la ressource. Plusieurs cartes Dock permettent d'exposer
+plusieurs matières séparément. Ce stock est sauvegardé avec le bâtiment et affiché dans
+sa fiche. Chaque matière choisit sa destination dans l'éditeur, parmi les bâtiments
+terminés de la planète. Le chemin terrestre doit être entièrement construit avant le
+transfert. Une usine ou un dépôt reçoit les unités dans `building.inventory` ; une
+Plateforme de lancement les reçoit dans `launchStock` et les expédie automatiquement
+vers l'Arche. Les transferts ne consultent ni ne modifient l'inventaire de construction.
+L'inventaire reçu n'est pas encore une entrée du graphe industriel : le moteur de
+processus reste autonome et ne consomme que les connexions et buffers de son graphe.
 
 ## Cycle, débit et énergie
 

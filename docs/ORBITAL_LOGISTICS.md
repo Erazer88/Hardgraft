@@ -6,24 +6,27 @@ transport terrestre physique, ni flux Hub → planète.
 ## Flux
 
 ```text
-Dock de sortie → dockStock → route terrestre terminée → Plateforme de lancement
-                → export ON → lot spatial entier → arrivée → stock de l’Arche
+Dock de sortie → dockStock → destination choisie au quai
+                → route terrestre terminée → inventaire du bâtiment destinataire
+                → Plateforme de lancement → lot spatial entier → arrivée → stock de l’Arche
 ```
 
 `building.dockStock` est distinct de `building.inventory` et de l’inventaire de
-construction global. La plateforme ne prélève que `dockStock` des bâtiments terminés
-de sa planète qui sont reliés par un chemin terrestre entièrement construit. Les
-segments en construction et les routes maritimes ne comptent pas. Le transfert terrestre
-est instantané et agrégé, sans débit de route ni véhicules économiques.
+construction global. Dans l’éditeur de processus, chaque Dock de sortie choisit une
+destination pour sa ressource parmi les bâtiments terminés de la planète. Un chemin
+terrestre entièrement construit est requis ; les segments en construction et les routes
+maritimes ne comptent pas. Le transfert reste instantané et agrégé, sans débit de route
+ni véhicules économiques. Une usine ou un dépôt reçoit la matière dans son inventaire ;
+une Plateforme de lancement la reçoit dans `launchStock`.
 
-Les exports sont OFF par défaut. La V1 expose Fer brut (`raw_iron`), Résidus
-(`iron_tailings`) et Laitier (`iron_slag`). Les matières reçues restent dans
-`launchStock` tant que leur export n’est pas activé. Les valeurs de départ — débit
-moyen de 4 u/s, paquets toutes les 10 secondes (jusqu’à 40 unités par départ) et 5 MW —
-sont déclarées dans `src/data/orbitalLogistics.js`. Les quantités restent entières ;
-l’agrégation réduit le nombre de cargos représentés sans changer le débit moyen
-nominal. Plusieurs plateformes peuvent être construites sur la même planète ; aucune
-n’est requise avant les autres bâtiments.
+La destination est configurée au Dock, et non sur la plateforme. Toute ressource
+transportable peut être routée ; une plateforme lance automatiquement chaque matière
+qui lui est livrée. Les valeurs de départ — débit moyen de 4 u/s, paquets toutes les
+10 secondes (jusqu’à 40 unités par départ) et 5 MW — restent déclarées dans
+`src/data/orbitalLogistics.js`. Les quantités restent entières ; l’agrégation réduit le
+nombre de cargos représentés sans changer le débit moyen nominal. Plusieurs plateformes
+peuvent être construites sur la même planète ; aucune n’est requise avant les autres
+bâtiments.
 
 ## Simulation et rendu
 
@@ -60,12 +63,13 @@ matière et ne pilote pas la simulation.
 
 | Fichier | Responsabilité |
 | --- | --- |
-| `src/data/orbitalLogistics.js` | Capacité, énergie, ressources exportables et durées de transit |
-| `src/simulation/logisticsNetwork.js` | Chemin terrestre terminé et transfert Dock → plateforme |
+| `src/data/orbitalLogistics.js` | Capacité, énergie et durées de transit |
+| `src/simulation/logisticsNetwork.js` | Chemin terrestre terminé et transfert Dock → bâtiment destinataire |
 | `src/simulation/orbitalTransit.js` | Corridors, lots, arrivées, mesures et géométrie orbitale pure |
-| `src/gameplay/logistics.js` | Orchestration du transfert, de l’export et des états de plateforme |
+| `src/gameplay/logistics.js` | Orchestration des destinations de quai, du lancement et des états de plateforme |
 | `src/rendering/orbitalTrafficRenderer.js` | Dessin de l’Arche et des cargos sans effet économique |
-| `src/ui/hud.js` | Cartes de réception, lancement, exports et stock orbital |
+| `src/ui/factoryEditor.js` | Choix au Dock de sortie du bâtiment destinataire par ressource |
+| `src/ui/hud.js` | Cartes de réception, lancement et stock orbital |
 | `src/storage/save.js` | Sauvegarde des stocks, corridors minimaux et lots en transit |
 
 Vérifications ciblées :

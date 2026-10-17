@@ -632,6 +632,28 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await cdp.screenshot(`${name}-surface.png`);
 
   const fixture = await cdp.evaluate('window.OrbitalDebug.createOrbitalLogisticsFixture()');
+  const sourcePoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(fixture.sourceId)})`);
+  await cdp.tapAt({ x: sourcePoint.x, y: sourcePoint.y }, mobile);
+  assert.equal((await cdp.evaluate(stateExpression)).selectedId, fixture.sourceId, `${name} source factory can be selected`);
+  await cdp.click('#factory-edit-button');
+  await cdp.until('!document.querySelector("#factory-editor").hidden', `${name} source Dock editor opens`);
+  const dockOption = await cdp.evaluate(`(() => {
+    const select = document.querySelector('#factory-nodes [data-dock-destination]');
+    return { exists: Boolean(select), disabled: select?.disabled,
+      options: [...(select?.options || [])].map(option => option.value) };
+  })()`);
+  assert.equal(dockOption.exists, true, `${name} output Dock exposes a destination selector`);
+  assert.ok(dockOption.options.includes(fixture.platformId), `${name} Dock lists the built launch platform on its planet`);
+  await cdp.evaluate(`(() => {
+    const select = document.querySelector('#factory-nodes [data-dock-destination]');
+    select.value = ${JSON.stringify(fixture.platformId)};
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.sourceId)}).dockDestinations.raw_iron === ${JSON.stringify(fixture.platformId)}`,
+    `${name} Dock saves the chosen destination`);
+  await cdp.click('#factory-editor-close');
+  await cdp.until('document.querySelector("#factory-editor").hidden', `${name} source Dock editor closes`);
+
   const platformPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(fixture.platformId)})`);
   assert.ok(platformPoint && platformPoint.x > 12 && platformPoint.x < width - 12 && platformPoint.y > 100 && platformPoint.y < height - 100,
     `${name} launch platform can be selected on the actual planetary map`);
@@ -640,29 +662,17 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   assert.equal(await cdp.evaluate('document.querySelector("#platform-logistics").hidden'), false,
     `${name} launch platform opens its dedicated panel`);
   assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#platform-logistics .logistics-card > strong")].map(item => item.textContent)'),
-    ['RÉCEPTION', 'LANCEMENT', 'EXPORTS'], `${name} platform panel contains only its three V1 cards`);
-  assert.ok(await cdp.evaluate('document.querySelector("#platform-export-data button").getBoundingClientRect().height >= 40'),
-    `${name} export switches have a reliable touch target`);
-  const exportHitTest = await cdp.evaluate(`(() => {
-    const button = document.querySelector('#platform-export-data [data-resource-id="raw_iron"]');
-    const box = button.getBoundingClientRect(), hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-    return { target: button === hit || button.contains(hit), hitId: hit?.id || '', hitClass: hit?.className || '',
-      bounds: { x: box.x, y: box.y, width: box.width, height: box.height } };
-  })()`);
-  assert.equal(exportHitTest.target, true, `${name} export switch receives input at its center: ${JSON.stringify(exportHitTest)}`);
-  assert.equal(await cdp.evaluate('document.querySelector("#platform-export-data [data-resource-id=raw_iron]").getAttribute("aria-pressed")'),
-    'false', `${name} orbital exports start OFF`);
+    ['RÉCEPTION', 'LANCEMENT'], `${name} platform shows reception and launch status only`);
+  assert.equal(await cdp.evaluate('Boolean(document.querySelector("#platform-export-data"))'), false,
+    `${name} export destination is no longer configured on the platform`);
 
   await cdp.evaluate('window.OrbitalDebug.setPause(false)');
-  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).launchStock.raw_iron === 8`,
+  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).launchReceivedTotal.raw_iron === 8`,
     `${name} connected Dock stock reaches the platform`);
   const sourceInventory = await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.sourceId)})`);
   assert.equal(sourceInventory.inventory.iron, 77, `${name} unrelated factory inventory remains untouched`);
   assert.deepEqual(sourceInventory.dockStock, {}, `${name} connected Dock stock is transferred locally`);
 
-  await cdp.click('#platform-export-data [data-resource-id="raw_iron"]');
-  assert.equal(await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).exportEnabled.raw_iron`),
-    true, `${name} actual export toggle enables raw iron`);
   await cdp.until('window.OrbitalDebug.getOrbitalLogistics().transit.some(lot => lot.resourceId === "raw_iron")',
     `${name} whole iron units enter spatial transit`, 15000);
   const cargo = await cdp.evaluate('window.OrbitalDebug.getOrbitalLogistics().transit.find(lot => lot.resourceId === "raw_iron")');
@@ -830,7 +840,9 @@ async function main() {
       };
     ` });
     await runViewport(cdp, { name: 'mobile', width: 390, height: 844, mobile: true }, runtimeErrors);
-    await runViewport(cdp, { name: 'desktop', width: 1440, height: 900, mobile: false }, runtimeErrors);
+    if (process.env.ORBITAL_MOBILE_ONLY !== '1') {
+      await runViewport(cdp, { name: 'desktop', width: 1440, height: 900, mobile: false }, runtimeErrors);
+    }
     assert.deepEqual(externalRequests, [], 'App makes no requests to external network resources');
     process.stdout.write(`Screenshots: ${ARTIFACTS}\n`);
   } catch (error) {

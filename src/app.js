@@ -21,14 +21,7 @@
   const renderer = globalThis.OrbitRenderer.create(canvas, {
     isCameraInteracting: () => pointers.size > 0 && pointerMoved
   });
-  const hud = globalThis.OrbitHUD.create(document, {
-    onExportToggle(platformId, resourceId) {
-      const platform = state.surfaceBuildings.find(building => building.id === platformId);
-      if (!platform) return;
-      Logistics.setExportEnabled(platform, resourceId, platform.exportEnabled?.[resourceId] !== true);
-      persist(); updateUI();
-    }
-  });
+  const hud = globalThis.OrbitHUD.create(document);
   globalThis.OrbitDeveloperTools.create(document);
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -43,6 +36,16 @@
     onSave(buildingId, plan) {
       state.factoryPlans[buildingId] = plan;
       persist();
+    },
+    getDestinations(building) {
+      return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
+        candidate.planetId === building.planetId && candidate.constructionState === 'complete' &&
+        BuildingData.get(candidate.type)?.roadRequired);
+    },
+    onDockDestinationChange(buildingId, resourceId, destinationId) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      if (!building || !Logistics.setDockDestination(building, resourceId, destinationId)) return false;
+      return true;
     }
   });
   let galaxy, home, terrainTexture, terrainData;
@@ -1038,19 +1041,27 @@
     if (state.level !== 'surface' || !state.planet) throw new Error('Open a planetary surface before creating the logistics fixture');
     const frame = surfaceFrame(), center = unproject(W / 2, H / 2);
     const width = terrainData.width * Config.terrain.textureScale, height = terrainData.height * Config.terrain.textureScale;
-    const centerX = clamp((center.x - frame.x) / frame.scale, 70, width - 170);
+    const centerX = clamp((center.x - frame.x) / frame.scale, 220, width - 240);
     const centerY = clamp((center.y - frame.y) / frame.scale, 50, height - 50);
     const planetId = state.planet.id, suffix = `${planetId}-${Math.floor(state.simulation.time)}`;
     const source = BuildingModel.create({ id: `fixture-factory-${suffix}`, type: 'factory', planetId,
-      x: centerX - 50, y: centerY, constructionState: 'complete', inventory: { iron: 77 }, dockStock: { raw_iron: 8 } });
+      x: centerX - 200, y: centerY, constructionState: 'complete', inventory: { iron: 77 }, dockStock: { raw_iron: 8 } });
     source.dockFlowByResource = { raw_iron: 4 };
     const platform = BuildingModel.create({ id: `fixture-platform-${suffix}`, type: 'launch_platform', planetId,
-      x: centerX + 50, y: centerY, constructionState: 'complete' });
+      x: centerX + 200, y: centerY, constructionState: 'complete' });
+    state.factoryPlans ||= {};
+    state.factoryPlans[source.id] = globalThis.OrbitProcessGraph.create({
+      version: globalThis.OrbitProcessData.config.version, geology: { resourceId: 'iron' },
+      machines: [{ id: 'fixture-furnace', type: 'reduction_furnace', x: 520, y: 700 },
+        { id: 'fixture-output-dock', type: 'output_dock', x: 890, y: 700 }],
+      connections: [{ id: 'fixture-link', fromMachineId: 'fixture-furnace', fromOutputId: 'raw_iron',
+        toMachineId: 'fixture-output-dock', toInputId: 'material' }]
+    });
     const network = RoadNetwork.create(planetId);
     const from = RoadNetwork.addNode(network, { x: source.x, y: source.y, buildingId: source.id });
     const to = RoadNetwork.addNode(network, { x: platform.x, y: platform.y, buildingId: platform.id });
     RoadNetwork.addSegment(network, { from: from.id, to: to.id,
-      points: [{ x: source.x, y: source.y }, { x: platform.x, y: platform.y }], builtLength: 100 });
+      points: [{ x: source.x, y: source.y }, { x: platform.x, y: platform.y }], builtLength: 400 });
     state.surfaceBuildings.push(source, platform);
     state.roadNetworks[planetId] = network;
     updateUI(); persist();
@@ -1137,7 +1148,8 @@
       const building = state.surfaceBuildings.find(item => item.id === id);
       return building ? { id: building.id, type: building.type, dockStock: { ...building.dockStock },
         launchStock: { ...building.launchStock }, inventory: { ...building.inventory },
-        exportEnabled: { ...building.exportEnabled } } : null;
+        launchReceivedTotal: { ...building.launchReceivedTotal },
+        dockDestinations: { ...building.dockDestinations }, exportEnabled: { ...building.exportEnabled } } : null;
     },
     createOrbitalLogisticsFixture,
     advanceOrbitalSimulationTo,

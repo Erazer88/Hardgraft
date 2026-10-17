@@ -82,7 +82,7 @@
       }
       if (gesture.mode === 'pinch') { event.preventDefault(); return; }
       const target = event.target;
-      if (target.closest?.('[data-remove-machine]')) return;
+      if (target.closest?.('[data-remove-machine], select, input, textarea')) return;
 
       const output = outputTarget(target);
       if (output) {
