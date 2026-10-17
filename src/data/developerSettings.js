@@ -24,6 +24,17 @@
       defaultValue: true
     }),
     Object.freeze({
+      id: 'simulationSpeed', type: 'select', group: 'Simulation',
+      label: 'Vitesse du temps', help: 'Accélère les cycles industriels, la construction et les mouvements orbitaux.',
+      defaultValue: 1,
+      options: Object.freeze([
+        Object.freeze({ value: 1, label: 'x1' }),
+        Object.freeze({ value: 2, label: 'x2' }),
+        Object.freeze({ value: 5, label: 'x5' }),
+        Object.freeze({ value: 10, label: 'x10' })
+      ])
+    }),
+    Object.freeze({
       id: 'depositMarkerSizePercent', type: 'range', group: 'Gisements',
       label: 'Taille réelle', help: 'Emprise sur la carte. À l’écran, les gisements suivent le zoom comme le terrain.',
       defaultValue: 100, min: 25, max: 200, step: 5, unit: '%'

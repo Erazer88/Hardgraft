@@ -45,6 +45,21 @@ test('contour color and opacity controls are described for every zoom level', ()
   assert.match(opacity.help, /toutes les échelles/);
 });
 
+test('simulation speed offers deterministic x1, x2, x5 and x10 values and resets to normal', () => {
+  const { settings } = loadSettings();
+  const speed = settings.definitions.find(definition => definition.id === 'simulationSpeed');
+  assert.equal(speed.type, 'select');
+  assert.equal(speed.group, 'Simulation');
+  assert.deepEqual(Array.from(speed.options, option => [option.value, option.label]), [
+    [1, 'x1'], [2, 'x2'], [5, 'x5'], [10, 'x10']
+  ]);
+  assert.equal(settings.get('simulationSpeed'), 1);
+  assert.equal(settings.set('simulationSpeed', '5'), 5);
+  assert.equal(settings.get('simulationSpeed'), 5);
+  settings.reset();
+  assert.equal(settings.get('simulationSpeed'), 1);
+});
+
 test('deposit size and colors validate, persist, notify controls, and reset to defaults', () => {
   const { settings, readStored } = loadSettings();
   const changes = [];
@@ -74,9 +89,9 @@ test('deposit size and colors validate, persist, notify controls, and reset to d
   assert.equal(readStored().infiniteMinerals, false);
   assert.equal(readStored().showSurfaceRoads, true);
   assert.equal(readStored().showSurfaceHouses, true);
-  assert.deepEqual(changes.slice(-11).map(([id]) => id).sort(), [
+  assert.deepEqual(changes.slice(-12).map(([id]) => id).sort(), [
     'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePercent', 'depositOilColor',
     'depositSiliconColor', 'infiniteMinerals', 'overviewContourColor', 'overviewContourOpacity',
-    'showSurfaceHouses', 'showSurfaceRoads'
+    'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
   ].sort());
 });

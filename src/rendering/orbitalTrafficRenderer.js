@@ -47,13 +47,13 @@
       }
       if (!paths.has(lot.corridorId)) {
         paths.add(lot.corridorId);
-        line(ctx, route.samples.map(point => project(point.x, point.y, camera)), '#8cb6ba28', .8, [3, 5]);
+        line(ctx, route.samples.map(point => project(point.x, point.y, camera)), '#efbd7f38', .8, [3, 5]);
       }
       const current = Transit.cargoPosition(lot, system, time, route.curve);
       if (!current) continue;
       const point = project(current.x, current.y, camera), color = cargoColor(lot.resourceId);
-      circle(ctx, point.x, point.y, 5.5, color + '52', 2);
-      line(ctx, [{ x: point.x - 3.5, y: point.y }, { x: point.x + 3.5, y: point.y }], color, 1.4);
+      circle(ctx, point.x, point.y, 2.75, color + '52', 1);
+      line(ctx, [{ x: point.x - 1.75, y: point.y }, { x: point.x + 1.75, y: point.y }], color, .7);
     }
   }
 

@@ -1068,12 +1068,13 @@
 
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
-    Simulation.advance(state.simulation, dt, !state.paused && !document.hidden);
+    const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
+    Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
     if (!state.paused && !document.hidden) {
-      Construction.advance(state.surfaceBuildings, dt, building => refreshSettlements(building.planetId));
-      RoadConstruction.advance(state.roadNetworks, dt, planetId => refreshSettlements(planetId));
-      SettlementSimulation.advance(state.surfaceSettlements, dt, refreshSettlements);
-      globalThis.OrbitIndustry.advance(state, dt);
+      Construction.advance(state.surfaceBuildings, simulationDt, building => refreshSettlements(building.planetId));
+      RoadConstruction.advance(state.roadNetworks, simulationDt, planetId => refreshSettlements(planetId));
+      SettlementSimulation.advance(state.surfaceSettlements, simulationDt, refreshSettlements);
+      globalThis.OrbitIndustry.advance(state, simulationDt);
     }
     Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
     if (state.tracking) {
