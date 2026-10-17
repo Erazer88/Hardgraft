@@ -3,7 +3,7 @@
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
-  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 212 });
+  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 222, inputDockHeight: 252 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
   const BLOCK_ART = Object.freeze({
@@ -39,10 +39,13 @@
     let pendingConnection = null, nextMachineId = 1, nextConnectionId = 1;
     const cards = new Map();
 
+    const processingResource = () => graph?.geology?.resourceId || activeBuilding?.resourceId ||
+      Data.contextForResource(machines.find(machine => machine.type === 'input_dock' && machine.importResourceId)?.importResourceId) || 'iron';
     const typeOf = value => Graph.definitionOf(typeof value === 'string'
-      ? { type: value, resourceId: graph?.geology?.resourceId || activeBuilding?.resourceId || 'iron' } : value);
+      ? { type: value, resourceId: processingResource() } : value);
     const heightOf = value => {
       const definition = typeOf(value);
+      if (definition.externalInput) return NODE.inputDockHeight;
       if (definition.externalOutput) return NODE.outputDockHeight;
       const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
       return NODE.height + (portRows - 1) * 24;
@@ -109,10 +112,13 @@
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
+      if (machine.type === 'input_dock') {
+        machine.importResourceId ||= Object.keys(activeBuilding?.inventory || {}).sort()
+          .find(id => activeBuilding.inventory[id] > 0) || null;
+      }
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const rate = machine.currentRate || 0;
-      const rateText = def.externalInput ? 'RÉCEPTION · STOCK DU BÂTIMENT'
-        : `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
+      const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
       if (rateElement.textContent !== rateText) rateElement.textContent = rateText;
       const rateFill = card.querySelector('.factory-rate-fill');
@@ -127,7 +133,7 @@
       const continuous = def.source || def.externalOutput;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
-      cycleLabel.textContent = def.externalInput ? 'DESTINATION DEPUIS LE RÉSEAU LOCAL'
+      cycleLabel.textContent = def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : def.source ? (def.requiresDeposit ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
@@ -152,6 +158,35 @@
         if (label) label.innerHTML = resourceLine(port, machine.outputBuffer[port.id]);
       }
       updateDockDestination(machine);
+      if (def.externalInput) updateInputDock(machine);
+    }
+
+    function updateInputDock(machine) {
+      const card = cards.get(machine.id), select = card?.querySelector('[data-dock-resource]');
+      if (!select) return;
+      const stock = activeBuilding.inventory || {};
+      const resources = Object.keys(stock).filter(id => stock[id] > 0);
+      if (machine.importResourceId && !resources.includes(machine.importResourceId)) resources.push(machine.importResourceId);
+      resources.sort();
+      const key = JSON.stringify([resources.map(id => [id, stock[id] || 0]), machine.importResourceId]);
+      if (select.dataset.stockKey !== key) {
+        select.dataset.stockKey = key;
+        select.replaceChildren();
+        if (!resources.length) {
+          const option = document.createElement('option'); option.value = ''; option.textContent = 'En attente de livraison'; select.append(option);
+        }
+        for (const id of resources) {
+          const option = document.createElement('option'); option.value = id;
+          option.textContent = `${root.OrbitResourceData.get(id)?.label || id} · ${stock[id] || 0} u`;
+          select.append(option);
+        }
+        select.value = machine.importResourceId || '';
+      }
+      select.disabled = !resources.length || machine.outputBuffer.material > 0 ||
+        connections.some(link => link.fromMachineId === machine.id);
+      select.title = select.disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
+      card.querySelector('[data-received-stock]').textContent = `STOCK REÇU · ${Object.entries(stock)
+        .filter(([, amount]) => amount > 0).map(([id, amount]) => `${root.OrbitResourceData.get(id)?.label || id} : ${amount} u`).join(' · ') || 'VIDE'}`;
     }
 
     function connectedDockResource(machine) {
@@ -225,14 +260,18 @@
         if (input) card.append(createPort(machine, 'input', input, index));
         if (output) card.append(createPort(machine, 'output', output, index));
       }
-      if (def.externalOutput) {
-        card.classList.add('factory-node-output-dock');
+      let dockControl = null;
+      if (def.externalOutput || def.externalInput) {
+        if (def.externalInput) card.classList.add('factory-node-input-dock');
+        else card.classList.add('factory-node-output-dock');
         const destination = document.createElement('label'); destination.className = 'factory-dock-route';
-        const label = document.createElement('span'); label.textContent = 'DESTINATION DU QUAI';
-        const select = document.createElement('select'); select.dataset.dockDestination = machine.id;
-        select.setAttribute('aria-label', 'Choisir le bâtiment destinataire pour cette ressource');
+        const label = document.createElement('span'); label.textContent = def.externalInput ? 'RESSOURCE À SORTIR' : 'DESTINATION DU QUAI';
+        const select = document.createElement('select');
+        if (def.externalInput) select.dataset.dockResource = machine.id;
+        else select.dataset.dockDestination = machine.id;
+        select.setAttribute('aria-label', def.externalInput ? 'Choisir la ressource reçue à envoyer aux machines' : 'Choisir le bâtiment destinataire pour cette ressource');
         destination.append(label, select);
-        card.append(destination);
+        dockControl = destination;
       }
       const rate = document.createElement('div'); rate.className = 'factory-readout-row';
       const rateLabel = document.createElement('span'); rateLabel.dataset.readout = 'rate';
@@ -247,6 +286,11 @@
       cycleRow.append(cycleLabel, cycleBar);
       const state = document.createElement('small'); state.className = 'factory-state'; state.dataset.readout = 'state';
       body.append(rows, rate, energy, cycleRow, state);
+      if (dockControl) body.append(dockControl);
+      if (def.externalInput) {
+        const stock = document.createElement('small'); stock.className = 'factory-received-stock'; stock.dataset.receivedStock = '';
+        body.append(stock);
+      }
       card.append(header, body);
       return card;
     }
@@ -383,9 +427,10 @@
     });
 
     function addPalette() {
+      palette.dataset.context = processingResource();
       palette.replaceChildren();
       for (const def of Data.catalog(activeBuilding?.type || 'factory',
-        graph?.geology?.resourceId || activeBuilding?.resourceId || null)) {
+        processingResource())) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
         const specification = blockSpecification(def);
@@ -403,7 +448,7 @@
     }
 
     function addMachine(type) {
-      const def = Data.get(type, graph?.geology?.resourceId || activeBuilding?.resourceId || 'iron');
+      const def = Data.get(type, processingResource());
       if (!def || !activeBuilding) return;
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,
@@ -439,7 +484,7 @@
         position.y < visibleBottomRight.y;
       const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
       const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
-      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
+      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type, resourceId: processingResource(),
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
       if (!result.ok) { status(result.reason); return false; }
@@ -495,10 +540,14 @@
     function refresh() {
       if (editor.hidden || !graph) return;
       for (const machine of machines) updateMachineReadout(machine);
+      if (palette.dataset.context !== processingResource()) addPalette();
       if (viewportController.mode() === 'idle' && !pendingConnection) renderConnections();
     }
 
-    paletteToggle.addEventListener('click', () => setPaletteOpen(paletteOverlay.hidden));
+    paletteToggle.addEventListener('click', () => {
+      if (palette.dataset.context !== processingResource()) addPalette();
+      setPaletteOpen(paletteOverlay.hidden);
+    });
     paletteClose.addEventListener('click', () => {
       setPaletteOpen(false);
       paletteToggle.focus({ preventScroll: true });
@@ -528,6 +577,16 @@
       if (button) removeMachine(button.dataset.removeMachine);
     });
     nodeLayer.addEventListener('change', event => {
+      const resourceSelect = event.target.closest('select[data-dock-resource]');
+      if (resourceSelect && activeBuilding) {
+        const machine = machineById(resourceSelect.dataset.dockResource);
+        if (!machine || machine.outputBuffer.material > 0 || connections.some(link => link.fromMachineId === machine.id)) return;
+        if (!(activeBuilding.inventory?.[resourceSelect.value] > 0)) return;
+        machine.importResourceId = resourceSelect.value;
+        machine.cycleProgress = 0;
+        updateMachineReadout(machine); addPalette(); persist();
+        return;
+      }
       const select = event.target.closest('select[data-dock-destination]');
       if (!select || !activeBuilding || !select.dataset.resourceId) return;
       const resourceId = select.dataset.resourceId, destinationId = select.value || null;

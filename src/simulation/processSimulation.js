@@ -43,12 +43,19 @@
     return definition(machine).recipe.inputs.every(item => machine.inputBuffer[item.inputId] >= item.amount);
   }
 
-  function estimateRates(graph, powerRatio = 1) {
+  function estimateRates(graph, powerRatio = 1, externalStock = {}) {
     const byId = new Map(graph.machines.map(machine => [machine.id, machine]));
     const outputRates = new Map();
     for (const machine of Graph.topologicalOrder(graph)) {
       const def = definition(machine), rates = {};
-      if (def.sink) {
+      if (def.externalInput) {
+        const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
+        const target = link && byId.get(link.toMachineId);
+        const available = integer(externalStock[machine.importResourceId]) + integer(machine.outputBuffer.material);
+        const ready = target && (definition(target).sink || outputsReady(target));
+        machine.currentRate = available && ready && machine.outputBuffer.material < Data.config.outputCapacity ? def.throughput : 0;
+        rates.material = machine.currentRate;
+      } else if (def.sink) {
         const incomingRate = graph.connections.reduce((sum, connection) => {
           if (connection.toMachineId !== machine.id) return sum;
           return sum + (outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0);
@@ -83,8 +90,8 @@
     return outputRates;
   }
 
-  function demand(graph) {
-    estimateRates(graph);
+  function demand(graph, externalStock = {}) {
+    estimateRates(graph, 1, externalStock);
     return graph.machines.reduce((sum, machine) => {
       const def = definition(machine);
       return machine.currentRate > 0 ? sum + def.energyMW : sum;
@@ -121,9 +128,25 @@
     }
   }
 
-  function runMachine(graph, machine, powerRatio) {
+  function runMachine(graph, machine, powerRatio, externalStock) {
     const def = definition(machine);
     machine.energyMW = 0;
+    if (def.externalInput) {
+      const resourceId = machine.importResourceId;
+      if (machine.outputBuffer.material >= Data.config.outputCapacity) { machine.state = 'output_full'; return; }
+      if (integer(externalStock[resourceId]) && !machine.currentRate &&
+          graph.connections.some(link => link.fromMachineId === machine.id)) { machine.state = 'output_full'; return; }
+      if (!integer(externalStock[resourceId]) || !machine.currentRate) { machine.state = 'waiting_input'; return; }
+      machine.state = 'active';
+      machine.cycleProgress += Data.config.fixedStepSeconds * def.throughput;
+      while (machine.cycleProgress + CYCLE_EPSILON >= 1 && integer(externalStock[resourceId]) > 0 &&
+          machine.outputBuffer.material < Data.config.outputCapacity) {
+        externalStock[resourceId] -= 1;
+        machine.outputBuffer.material += 1;
+        machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
+      }
+      return;
+    }
     if (def.sink) {
       if (def.storesResources) {
         machine.state = machine.currentRate > 0 ? 'active' : 'waiting_input';
@@ -187,22 +210,22 @@
     }
   }
 
-  function tick(graph) {
+  function tick(graph, externalStock) {
     graph.tick++;
-    estimateRates(graph);
-    graph.energyDemandMW = demand(graph);
+    estimateRates(graph, 1, externalStock);
+    graph.energyDemandMW = demand(graph, externalStock);
     const ratio = graph.energyUnlimited || graph.energyDemandMW <= 0 ? 1
       : Math.min(1, graph.energyAvailableMW / graph.energyDemandMW);
-    estimateRates(graph, ratio);
+    estimateRates(graph, ratio, externalStock);
     transfer(graph, ratio);
     graph.energyUsedMW = 0;
     for (const machine of Graph.topologicalOrder(graph)) {
-      estimateRates(graph, ratio);
-      runMachine(graph, machine, ratio);
+      estimateRates(graph, ratio, externalStock);
+      runMachine(graph, machine, ratio, externalStock);
       graph.energyUsedMW += machine.energyMW;
     }
-    graph.energyDemandMW = demand(graph);
-    estimateRates(graph, ratio);
+    graph.energyDemandMW = demand(graph, externalStock);
+    estimateRates(graph, ratio, externalStock);
   }
 
   function advance(graph, seconds, context = {}) {
@@ -212,7 +235,7 @@
     graph.accumulator += seconds;
     let count = 0;
     while (graph.accumulator + 1e-9 >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {
-      tick(graph);
+      tick(graph, context.externalStock || {});
       graph.accumulator = Math.max(0, graph.accumulator - Data.config.fixedStepSeconds);
       count++;
     }

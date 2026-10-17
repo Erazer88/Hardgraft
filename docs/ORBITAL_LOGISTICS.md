@@ -19,7 +19,9 @@ lancement reçoivent nativement. Les autres bâtiments ne sont pas des destinati
 Un chemin terrestre entièrement construit est requis ; les segments en construction et les routes
 maritimes ne comptent pas. Le transfert reste instantané et agrégé, sans débit de route
 ni véhicules économiques. Une usine reçoit la matière dans son inventaire ; une
-Plateforme de lancement la reçoit dans `launchStock`.
+Plateforme de lancement la reçoit dans `launchStock`. Le Quai d'entrée affiche
+l'inventaire reçu de l'usine et en retire des unités pour alimenter sa sortie interne
+raccordée à une machine ; il ne crée aucune matière.
 
 La destination est configurée au Dock, et non sur la plateforme. Toute ressource
 transportable peut être routée ; une plateforme lance automatiquement chaque matière

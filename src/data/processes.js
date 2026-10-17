@@ -65,8 +65,8 @@
 
   const utilities = {
     input_dock: {
-      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources livrées par le réseau routier.', sink: true, externalInput: true,
-      inputPorts: [], outputPorts: [], recipe: null, throughput: null, energyMW: 0
+      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources du réseau routier et alimente les machines.', externalInput: true,
+      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: 2, energyMW: 0
     },
     terril: {
       id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
@@ -199,16 +199,26 @@
     .map(([type, resourceId]) => [type, get(type, resourceId)])
     .filter(([, definition]) => definition)));
   const frozenUtilities = freeze(utilities);
+  function contextForResource(resourceId) {
+    if (Object.hasOwn(materials, resourceId)) return resourceId;
+    for (const [context, material] of Object.entries(materials)) {
+      if (Object.values(material).includes(resourceId)) return context;
+    }
+    if (['impure_silicon_wet', 'impure_silicon_dry', 'silicon_sludge'].includes(resourceId)) return 'silicon';
+    if (['coal', 'carbon', 'carbon_sludge'].includes(resourceId)) return 'carbon';
+    if (['raw_oil', 'oil', 'gas'].includes(resourceId)) return 'oil';
+    return null;
+  }
   const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
   freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates);
 
   root.OrbitProcessData = Object.freeze({
     config, definitions, utilities: frozenUtilities, statuses, materials,
-    get,
+    get, contextForResource,
     catalog(buildingType, resourceId) {
       if (!['factory', 'extractor', 'oil_platform'].includes(buildingType)) return [];
       const selected = resourceId || (buildingType === 'oil_platform' ? 'oil' : 'iron');
-      if ((buildingType === 'oil_platform') !== (selected === 'oil')) return [];
+      if (buildingType === 'oil_platform' && selected !== 'oil' || buildingType === 'extractor' && selected === 'oil') return [];
       const types = catalogByResource[selected] || [];
       return [...(buildingType === 'factory' ? [get('input_dock', selected)] : []),
         ...types.map(type => get(type, selected))].filter(Boolean);

@@ -187,7 +187,9 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6}
 .factory-nodes{position:absolute;inset:0;pointer-events:none}
 .factory-node{position:absolute;z-index:1;width:258px;height:162px;overflow:visible;border:1px solid #506d8560;border-radius:6px;background:linear-gradient(145deg,#18283d,#101d30 72%);box-shadow:0 8px 22px #0005;color:#c8d6e1;pointer-events:auto;touch-action:none;user-select:none}
-.factory-node-output-dock{height:212px}
+.factory-node-output-dock{height:222px}
+.factory-node-input-dock{height:252px}
+.factory-received-stock{display:block;max-height:28px;overflow:auto;color:#8fcabf;font-size:8px;line-height:12px;touch-action:pan-y;user-select:text}
 .factory-node.selected{border-color:#71c4dfb3;box-shadow:0 0 0 2px #44b9da26,0 8px 24px #0006}
 .factory-node-header{display:flex;align-items:center;gap:8px;height:34px;padding:5px 8px;border-bottom:1px solid #a5c3da14;cursor:grab;touch-action:none}
 .factory-node-header:active{cursor:grabbing}

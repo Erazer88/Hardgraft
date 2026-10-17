@@ -7,7 +7,9 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const context = vm.createContext({});
-for (const relative of ['data/resources.js', 'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
+for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
+  'simulation/processGraph.js', 'simulation/processSimulation.js', 'gameplay/industry.js',
+  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
@@ -181,6 +183,33 @@ test('a dock destination can be changed per resource and cleared', () => {
   assert.equal(Logistics.setDockDestination(factory, 'gas', null), true);
   assert.equal(Object.hasOwn(factory.dockDestinations, 'gas'), false);
   assert.equal(Logistics.setDockDestination(factory, 'unknown-resource', 'platform-1'), false);
+});
+
+test('road delivery feeds a receiving factory processor through its input dock', () => {
+  const { factory, state } = fixture({ dockStock: { copper_ore_raw: 8 },
+    dockDestinations: { copper_ore_raw: 'receiver' } });
+  const receiver = Building.create({ id: 'receiver', type: 'factory', planetId, x: 120, y: 10,
+    constructionState: 'complete' });
+  state.surfaceBuildings.push(receiver, { id: 'wind', type: 'wind_turbine', planetId, constructionState: 'complete' });
+  state.seed = 'received-copper'; state.factoryPlans = {};
+  const Graph = context.OrbitProcessGraph, Industry = context.OrbitIndustry;
+  const graph = Industry.ensureGraph(state, receiver);
+  Graph.addMachine(graph, { id: 'input', type: 'input_dock' });
+  Graph.addMachine(graph, { id: 'crusher', type: 'crusher', resourceId: 'copper' });
+  const network = state.roadNetworks[planetId];
+  const sourceNode = network.nodes.find(node => node.buildingId === factory.id);
+  const receiverNode = Road.addNode(network, { x: receiver.x, y: receiver.y, buildingId: receiver.id });
+  Road.addSegment(network, { from: sourceNode.id, to: receiverNode.id,
+    points: [{ x: factory.x, y: factory.y }, { x: receiver.x, y: receiver.y }], builtLength: 110 });
+  Network.transferDockStockToBuildings(state);
+  assert.equal(receiver.inventory.copper_ore_raw, 8);
+  Industry.ensureGraph(state, receiver);
+  assert.equal(Graph.connect(graph, { id: 'import', fromMachineId: 'input', fromOutputId: 'material',
+    toMachineId: 'crusher', toInputId: 'raw_ore' }).ok, true);
+  for (let i = 0; i < 7; i++) Industry.advance(state, 1);
+  assert.equal(receiver.inventory.copper_ore_raw, 0);
+  assert.equal(graph.machines[1].outputBuffer.crushed_ore, 8);
+  assert.equal(factory.dockStock.copper_ore_raw, undefined);
 });
 
 test('each whole-unit transit lot arrives at its exact simulation time and is saved without render state', () => {

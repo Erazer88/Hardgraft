@@ -46,6 +46,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   ce qu'elle reçoit. Les autres bâtiments ne sont pas des destinations en V1. Les routes
   n'ont ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
   et [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
+- Le Quai d'entrée affiche le stock reçu et alimente les machines par sa sortie droite,
+  à 2 unités entières/s. Chaque quai sélectionne une matière dans `building.inventory` ;
+  les quais partagent ce stock. Les nouvelles machines suivent la filière reçue, sans
+  modifier les machines déjà placées. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
   Son stock entier infini est sauvegardé. Le lancement traite en moyenne 4 u/s par
   paquets entiers de 10 secondes ; la capacité énergétique de test est de 5 MW,

@@ -31,6 +31,14 @@
     }
     const graph = state.factoryPlans[building.id];
     graph.geology ||= deposit;
+    for (const machine of graph.machines) {
+      if (!Graph.definitionOf(machine).externalInput) continue;
+      machine.outputBuffer.material ||= 0;
+      if (!machine.importResourceId) {
+        machine.importResourceId = Object.keys(building.inventory || {}).sort()
+          .find(resourceId => Number.isInteger(building.inventory[resourceId]) && building.inventory[resourceId] > 0) || null;
+      }
+    }
     return graph;
   }
 
@@ -53,7 +61,7 @@
       power.set(building.planetId, entry);
       const savedGraph = state.factoryPlans[building.id];
       if (!savedGraph) continue;
-      const graph = ensureGraph(state, building), demand = Simulation.demand(graph);
+      const graph = ensureGraph(state, building), demand = Simulation.demand(graph, building.inventory);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
 
@@ -61,9 +69,10 @@
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
       const graph = ensureGraph(state, building);
       const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
-      const demand = Simulation.demand(graph), planetDemand = demands.get(building.planetId) || 0;
+      const demand = Simulation.demand(graph, building.inventory), planetDemand = demands.get(building.planetId) || 0;
       Simulation.advance(graph, seconds, {
         energyUnlimited: available.unlimited,
+        externalStock: building.inventory ||= {},
         energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
       });
       building.energyUse = graph.energyUsedMW * 1e6;

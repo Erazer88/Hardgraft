@@ -355,7 +355,42 @@ async function main() {
     assert.match(removal.status, /1 UNITÉ RETIRÉE/,
       `buffered resources are reported when their card is removed: ${removal.status}`);
 
-    process.stdout.write('PASS V1 factory editor in Chromium: illustrated add-block menu, centered trigger and placement, occupied-card deletion, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
+    await cdp.evaluate(`(() => {
+      const graph = OrbitProcessGraph.create({ version: OrbitProcessData.config.version,
+        machines: [{ id: 'received-dock', type: 'input_dock', x: 520, y: 700 },
+          { id: 'received-crusher', type: 'crusher', x: 890, y: 700 }] });
+      const building = { id: 'receiving-factory', type: 'factory', inventory: { iron_ore_raw: 8 } };
+      window.__receivingFactory = { graph, building };
+      window.__factoryEditorTest.open(building, graph);
+    })()`);
+    const receivedUI = await cdp.evaluate(`(() => {
+      const card = document.querySelector('[data-machine-id="received-dock"]');
+      const port = card.querySelector('.factory-port.output[data-output-id="material"]').getBoundingClientRect();
+      const bounds = card.getBoundingClientRect();
+      return { stock: card.querySelector('[data-received-stock]').textContent,
+        label: card.querySelector('[data-output-label="material"]').textContent,
+        portError: Math.abs(port.left + port.width / 2 - bounds.right) };
+    })()`);
+    assert.match(receivedUI.stock, /8 u/);
+    assert.match(receivedUI.label, /Roche ferrifère brute/);
+    assert.ok(receivedUI.portError < 2, 'the input dock has a usable output centered on its right edge');
+    source = await point('[data-machine-id="received-dock"] .factory-port.output');
+    target = await point('[data-machine-id="received-crusher"] .factory-port.input');
+    await touch('touchStart', [{ ...source, id: 11 }]);
+    await touch('touchMove', [{ ...target, id: 11 }]);
+    await touch('touchEnd', []);
+    assert.equal(await cdp.evaluate('window.__receivingFactory.graph.connections.length'), 1,
+      'the receiving dock snaps to a processor using touch');
+    const imported = await cdp.evaluate(`(() => {
+      const { graph, building } = window.__receivingFactory;
+      OrbitProcessSimulation.advance(graph, 3, { energyUnlimited: true, externalStock: building.inventory });
+      window.__factoryEditorTest.refresh();
+      return { stock: building.inventory.iron_ore_raw, product: graph.machines[1].outputBuffer.crushed_ore };
+    })()`);
+    assert.ok(imported.stock < 8 && imported.product > 0,
+      `received stock actually feeds the connected processor: ${JSON.stringify(imported)}`);
+
+    process.stdout.write('PASS V1 factory editor in Chromium: illustrated add-block menu, receiving dock stock and touch connection, whole-unit imports, placement, deletion and viewport gestures\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

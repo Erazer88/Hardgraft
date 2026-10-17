@@ -436,6 +436,67 @@ test('a machine with buffered resources can be deleted immediately', () => {
   assert.equal(graph.machines.length, 0);
 });
 
+test('the input dock supplies only received stock in whole units and survives a graph reload', () => {
+  const factory = { id: 'receiver', type: 'factory', planetId: 'planet', constructionState: 'complete',
+    inventory: { iron_ore_raw: 7 } };
+  const wind = { id: 'wind', type: 'wind_turbine', planetId: 'planet', constructionState: 'complete' };
+  const state = { seed: 'import', factoryPlans: {}, surfaceBuildings: [factory, wind] };
+  const graph = Industry.ensureGraph(state, factory);
+  const dock = machine(graph, 'input', 'input_dock');
+  const crusher = machine(graph, 'crusher', 'crusher');
+  Industry.ensureGraph(state, factory);
+  assert.equal(Graph.definitionOf(dock).outputPorts[0].resourceId, 'iron_ore_raw');
+  connect(graph, 'import-crusher', 'input', 'material', 'crusher', 'raw_ore');
+  Industry.advance(state, .4);
+  assert.equal(factory.inventory.iron_ore_raw, 7, 'no fractional material is withdrawn');
+  Industry.advance(state, .1);
+  assert.equal(factory.inventory.iron_ore_raw, 6);
+  const restored = Graph.create(Graph.snapshot(graph));
+  assert.equal(restored.machines[0].importResourceId, 'iron_ore_raw');
+  assert.equal(restored.connections.length, 1);
+  state.factoryPlans.receiver = restored;
+  for (let i = 0; i < 10; i++) Industry.advance(state, 1);
+  const product = restored.machines.find(item => item.id === crusher.id);
+  assert.equal(factory.inventory.iron_ore_raw, 0);
+  assert.equal(product.outputBuffer.crushed_ore, 7);
+  assert.equal(restored.machines[0].outputBuffer.material, 0);
+  assert.equal(product.inputBuffer.raw_ore, 0);
+  assert.equal(graph.geology, null, 'an import never creates a geological source for factory drills');
+});
+
+test('an input dock waits for delivery and preserves stock while its processor is blocked', () => {
+  const factory = { id: 'receiver', type: 'factory', planetId: 'planet', constructionState: 'complete', inventory: {} };
+  const state = { seed: 'import', factoryPlans: {}, surfaceBuildings: [factory] };
+  const graph = Industry.ensureGraph(state, factory);
+  const dock = machine(graph, 'input', 'input_dock');
+  const crusher = machine(graph, 'crusher', 'crusher');
+  assert.equal(Graph.connect(graph, { id: 'empty', fromMachineId: 'input', fromOutputId: 'material',
+    toMachineId: 'crusher', toInputId: 'raw_ore' }).ok, false);
+  Industry.advance(state, 1);
+  assert.equal(dock.state, 'waiting_input');
+  factory.inventory.iron_ore_raw = 8;
+  Industry.ensureGraph(state, factory);
+  connect(graph, 'delivered', 'input', 'material', 'crusher', 'raw_ore');
+  crusher.outputBuffer.crushed_ore = Data.config.outputCapacity;
+  Industry.advance(state, 2);
+  assert.equal(factory.inventory.iron_ore_raw, 8);
+  assert.equal(dock.outputBuffer.material, 0);
+});
+
+test('multiple input docks share one inventory without duplicating received units', () => {
+  const graph = Graph.create();
+  const stock = { raw_copper: 5 };
+  for (const id of ['a', 'b']) {
+    Graph.addMachine(graph, { id, type: 'input_dock', importResourceId: 'raw_copper' });
+    machine(graph, `${id}-sink`, 'terril');
+    connect(graph, `${id}-link`, id, 'material', `${id}-sink`, 'material');
+  }
+  advance(graph, 5, { externalStock: stock });
+  assert.equal(stock.raw_copper, 0);
+  assert.equal(graph.machines.filter(item => item.type === 'terril')
+    .reduce((sum, item) => sum + (item.storedResources.raw_copper || 0), 0), 5);
+});
+
 test('demolishing a building reclaims resources already exported through its dock', () => {
   const graph = Graph.create();
   const crusher = machine(graph, 'crusher', 'crusher');

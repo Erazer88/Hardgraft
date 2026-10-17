@@ -6,7 +6,13 @@
   const integer = (value, fallback = 0) => Number.isFinite(value) && value >= 0
     ? Math.floor(value) : fallback;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const definitionOf = machine => Data.get(machine?.type, machine?.resourceId);
+  function definitionOf(machine) {
+    const definition = Data.get(machine?.type, machine?.resourceId);
+    if (!definition?.externalInput) return definition;
+    const resourceId = machine.importResourceId || null;
+    return { ...definition, outputPorts: [{ ...definition.outputPorts[0], resourceId,
+      label: root.OrbitResourceData.get(resourceId)?.label || 'Ressource reçue' }] };
+  }
 
   function createMachine(value = {}, geologyResourceId = null) {
     const resourceId = value.resourceId || geologyResourceId || 'iron';
@@ -19,6 +25,7 @@
       id: value.id,
       type: definition.id,
       resourceId,
+      ...(definition.externalInput ? { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null } : {}),
       x: Number.isFinite(value.x) ? value.x : 80,
       y: Number.isFinite(value.y) ? value.y : 80,
       inputBuffer,
@@ -87,6 +94,7 @@
     const output = definitionOf(from).outputPorts.find(port => port.id === value.fromOutputId);
     const input = definitionOf(to).inputPorts.find(port => port.id === value.toInputId);
     if (!output || !input) return { ok: false, reason: 'Port de sortie ou d’entrée invalide.' };
+    if (!output.resourceId) return { ok: false, reason: 'Choisissez une ressource reçue dans le quai d’entrée.' };
     if (!input.acceptsAnyResource && output.resourceId !== input.resourceId) {
       return { ok: false, reason: 'Ces ports ne transportent pas la même matière.' };
     }
@@ -148,6 +156,7 @@
       geology: clone(graph.geology),
       machines: graph.machines.map(machine => ({ id: machine.id, type: machine.type,
         resourceId: machine.resourceId,
+        ...(definitionOf(machine).externalInput ? { importResourceId: machine.importResourceId } : {}),
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
         storedResources: clone(machine.storedResources),

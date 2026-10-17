@@ -30,7 +30,7 @@ cartes distinctes pour permettre des retours de matière dans une évolution ult
 | Carte | Entrée | Sortie / comportement | Débit N1 | Énergie |
 | --- | --- | --- | ---: | ---: |
 | Foreuse | Gisement terrestre du bâtiment | Roche brute correspondante, sans plafond nominal | Sans plafond | 2,5 MW |
-| Quai d'entrée | Réseau terrestre | Rend l'usine éligible comme destination d'un Dock de sortie | Réception agrégée | 0 MW |
+| Quai d'entrée | Stock reçu du réseau terrestre | Une matière choisie vers les machines, 1:1 | 2 u/s | 0 MW |
 | Concasseur | Roche brute du gisement | Minerai concassé, 1:1 | 2 u/s | 2 MW |
 | Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
 | Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
@@ -71,9 +71,15 @@ Le Terril accepte plusieurs connexions sur son entrée partagée et stocke sans 
 chaque ressource reçue. Il n'a ni cycle ni débit et ses stocks sont enregistrés dans le
 graphe. Le Dock conserve une seule connexion entrante pour identifier la matière exportée.
 Le Quai d'entrée rend une usine disponible dans le menu de destination des Docks de
-sortie. Les matières livrées restent dans l'inventaire du bâtiment ; elles ne sont pas
-encore injectées dans les recettes du graphe. Les Plateformes de lancement reçoivent
-nativement et n'ont pas besoin de cette carte.
+sortie. Il affiche les matières livrées dans `building.inventory` et possède une sortie
+`material` raccordable aux machines. La première matière reçue est sélectionnée
+automatiquement ; le joueur peut choisir une autre matière du stock lorsque le quai
+est débranché et son buffer vide. Le quai retire une unité du stock par cycle de 0,5 s,
+uniquement s'il est relié et dispose de place en aval. Plusieurs quais partagent le même
+stock sans dupliquer les unités. La matière sélectionnée et le buffer sont sauvegardés.
+Le catalogue des nouvelles machines suit la filière du premier quai configuré, sans
+modifier les recettes des machines déjà posées ni créer de gisement dans l'usine.
+Les Plateformes de lancement reçoivent nativement et n'ont pas besoin de cette carte.
 
 Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
 cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
