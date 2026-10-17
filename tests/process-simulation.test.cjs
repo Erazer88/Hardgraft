@@ -47,19 +47,36 @@ function advance(graph, seconds, context = { energyUnlimited: true }) {
   return Simulation.advance(graph, seconds, context);
 }
 
-test('V1 exposes the iron-chain machines at crusher pace and integer recipes', () => {
-  assert.deepEqual(Object.keys(Data.definitions), [
-    'drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace'
+test('V1 exposes resource-specific lines with shared crusher, grinder and furnace cards', () => {
+  assert.deepEqual(plain(Data.catalog('extractor', 'iron').map(def => def.id)), [
+    'drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'terril', 'output_dock'
+  ]);
+  assert.deepEqual(plain(Data.catalog('extractor', 'copper').map(def => def.id)), [
+    'drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'terril', 'output_dock'
+  ]);
+  assert.deepEqual(plain(Data.catalog('extractor', 'silicon').map(def => def.id)), [
+    'drill', 'crusher', 'grinder', 'water_supply', 'silicon_washer', 'silicon_dryer',
+    'reduction_furnace', 'terril', 'output_dock'
+  ]);
+  assert.deepEqual(plain(Data.catalog('extractor', 'carbon').map(def => def.id)), [
+    'drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer', 'terril', 'output_dock'
+  ]);
+  assert.deepEqual(plain(Data.catalog('oil_platform', 'oil').map(def => def.id)), [
+    'oil_pump', 'triphasic_separator', 'terril', 'output_dock'
   ]);
   assert.equal(Data.get('drill').throughput, null, 'the drill has no nominal rate ceiling');
   assert.equal(Data.get('crusher').throughput, 2);
   assert.equal(Data.get('grinder').throughput, 2);
   assert.equal(Data.get('magnetic_separator').throughput, 2);
   assert.equal(Data.get('reduction_furnace').throughput, 2);
-  assert.equal(Data.get('trash').throughput, 2);
+  assert.equal(Data.get('terril').throughput, null);
+  assert.equal(Data.get('terril').storesResources, true);
+  assert.equal(Data.get('oil_pump', 'iron'), null);
+  assert.equal(Data.get('triphasic_separator', 'copper'), null);
   assert.equal(Data.get('output_dock').throughput, 2);
   assert.equal(Data.get('output_dock').externalOutput, true);
-  for (const def of Object.values(Data.definitions)) {
+  for (const resourceId of ['iron', 'copper', 'silicon', 'carbon', 'oil']) for (const def of Data.catalog(
+    resourceId === 'oil' ? 'oil_platform' : 'extractor', resourceId)) {
     for (const part of [...(def.recipe?.inputs || []), ...(def.recipe?.outputs || [])]) {
       assert.ok(Number.isInteger(part.amount) && part.amount > 0, `${def.id} quantities are positive integers`);
     }
@@ -76,7 +93,7 @@ test('connections store explicit machine and port ids, and reject invalid routes
   });
   assert.equal(Graph.connect(graph, { id: 'wrong-resource', fromMachineId: 'drill', fromOutputId: 'raw_ore',
     toMachineId: 'grinder', toInputId: 'crushed_ore' }).ok, false);
-  assert.equal(Graph.connect(graph, { id: 'loop', fromMachineId: 'furnace', fromOutputId: 'raw_iron',
+  assert.equal(Graph.connect(graph, { id: 'loop', fromMachineId: 'furnace', fromOutputId: 'product',
     toMachineId: 'crusher', toInputId: 'raw_ore' }).ok, false);
   assert.equal(Graph.connect(graph, { id: 'duplicate-port', fromMachineId: 'drill', fromOutputId: 'raw_ore',
     toMachineId: 'grinder', toInputId: 'crushed_ore' }).ok, false);
@@ -101,6 +118,92 @@ test('crusher level 1 processes exactly two whole units per second', () => {
   assert.equal(Number.isInteger(crusher.outputBuffer.crushed_ore), true);
 });
 
+test('the same crusher and grinder cards expose the matching deposit material', () => {
+  const variants = {
+    iron: ['iron_ore_raw', 'iron_ore_crushed', 'iron_ore_ground'],
+    copper: ['copper_ore_raw', 'copper_ore_crushed', 'copper_ore_ground'],
+    silicon: ['silicon_ore_raw', 'silicon_ore_crushed', 'silicon_ore_ground'],
+    carbon: ['carbon_ore_raw', 'carbon_ore_crushed', 'carbon_ore_ground']
+  };
+  const labels = new Set();
+  for (const [resourceId, [raw, crushed, ground]] of Object.entries(variants)) {
+    const graph = Graph.create({ geology: { resourceId } });
+    const drill = machine(graph, 'drill', 'drill');
+    const crusher = machine(graph, 'crusher', 'crusher', 300);
+    const grinder = machine(graph, 'grinder', 'grinder', 600);
+    const drillDef = Graph.definitionOf(drill), crusherDef = Graph.definitionOf(crusher);
+    const grinderDef = Graph.definitionOf(grinder);
+    assert.equal(drillDef.outputPorts[0].resourceId, raw);
+    assert.equal(crusherDef.inputPorts[0].resourceId, raw);
+    assert.equal(crusherDef.outputPorts[0].resourceId, crushed);
+    assert.equal(grinderDef.inputPorts[0].resourceId, crushed);
+    assert.equal(grinderDef.outputPorts[0].resourceId, ground);
+    labels.add(crusherDef.label); labels.add(grinderDef.label);
+    connect(graph, 'drill-crusher', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+    connect(graph, 'crusher-grinder', 'crusher', 'crushed_ore', 'grinder', 'crushed_ore');
+    advance(graph, 2);
+    assert.ok(crusher.outputBuffer.crushed_ore > 0, `${resourceId} crusher produces its own ore variant`);
+  }
+  assert.deepEqual([...labels].sort(), ['BROYEUR', 'CONCASSEUR']);
+});
+
+test('copper and carbon separators use the provisional iron yield ratio', () => {
+  for (const [resourceId, type, concentrateResource] of [
+    ['copper', 'gravity_separator', 'copper_concentrate'],
+    ['carbon', 'carbon_separator', 'coal']
+  ]) {
+    const graph = Graph.create({ geology: { resourceId } });
+    const separator = machine(graph, 'separator', type);
+    separator.inputBuffer.ground_ore = 5;
+    advance(graph, 2.5);
+    assert.equal(separator.outputBuffer.concentrate, 2);
+    assert.equal(separator.outputBuffer.residue, 3);
+    assert.equal(Graph.definitionOf(separator).outputPorts[0].resourceId, concentrateResource);
+  }
+});
+
+test('silicon washing consumes whole water units, dries 1:1, then uses the shared furnace', () => {
+  const graph = Graph.create({ geology: { resourceId: 'silicon' } });
+  const supply = machine(graph, 'water', 'water_supply');
+  const washer = machine(graph, 'washer', 'silicon_washer', 300);
+  const dryer = machine(graph, 'dryer', 'silicon_dryer', 600);
+  const furnace = machine(graph, 'furnace', 'reduction_furnace', 900);
+  washer.inputBuffer.ground_ore = 20;
+  connect(graph, 'water-washer', 'water', 'water', 'washer', 'water');
+  connect(graph, 'washer-dryer', 'washer', 'wet_silicon', 'dryer', 'wet_silicon');
+  connect(graph, 'dryer-furnace', 'dryer', 'dry_silicon', 'furnace', 'dry_silicon');
+  advance(graph, 10); advance(graph, 10); advance(graph, 5);
+  assert.equal(washer.inputBuffer.water, 0);
+  assert.equal(washer.outputBuffer.wet_silicon, 0);
+  assert.equal(washer.outputBuffer.sludge, 12);
+  assert.equal(dryer.outputBuffer.dry_silicon, 0);
+  assert.ok(furnace.outputBuffer.product > 0);
+  assert.ok(['active', 'output_full'].includes(supply.state));
+  assert.ok(graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
+    .every(Number.isInteger)));
+});
+
+test('carbon washing and petroleum separation preserve the shared provisional yields', () => {
+  const carbonGraph = Graph.create({ geology: { resourceId: 'carbon' } });
+  const water = machine(carbonGraph, 'water', 'water_supply');
+  const washer = machine(carbonGraph, 'washer', 'carbon_washer', 300);
+  washer.inputBuffer.coal = 20;
+  connect(carbonGraph, 'water-washer', 'water', 'water', 'washer', 'water');
+  advance(carbonGraph, 10);
+  assert.equal(washer.outputBuffer.carbon, 8);
+  assert.equal(washer.outputBuffer.sludge, 12);
+  assert.equal(water.state, 'active');
+
+  const oilGraph = Graph.create({ geology: { resourceId: 'oil' } });
+  const pump = machine(oilGraph, 'pump', 'oil_pump');
+  const separator = machine(oilGraph, 'separator', 'triphasic_separator', 300);
+  connect(oilGraph, 'pump-separator', 'pump', 'raw_oil', 'separator', 'raw_oil');
+  advance(oilGraph, 10);
+  assert.equal(separator.outputBuffer.oil, 16);
+  assert.equal(separator.outputBuffer.gas, 3);
+  assert.equal(separator.outputBuffer.waste, 1);
+});
+
 test('the drill stays unbounded and the crusher is the first chain bottleneck', () => {
   const graph = chain();
   Simulation.estimateRates(graph);
@@ -112,7 +215,7 @@ test('the drill stays unbounded and the crusher is the first chain bottleneck', 
   assert.ok(graph.machines.find(item => item.id === 'drill').currentRate >= 2);
   assert.ok(graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
     .every(Number.isInteger)), 'all material transfers and buffers remain integral');
-  assert.ok(graph.machines.find(item => item.id === 'furnace').outputBuffer.raw_iron > 0);
+  assert.ok(graph.machines.find(item => item.id === 'furnace').outputBuffer.product > 0);
 });
 
 test('energy shortage scales the sustained rate without creating fractional material', () => {
@@ -133,13 +236,13 @@ test('the separator and reduction furnace conserve their integer recipe batches'
   separator.inputBuffer.ground_ore = 10;
   advance(graph, 5);
   assert.equal(separator.outputBuffer.concentrate, 4);
-  assert.equal(separator.outputBuffer.tailings, 6);
+  assert.equal(separator.outputBuffer.residue, 6);
   assert.equal(separator.inputBuffer.ground_ore, 0);
 
   const furnace = machine(graph, 'furnace', 'reduction_furnace');
   furnace.inputBuffer.concentrate = 4;
   advance(graph, 2);
-  assert.equal(furnace.outputBuffer.raw_iron, 2);
+  assert.equal(furnace.outputBuffer.product, 2);
   assert.equal(furnace.outputBuffer.slag, 2);
   assert.equal(furnace.inputBuffer.concentrate, 0);
 });
@@ -148,11 +251,11 @@ test('an unconnected byproduct can fill its buffer and stops the whole recipe sa
   const graph = Graph.create();
   const separator = machine(graph, 'separator', 'magnetic_separator');
   separator.inputBuffer.ground_ore = 20;
-  separator.outputBuffer.tailings = 18;
+  separator.outputBuffer.residue = 18;
   advance(graph, 2);
   assert.equal(separator.state, 'output_full');
   assert.equal(separator.inputBuffer.ground_ore, 20);
-  assert.equal(separator.outputBuffer.tailings, 18);
+  assert.equal(separator.outputBuffer.residue, 18);
   assert.equal(separator.outputBuffer.concentrate, 0);
 });
 
@@ -179,8 +282,16 @@ test('graph snapshots retain port connections and integer buffers', () => {
   assert.equal(restored.machines.length, 5);
 });
 
-test('foreuse activates only on an iron deposit, a receiver, and available power', () => {
-  const missingDeposit = Graph.create({ geology: { resourceId: 'copper' } });
+test('foreuse mines the resource named by its deposit and still needs a receiver and power', () => {
+  const copperDeposit = Graph.create({ geology: { resourceId: 'copper' } });
+  machine(copperDeposit, 'drill', 'drill');
+  machine(copperDeposit, 'crusher', 'crusher');
+  connect(copperDeposit, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
+  advance(copperDeposit, .5);
+  assert.equal(copperDeposit.machines[0].state, 'active');
+  assert.ok(copperDeposit.machines[1].outputBuffer.crushed_ore > 0);
+
+  const missingDeposit = Graph.create();
   machine(missingDeposit, 'drill', 'drill');
   machine(missingDeposit, 'crusher', 'crusher');
   connect(missingDeposit, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
@@ -216,8 +327,8 @@ test('a saturated first processor pauses the foreuse without discarding ore', ()
   assert.equal(crusher.inputBuffer.raw_ore, 0);
 });
 
-test('the extractor building supplies the foreuse with deterministic iron geology', () => {
-  const extractor = { id: 'extractor-1', type: 'extractor', resourceId: 'iron', planetId: 'planet-1',
+test('extractor geology configures the foreuse and shared processor for the local deposit', () => {
+  const extractor = { id: 'extractor-1', type: 'extractor', resourceId: 'copper', planetId: 'planet-1',
     x: 25, y: 30, constructionState: 'complete' };
   const wind = { id: 'wind-1', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
   const state = { seed: 'factory-seed', surfaceBuildings: [extractor, wind], factoryPlans: {} };
@@ -226,42 +337,67 @@ test('the extractor building supplies the foreuse with deterministic iron geolog
   machine(graph, 'crusher', 'crusher');
   connect(graph, 'c1', 'drill', 'raw_ore', 'crusher', 'raw_ore');
   Industry.advance(state, 1);
-  assert.equal(graph.geology.resourceId, 'iron');
+  assert.equal(graph.geology.resourceId, 'copper');
   assert.equal(graph.machines[0].state, 'active');
+  assert.equal(Graph.definitionOf(graph.machines[0]).outputPorts[0].resourceId, 'copper_ore_raw');
+  assert.equal(Graph.definitionOf(graph.machines[1]).inputPorts[0].resourceId, 'copper_ore_raw');
   assert.ok(graph.machines[1].outputBuffer.crushed_ore > 0);
 });
 
-test('the shared trash accepts several resource connections and destroys at two units per second', () => {
-  const graph = Graph.create({ geology: { resourceId: 'iron' } });
-  machine(graph, 'drill-a', 'drill');
-  machine(graph, 'drill-b', 'drill', 300);
-  machine(graph, 'trash', 'trash', 600);
-  connect(graph, 'trash-a', 'drill-a', 'raw_ore', 'trash', 'material');
-  connect(graph, 'trash-b', 'drill-b', 'raw_ore', 'trash', 'material');
-  advance(graph, 5);
-  const sink = graph.machines.find(item => item.id === 'trash');
-  assert.equal(sink.currentRate, 2);
-  assert.ok(sink.inputBuffer.material <= Data.config.inputCapacity);
-  assert.ok(graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
-    .every(Number.isInteger)));
-  assert.ok(graph.machines.some(item => item.outputBuffer.raw_ore > 0),
-    'excess feed queues in the drills instead of being deleted faster than the sink');
+test('an offshore oil platform receives its own deterministic pump process graph', () => {
+  const platform = { id: 'oil-platform-1', type: 'oil_platform', resourceId: 'oil', planetId: 'planet-1',
+    x: 25, y: 30, constructionState: 'complete' };
+  const wind = { id: 'wind-oil', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
+  const state = { seed: 'factory-seed', surfaceBuildings: [platform, wind], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, platform);
+  const pump = machine(graph, 'pump', 'oil_pump');
+  const separator = machine(graph, 'separator', 'triphasic_separator', 300);
+  connect(graph, 'pump-separator', 'pump', 'raw_oil', 'separator', 'raw_oil');
+  assert.equal(graph.geology.resourceId, 'oil');
+  assert.equal(Graph.definitionOf(pump).outputPorts[0].resourceId, 'raw_oil');
+  Industry.advance(state, 1);
+  assert.equal(pump.state, 'active');
+  assert.equal(Graph.definitionOf(separator).inputPorts[0].resourceId, 'raw_oil');
 });
 
-test('the trash accepts different output resources and processes exactly two units per second', () => {
+test('the shared terril stores multiple resources without a capacity or throughput limit', () => {
+  const graph = Graph.create({ geology: { resourceId: 'iron' } });
+  const iron = machine(graph, 'iron-crusher', 'crusher');
+  const copper = Graph.addMachine(graph, { id: 'copper-crusher', type: 'crusher', resourceId: 'copper', x: 300, y: 0 }).machine;
+  machine(graph, 'terril', 'terril', 600);
+  iron.outputBuffer.crushed_ore = 125;
+  copper.outputBuffer.crushed_ore = 125;
+  connect(graph, 'iron-terril', 'iron-crusher', 'crushed_ore', 'terril', 'material');
+  connect(graph, 'copper-terril', 'copper-crusher', 'crushed_ore', 'terril', 'material');
+  advance(graph, .1);
+  const sink = graph.machines.find(item => item.id === 'terril');
+  assert.equal(Graph.definitionOf(sink).throughput, null);
+  assert.equal(sink.storedResources.iron_ore_crushed, 125);
+  assert.equal(sink.storedResources.copper_ore_crushed, 125);
+  assert.equal(sink.inputBuffer.material, 0);
+  assert.ok(graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer),
+    ...Object.values(item.storedResources)].every(Number.isInteger)));
+});
+
+test('the terril retains its stored resources in graph snapshots and deletion accounts for them', () => {
   const graph = Graph.create();
-  const crusher = machine(graph, 'crusher', 'crusher');
-  const furnace = machine(graph, 'furnace', 'reduction_furnace', 300);
-  const trash = machine(graph, 'trash', 'trash', 600);
-  crusher.outputBuffer.crushed_ore = 3;
-  furnace.outputBuffer.slag = 3;
-  connect(graph, 'ore-trash', 'crusher', 'crushed_ore', 'trash', 'material');
-  connect(graph, 'slag-trash', 'furnace', 'slag', 'trash', 'material');
-  advance(graph, 1.5);
-  assert.equal(trash.inputBuffer.material, 3,
-    'six integer units enter; exactly three are destroyed during 1.5 seconds');
-  assert.equal(crusher.outputBuffer.crushed_ore, 0);
-  assert.equal(furnace.outputBuffer.slag, 0);
+  const terril = machine(graph, 'terril', 'terril');
+  terril.storedResources = { iron_ore_crushed: 123, copper_concentrate: 45 };
+  const restored = Graph.create(Graph.snapshot(graph));
+  assert.deepEqual(plain(restored.machines[0].storedResources), terril.storedResources);
+  assert.equal(Graph.removeMachine(restored, 'terril').discardedUnits, 168);
+});
+
+test('demolishing a building returns its terril stock to the colony', () => {
+  const graph = Graph.create();
+  const terril = machine(graph, 'terril', 'terril');
+  terril.storedResources = { iron_ore_crushed: 12, copper_concentrate: 5 };
+  const building = { id: 'factory', type: 'factory' };
+  const state = { seed: 'terril-stock', factoryPlans: { factory: graph }, colonyMaterials: [] };
+  Industry.reclaimBuilding(state, building);
+  assert.deepEqual(plain(state.colonyMaterials.map(stack => [stack.resourceId, stack.amount]).sort()), [
+    ['copper_concentrate', 5], ['iron_ore_crushed', 12]
+  ]);
 });
 
 test('an output dock accepts one stream and writes only to the dedicated dock export stock', () => {

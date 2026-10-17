@@ -6,10 +6,11 @@
   const integer = (value, fallback = 0) => Number.isFinite(value) && value >= 0
     ? Math.floor(value) : fallback;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const definitionOf = machine => Data.get(machine?.type);
+  const definitionOf = machine => Data.get(machine?.type, machine?.resourceId);
 
-  function createMachine(value = {}) {
-    const definition = Data.get(value.type);
+  function createMachine(value = {}, geologyResourceId = null) {
+    const resourceId = value.resourceId || geologyResourceId || 'iron';
+    const definition = Data.get(value.type, resourceId);
     if (!definition || typeof value.id !== 'string' || !value.id) return null;
     const inputBuffer = {}, outputBuffer = {};
     for (const port of definition.inputPorts) inputBuffer[port.id] = integer(value.inputBuffer?.[port.id]);
@@ -17,10 +18,13 @@
     return {
       id: value.id,
       type: definition.id,
+      resourceId,
       x: Number.isFinite(value.x) ? value.x : 80,
       y: Number.isFinite(value.y) ? value.y : 80,
       inputBuffer,
       outputBuffer,
+      storedResources: Object.fromEntries(Object.entries(value.storedResources || {})
+        .filter(([, amount]) => Number.isInteger(amount) && amount > 0)),
       cycleProgress: clamp(Number.isFinite(value.cycleProgress) ? value.cycleProgress : 0, 0, .999999),
       state: Data.statuses[value.state] ? value.state : 'waiting_input',
       currentRate: 0,
@@ -30,12 +34,13 @@
 
   function create(value = {}) {
     const current = value.version === Data.config.version && Array.isArray(value.machines);
-    const machines = current ? value.machines.map(createMachine).filter(Boolean) : [];
+    const geology = value.geology ? clone(value.geology) : null;
+    const machines = current ? value.machines.map(machine => createMachine(machine, geology?.resourceId)).filter(Boolean) : [];
     const graph = {
       version: Data.config.version,
       machines,
       connections: [],
-      geology: value.geology ? clone(value.geology) : null,
+      geology,
       accumulator: current ? Math.max(0, Number(value.accumulator) || 0) : 0,
       tick: current ? integer(value.tick) : 0,
       energyUnlimited: false,
@@ -99,7 +104,7 @@
   }
 
   function addMachine(graph, value) {
-    const machine = createMachine(value);
+    const machine = createMachine(value, graph.geology?.resourceId);
     if (!machine || graph.machines.some(item => item.id === machine.id)) return { ok: false, reason: 'Machine invalide.' };
     graph.machines.push(machine);
     return { ok: true, machine };
@@ -108,7 +113,8 @@
   function removeMachine(graph, id) {
     const machine = graph.machines.find(item => item.id === id);
     if (!machine) return { ok: false, reason: 'Machine introuvable.' };
-    const discardedUnits = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)]
+    const discardedUnits = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer),
+      ...Object.values(machine.storedResources)]
       .reduce((sum, amount) => sum + amount, 0);
     graph.machines = graph.machines.filter(item => item !== machine);
     graph.connections = graph.connections.filter(connection =>
@@ -141,8 +147,10 @@
       tick: graph.tick,
       geology: clone(graph.geology),
       machines: graph.machines.map(machine => ({ id: machine.id, type: machine.type,
+        resourceId: machine.resourceId,
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
+        storedResources: clone(machine.storedResources),
         state: machine.state })),
       connections: graph.connections.map(connection => ({ id: connection.id,
         fromMachineId: connection.fromMachineId, fromOutputId: connection.fromOutputId,

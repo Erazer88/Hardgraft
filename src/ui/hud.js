@@ -140,7 +140,7 @@
 
     function buildingStats(building) {
       const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
-      const property = ['factory', 'extractor'].includes(building.type) ? 'dockStock' : 'inventory';
+      const property = ['factory', 'extractor', 'oil_platform'].includes(building.type) ? 'dockStock' : 'inventory';
       const inventory = inventoryEntries(building, property), total = inventory.reduce((sum, item) => sum + item.amount, 0);
       const stockText = inventory.length
         ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
@@ -235,7 +235,7 @@
       const isBuilding = item.kind === 'building';
       const isArk = item.kind === 'orbital-hub';
       const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
-      const hasFactoryEditor = isBuilding && ['factory', 'extractor'].includes(item.type);
+      const hasFactoryEditor = isBuilding && ['factory', 'extractor', 'oil_platform'].includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
       panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);

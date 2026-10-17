@@ -1,141 +1,104 @@
-# Usine V1 — chaîne du fer
+# Processus industriels — filières par gisement
 
-Cette référence décrit le graphe industriel actuellement chargé par l’application.
-Elle remplace les anciennes hypothèses multi-ressources et les archives de
-conception de `docs/reference/`.
+Cette référence décrit le graphe de processus actuellement chargé. Elle remplace
+l'ancienne usine limitée au fer ; les graphes sauvegardés en version antérieure à 5
+sont réinitialisés, tandis que les bâtiments et sauvegardes générales sont conservés.
 
 ## Modèle
 
-Chaque machine possède un identifiant, un type, une position, des buffers entiers
-d’entrée et de sortie, un état et la progression de son cycle. Les définitions
-déclaratives dans `src/data/processes.js` indiquent ses ports nommés, sa recette,
-son débit maximal d’entrée et sa consommation nominale en MW.
+Chaque bâtiment industriel possède un graphe indépendant. Son contexte géologique
+identifie la matière du gisement ; chaque carte conserve aussi son `resourceId` afin
+que ses ports et sa recette restent cohérents après sauvegarde. `OrbitProcessData.get`
+résout la définition adaptée. Le Concasseur, le Broyeur et le Four de réduction gardent
+les mêmes identifiants et noms dans toutes les filières solides, mais leurs matières
+d'entrée et de sortie suivent le gisement.
 
-Une connexion a exactement cette forme :
+Une connexion nomme ses deux machines et ses deux ports :
 
 ```js
-{
-  id,
-  fromMachineId,
-  fromOutputId,
-  toMachineId,
-  toInputId
-}
+{ id, fromMachineId, fromOutputId, toMachineId, toInputId }
 ```
 
-Une connexion ne possède pas de débit. Les transferts sont immédiats et déplacent
-des unités entières dans les buffers. Les machines et leurs cycles déterminent le
-débit de la chaîne. La V1 n’autorise ni boucles, ni mélange de matières, ni plusieurs
-connexions sur le même port, sauf l'entrée partagée de la Poubelle.
+Les connexions n'ont pas de débit indépendant. Elles transfèrent des unités entières
+entre buffers ; les cycles des machines déterminent le débit. Les quantités de toutes
+les recettes sont entières. Les machines peuvent avoir plusieurs entrées et sorties.
+Les boucles restent désactivées dans cette version, mais Concasseur et Broyeur sont des
+cartes distinctes pour permettre des retours de matière dans une évolution ultérieure.
 
-Les machines de traitement gardent un buffer de 20 unités par port. Elles ne
-terminent un cycle que si elles possèdent les ingrédients entiers de la recette et
-de la place pour toutes leurs sorties. Un sous-produit bloqué remplit son buffer et
-arrête le cycle sans perdre de matière. L'entrée partagée de la Poubelle utilise
-également un buffer de 20 unités ; les unités y attendent leur cycle de destruction.
+## Cartes communes
 
-## Machines et recettes
-
-Les débits sont les maxima nominaux niveau 1, en unités d’entrée par seconde.
-Les consommations nominales sont des valeurs de départ à équilibrer.
-
-| Machine | Entrée | Sortie(s) | Débit | Énergie |
+| Carte | Entrée | Sortie / comportement | Débit N1 | Énergie |
 | --- | --- | --- | ---: | ---: |
-| Foreuse | Gisement de fer | 1 roche ferrifère brute | Sans plafond nominal | 2,5 MW |
-| Concasseur | 1 roche ferrifère brute | 1 minerai concassé | 2 u/s | 2 MW |
-| Broyeur | 1 minerai concassé | 1 minerai broyé | 2 u/s | 6 MW |
-| Séparateur magnétique | 5 minerais broyés | 2 concentrés + 3 résidus | 2 u/s | 3 MW |
-| Four de réduction | 2 concentrés | 1 fer brut + 1 laitier | 2 u/s | 10 MW |
-| Poubelle | Toute ressource | Aucune, destruction par unité | 2 u/s | 0 MW |
-| Dock de sortie | Toute ressource, une connexion | Stock local du bâtiment, même matière 1:1 | 2 u/s | 0 MW |
+| Foreuse | Gisement terrestre du bâtiment | Roche brute correspondante, sans plafond nominal | Sans plafond | 2,5 MW |
+| Concasseur | Roche brute du gisement | Minerai concassé, 1:1 | 2 u/s | 2 MW |
+| Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
+| Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
+| Réserve d'eau | Réserve infinie temporaire de la colonie | Eau, sans consommation d'énergie | Sans plafond | 0 MW |
+| Terril | Toute matière | Stocke les unités par ressource, sans limite | Sans débit | 0 MW |
+| Dock de sortie | Une matière par carte | Transfert vers le stock local du bâtiment | 2 u/s | 0 MW |
 
-La Foreuse ne limite pas le débit : elle fournit des unités entières à la capacité
-de son premier consommateur. Le Concasseur niveau 1 constitue donc le premier
-goulot de la chaîne complète. Tous les bâtiments sauf la Foreuse ont un débit
-nominal de 2 u/s, identique au Concasseur niveau 1. Le minerai ferrifère n’est
-disponible que sur un gisement de fer.
+Le débit 2 u/s est un maximum moyen ; les unités restent indivisibles et avancent par
+cycles. La réserve d'eau est un apport auxiliaire temporaire, sans réseau de tuyaux.
+Les réducteurs métallurgiques du Four sont abstraits : il ne consomme pas de carbone.
 
-Le réducteur métallurgique du Four de réduction reste abstrait en V1. Il n’y a pas
-de ressource carbone ni de consommable explicite pour cette recette.
+## Filières
 
-La Poubelle accepte tout identifiant de ressource. Plusieurs sorties peuvent viser
-son entrée partagée. Elle détruit les unités entières à 2 u/s, sans sortie ni
-consommation électrique ; son buffer partagé applique une limite de capacité de 20
-unités et transmet le blocage en amont lorsqu'il est plein.
+| Gisement | Cartes de transformation | Recettes provisoires |
+| --- | --- | --- |
+| Fer | Foreuse → Concasseur → Broyeur → Séparateur magnétique → Four de réduction | 5 broyés → 2 concentrés de fer + 3 résidus ; 2 concentrés → 1 fer brut + 1 laitier |
+| Cuivre | Foreuse → Concasseur → Broyeur → Séparateur gravitaire → Four de réduction | 5 broyés → 2 concentrés de cuivre + 3 résidus ; 2 concentrés → 1 cuivre brut + 1 laitier |
+| Silice | Foreuse → Concasseur → Broyeur → Laveuse de silice → Sécheur de silice → Four de réduction | 20 broyés + 5 eaux → 8 siliciums impurs humides + 12 boues ; séchage 1:1 ; 2 siliciums secs → 1 silicium brut + 1 laitier |
+| Carbone | Foreuse → Concasseur → Broyeur → Trieuse de carbone → Lavage du charbon | 5 broyés → 2 charbons + 3 résidus ; 20 charbons + 5 eaux → 8 carbones + 12 boues |
+| Pétrole marin | Pompe pétrolière → Séparateur triphasé | 20 pétrole brut → 16 pétrole + 3 gaz + 1 déchet |
 
-Le Dock de sortie accepte toute matière, mais une seule connexion par carte afin de
-garder sa matière explicite. Il transfère les unités entières vers `building.dockStock`,
-sans détruire ni consommer la ressource. Plusieurs cartes Dock permettent d'exposer
-plusieurs matières séparément. Ce stock est sauvegardé avec le bâtiment et affiché dans
-sa fiche. Chaque matière choisit sa destination dans l'éditeur, parmi les bâtiments
-terminés de la planète. Le chemin terrestre doit être entièrement construit avant le
-transfert. Une usine ou un dépôt reçoit les unités dans `building.inventory` ; une
-Plateforme de lancement les reçoit dans `launchStock` et les expédie automatiquement
-vers l'Arche. Les transferts ne consultent ni ne modifient l'inventaire de construction.
-L'inventaire reçu n'est pas encore une entrée du graphe industriel : le moteur de
-processus reste autonome et ne consomme que les connexions et buffers de son graphe.
+Les filières solides reprennent pour l'instant le rendement de séparation du fer. Les
+quantités de séchage sont conservées à 1:1. La séparation du pétrole garde son ratio
+80/15/5. Les matières et sous-produits sont déclarés dans `src/data/resources.js` ; les
+ports, recettes, débits et consommations se trouvent dans `src/data/processes.js`.
 
-## Cycle, débit et énergie
+La Foreuse terrestre lit le `resourceId` du gisement du bâtiment : fer, cuivre, silice
+ou carbone. La Plateforme pétrolière utilise une Pompe pétrolière dédiée et son
+séparateur triphasé. La carte de Réserve d'eau ne mine pas un gisement : elle fournit
+l'auxiliaire eau depuis la réserve infinie temporaire de la colonie.
 
-Une recette consomme et produit uniquement des quantités entières. Le cycle est
-exprimé comme une progression de travail, pas comme une quantité de matière : une
-machine à 2 u/s traite 1 unité toutes les 0,5 secondes. Le cycle de 5 unités du
-Séparateur magnétique dure donc 2,5 secondes à débit nominal.
+## Buffers, énergie et état
 
-Le débit courant affiché suit la capacité soutenable de l’amont et le débit nominal
-de la machine. La barre se remplit selon ce débit ; son animation est visuelle et ne
-modifie pas la simulation. Pour la Foreuse, le débit nominal est illimité et la barre
-représente la demande du consommateur aval.
+Les machines de traitement ont des buffers entiers de 20 unités par port. Un cycle ne
+commence que si tous ses ingrédients entiers sont présents et s'il y a de la place pour
+tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de matière.
+Le Terril accepte plusieurs connexions sur son entrée partagée et stocke sans limite
+chaque ressource reçue. Il n'a ni cycle ni débit et ses stocks sont enregistrés dans le
+graphe. Le Dock conserve une seule connexion entrante pour identifier la matière exportée.
 
-Chaque machine indique l’énergie actuelle et sa valeur nominale (`MW / MW`). Il
-n’existe ni câble ni réseau électrique interne. La puissance disponible vient du
-système planétaire. L’énergie infinie des éoliennes terminées reste un mode temporaire
-du prototype.
+Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
+cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
+L'animation de la barre ne modifie pas la simulation.
 
-États visibles : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE` et `SANS ÉNERGIE`.
-Chaque carte montre le nom, ses matières d’entrée et de sortie, le débit courant,
-la consommation, l’état et la progression du cycle. Les recettes détaillées et les
-anciennes métadonnées ne sont pas exposées dans la carte.
+L'énergie reste simple : aucune ligne électrique interne. L'énergie infinie des
+éoliennes terminées et la réserve d'eau infinie sont des modes temporaires du prototype.
 
-## Sauvegardes
-
-Les sauvegardes générales gardent leur version, les bâtiments, les routes, la graine
-et la progression du jeu. Les graphes industriels antérieurs à la version 4 sont
-volontairement réinitialisés ; ils ne sont pas convertis. Les graphes V1 et leurs
-buffers sont sauvegardés avec leurs bâtiments.
-
-Une machine peut être supprimée même si ses buffers contiennent des unités ; son
-contenu est alors supprimé avec elle et l'éditeur indique combien d'unités ont été
-retirées. La démolition d’un bâtiment rend les matières présentes dans les buffers,
-`dockStock` et le stock de plateforme à l’inventaire de matériaux de la colonie.
+Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
+des matériaux de construction. La destination du Dock est choisie par matière parmi les
+usines et Plateformes de lancement terminées de la planète ; une route terrestre
+entièrement construite est nécessaire. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ## Modules
 
 | Fichier | Responsabilité |
 | --- | --- |
-| `src/data/processes.js` | Définitions, ports, recettes, débits et énergie |
-| `src/data/resources.js` | Identifiants et noms des matières du jeu |
+| `src/data/processes.js` | Cartes, ports, recettes par gisement, débits et énergie |
+| `src/data/resources.js` | Identifiants et noms des matières et sous-produits |
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, énergie et débits soutenables |
-| `src/gameplay/industry.js` | Gisements, puissance planétaire et raccord aux bâtiments |
-| `src/ui/factoryViewport.js` | États d’interaction pan, déplacement, connexion et pinch |
-| `src/ui/factoryEditor.js` | Cartes, ports, traits et palette de l’éditeur |
-| `src/storage/save.js` | Préservation des sauvegardes générales et reset des graphes anciens |
+| `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
+| `src/ui/factoryEditor.js` | Cartes, ports, traits et palette contextuelle au gisement |
+| `src/storage/save.js` | Sauvegarde des bâtiments et graphes industriels versionnés |
 
-La simulation ne dépend ni du DOM ni de Canvas. `factoryViewport.js` ne simule pas
-de matière ; il fournit une caméra commune aux cartes et aux connexions, et émet les
-gestes de l’éditeur.
+La simulation ne dépend ni du DOM ni de Canvas. La vérification ciblée du moteur est :
 
-L'espace 2D mesure 7 800 × 5 400 unités, soit trois fois l'ancienne largeur et
-hauteur. À l'ouverture d'un plan vide, la caméra se centre sur cet espace ; chaque
-nouvelle carte apparaît au centre visible, puis légèrement décalée si nécessaire
-pour garder son en-tête accessible. Les ports ont une cible tactile de 44 × 44 unités
-et les entrées acceptent aussi un accrochage de proximité. Le smoke navigateur vérifie
-la pose, la taille de l'espace, l'accrochage et les gestes sur ordinateur et tactile.
+```sh
+node --test tests/process-simulation.test.cjs
+```
 
-## Vérifications
-
-- Contrat du moteur : `node --test tests/process-simulation.test.cjs`.
-- Sauvegardes générales et reset des graphes : `node --test tests/architecture.test.cjs`.
-- Gestes réels de l’éditeur dans Chromium desktop et tactile : `npm run test:factory-editor`.
-- Suite complète : `npm test`.
+La suite complète est `npm test`. L'éditeur navigateur dispose de
+`npm run test:factory-editor`.

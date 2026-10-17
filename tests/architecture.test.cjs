@@ -232,8 +232,8 @@ test('general saves preserve buildings while legacy industrial graphs reset to t
   assert.equal(Save.save(storage, restored, galaxy()), true);
   const latest = Save.load(storage), next = State.create();
   assert.equal(Save.restore(next, galaxy(), latest), true);
-  assert.deepEqual(plain(next.factoryPlans['factory-1'].machines.map(machine => ({ id: machine.id, type: machine.type }))),
-    [{ id: 'crusher-1', type: 'crusher' }]);
+  assert.deepEqual(plain(next.factoryPlans['factory-1'].machines.map(machine => ({ id: machine.id, type: machine.type,
+    resourceId: machine.resourceId }))), [{ id: 'crusher-1', type: 'crusher', resourceId: 'iron' }]);
 });
 
 test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {

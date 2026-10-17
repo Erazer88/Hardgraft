@@ -13,21 +13,24 @@
   }
 
   function geology(state, building) {
-    if (building.type !== 'extractor' || !building.resourceId) return null;
+    if (!['extractor', 'oil_platform'].includes(building.type) || !building.resourceId) return null;
     const id = `${building.planetId}:${building.resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
     return { id, planetId: building.planetId, resourceId: building.resourceId,
       hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
-        (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]) };
+        (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]),
+      abundance: Number.isFinite(building.depositAbundance) ? building.depositAbundance : Data.config.geology.depositAbundance };
   }
 
   function ensureGraph(state, building) {
+    const deposit = geology(state, building);
     const previous = state.factoryPlans[building.id];
-    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines)) {
+    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines) ||
+        (deposit && previous.geology?.resourceId !== deposit.resourceId)) {
       state.factoryPlans[building.id] = Graph.create({ version: Data.config.version,
-        geology: geology(state, building) });
+        geology: deposit });
     }
     const graph = state.factoryPlans[building.id];
-    graph.geology ||= geology(state, building);
+    graph.geology ||= deposit;
     return graph;
   }
 
@@ -136,6 +139,10 @@
         for (const output of def.outputPorts) {
           const amount = machine.outputBuffer[output.id];
           if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: output.resourceId,
+            amount, origin: { kind: 'building', id: building.id } }));
+        }
+        for (const [resourceId, amount] of Object.entries(machine.storedResources || {})) {
+          if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId,
             amount, origin: { kind: 'building', id: building.id } }));
         }
       }

@@ -12,7 +12,27 @@
     return ports.find(item => item.id === id) || null;
   }
   function inputBatch(machine, inputId) {
-    return definition(machine).recipe.inputs.find(item => item.inputId === inputId)?.amount || 0;
+    return definition(machine).recipe?.inputs.find(item => item.inputId === inputId)?.amount || 1;
+  }
+  function primaryInput(machine) { return definition(machine).recipe?.inputs[0] || null; }
+  function sourceAvailable(graph, machine) {
+    const def = definition(machine);
+    return !def.requiresDeposit || graph.geology?.resourceId === machine.resourceId;
+  }
+  function sourceRateForTarget(graph, source, target, connection, powerRatio) {
+    const sourceDef = definition(source), targetDef = definition(target);
+    if (!sourceAvailable(graph, source) || (!targetDef.sink && !outputsReady(target))) return 0;
+    if (targetDef.storesResources) return (sourceDef.throughput || 1 / Data.config.fixedStepSeconds) *
+      (sourceDef.energyMW > 0 ? powerRatio : 1);
+    const targetInputAmount = inputBatch(target, connection.toInputId);
+    if (targetDef.sink) return Math.min(targetDef.throughput || Infinity,
+      (sourceDef.throughput || Infinity) * (sourceDef.energyMW > 0 ? powerRatio : 1));
+    const primary = primaryInput(target);
+    if (!primary) return 0;
+    const targetCycleRate = targetDef.throughput * (targetDef.energyMW > 0 ? powerRatio : 1) / primary.amount;
+    const targetRate = targetCycleRate * targetInputAmount;
+    return Math.min(sourceDef.throughput ? sourceDef.throughput * (sourceDef.energyMW > 0 ? powerRatio : 1) : Infinity,
+      targetRate);
   }
   function outputsReady(machine) {
     const config = Data.config;
@@ -35,28 +55,27 @@
         }, 0);
         const inputId = def.inputPorts[0]?.id;
         const hasBufferedUnits = inputId && machine.inputBuffer[inputId] > 0;
-        machine.currentRate = Math.min(def.throughput,
+        machine.currentRate = def.storesResources ? incomingRate : Math.min(def.throughput,
           incomingRate > 0 || hasBufferedUnits ? Math.max(incomingRate, hasBufferedUnits ? def.throughput : 0) : 0);
       } else if (def.source) {
         const outgoing = graph.connections.find(connection => connection.fromMachineId === machine.id);
         const target = outgoing && byId.get(outgoing.toMachineId);
-        const validDeposit = graph.geology?.resourceId === 'iron';
-        const targetDefinition = target && definition(target);
-        const targetBlocked = target && !targetDefinition.sink && !outputsReady(target);
-        rates[def.outputPorts[0].id] = validDeposit && target && !targetBlocked
-          ? (targetDefinition.throughput || 0) * powerRatio : 0;
+        rates[def.outputPorts[0].id] = target
+          ? sourceRateForTarget(graph, machine, target, outgoing, powerRatio) : 0;
       } else {
-        const recipe = def.recipe;
-        const feedRates = recipe.inputs.map(item => {
+        const recipe = def.recipe, primary = primaryInput(machine);
+        const nominalCycleRate = primary ? def.throughput *
+          (def.energyMW > 0 ? powerRatio : 1) / primary.amount : 0;
+        const feedCycleRates = recipe.inputs.map(item => {
           const connection = graph.connections.find(link => link.toMachineId === machine.id && link.toInputId === item.inputId);
           const supplied = connection ? outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0 : 0;
-          return supplied > 0 ? supplied : machine.inputBuffer[item.inputId] >= item.amount ? def.throughput * powerRatio : 0;
+          return supplied > 0 ? supplied / item.amount
+            : machine.inputBuffer[item.inputId] >= item.amount ? nominalCycleRate : 0;
         });
-        let rate = Math.min(def.throughput * powerRatio, ...(feedRates.length ? feedRates : [0]));
-        if (!outputsReady(machine)) rate = 0;
-        machine.currentRate = rate;
-        const consumed = recipe.inputs.reduce((sum, item) => sum + item.amount, 0);
-        for (const item of recipe.outputs) rates[item.outputId] = consumed > 0 ? rate * item.amount / consumed : 0;
+        let cycleRate = Math.min(nominalCycleRate, ...(feedCycleRates.length ? feedCycleRates : [0]));
+        if (!outputsReady(machine)) cycleRate = 0;
+        machine.currentRate = primary ? primary.amount * cycleRate : 0;
+        for (const item of recipe.outputs) rates[item.outputId] = cycleRate * item.amount;
       }
       outputRates.set(machine.id, rates);
       if (def.source) machine.currentRate = Object.values(rates).reduce((sum, value) => sum + value, 0);
@@ -78,8 +97,16 @@
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
       if (!out || !input) continue;
+      if (definition(to).storesResources) {
+        const amount = integer(from.outputBuffer[out.id]);
+        if (!amount) continue;
+        to.storedResources[out.resourceId] = (to.storedResources[out.resourceId] || 0) + amount;
+        from.outputBuffer[out.id] = 0;
+        continue;
+      }
       if (definition(from).source && !definition(to).sink) {
-        if (powerRatio <= 0 || graph.geology?.resourceId !== 'iron' || !outputsReady(to)) continue;
+        const sourceDef = definition(from);
+        if ((powerRatio <= 0 && sourceDef.energyMW > 0) || !sourceAvailable(graph, from) || !outputsReady(to)) continue;
         const needed = inputBatch(to, input.id);
         const room = Math.max(0, Data.config.inputCapacity - to.inputBuffer[input.id]);
         const amount = integer(Math.min(room, Math.max(0, needed - to.inputBuffer[input.id])));
@@ -98,6 +125,10 @@
     const def = definition(machine);
     machine.energyMW = 0;
     if (def.sink) {
+      if (def.storesResources) {
+        machine.state = machine.currentRate > 0 ? 'active' : 'waiting_input';
+        return;
+      }
       const inputId = def.inputPorts[0]?.id;
       const batchRate = def.throughput;
       if (!inputId || machine.inputBuffer[inputId] < 1) {
@@ -116,16 +147,16 @@
     if (def.source) {
       const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
       const target = link && graph.machines.find(item => item.id === link.toMachineId);
-      const validDeposit = graph.geology?.resourceId === 'iron';
+      const validDeposit = sourceAvailable(graph, machine);
       if (validDeposit && target && definition(target).sink) {
         const outputId = def.outputPorts[0].id;
-        if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
+        if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
         if (machine.outputBuffer[outputId] >= Data.config.outputCapacity) {
           machine.state = 'output_full';
           return;
         }
         machine.state = 'active';
-        machine.energyMW = def.energyMW * powerRatio;
+        machine.energyMW = def.energyMW > 0 ? def.energyMW * powerRatio : 0;
         machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
         while (machine.cycleProgress + CYCLE_EPSILON >= 1 &&
           machine.outputBuffer[outputId] < Data.config.outputCapacity) {
@@ -135,9 +166,9 @@
         return;
       }
       machine.state = !validDeposit || !target ? 'waiting_input'
-        : powerRatio <= 0 ? 'no_energy'
+        : powerRatio <= 0 && def.energyMW > 0 ? 'no_energy'
           : !definition(target).sink && !outputsReady(target) ? 'output_full' : 'active';
-      machine.energyMW = machine.state === 'active' ? def.energyMW * powerRatio : 0;
+      machine.energyMW = machine.state === 'active' && def.energyMW > 0 ? def.energyMW * powerRatio : 0;
       return;
     }
     if (!outputsReady(machine)) { machine.state = 'output_full'; return; }
@@ -145,9 +176,10 @@
     if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
     machine.state = 'active';
     machine.energyMW = def.energyMW * powerRatio;
-    const batch = def.recipe.inputs.reduce((sum, item) => sum + item.amount, 0);
-    const rate = machine.currentRate > 0 ? machine.currentRate : def.throughput * powerRatio;
-    machine.cycleProgress += Data.config.fixedStepSeconds * rate / batch;
+    const primary = primaryInput(machine);
+    const cycleRate = primary ? (machine.currentRate > 0 ? machine.currentRate :
+      def.throughput * (def.energyMW > 0 ? powerRatio : 1)) / primary.amount : 0;
+    machine.cycleProgress += Data.config.fixedStepSeconds * cycleRate;
     while (machine.cycleProgress + CYCLE_EPSILON >= 1 && inputsReady(machine) && outputsReady(machine)) {
       for (const item of def.recipe.inputs) machine.inputBuffer[item.inputId] -= item.amount;
       for (const item of def.recipe.outputs) machine.outputBuffer[item.outputId] += item.amount;

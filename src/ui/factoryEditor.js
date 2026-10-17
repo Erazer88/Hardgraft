@@ -19,11 +19,17 @@
     let pendingConnection = null, nextMachineId = 1, nextConnectionId = 1;
     const cards = new Map();
 
-    const typeOf = type => Graph.definitionOf({ type });
-    const heightOf = type => typeOf(type).externalOutput ? NODE.outputDockHeight : NODE.height;
+    const typeOf = value => Graph.definitionOf(typeof value === 'string'
+      ? { type: value, resourceId: graph?.geology?.resourceId || activeBuilding?.resourceId || 'iron' } : value);
+    const heightOf = value => {
+      const definition = typeOf(value);
+      if (definition.externalOutput) return NODE.outputDockHeight;
+      const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
+      return NODE.height + (portRows - 1) * 24;
+    };
     const machineById = id => machines.find(machine => machine.id === id);
     const portY = (machine, side, portId) => {
-      const ports = side === 'input' ? typeOf(machine.type).inputPorts : typeOf(machine.type).outputPorts;
+      const ports = side === 'input' ? typeOf(machine).inputPorts : typeOf(machine).outputPorts;
       const index = ports.findIndex(port => port.id === portId);
       return machine.y + 55 + Math.max(0, index) * 24;
     };
@@ -53,7 +59,7 @@
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
-      const def = typeOf(machine.type), finite = Number.isFinite(def.throughput);
+      const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const rate = machine.currentRate || 0;
       const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
@@ -67,10 +73,12 @@
       const state = card.querySelector('[data-readout="state"]');
       state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = machine.type === 'drill' || def.externalOutput;
+      const continuous = def.source || def.externalOutput;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
-      cycleLabel.textContent = machine.type === 'drill' ? 'EXTRACTION CONTINUE'
+      cycleLabel.textContent = def.storesResources
+        ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
+        : def.source ? (def.requiresDeposit ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
         : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
         : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
           : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
@@ -80,7 +88,7 @@
           const connection = def.externalOutput && connections.find(item =>
             item.toMachineId === machine.id && item.toInputId === port.id);
           const source = connection && machineById(connection.fromMachineId);
-          const resource = source && typeOf(source.type).outputPorts
+          const resource = source && typeOf(source).outputPorts
             .find(output => output.id === connection.fromOutputId);
           label.innerHTML = resource
             ? resourceLine({ ...port, label: resource.label }, machine.inputBuffer[port.id])
@@ -95,14 +103,14 @@
     }
 
     function connectedDockResource(machine) {
-      const input = typeOf(machine.type).inputPorts[0];
+      const input = typeOf(machine).inputPorts[0];
       const connection = input && connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
       const source = connection && machineById(connection.fromMachineId);
-      return source && typeOf(source.type).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
+      return source && typeOf(source).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
     }
 
     function updateDockDestination(machine) {
-      if (!typeOf(machine.type).externalOutput) return;
+      if (!typeOf(machine).externalOutput) return;
       const select = cards.get(machine.id)?.querySelector('[data-dock-destination]');
       if (!select) return;
       const resourceId = connectedDockResource(machine);
@@ -135,12 +143,12 @@
       button.dataset.machineId = machine.id;
       button.dataset[side === 'input' ? 'inputId' : 'outputId'] = port.id;
       button.style.top = `${55 + index * 24}px`;
-      button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine.type).label}`);
+      button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine).label}`);
       return button;
     }
 
     function createMachineCard(machine) {
-      const def = typeOf(machine.type), card = document.createElement('article');
+      const def = typeOf(machine), card = document.createElement('article');
       card.className = 'factory-node';
       card.dataset.machineId = machine.id;
       card.style.left = `${machine.x}px`; card.style.top = `${machine.y}px`;
@@ -237,7 +245,7 @@
     }
 
     function freeInput(machine) {
-      const def = typeOf(machine.type);
+      const def = typeOf(machine);
       return def.inputPorts.find(input => (def.sink && !def.externalOutput) || !connections.some(connection =>
         connection.toMachineId === machine.id && connection.toInputId === input.id)) || null;
     }
@@ -256,7 +264,7 @@
       if (candidate) return candidate;
       for (const machine of machines) {
         const input = freeInput(machine), bounds = cards.get(machine.id)?.getBoundingClientRect();
-        if (!input || !bounds || typeOf(machine.type).inputPorts.length !== 1) continue;
+        if (!input || !bounds || typeOf(machine).inputPorts.length !== 1) continue;
         if (clientX >= bounds.left + bounds.width * .2 && clientX <= bounds.right - bounds.width * .2 &&
             clientY >= bounds.top + bounds.height * .2 && clientY <= bounds.bottom - bounds.height * .2) {
           return { machineId: machine.id, inputId: input.id };
@@ -324,7 +332,8 @@
 
     function addPalette() {
       palette.replaceChildren();
-      for (const def of Data.catalog(activeBuilding?.type || 'factory')) {
+      for (const def of Data.catalog(activeBuilding?.type || 'factory',
+        graph?.geology?.resourceId || activeBuilding?.resourceId || null)) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
         const icon = document.createElement('span'); icon.className = 'factory-block-icon'; icon.textContent = def.mark;
@@ -339,7 +348,7 @@
     }
 
     function addMachine(type) {
-      const def = Data.get(type);
+      const def = Data.get(type, graph?.geology?.resourceId || activeBuilding?.resourceId || 'iron');
       if (!def || !activeBuilding) return;
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,

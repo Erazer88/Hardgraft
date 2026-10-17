@@ -20,18 +20,21 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 
 ## Systèmes en place et frontières
 
-- L'usine V1 couvre la chaîne du fer (Foreuse → Concasseur → Broyeur → Séparateur
-  magnétique → Four de réduction), une Poubelle et un Dock de sortie. Le Dock transfère
-  les matières vers `building.dockStock`, séparé des autres inventaires. Les définitions
-  et recettes sont déclaratives ; les buffers et quantités sont entiers.
+- Les processus suivent le gisement du bâtiment : fer, cuivre, silice et carbone pour
+  les Extracteurs terrestres, pétrole pour la Plateforme pétrolière. Concasseur, Broyeur
+  et Four de réduction restent des cartes communes, séparées et configurées par matière.
+  Les séparateurs, laveuses et sécheurs sont propres aux filières. Le Terril stocke
+  toutes les ressources sans limite ni débit ; le Dock de sortie est commun. Les buffers
+  et quantités sont entiers.
   Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- La Foreuse n'a pas de plafond nominal. Tous les autres bâtiments tournent à 2 u/s,
-  comme le Concasseur niveau 1, premier goulot de la chaîne. La Poubelle détruit les
-  unités à cette cadence. Paramètres : `src/data/processes.js`.
-- Le graphe V1 est version 4. Les sauvegardes générales sont restaurées au mieux,
-  même si leur numéro de format est inconnu ; les plans industriels antérieurs sont
-  réinitialisés plutôt que migrés. Les connexions nomment explicitement les deux
-  machines et leurs ports.
+- La Foreuse n'a pas de plafond nominal. Les machines de traitement niveau 1 tournent
+  à 2 u/s ; le Concasseur reste le premier goulot de la chaîne minérale. Les recettes
+  d'enrichissement provisoires utilisent le ratio 5 → 2 + 3 ; le Four utilise 2 → 1 + 1.
+  Paramètres : `src/data/processes.js`.
+- Le graphe industriel est version 5. Les plans antérieurs sont réinitialisés car les
+  ports et recettes dépendent maintenant de la matière du gisement ; les sauvegardes
+  générales et bâtiments restent conservés. Les connexions nomment explicitement les
+  deux machines et leurs ports.
 - Le moteur pur est dans `processGraph.js` et `processSimulation.js`. L'éditeur garde
   son affichage dans `factoryEditor.js` et les gestes dans `factoryViewport.js`.
   `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
