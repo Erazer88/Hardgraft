@@ -5,6 +5,7 @@
   const transit = Object.freeze({ minimumSeconds: 5, maximumSeconds: 45, referenceHalfOrbitSeconds: 30,
     cargoSpeedMultiplier: .7 });
   const transfer = Object.freeze({ directCorrectionRadians: .12, radialExcursionFraction: .16,
+    alignmentLaunchIntervalFactor: 1.5, alignmentMinimumRadians: .12, alignmentMaximumRadians: .7,
     routeSamples: 48, durationIterations: 16, durationToleranceSeconds: .001 });
   const exportResources = Object.freeze([
     Object.freeze({ id: 'raw_iron', label: 'Fer brut' }),

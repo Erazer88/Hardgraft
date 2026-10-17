@@ -31,7 +31,7 @@
       const lot = { corridorId: item.corridorId, resourceId: item.resourceId, amount: item.amount,
         departureTime: item.departureTime, arrivalTime: item.arrivalTime,
         systemId: item.systemId, originPlanetId: item.originPlanetId };
-      if (item.trajectoryVersion === 2) lot.trajectoryVersion = 2;
+      if (item.trajectoryVersion === 2 || item.trajectoryVersion === 3) lot.trajectoryVersion = item.trajectoryVersion;
       return [lot];
     }) : [];
     if (value.hubs && typeof value.hubs === 'object' && !Array.isArray(value.hubs)) {
@@ -58,6 +58,24 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const positiveAngle = angle => ((angle % TAU) + TAU) % TAU;
+  const signedAngle = angle => {
+    const wrapped = positiveAngle(angle);
+    return wrapped > Math.PI ? wrapped - TAU : wrapped;
+  };
+
+  function departureAlignment(system, planet, departureTime) {
+    const ark = system?.ark;
+    if (!ark || !planet) return { phaseOffset: 0, active: false };
+    const sourceAngle = planet.phase + planet.speed * departureTime;
+    const arkAngle = ark.phase + ark.speed * departureTime;
+    const phaseOffset = signedAngle(arkAngle - sourceAngle);
+    const relativeSpeed = Math.abs(ark.speed - planet.speed);
+    const alignmentWindow = relativeSpeed > EPSILON
+      ? clamp(relativeSpeed * Data.launch.batchIntervalSeconds * Data.transfer.alignmentLaunchIntervalFactor,
+        Data.transfer.alignmentMinimumRadians, Data.transfer.alignmentMaximumRadians)
+      : 0;
+    return { phaseOffset, active: alignmentWindow > 0 && Math.abs(phaseOffset) <= alignmentWindow };
+  }
 
   function medianOrbit(system, fallback) {
     const orbits = (system.planets || []).map(item => item.orbit)
@@ -65,19 +83,26 @@
     return orbits.length ? orbits[Math.floor(orbits.length / 2)] : fallback;
   }
 
-  function orbitalGeometry(system, planet, departureTime, duration) {
+  function orbitalGeometry(system, planet, departureTime, duration,
+    destinationTime = departureTime + duration, stabilizeAlignment = false) {
     const ark = system?.ark;
     if (!ark || !planet || !Number.isFinite(duration) || duration <= 0) return null;
     const sourceAngle = planet.phase + planet.speed * departureTime;
-    const targetAngle = ark.phase + ark.speed * (departureTime + duration);
+    const targetAngle = ark.phase + ark.speed * destinationTime;
     const startRadius = planet.orbit + planet.radius;
     const endRadius = ark.orbit;
     const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
     const neutralSpeed = planet.speed * Math.pow(Math.max(.01, planet.orbit) / meanRadius, 1.5);
     const neutralAngle = sourceAngle + neutralSpeed * duration;
-    let liftedTargetAngle = targetAngle + TAU * Math.round((neutralAngle - targetAngle) / TAU);
-    if (liftedTargetAngle < sourceAngle - EPSILON) {
-      liftedTargetAngle += TAU * Math.ceil((sourceAngle - liftedTargetAngle) / TAU);
+    let liftedTargetAngle;
+    if (stabilizeAlignment && departureAlignment(system, planet, departureTime).active) {
+      // Keep one consistent prograde wrap while the Ark crosses the source's orbital longitude.
+      liftedTargetAngle = sourceAngle + TAU + signedAngle(targetAngle - sourceAngle);
+    } else {
+      liftedTargetAngle = targetAngle + TAU * Math.round((neutralAngle - targetAngle) / TAU);
+      if (liftedTargetAngle < sourceAngle - EPSILON) {
+        liftedTargetAngle += TAU * Math.ceil((sourceAngle - liftedTargetAngle) / TAU);
+      }
     }
     if (liftedTargetAngle < sourceAngle) liftedTargetAngle = sourceAngle;
     const correction = liftedTargetAngle - neutralAngle;
@@ -96,7 +121,7 @@
     const requestedExcursion = meanRadius * Data.transfer.radialExcursionFraction * strength;
     const radialExcursion = mode === 'inner' ? -Math.min(availableExcursion, requestedExcursion)
       : mode === 'outer' ? Math.min(availableExcursion, requestedExcursion) : 0;
-    return { kind: 'orbital', version: 2, mode, correction, sourceAngle, targetAngle,
+    return { kind: 'orbital', version: stabilizeAlignment ? 3 : 2, mode, correction, sourceAngle, targetAngle,
       angularSweep, startRadius, endRadius, meanRadius, radialExcursion };
   }
 
@@ -169,11 +194,13 @@
     const arkAngle = ark.phase + ark.speed * departureTime;
     const startRadius = planet.orbit + planet.radius, endRadius = ark.orbit;
     const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
-    const forwardSweep = positiveAngle(arkAngle - sourceAngle) || TAU;
+    const alignment = departureAlignment(system, planet, departureTime);
+    const forwardSweep = alignment.active ? TAU + alignment.phaseOffset : positiveAngle(arkAngle - sourceAngle) || TAU;
     const initialLength = Math.hypot(meanRadius * forwardSweep, endRadius - startRadius);
     let duration = durationForLength(system, planet, initialLength);
     for (let iteration = 0; iteration < Data.transfer.durationIterations; iteration++) {
-      const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration));
+      const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration,
+        departureTime + duration, true));
       const nextDuration = durationForLength(system, planet, trajectoryLength(trajectory));
       if (Math.abs(nextDuration - duration) <= Data.transfer.durationToleranceSeconds) return nextDuration;
       duration = (duration + nextDuration) * .5;
@@ -184,7 +211,9 @@
   function previewTrajectory(system, planet, departureTime) {
     const duration = travelTime(system, planet, departureTime);
     if (!Number.isFinite(duration) || duration <= 0) return null;
-    const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration));
+    // The guide tracks the current Ark position; launched cargo targets its frozen arrival position.
+    const trajectory = addAngularProfile(orbitalGeometry(system, planet, departureTime, duration,
+      departureTime, true));
     if (!trajectory) return null;
     trajectory.p0 = positionOnTrajectory(trajectory, 0);
     trajectory.p3 = positionOnTrajectory(trajectory, 1);
@@ -261,7 +290,7 @@
     const arrivalTime = departureTime + duration;
     for (const [resourceId, amount] of Object.entries(batchByResource)) {
       appendLot(logistics, { corridorId: corridor.id, resourceId, amount,
-        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id, trajectoryVersion: 2 });
+        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id, trajectoryVersion: 3 });
       recordDispatch(logistics, corridor.id, system.id, resourceId, amount, departureTime);
     }
     platform.energyUse = launched ? Data.launch.energyMW * 1e6 : 0;
@@ -317,9 +346,9 @@
   function trajectoryFor(lot, system) {
     const planet = system?.planets.find(item => item.id === lot.originPlanetId), ark = system?.ark;
     if (!planet || !ark || !Number.isFinite(lot.arrivalTime) || lot.arrivalTime <= lot.departureTime) return null;
-    if (lot.trajectoryVersion === 2) {
+    if (lot.trajectoryVersion === 2 || lot.trajectoryVersion === 3) {
       const trajectory = addAngularProfile(orbitalGeometry(system, planet, lot.departureTime,
-        lot.arrivalTime - lot.departureTime));
+        lot.arrivalTime - lot.departureTime, lot.arrivalTime, lot.trajectoryVersion === 3));
       if (!trajectory) return null;
       trajectory.p0 = positionOnTrajectory(trajectory, 0);
       trajectory.p3 = positionOnTrajectory(trajectory, 1);

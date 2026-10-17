@@ -34,8 +34,11 @@ n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmen
 
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
 primaire. L’épave conserve sa propre identité, sa position et son rendu. Les nouveaux
-lots portent le marqueur `trajectoryVersion: 2` ; leur courbe polaire relie la surface
-de la planète à la position future de l’Arche à `arrivalTime`. Le mode intérieur,
+lots portent le marqueur `trajectoryVersion: 3` ; leur courbe polaire relie la surface
+de la planète à la position future de l’Arche à `arrivalTime`. Près du passage angulaire
+entre une planète et l’Arche, une fenêtre calculée depuis leur vitesse relative et
+l’intervalle d’envoi stabilise le choix du trajet prograde. Les lots `trajectoryVersion: 2`
+gardent leur géométrie précédente. Le mode intérieur,
 extérieur ou direct dépend de la correction angulaire à l’interception par rapport à
 l’avance naturelle attendue sur un rayon moyen. L’angle reste strictement prograde ;
 le rayon varie vers l’intérieur ou l’extérieur selon le mode et borne l’écart pour ne
@@ -49,7 +52,7 @@ jusqu’à leur réception. Les nouveaux trajets sont reconstruits de façon dé
 depuis le marqueur, la planète d’origine et les heures du lot ; aucun point de contrôle
 graphique n’est sauvegardé. Le renderer met en cache les trajectoires des cargos, tandis
 que le guide pointillé du fret est recalculé à chaque image depuis la position actuelle
-de la planète jusqu’à la future position de l’Arche. Le cargo visuel ne porte aucune
+de la planète jusqu’à la position actuelle de l’Arche. Le cargo visuel ne porte aucune
 matière et ne pilote pas la simulation.
 
 ## Modules

@@ -51,7 +51,7 @@
         const liveRoute = Transit.previewTrajectory(system, planet, time);
         if (liveRoute) {
           const samples = Transit.trajectorySamples(liveRoute, 64);
-          line(ctx, samples.map(point => project(point.x, point.y, camera)), '#efbd7f38', 1.1, [4, 5]);
+          line(ctx, samples.map(point => project(point.x, point.y, camera)), '#efbd7f55', 1.35, [4, 4]);
         }
       }
       const current = Transit.cargoPosition(lot, system, time, route.curve);
