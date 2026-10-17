@@ -37,11 +37,11 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
   `npm run test:factory-editor` valide les gestes dans un vrai navigateur desktop et
   en émulation tactile.
-- La Plateforme de lancement (`launch_platform`) reçoit instantanément les stocks de
-  Dock dont la destination est choisie au quai et reliée par un chemin terrestre
-  entièrement construit. Toute matière transportable peut être envoyée vers un autre
-  bâtiment ; une plateforme lance automatiquement ce qu'elle reçoit. Les routes n'ont
-  ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
+- Le Dock choisit une destination parmi les usines (`factory`) et les Plateformes de
+  lancement (`launch_platform`) terminées de la planète. Le transfert est instantané
+  après un chemin terrestre entièrement construit ; une plateforme lance automatiquement
+  ce qu'elle reçoit. Les autres bâtiments ne sont pas des destinations en V1. Les routes
+  n'ont ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
   et [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
 - L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
   Son stock entier infini est sauvegardé. Le lancement traite en moyenne 4 u/s par

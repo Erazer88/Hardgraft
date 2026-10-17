@@ -7,11 +7,13 @@
   const transfer = Object.freeze({ directCorrectionRadians: .12, radialExcursionFraction: .16,
     alignmentLaunchIntervalFactor: 1.5, alignmentMinimumRadians: .12, alignmentMaximumRadians: .7,
     routeSamples: 48, durationIterations: 16, durationToleranceSeconds: .001 });
-  // Every transportable material can be routed by an output dock. Destination
-  // selection lives on the dock; the platform no longer maintains an allowlist.
+  // Destination choice is made at the dock. V1 only routes to factories and
+  // launch platforms; other logistics/building destinations remain out of scope.
+  const dockDestinationTypes = Object.freeze(['factory', 'launch_platform']);
   const exportResources = Object.freeze((root.OrbitResourceData?.catalog() || [])
     .filter(resource => resource.transportable)
     .map(resource => Object.freeze({ id: resource.id, label: resource.label })));
 
-  root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer, exportResources });
+  root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer,
+    dockDestinationTypes, exportResources });
 })(globalThis);

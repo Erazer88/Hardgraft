@@ -2,6 +2,7 @@
   'use strict';
 
   const BUILD_EPSILON = 1e-6;
+  const ALLOWED_DOCK_DESTINATIONS = root.OrbitOrbitalLogisticsData.dockDestinationTypes;
 
   function hasBuiltLandPath(network, fromBuildingId, toBuildingId) {
     if (!network || fromBuildingId === toBuildingId) return false;
@@ -39,7 +40,8 @@
         const destinationId = source.dockDestinations?.[resourceId];
         const destination = byId.get(destinationId);
         if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
-            destination.constructionState !== 'complete' || !hasBuiltLandPath(network, source.id, destination.id)) continue;
+            !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+            !hasBuiltLandPath(network, source.id, destination.id)) continue;
         const stock = destination.type === 'launch_platform'
           ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
         stock[resourceId] = (stock[resourceId] || 0) + amount;

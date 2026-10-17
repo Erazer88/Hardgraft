@@ -13,11 +13,12 @@ Dock de sortie → dockStock → destination choisie au quai
 
 `building.dockStock` est distinct de `building.inventory` et de l’inventaire de
 construction global. Dans l’éditeur de processus, chaque Dock de sortie choisit une
-destination pour sa ressource parmi les bâtiments terminés de la planète. Un chemin
+destination pour sa ressource parmi les usines et les Plateformes de lancement terminées
+de la planète. Les autres bâtiments ne sont pas des destinations en V1. Un chemin
 terrestre entièrement construit est requis ; les segments en construction et les routes
 maritimes ne comptent pas. Le transfert reste instantané et agrégé, sans débit de route
-ni véhicules économiques. Une usine ou un dépôt reçoit la matière dans son inventaire ;
-une Plateforme de lancement la reçoit dans `launchStock`.
+ni véhicules économiques. Une usine reçoit la matière dans son inventaire ; une
+Plateforme de lancement la reçoit dans `launchStock`.
 
 La destination est configurée au Dock, et non sur la plateforme. Toute ressource
 transportable peut être routée ; une plateforme lance automatiquement chaque matière
