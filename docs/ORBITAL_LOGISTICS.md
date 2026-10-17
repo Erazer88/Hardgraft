@@ -18,10 +18,12 @@ est instantané et agrégé, sans débit de route ni véhicules économiques.
 
 Les exports sont OFF par défaut. La V1 expose Fer brut (`raw_iron`), Résidus
 (`iron_tailings`) et Laitier (`iron_slag`). Les matières reçues restent dans
-`launchStock` tant que leur export n’est pas activé. Les valeurs de départ — 4 u/s et
-5 MW — sont déclarées dans `src/data/orbitalLogistics.js`. Plusieurs plateformes
-peuvent être construites sur la même planète ; aucune n’est requise avant les autres
-bâtiments.
+`launchStock` tant que leur export n’est pas activé. Les valeurs de départ — débit
+moyen de 4 u/s, paquets toutes les 5 secondes (jusqu’à 20 unités par départ) et 5 MW —
+sont déclarées dans `src/data/orbitalLogistics.js`. Les quantités restent entières ;
+l’agrégation réduit le nombre de cargos représentés sans changer le débit moyen
+nominal. Plusieurs plateformes peuvent être construites sur la même planète ; aucune
+n’est requise avant les autres bâtiments.
 
 ## Simulation et rendu
 
@@ -32,8 +34,10 @@ n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmen
 
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système
 primaire. L’épave conserve sa propre identité, sa position et son rendu. La courbe du
-cargo est recalculée depuis la planète d’origine et la position future de l’Arche à
-l’arrivée ; le cargo visuel ne porte aucune matière et ne pilote pas la simulation.
+cargo est recalculée depuis la surface de la planète d’origine, avec des tangentes
+alignées sur le mouvement orbital prograde, jusqu’à la position future de l’Arche à
+l’arrivée. La vitesse de transit est réglée à 70 % de la valeur précédente ; le cargo
+visuel ne porte aucune matière et ne pilote pas la simulation.
 
 ## Modules
 

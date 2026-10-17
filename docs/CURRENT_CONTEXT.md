@@ -41,8 +41,9 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   n'ont ni capacité ni temps de trajet. Référence : [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
 - L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
   Son stock entier infini est sauvegardé. Les plateformes gardent les ressources en
-  attente jusqu’à l’autorisation d’export, désactivée par défaut. La capacité de test
-  est de 4 u/s et 5 MW, déclarée dans `src/data/orbitalLogistics.js`.
+  attente jusqu’à l’autorisation d’export, désactivée par défaut. Le lancement traite
+  en moyenne 4 u/s par paquets entiers de 5 secondes ; la capacité énergétique de test
+  est de 5 MW, déclarée dans `src/data/orbitalLogistics.js`.
 - Le transit spatial est sauvegardé en lots entiers avec des heures absolues de départ
   et d’arrivée en temps simulé. Les cargos sont un rendu séparé et ne portent aucune
   matière. Aucun flux Hub → planète n’est implémenté. Voir

@@ -24,7 +24,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const planetId = 'home:p-0';
 const system = {
   id: 'home', star: { mass: 1 },
-  planets: [{ id: planetId, orbit: 100, phase: 0, speed: .03 }],
+  planets: [{ id: planetId, orbit: 100, radius: 5, phase: 0, speed: .03 }],
   ark: { id: 'home:ark', systemId: 'home', orbit: 70, phase: Math.PI, speed: .02 }
 };
 const systems = { home: system };
@@ -43,7 +43,8 @@ function fixture({ builtLength = 100, dockStock = { raw_iron: 8 }, inventory = {
 }
 
 test('orbital launch values and export resources remain declarative', () => {
-  assert.deepEqual(plain(Data.launch), { capacityUPerSecond: 4, energyMW: 5 });
+  assert.deepEqual(plain(Data.launch), { capacityUPerSecond: 4, batchIntervalSeconds: 5, energyMW: 5 });
+  assert.equal(Data.transit.cargoSpeedMultiplier, .7);
   assert.deepEqual(plain(Data.exportResources.map(item => item.id)), ['raw_iron', 'iron_tailings', 'iron_slag']);
 });
 
@@ -68,26 +69,31 @@ test('ground transfer drains only dock-exposed integer stock and leaves other in
   assert.deepEqual(plain(state.inventory), { iron: 50 });
 });
 
-test('platform exports default OFF and enabled launches share a whole-unit capacity of four per second', () => {
+test('platform exports default OFF and launch whole-unit packets average four units per second', () => {
   const { platform, state } = fixture();
   Logistics.advance(state, 0, systems);
   assert.equal(platform.exportEnabled.raw_iron, false);
   assert.equal(Logistics.setExportEnabled(platform, 'raw_iron', true), true);
-  Logistics.advance(state, 1, systems);
-  assert.equal(platform.launchStock.raw_iron, 4);
-  assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 4);
+  platform.launchStock.raw_iron = 40;
+  Logistics.advance(state, 4, systems);
+  assert.equal(platform.launchStock.raw_iron, 40, 'no packet departs before its five-second accumulation interval');
+  assert.equal(state.orbitalLogistics.transit.length, 0);
+  Logistics.advance(state, 5, systems);
+  assert.equal(platform.launchStock.raw_iron, 20);
+  assert.equal(state.orbitalLogistics.transit.length, 1, 'one visual cargo represents the full packet');
+  assert.equal(state.orbitalLogistics.transit[0].amount, 20);
   assert.ok(state.orbitalLogistics.transit.every(lot => Number.isInteger(lot.amount)));
-  assert.equal(state.orbitalLogistics.transit[0].departureTime, 1);
-  assert.equal(state.orbitalLogistics.transit[0].arrivalTime, 1 + Transit.travelTime(system, system.planets[0], 1));
-  Logistics.advance(state, 1, systems);
-  assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 4,
+  assert.equal(state.orbitalLogistics.transit[0].departureTime, 5);
+  assert.equal(state.orbitalLogistics.transit[0].arrivalTime, 5 + Transit.travelTime(system, system.planets[0], 5));
+  Logistics.advance(state, 5, systems);
+  assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 20,
     'repeated frames at the same simulation time do not dispatch twice');
-  Logistics.advance(state, 2, systems);
+  Logistics.advance(state, 10, systems);
   assert.equal(platform.launchStock.raw_iron, 0);
-  assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 8);
-  assert.equal(Transit.currentPlatformMetrics(state, platform.id, 2).throughput, 4,
-    'two dispatch ticks represent an average of four units per second, not eight');
-  assert.deepEqual(plain(Transit.currentHubMetrics(state, 'home', 2).rates), { raw_iron: 4 });
+  assert.equal(state.orbitalLogistics.transit.reduce((sum, lot) => sum + lot.amount, 0), 40);
+  assert.equal(Transit.currentPlatformMetrics(state, platform.id, 10).throughput, 4,
+    'two 20-unit packets over ten seconds represent four units per second');
+  assert.deepEqual(plain(Transit.currentHubMetrics(state, 'home', 10).rates), { raw_iron: 4 });
 });
 
 test('disabled export keeps resources at the platform; missing routes never export them', () => {
@@ -106,10 +112,10 @@ test('disabled export keeps resources at the platform; missing routes never expo
 });
 
 test('each whole-unit transit lot arrives at its exact simulation time and is saved without render state', () => {
-  const { platform, state } = fixture();
+  const { platform, state } = fixture({ dockStock: {} });
   platform.launchStock.raw_iron = 4;
   platform.exportEnabled.raw_iron = true;
-  Logistics.advance(state, 1, systems);
+  Logistics.advance(state, 5, systems);
   const lot = state.orbitalLogistics.transit[0], arrival = lot.arrivalTime;
   assert.equal(Number.isInteger(lot.amount), true);
   assert.equal(state.orbitalLogistics.hubs.home.stock.raw_iron, undefined);
@@ -126,30 +132,41 @@ test('each whole-unit transit lot arrives at its exact simulation time and is sa
   assert.ok(saved.transit.every(item => Number.isInteger(item.amount)));
 });
 
-test('several materials share one corridor and never become fractional units', () => {
+test('several materials share one corridor in integer packets', () => {
   const { platform, state } = fixture({ dockStock: {} });
   platform.launchStock = { raw_iron: 8, iron_tailings: 8 };
   platform.exportEnabled.raw_iron = true;
   platform.exportEnabled.iron_tailings = true;
-  Transit.advance(state, 1, systems);
+  Transit.advance(state, 5, systems);
   const lots = state.orbitalLogistics.transit;
   assert.equal(new Set(lots.map(lot => lot.corridorId)).size, 1);
   assert.deepEqual(plain(Object.fromEntries(lots.map(lot => [lot.resourceId, lot.amount]))),
-    { raw_iron: 2, iron_tailings: 2 });
+    { raw_iron: 8, iron_tailings: 8 });
   assert.ok(lots.every(lot => Number.isInteger(lot.amount) && lot.amount > 0));
 });
 
 test('cargo positions use fixed departure and predicted arrival endpoints', () => {
   const { platform, state } = fixture({ dockStock: {} });
   platform.launchStock.raw_iron = 1; platform.exportEnabled.raw_iron = true;
-  Transit.advance(state, 1, systems);
+  Transit.advance(state, 5, systems);
   const lot = state.orbitalLogistics.transit[0];
   const curve = Transit.trajectoryFor(lot, system);
   assert.deepEqual(plain(curve), plain(Transit.trajectoryFor(lot, system)));
   assert.deepEqual(plain(Transit.cargoPosition(lot, system, lot.departureTime)),
-    plain(World.planetPosition(system.planets[0], lot.departureTime)));
+    plain(curve.p0));
   assert.deepEqual(plain(Transit.cargoPosition(lot, system, lot.arrivalTime)),
     plain(Transit.arkPosition(system.ark, system.star, lot.arrivalTime)));
+  const planetCenter = World.planetPosition(system.planets[0], lot.departureTime);
+  assert.ok(Math.abs(Math.hypot(curve.p0.x - planetCenter.x, curve.p0.y - planetCenter.y) - system.planets[0].radius) < 1e-8,
+    'the visual departure begins at the planet surface rather than its center');
+  const sourceAngle = system.planets[0].phase + system.planets[0].speed * lot.departureTime;
+  const sourceTangent = { x: -Math.sin(sourceAngle), y: Math.cos(sourceAngle) };
+  assert.ok((curve.p1.x - curve.p0.x) * sourceTangent.x + (curve.p1.y - curve.p0.y) * sourceTangent.y > 0,
+    'the departure curve follows the planet’s prograde orbital direction');
+  const arrivalAngle = system.ark.phase + system.ark.speed * lot.arrivalTime;
+  const arrivalTangent = { x: -Math.sin(arrivalAngle), y: Math.cos(arrivalAngle) };
+  assert.ok((curve.p3.x - curve.p2.x) * arrivalTangent.x + (curve.p3.y - curve.p2.y) * arrivalTangent.y > 0,
+    'the arrival curve approaches along the Ark’s prograde orbital direction');
 });
 
 test('the primary Ark is deterministic and remains independent from the system wreck', () => {

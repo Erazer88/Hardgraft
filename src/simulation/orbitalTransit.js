@@ -12,7 +12,8 @@
   }
 
   function createState() {
-    return { version: Data.version, corridors: [], transit: [], hubs: {}, nextDispatchTime: 1 };
+    return { version: Data.version, corridors: [], transit: [], hubs: {},
+      nextDispatchTime: Data.launch.batchIntervalSeconds };
   }
 
   function normalize(value) {
@@ -62,8 +63,9 @@
     const orbitList = (system.planets || []).map(item => item.orbit).filter(value => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
     const middle = orbitList.length ? orbitList[Math.floor(orbitList.length / 2)] : ark.orbit;
     const meanRadius = Math.max(.01, (planet.orbit + ark.orbit) / 2);
-    return Math.max(Data.transit.minimumSeconds, Math.min(Data.transit.maximumSeconds,
+    const nominalDuration = Math.max(Data.transit.minimumSeconds, Math.min(Data.transit.maximumSeconds,
       Data.transit.referenceHalfOrbitSeconds * (angularDistance / Math.PI) * (meanRadius / Math.max(.01, middle))));
+    return nominalDuration / Data.transit.cargoSpeedMultiplier;
   }
 
   function corridorFor(logistics, platform, ark) {
@@ -111,12 +113,14 @@
     const resources = enabledResources(platform);
     const available = resources.reduce((sum, id) => sum + Math.max(0, Math.floor(platform.launchStock?.[id] || 0)), 0);
     if (!available) return 0;
-    const amountToLaunch = Math.min(Data.launch.capacityUPerSecond, available);
+    const batchCapacity = Math.floor(Data.launch.capacityUPerSecond * Data.launch.batchIntervalSeconds);
+    const amountToLaunch = Math.min(batchCapacity, available);
     const corridor = corridorFor(logistics, platform, ark);
     const planet = system.planets.find(item => item.id === platform.planetId);
     if (!planet) return 0;
     const duration = travelTime(system, planet, departureTime);
     let left = amountToLaunch, launched = 0;
+    const batchByResource = {};
     let cursor = Math.max(0, resources.indexOf(platform.exportCursorResourceId || resources[0]));
     while (left > 0) {
       let resourceId = null, index = cursor;
@@ -126,13 +130,16 @@
       }
       if (!resourceId) break;
       platform.launchStock[resourceId] -= 1;
-      const arrivalTime = departureTime + duration;
-      appendLot(logistics, { corridorId: corridor.id, resourceId, amount: 1,
-        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id });
-      recordDispatch(logistics, corridor.id, system.id, resourceId, 1, departureTime);
+      batchByResource[resourceId] = (batchByResource[resourceId] || 0) + 1;
       cursor = (index + 1) % resources.length;
       platform.exportCursorResourceId = resources[cursor];
       left--; launched++;
+    }
+    const arrivalTime = departureTime + duration;
+    for (const [resourceId, amount] of Object.entries(batchByResource)) {
+      appendLot(logistics, { corridorId: corridor.id, resourceId, amount,
+        departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id });
+      recordDispatch(logistics, corridor.id, system.id, resourceId, amount, departureTime);
     }
     platform.energyUse = launched ? Data.launch.energyMW * 1e6 : 0;
     platform.lastLaunchTime = launched ? departureTime : null;
@@ -147,7 +154,8 @@
     state.orbitalLogistics = normalize(previous);
     const logistics = state.orbitalLogistics;
     logistics.dispatchHistory = history;
-    if (!hadDispatchClock) logistics.nextDispatchTime = Math.floor(currentTime) + 1;
+    const interval = Data.launch.batchIntervalSeconds;
+    if (!hadDispatchClock) logistics.nextDispatchTime = (Math.floor(currentTime / interval) + 1) * interval;
     const systems = systemsById instanceof Map ? systemsById : new Map(Object.entries(systemsById || {}));
     const platformById = new Map((state.surfaceBuildings || []).filter(item => item.type === 'launch_platform').map(item => [item.id, item]));
     for (const platform of platformById.values()) {
@@ -160,14 +168,15 @@
       } else platform.energyUse = 0;
     }
 
-    let next = Number.isFinite(logistics.nextDispatchTime) ? logistics.nextDispatchTime : Math.floor(currentTime) + 1;
-    if (next <= 0) next = 1;
+    let next = Number.isFinite(logistics.nextDispatchTime) ? logistics.nextDispatchTime : interval;
+    if (next <= 0) next = interval;
+    next = Math.ceil((next - EPSILON) / interval) * interval;
     while (allowDispatch && next <= currentTime + EPSILON) {
       for (const platform of platformById.values()) {
         const system = systems.get(platform.planetId.split(':p-')[0]);
         if (system?.ark) launchBatch(state, platform, system, next);
       }
-      next += 1;
+      next += interval;
     }
     if (allowDispatch) logistics.nextDispatchTime = next;
 
@@ -185,14 +194,21 @@
   function trajectoryFor(lot, system) {
     const planet = system?.planets.find(item => item.id === lot.originPlanetId), ark = system?.ark;
     if (!planet || !ark || !Number.isFinite(lot.arrivalTime) || lot.arrivalTime <= lot.departureTime) return null;
-    const start = World.planetPosition(planet, lot.departureTime);
+    const center = World.planetPosition(planet, lot.departureTime);
+    const sourceAngle = planet.phase + planet.speed * lot.departureTime;
+    const sourceRadial = { x: Math.cos(sourceAngle), y: Math.sin(sourceAngle) };
+    const start = { x: center.x + sourceRadial.x * planet.radius,
+      y: center.y + sourceRadial.y * planet.radius };
     const end = arkPosition(ark, system.star, lot.arrivalTime);
-    const dx = end.x - start.x, dy = end.y - start.y, length = Math.max(.01, Math.hypot(dx, dy));
-    const sign = (World.hashSeed(lot.corridorId) & 1) ? 1 : -1;
-    const bow = length * .28 + (planet.orbit + ark.orbit) * .12;
-    const nx = -dy / length * sign, ny = dx / length * sign;
-    const p1 = { x: start.x + dx / 3 + nx * bow, y: start.y + dy / 3 + ny * bow };
-    const p2 = { x: start.x + dx * 2 / 3 + nx * bow, y: start.y + dy * 2 / 3 + ny * bow };
+    const arrivalAngle = ark.phase + ark.speed * lot.arrivalTime;
+    const sourceTangent = { x: -sourceRadial.y, y: sourceRadial.x };
+    const arrivalTangent = { x: -Math.sin(arrivalAngle), y: Math.cos(arrivalAngle) };
+    const length = Math.max(.01, Math.hypot(end.x - start.x, end.y - start.y));
+    const controlLength = Math.max(planet.radius * 1.5, length * .34);
+    const p1 = { x: start.x + sourceTangent.x * controlLength,
+      y: start.y + sourceTangent.y * controlLength };
+    const p2 = { x: end.x - arrivalTangent.x * controlLength,
+      y: end.y - arrivalTangent.y * controlLength };
     return { p0: start, p1, p2, p3: end };
   }
 
@@ -213,8 +229,9 @@
       inTransit[lot.resourceId] = (inTransit[lot.resourceId] || 0) + lot.amount;
     }
     const entries = (logistics.dispatchHistory || []).filter(item => item.systemId === systemId && item.time <= currentTime);
-    const window = 10, recent = entries.filter(item => item.time >= currentTime - window);
-    const duration = Math.max(1, Math.min(window, currentTime - (recent[0]?.time ?? currentTime) + 1));
+    const window = 10, interval = Data.launch.batchIntervalSeconds;
+    const recent = entries.filter(item => item.time > currentTime - window);
+    const duration = Math.max(interval, Math.min(window, currentTime - (recent[0]?.time ?? currentTime) + interval));
     for (const item of recent) {
       rates[item.resourceId] = (rates[item.resourceId] || 0) + item.amount / duration;
     }
@@ -224,9 +241,10 @@
   function currentPlatformMetrics(state, platformId, currentTime) {
     const logistics = state.orbitalLogistics || createState(), corridorIds = new Set(
       (logistics.corridors || []).filter(item => item.fromEntityId === platformId).map(item => item.id));
+    const window = 10, interval = Data.launch.batchIntervalSeconds;
     const entries = (logistics.dispatchHistory || []).filter(item => corridorIds.has(item.corridorId) &&
-      item.time <= currentTime && item.time >= currentTime - 10);
-    const duration = Math.max(1, Math.min(10, currentTime - (entries[0]?.time ?? currentTime) + 1));
+      item.time <= currentTime && item.time > currentTime - window);
+    const duration = Math.max(interval, Math.min(window, currentTime - (entries[0]?.time ?? currentTime) + interval));
     const rates = {};
     for (const item of entries) rates[item.resourceId] = (rates[item.resourceId] || 0) + item.amount / duration;
     return { rates, throughput: Object.values(rates).reduce((sum, rate) => sum + rate, 0) };
