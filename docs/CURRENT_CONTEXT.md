@@ -78,8 +78,8 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - Le réseau logistique partagé entre bâtiments, ses dépôts, limites de stock et
   contre-pression restent à venir. Une route conditionne actuellement le transfert
   instantané du stock de Dock vers une Plateforme de lancement.
-- La Plateforme est limitée à une par planète dans cette V1. Cette limite peut évoluer
-  et ne constitue pas un invariant architectural.
+- Plusieurs Plateformes de lancement peuvent être construites sur une même planète ;
+  aucune d'elles n'est un bâtiment principal obligatoire.
 - L'analyse qualité est déclarée mais désactivée ; l'économie logistique complète est
   une étape future. Ne pas implémenter ces mécaniques simplement parce qu'elles sont
   décrites dans les références historiques.

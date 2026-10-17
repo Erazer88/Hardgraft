@@ -178,11 +178,6 @@
       return { valid: false, reason: 'Position de construction indisponible.', rotation };
     }
 
-    const hasLaunchPlatform = buildings.some(building => building.planetId === planetId && building.type === 'launch_platform');
-    if (definition.id === 'launch_platform' && hasLaunchPlatform) {
-      return { valid: false, reason: 'Une plateforme de lancement est déjà installée sur cette planète.', rotation };
-    }
-
     const rules = definition.placementRules || {};
     let resolvedRotation = rotation;
     if (rules.coastRequired) {

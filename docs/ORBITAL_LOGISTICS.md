@@ -19,9 +19,9 @@ est instantané et agrégé, sans débit de route ni véhicules économiques.
 Les exports sont OFF par défaut. La V1 expose Fer brut (`raw_iron`), Résidus
 (`iron_tailings`) et Laitier (`iron_slag`). Les matières reçues restent dans
 `launchStock` tant que leur export n’est pas activé. Les valeurs de départ — 4 u/s et
-5 MW — sont déclarées dans `src/data/orbitalLogistics.js`. Une seule plateforme par
-planète est permise actuellement par le placement V1 ; ce n’est pas une limite du
-modèle à long terme.
+5 MW — sont déclarées dans `src/data/orbitalLogistics.js`. Plusieurs plateformes
+peuvent être construites sur la même planète ; aucune n’est requise avant les autres
+bâtiments.
 
 ## Simulation et rendu
 

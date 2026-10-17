@@ -346,11 +346,9 @@
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       for (const option of buildOptions.children) {
         const definition = BuildingData.get(option.dataset.buildingType);
-        const alreadyHasPlatform = definition?.id === 'launch_platform' && (state.surfaceBuildings || []).some(building =>
-          building.planetId === state.planet?.id && building.type === 'launch_platform');
         option.hidden = false;
-        option.disabled = alreadyHasPlatform || !Inventory.canAfford(state.inventory, definition?.cost || {});
-        if (definition) option.title = alreadyHasPlatform ? 'Une plateforme existe déjà sur cette planète.' : option.disabled
+        option.disabled = !Inventory.canAfford(state.inventory, definition?.cost || {});
+        if (definition) option.title = option.disabled
           ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
