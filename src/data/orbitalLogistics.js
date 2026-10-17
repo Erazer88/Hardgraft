@@ -1,7 +1,7 @@
 (function (root) {
   'use strict';
 
-  const launch = Object.freeze({ capacityUPerSecond: 4, batchIntervalSeconds: 5, energyMW: 5 });
+  const launch = Object.freeze({ capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
   const transit = Object.freeze({ minimumSeconds: 5, maximumSeconds: 45, referenceHalfOrbitSeconds: 30,
     cargoSpeedMultiplier: .7 });
   const exportResources = Object.freeze([

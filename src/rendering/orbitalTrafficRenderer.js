@@ -42,7 +42,6 @@
       const point = project(current.x, current.y, camera), color = cargoColor(lot.resourceId);
       circle(ctx, point.x, point.y, 5.5, color + '52', 2);
       line(ctx, [{ x: point.x - 3.5, y: point.y }, { x: point.x + 3.5, y: point.y }], color, 1.4);
-      if (lot.amount > 1) label(ctx, String(lot.amount), point.x + 7, point.y - 7, color, 7);
     }
   }
 

@@ -664,7 +664,7 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   assert.equal(await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).exportEnabled.raw_iron`),
     true, `${name} actual export toggle enables raw iron`);
   await cdp.until('window.OrbitalDebug.getOrbitalLogistics().transit.some(lot => lot.resourceId === "raw_iron")',
-    `${name} whole iron units enter spatial transit`, 6000);
+    `${name} whole iron units enter spatial transit`, 15000);
   const cargo = await cdp.evaluate('window.OrbitalDebug.getOrbitalLogistics().transit.find(lot => lot.resourceId === "raw_iron")');
   assert.ok(Number.isInteger(cargo.amount) && cargo.amount > 0, `${name} cargo contains only whole units`);
   assert.ok(cargo.arrivalTime > cargo.departureTime, `${name} cargo has a scheduled arrival time`);

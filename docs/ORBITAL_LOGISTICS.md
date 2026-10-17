@@ -19,7 +19,7 @@ est instantané et agrégé, sans débit de route ni véhicules économiques.
 Les exports sont OFF par défaut. La V1 expose Fer brut (`raw_iron`), Résidus
 (`iron_tailings`) et Laitier (`iron_slag`). Les matières reçues restent dans
 `launchStock` tant que leur export n’est pas activé. Les valeurs de départ — débit
-moyen de 4 u/s, paquets toutes les 5 secondes (jusqu’à 20 unités par départ) et 5 MW —
+moyen de 4 u/s, paquets toutes les 10 secondes (jusqu’à 40 unités par départ) et 5 MW —
 sont déclarées dans `src/data/orbitalLogistics.js`. Les quantités restent entières ;
 l’agrégation réduit le nombre de cargos représentés sans changer le débit moyen
 nominal. Plusieurs plateformes peuvent être construites sur la même planète ; aucune

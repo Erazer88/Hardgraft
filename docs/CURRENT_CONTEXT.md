@@ -42,7 +42,7 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
   Son stock entier infini est sauvegardé. Les plateformes gardent les ressources en
   attente jusqu’à l’autorisation d’export, désactivée par défaut. Le lancement traite
-  en moyenne 4 u/s par paquets entiers de 5 secondes ; la capacité énergétique de test
+  en moyenne 4 u/s par paquets entiers de 10 secondes ; la capacité énergétique de test
   est de 5 MW, déclarée dans `src/data/orbitalLogistics.js`.
 - Le transit spatial est sauvegardé en lots entiers avec des heures absolues de départ
   et d’arrivée en temps simulé. Les cargos sont un rendu séparé et ne portent aucune
