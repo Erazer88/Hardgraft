@@ -6,6 +6,24 @@
   const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 212 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
+  const BLOCK_ART = Object.freeze({
+    drill: { accent: '#ecc06e', shape: '<rect x="50" y="10" width="28" height="18" rx="4" fill="#31566a"/><path d="M44 28h40l-7 10H51z" fill="#54798a"/><path d="M61 38v17l3 8 3-8V38" fill="var(--art-accent)"/><path d="M38 63h52M44 67l8-7 8 4 8-9 7 10 8-5 7 6" fill="none"/>' },
+    oil_pump: { accent: '#e8b66e', shape: '<path d="M29 64h71M39 64l13-34M52 30h32M61 30l13 34M44 25l48 9" fill="none"/><path d="M76 31l16 3-6 6-17-4z" fill="var(--art-accent)"/><rect x="49" y="61" width="30" height="7" rx="2" fill="#385568"/><path d="M58 68v5m13-5v5"/>' },
+    water_supply: { accent: '#75cfee', shape: '<path d="M64 14C54 28 44 39 44 50a20 20 0 0 0 40 0c0-11-10-22-20-36z" fill="#16445e"/><path d="M64 22C57 33 51 41 51 50a13 13 0 0 0 13 13" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M31 68h66"/><circle cx="94" cy="24" r="3" fill="var(--art-accent)"/><circle cx="101" cy="34" r="2" fill="var(--art-accent)"/>' },
+    crusher: { accent: '#f0ad5e', shape: '<path d="M31 24h66l-8 10H39zM31 61h66l-8-10H39z" fill="#496b7b"/><circle cx="49" cy="43" r="12" fill="#142d3d"/><circle cx="79" cy="43" r="12" fill="#142d3d"/><path d="M49 34v18m-9-9h18M79 34v18m-9-9h18"/><path d="M61 32l4-5 4 6-4 5zM62 50l4-4 4 5-4 5z" fill="var(--art-accent)"/><path d="M41 68l7-6 7 5 8-7 7 7 7-5 9 6" fill="none" stroke="var(--art-accent)"/>' },
+    grinder: { accent: '#74d2ce', shape: '<path d="M36 30h56v34H36z" fill="#173448"/><circle cx="51" cy="47" r="11" fill="#0c1b2a"/><circle cx="77" cy="47" r="11" fill="#0c1b2a"/><path d="M51 38v18m-9-9h18M77 38v18m-9-9h18"/><path d="M64 15v13m-9-7h18M64 64v10M38 74h52"/><path d="M59 19l5-5 5 5" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="64" cy="47" r="3" fill="var(--art-accent)"/>' },
+    magnetic_separator: { accent: '#75d9cd', shape: '<path d="M42 26v22a22 22 0 0 0 44 0V26h-13v22a9 9 0 0 1-18 0V26z" fill="#375c71"/><path d="M42 26h13v11H42zM73 26h13v11H73z" fill="var(--art-accent)"/><path d="M34 67h60"/><circle cx="47" cy="60" r="3" fill="#e6ae69"/><circle cx="60" cy="66" r="2" fill="#a8c3cf"/><circle cx="77" cy="61" r="3" fill="var(--art-accent)"/>' },
+    gravity_separator: { accent: '#c6a7ec', shape: '<path d="M35 24h58l-7 13H42zM42 41h44l-7 12H49zM49 58h30l-5 10H54z" fill="#244255"/><path d="M40 30h48M47 47h34M54 63h20"/><circle cx="51" cy="31" r="3" fill="#e4b165"/><circle cx="73" cy="47" r="3" fill="var(--art-accent)"/><circle cx="63" cy="63" r="3" fill="#a7d0d6"/><path d="M64 16v7m-4-3 4-4 4 4" fill="none" stroke="var(--art-accent)"/>' },
+    silicon_washer: { accent: '#76cef0', shape: '<path d="M37 29h54v37H37z" fill="#123b52"/><path d="M39 48q12-7 25 0t25 0v16H39z" fill="#167aa0" stroke="var(--art-accent)"/><path d="M51 18c-4 6-6 8-6 12a6 6 0 0 0 12 0c0-4-2-6-6-12zM75 18c-3 5-5 7-5 10a5 5 0 0 0 10 0c0-3-2-5-5-10z" fill="var(--art-accent)"/><path d="M44 67v6m40-6v6"/>' },
+    silicon_dryer: { accent: '#efbc66', shape: '<rect x="34" y="29" width="60" height="36" rx="5" fill="#304b5b"/><rect x="43" y="38" width="42" height="20" rx="3" fill="#132635"/><path d="M53 54c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M41 25c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10" fill="none" stroke="var(--art-accent)" stroke-width="2"/>' },
+    carbon_separator: { accent: '#d5a36d', shape: '<path d="M32 57h64l-8 12H40z" fill="#284455"/><path d="M41 48h51M44 52l5 13m10-13 4 13m11-13 4 13"/><path d="M44 45l6-13 11 3 4 10zM67 44l8-16 12 5-3 11z" fill="#26313a" stroke="var(--art-accent)"/><circle cx="51" cy="40" r="2" fill="#d7e0d8"/><circle cx="80" cy="37" r="2" fill="#d7e0d8"/>' },
+    carbon_washer: { accent: '#74ced4', shape: '<path d="M37 30h54v37H37z" fill="#123342"/><path d="M39 49q13-7 25 0t25 0v15H39z" fill="#146277" stroke="var(--art-accent)"/><path d="M48 44l5-12 9 2 4 10zM68 44l5-13 10 4-2 9z" fill="#1f2e36" stroke="#cf9c68"/><path d="M45 24h38M46 69v4m37-4v4"/>' },
+    reduction_furnace: { accent: '#ff9863', shape: '<path d="M39 66V37l10-10h30l10 10v29z" fill="#4a3b39"/><path d="M51 66V47a13 13 0 0 1 26 0v19z" fill="#111b24"/><path d="M64 57c-9-7 3-11 0-18 9 7 11 12 4 18z" fill="var(--art-accent)" stroke="#ffd27b"/><path d="M33 68h62M49 22h30"/><circle cx="64" cy="70" r="3" fill="#ffd27b"/>' },
+    triphasic_separator: { accent: '#79cde3', shape: '<path d="M49 20h30v8l8 9v29H41V37l8-9z" fill="#18384c"/><path d="M43 44h42v8H43z" fill="#ae8154"/><path d="M43 53h42v8H43z" fill="#405c69"/><path d="M43 39h42v5H43z" fill="var(--art-accent)"/><path d="M55 17h18M37 68h54"/><circle cx="58" cy="41" r="2" fill="#d5e3e8"/><circle cx="72" cy="57" r="2" fill="#d5e3e8"/>' },
+    terril: { accent: '#bc9369', shape: '<path d="M28 66h72"/><path d="M35 65l9-17 8 7 12-23 11 16 7-6 11 23z" fill="#364855"/><path d="M42 54l7-4m17-14 5 6m9 7 6-4" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="51" cy="61" r="2" fill="#e3c293"/><circle cx="75" cy="58" r="2" fill="#e3c293"/>' },
+    input_dock: { accent: '#79d6c2', shape: '<path d="M91 43H42"/><path d="M50 34l-10 9 10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M41 56h49l-7 12H48z" fill="#254758"/><path d="M50 54V46m14 8V46m14 8V46"/><rect x="86" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M89 36h9m-9 6h9"/>' },
+    output_dock: { accent: '#75cfde', shape: '<path d="M37 43h49"/><path d="M78 34l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 56h49l-7 12H45z" fill="#254758"/><path d="M49 54V46m14 8V46m14 8V46"/><rect x="27" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M30 36h9m-9 6h9"/>' }
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
@@ -15,6 +33,8 @@
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
+    const paletteOverlay = $('factory-palette-overlay'), paletteToggle = $('factory-add-block-toggle');
+    const paletteClose = $('factory-palette-close');
     let activeBuilding = null, graph = null, machines = [], connections = [];
     let pendingConnection = null, nextMachineId = 1, nextConnectionId = 1;
     const cards = new Map();
@@ -44,6 +64,36 @@
     };
 
     function status(message) { $('factory-editor-status').textContent = message; }
+
+    function setPaletteOpen(open) {
+      paletteOverlay.hidden = !open;
+      paletteToggle.setAttribute('aria-expanded', String(open));
+      paletteToggle.setAttribute('aria-label', open ? 'Fermer le menu des blocs' : 'Ajouter un bloc au processus');
+      const label = paletteToggle.querySelector('span');
+      if (label) label.textContent = open ? 'FERMER LE MENU' : 'AJOUTER UN BLOC';
+      const icon = paletteToggle.querySelector('svg path');
+      if (icon) icon.setAttribute('d', open ? 'M6 6l12 12M18 6 6 18' : 'M12 5v14M5 12h14');
+      if (open) palette.querySelector('[data-add-machine]')?.focus({ preventScroll: true });
+    }
+
+    function createBlockArtwork(def) {
+      const art = BLOCK_ART[def.id] || BLOCK_ART.terril;
+      const image = document.createElementNS(SVG, 'svg');
+      image.classList.add('factory-block-art');
+      image.setAttribute('viewBox', '0 0 128 84');
+      image.setAttribute('role', 'img');
+      image.setAttribute('aria-label', `Illustration : ${def.label}`);
+      image.innerHTML = `<defs><linearGradient id="art-${def.id}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#183348"/><stop offset="1" stop-color="#0a1927"/></linearGradient></defs><rect x="1" y="1" width="126" height="82" rx="5" fill="url(#art-${def.id})" stroke="#58768a" stroke-opacity=".34"/><path d="M8 16h112M8 73h112" stroke="#507086" stroke-opacity=".18"/><path d="M14 9h2m12 0h2m12 0h2m60 0h2m12 0h2" stroke="#84a6b6" stroke-opacity=".3" stroke-width="2"/><g stroke="#8ba9b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" style="--art-accent:${art.accent}">${art.shape}</g>`;
+      return image;
+    }
+
+    function blockSpecification(def) {
+      if (def.externalInput) return 'RÉSEAU TERRESTRE';
+      if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
+      if (def.externalOutput) return `${fmt(def.throughput)} u/s · EXPORT`;
+      const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
+      return `${throughput} · ${fmt(def.energyMW)} MW`;
+    }
 
     function persist() {
       if (!activeBuilding || !graph) return;
@@ -338,15 +388,17 @@
         graph?.geology?.resourceId || activeBuilding?.resourceId || null)) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
-        const icon = document.createElement('span'); icon.className = 'factory-block-icon'; icon.textContent = def.mark;
+        const specification = blockSpecification(def);
+        button.setAttribute('aria-label', `${def.label}. ${def.description || 'Machine de traitement.'} ${specification}`);
+        button.append(createBlockArtwork(def));
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
-        const detail = document.createElement('small');
-        detail.textContent = def.externalInput ? 'RÉCEPTION · DESTINATION POUR LES DOCKS DE SORTIE'
-          : def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
-          : def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
-          : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
-        copy.append(title, detail); button.append(icon, copy); palette.append(button);
+        const description = document.createElement('small');
+        description.className = 'factory-block-description';
+        description.textContent = def.description || 'Machine de traitement industriel.';
+        const specs = document.createElement('small');
+        specs.className = 'factory-block-specs'; specs.textContent = specification;
+        copy.append(title, description, specs); button.append(copy); palette.append(button);
       }
     }
 
@@ -390,8 +442,9 @@
       const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
-      if (!result.ok) { status(result.reason); return; }
+      if (!result.ok) { status(result.reason); return false; }
       machines = graph.machines; renderNodes(); persist();
+      return true;
     }
 
     function removeMachine(id) {
@@ -410,6 +463,7 @@
 
     function open(building, savedPlan) {
       activeBuilding = building;
+      setPaletteOpen(false);
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -429,6 +483,7 @@
 
     function close() {
       if (editor.hidden) return;
+      setPaletteOpen(false);
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
@@ -443,9 +498,30 @@
       if (viewportController.mode() === 'idle' && !pendingConnection) renderConnections();
     }
 
+    paletteToggle.addEventListener('click', () => setPaletteOpen(paletteOverlay.hidden));
+    paletteClose.addEventListener('click', () => {
+      setPaletteOpen(false);
+      paletteToggle.focus({ preventScroll: true });
+    });
+    paletteOverlay.addEventListener('click', event => {
+      if (event.target === paletteOverlay) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
+    editor.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !paletteOverlay.hidden) {
+        event.preventDefault();
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
     palette.addEventListener('click', event => {
       const button = event.target.closest('[data-add-machine]');
-      if (button) addMachine(button.dataset.addMachine);
+      if (button && addMachine(button.dataset.addMachine)) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
     });
     viewport.addEventListener('click', event => {
       const button = event.target.closest('[data-remove-machine]');

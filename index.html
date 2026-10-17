@@ -73,10 +73,6 @@
       </div>
     </header>
     <div class="factory-editor-layout">
-      <aside class="factory-palette" aria-label="Blocs de processus">
-        <div class="factory-palette-heading"><span>AJOUTER UN BLOC</span><small>FLUX · TRAITEMENT</small></div>
-        <div class="factory-block-list" id="factory-block-list"></div>
-      </aside>
       <main class="factory-viewport" id="factory-viewport" tabindex="0"
           aria-label="Espace de processus 2D : pincer ou utiliser la molette pour zoomer">
         <div class="factory-world" id="factory-world">
@@ -93,6 +89,21 @@
         <div class="factory-viewport-hint" id="factory-viewport-hint">GLISSER LE FOND · DÉPLACER UNE MACHINE · PINCER / MOLETTE · SORTIE → ENTRÉE</div>
       </main>
     </div>
+    <div class="factory-palette-overlay" id="factory-palette-overlay" hidden>
+      <section class="factory-palette" aria-labelledby="factory-palette-title">
+        <header class="factory-palette-heading">
+          <div><span>PROCESSUS INDUSTRIEL</span><strong id="factory-palette-title">AJOUTER UN BLOC</strong></div>
+          <small>CHOISIR UNE MACHINE</small>
+          <button id="factory-palette-close" type="button" aria-label="Fermer le menu des blocs">×</button>
+        </header>
+        <div class="factory-block-list" id="factory-block-list"></div>
+      </section>
+    </div>
+    <button class="factory-add-block-trigger" id="factory-add-block-toggle" type="button"
+        aria-controls="factory-palette-overlay" aria-expanded="false" aria-label="Ajouter un bloc au processus">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>AJOUTER UN BLOC</span>
+    </button>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">

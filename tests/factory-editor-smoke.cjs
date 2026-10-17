@@ -60,6 +60,10 @@ async function main() {
         geology: { resourceId: 'iron' } });
       window.__factoryEditorTest.open({ id: 'editor-test', type: 'extractor', upgradeLevel: 1 }, graph);
     })()`);
+    const openBlockMenu = async () => {
+      await cdp.click('#factory-add-block-toggle');
+      await cdp.until('!document.querySelector("#factory-palette-overlay").hidden', 'block menu opening');
+    };
     const frame = async () => cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => resolve()))');
     const editorSnapshot = async () => cdp.evaluate(`(() => {
       const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
@@ -90,6 +94,22 @@ async function main() {
       linkHeight: document.querySelector('#factory-link-layer').ownerSVGElement.clientHeight
     }))()`);
     assert.deepEqual(worldSize, { width: 7800, height: 5400, linkWidth: 7800, linkHeight: 5400 });
+    assert.equal(await cdp.evaluate('document.querySelector("#factory-palette-overlay").hidden'), true,
+      'the block menu starts closed');
+    await openBlockMenu();
+    const blockMenu = await cdp.evaluate(`(() => {
+      const trigger = document.querySelector('#factory-add-block-toggle').getBoundingClientRect();
+      const editor = document.querySelector('#factory-editor').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.factory-block-add')];
+      return { triggerCenter: trigger.left + trigger.width / 2, editorCenter: editor.left + editor.width / 2,
+        triggerBottom: trigger.bottom, editorBottom: editor.bottom, cardCount: cards.length,
+        incompleteCards: cards.filter(card => !card.querySelector('svg.factory-block-art[role="img"]') ||
+          !card.querySelector('.factory-block-description')?.textContent.trim()).length };
+    })()`);
+    assert.ok(Math.abs(blockMenu.triggerCenter - blockMenu.editorCenter) < 1 && blockMenu.triggerBottom < blockMenu.editorBottom,
+      `the activation button is centered along the bottom edge: ${JSON.stringify(blockMenu)}`);
+    assert.ok(blockMenu.cardCount > 0 && blockMenu.incompleteCards === 0,
+      'all machine choices use accessible illustrations with descriptions');
     await cdp.click('[data-add-machine="crusher"]');
     let placement = await cdp.evaluate(`(() => {
       const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
@@ -101,6 +121,7 @@ async function main() {
       Math.abs((placement.card.y + placement.card.height / 2) -
         (placement.viewport.y + placement.viewport.height / 2)) < 1,
     `first palette machine appears at the visible camera center: ${JSON.stringify(placement)}`);
+    await openBlockMenu();
     await cdp.click('[data-add-machine="grinder"]');
     assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="output_dock"]\'))'),
       'the output dock is available in the machine palette');
@@ -129,8 +150,12 @@ async function main() {
     }))()`);
     assert.equal(ui.count, 2);
     assert.equal(ui.oldSystems, false, 'removed stocks, inspectors, screen and smelter controls are absent');
+    await openBlockMenu();
     assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="input_dock"]\'))'),
       'the input dock is available in a factory machine palette');
+    assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="input_dock"] .factory-block-description\')?.textContent.trim())'),
+      'the input dock has a useful description');
+    await cdp.click('#factory-palette-close');
     assert.ok(ui.ports.includes('raw_ore') && ui.ports.includes('crushed_ore'));
     assert.ok(ui.fields.includes('rate') && ui.fields.includes('energy') && ui.fields.includes('cycle') && ui.fields.includes('state'));
     assert.match(ui.drillRate, /∞/);
@@ -303,6 +328,7 @@ async function main() {
     await cdp.evaluate('window.__factoryEditorTest.close()');
     await openEmpty();
     await cdp.until('!document.querySelector("#factory-editor").hidden', 'empty mobile editor opening');
+    await openBlockMenu();
     await cdp.click('[data-add-machine="crusher"]');
     const mobilePlacement = await cdp.evaluate(`(() => {
       const viewport = document.querySelector('#factory-viewport').getBoundingClientRect();
@@ -329,7 +355,7 @@ async function main() {
     assert.match(removal.status, /1 UNITÉ RETIRÉE/,
       `buffered resources are reported when their card is removed: ${removal.status}`);
 
-    process.stdout.write('PASS V1 factory editor in Chromium: world sizing, centered placement, output dock palette, occupied-card deletion, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
+    process.stdout.write('PASS V1 factory editor in Chromium: illustrated add-block menu, centered trigger and placement, occupied-card deletion, port targets, desktop pan/wheel/drag/connect/detach and landscape touch pan/pinch/drag/connect\n');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

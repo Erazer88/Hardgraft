@@ -168,17 +168,27 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-header-tools{display:flex;align-items:center;gap:7px;margin-left:auto;min-width:0}
 #factory-editor-status{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;font-size:8px;color:#7397a9}
 .factory-editor-layout{display:flex;flex:1 1 auto;min-height:0;overflow:hidden}
-.factory-palette{z-index:1;display:flex;flex:0 0 186px;flex-direction:column;min-width:0;min-height:0;padding:12px 9px;border-right:1px solid #65859b20;background:#091a29;box-shadow:7px 0 24px #0002}
-.factory-palette-heading{display:flex;flex-direction:column;gap:4px;margin:1px 4px 10px;padding:0 3px 8px;border-bottom:1px solid #718da31f}
-.factory-palette-heading span{font-size:8px;letter-spacing:1.3px;color:#9bb2bf}
-.factory-palette-heading small{font-size:7px;letter-spacing:.6px;color:#567588}
-.factory-block-list{display:flex;flex-direction:column;gap:5px;overflow:auto;overscroll-behavior:contain}
-.factory-block-add{display:flex;align-items:center;gap:9px;width:100%;min-height:39px;padding:5px 7px;border:1px solid #728da01e;border-radius:4px;background:#0b1c2a;color:#bed0d8;text-align:left}
-.factory-block-add:hover,.factory-block-add:focus-visible{border-color:#6bb8c167;background:#112a3b;color:#e2eef2}
-.factory-block-icon{display:flex;flex:0 0 25px;align-items:center;justify-content:center;width:25px;height:25px;border:1px solid #72b7c537;border-radius:4px;color:#8dcbd2;font-size:9px}
-.factory-block-copy{display:flex;min-width:0;flex-direction:column;gap:3px}
-.factory-block-copy strong{font-size:9px;font-weight:500;letter-spacing:.6px}
-.factory-block-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#698799;font-size:7px}
+.factory-palette-overlay{position:absolute;z-index:5;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(70px + var(--safe-top)) 16px calc(88px + var(--safe-bottom));background:#030b14a6;backdrop-filter:blur(4px)}
+.factory-palette-overlay[hidden]{display:none!important}
+.factory-palette{display:flex;flex-direction:column;width:min(820px,100%);max-height:100%;min-height:0;overflow:hidden;border:1px solid #63869d50;border-radius:10px;background:linear-gradient(145deg,#111f30,#0a1725 75%);box-shadow:0 24px 80px #0009}
+.factory-palette-heading{display:flex;align-items:center;gap:15px;flex:0 0 auto;padding:13px 16px;border-bottom:1px solid #718da326;background:#0c1b2a}
+.factory-palette-heading>div{display:flex;flex-direction:column;gap:4px}
+.factory-palette-heading span{font-size:7px;letter-spacing:1.5px;color:#70baca}
+.factory-palette-heading strong{font-size:12px;font-weight:500;letter-spacing:.8px;color:#dae7ed}
+.factory-palette-heading>small{margin-left:auto;font-size:7px;letter-spacing:.8px;color:#66859a}
+.factory-palette-heading>button{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #7495a52e;border-radius:5px;color:#a9bfcb;font-size:22px}
+.factory-palette-heading>button:hover{background:#1b3042;color:#fff}
+.factory-block-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(154px,1fr));gap:9px;min-height:0;padding:12px;overflow:auto;overscroll-behavior:contain}
+.factory-block-add{display:flex;min-width:0;min-height:172px;flex-direction:column;align-items:stretch;gap:7px;padding:7px;border:1px solid #728da02b;border-radius:7px;background:linear-gradient(150deg,#13263a,#0d1b2a);color:#bed0d8;text-align:left;transition:transform .14s,border-color .14s,background .14s}
+.factory-block-add:hover,.factory-block-add:focus-visible{transform:translateY(-2px);border-color:#6bb8c18c;background:linear-gradient(150deg,#1a3449,#122338);color:#e2eef2}
+.factory-block-art{display:block;width:100%;height:84px;flex:0 0 84px;border:1px solid #7ca3b01c;border-radius:4px;background:#081725;stroke-linecap:round;stroke-linejoin:round}
+.factory-block-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
+.factory-block-copy strong{font-size:8px;font-weight:600;letter-spacing:.55px;color:#d7e7ee}
+.factory-block-copy .factory-block-description{display:-webkit-box;overflow:hidden;color:#86a1b1;font-size:7px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.factory-block-copy .factory-block-specs{margin-top:auto;padding-top:3px;color:#6db3c0;font-size:7px;letter-spacing:.2px}
+.factory-add-block-trigger{position:absolute;z-index:6;bottom:calc(13px + var(--safe-bottom));left:50%;display:flex;align-items:center;justify-content:center;gap:9px;min-width:190px;min-height:46px;padding:0 18px;border:1px solid #72bac579;border-radius:24px;background:linear-gradient(135deg,#174257,#102738);box-shadow:0 8px 30px #0008;color:#d3e8ed;font-size:8px;letter-spacing:1px;transform:translateX(-50%);transition:background .15s,border-color .15s}
+.factory-add-block-trigger:hover,.factory-add-block-trigger[aria-expanded="true"]{border-color:#83d0dc;background:linear-gradient(135deg,#21647b,#164055)}
+.factory-add-block-trigger svg{width:18px;height:18px;stroke:#7ed5df;stroke-width:2}
 .factory-viewport{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;background-color:#071522;touch-action:none;outline:none;overscroll-behavior:contain}
 .factory-world{position:absolute;top:0;left:0;width:7800px;height:5400px;transform-origin:0 0;background-image:radial-gradient(circle,#41617757 1px,transparent 1.4px);background-size:24px 24px;will-change:transform}
 .factory-links{position:absolute;inset:0;width:7800px;height:5400px;overflow:visible;pointer-events:auto}
@@ -236,10 +246,12 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-editor-header{min-height:54px;gap:10px;padding-top:calc(5px + var(--safe-top));padding-bottom:5px}
   .factory-back{padding:6px 8px}
   .factory-heading strong{font-size:11px}
-  .factory-palette{flex-basis:160px;padding:8px 7px}
-  .factory-palette-heading{margin-bottom:7px;padding-bottom:6px}
-  .factory-block-list{gap:4px}
-  .factory-block-add{min-height:36px;padding:4px 5px;gap:7px}
+  .factory-palette-overlay{padding:calc(62px + var(--safe-top)) 10px calc(70px + var(--safe-bottom))}
+  .factory-palette-heading{padding:8px 12px}
+  .factory-block-list{grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:6px;padding:8px}
+  .factory-block-add{min-height:138px;gap:5px;padding:6px}
+  .factory-block-art{height:62px;flex-basis:62px}
+  .factory-add-block-trigger{bottom:calc(8px + var(--safe-bottom));min-height:40px}
 }
 @media(orientation:portrait),(max-width:600px){
   .factory-editor-header{gap:7px;min-height:56px;padding-left:calc(8px + var(--safe-left));padding-right:calc(8px + var(--safe-right))}
@@ -248,14 +260,18 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-heading strong{max-width:30vw;font-size:10px}
   .factory-heading small{display:none}
   #factory-editor-status{max-width:100px;font-size:7px}
-  .factory-editor-layout{flex-direction:column-reverse}
-  .factory-palette{flex:0 0 112px;width:100%;padding:6px 8px;border-top:1px solid #65859b20;border-right:0;box-shadow:0 -5px 18px #0003}
-  .factory-palette-heading{margin:0 2px 5px;padding:0 2px 4px;flex-direction:row;justify-content:space-between}
-  .factory-palette-heading small{align-self:center}
-  .factory-block-list{flex-direction:row;gap:5px;overflow-x:auto;overflow-y:hidden}
-  .factory-block-add{flex:0 0 142px;min-height:48px;gap:6px;padding:5px}
+  .factory-palette-overlay{padding:calc(64px + var(--safe-top)) 8px calc(78px + var(--safe-bottom))}
+  .factory-palette{width:100%;max-height:min(72dvh,670px)}
+  .factory-palette-heading{gap:8px;padding:9px 10px}
+  .factory-palette-heading>small{display:none}
+  .factory-palette-heading>button{width:34px;height:34px}
+  .factory-block-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:8px}
+  .factory-block-add{min-height:150px;gap:5px;padding:6px}
+  .factory-block-art{height:68px;flex-basis:68px}
   .factory-block-copy strong{font-size:7px}
-  .factory-block-copy small{font-size:6px}
+  .factory-block-copy .factory-block-description{font-size:7px}
+  .factory-block-copy .factory-block-specs{font-size:6px}
+  .factory-add-block-trigger{min-width:178px;min-height:44px;bottom:calc(10px + var(--safe-bottom));font-size:7px}
   .factory-viewport-hint{right:7px;bottom:6px;font-size:6px}
 }
 </style>
@@ -322,10 +338,6 @@ body[data-level="surface"] .corner-note{display:none}
       </div>
     </header>
     <div class="factory-editor-layout">
-      <aside class="factory-palette" aria-label="Blocs de processus">
-        <div class="factory-palette-heading"><span>AJOUTER UN BLOC</span><small>FLUX · TRAITEMENT</small></div>
-        <div class="factory-block-list" id="factory-block-list"></div>
-      </aside>
       <main class="factory-viewport" id="factory-viewport" tabindex="0"
           aria-label="Espace de processus 2D : pincer ou utiliser la molette pour zoomer">
         <div class="factory-world" id="factory-world">
@@ -342,6 +354,21 @@ body[data-level="surface"] .corner-note{display:none}
         <div class="factory-viewport-hint" id="factory-viewport-hint">GLISSER LE FOND · DÉPLACER UNE MACHINE · PINCER / MOLETTE · SORTIE → ENTRÉE</div>
       </main>
     </div>
+    <div class="factory-palette-overlay" id="factory-palette-overlay" hidden>
+      <section class="factory-palette" aria-labelledby="factory-palette-title">
+        <header class="factory-palette-heading">
+          <div><span>PROCESSUS INDUSTRIEL</span><strong id="factory-palette-title">AJOUTER UN BLOC</strong></div>
+          <small>CHOISIR UNE MACHINE</small>
+          <button id="factory-palette-close" type="button" aria-label="Fermer le menu des blocs">×</button>
+        </header>
+        <div class="factory-block-list" id="factory-block-list"></div>
+      </section>
+    </div>
+    <button class="factory-add-block-trigger" id="factory-add-block-toggle" type="button"
+        aria-controls="factory-palette-overlay" aria-expanded="false" aria-label="Ajouter un bloc au processus">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>AJOUTER UN BLOC</span>
+    </button>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
@@ -387,7 +414,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.34.106";
+globalThis.OrbitVersion = "0.34.107";
 
 </script>
   <script>
@@ -689,46 +716,46 @@ globalThis.OrbitVersion = "0.34.106";
   };
 
   const templates = {
-    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', source: true, requiresDeposit: true,
+    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la ressource du gisement associé au bâtiment.', source: true, requiresDeposit: true,
       inputPorts: [], recipe: null, throughput: null, energyMW: 2.5 },
-    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', source: true, requiresDeposit: true,
+    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut d’un gisement sous-marin.', source: true, requiresDeposit: true,
       inputPorts: [], outputPorts: [output('raw_oil', 'Pétrole brut', 'raw_oil')], recipe: null,
       throughput: 2, energyMW: 2.5 },
-    water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', source: true,
+    water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', description: 'Fournit l’eau nécessaire aux procédés de lavage.', source: true,
       requiresDeposit: false, inputPorts: [], outputPorts: [output('water', 'Eau', 'water')], recipe: null,
       throughput: null, energyMW: 0 },
-    crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', throughput: 2, energyMW: 2 },
-    grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', throughput: 2, energyMW: 6 },
+    crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en minerai concassé, sans séparer les matières.', throughput: 2, energyMW: 2 },
+    grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit le minerai concassé en grains plus fins.', throughput: 2, energyMW: 6 },
     magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
-      throughput: 2, energyMW: 3 },
+      description: 'Attire le fer hors du minerai et rejette les résidus.', throughput: 2, energyMW: 3 },
     gravity_separator: { id: 'gravity_separator', label: 'SÉPARATEUR GRAVITAIRE', mark: 'SG',
-      throughput: 2, energyMW: 3 },
+      description: 'Concentre le cuivre et sépare les résidus plus légers.', throughput: 2, energyMW: 3 },
     silicon_washer: { id: 'silicon_washer', label: 'LAVEUSE DE SILICE', mark: 'LS',
-      throughput: 2, energyMW: 3 },
+      description: 'Lave la silice avec de l’eau et produit des boues.', throughput: 2, energyMW: 3 },
     silicon_dryer: { id: 'silicon_dryer', label: 'SÉCHEUR DE SILICE', mark: 'SS',
-      throughput: 2, energyMW: 4 },
+      description: 'Retire l’humidité du silicium lavé avant réduction.', throughput: 2, energyMW: 4 },
     carbon_separator: { id: 'carbon_separator', label: 'TRIEUSE DE CARBONE', mark: 'TC',
-      throughput: 2, energyMW: 3 },
+      description: 'Sépare le charbon de la roche carbonée.', throughput: 2, energyMW: 3 },
     carbon_washer: { id: 'carbon_washer', label: 'LAVAGE DU CHARBON', mark: 'LC',
-      throughput: 2, energyMW: 3 },
+      description: 'Lave le charbon à l’eau pour obtenir du carbone.', throughput: 2, energyMW: 3 },
     reduction_furnace: { id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
-      throughput: 2, energyMW: 10 },
+      description: 'Transforme le concentré en métal brut et en laitier.', throughput: 2, energyMW: 10 },
     triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
-      throughput: 2, energyMW: 4 }
+      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 }
   };
 
   const utilities = {
     input_dock: {
-      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', sink: true, externalInput: true,
+      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources livrées par le réseau routier.', sink: true, externalInput: true,
       inputPorts: [], outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
     terril: {
-      id: 'terril', label: 'TERRIL', mark: 'TE', sink: true, storesResources: true,
+      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
       inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
     output_dock: {
-      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', sink: true, externalOutput: true,
+      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', description: 'Envoie sa ressource vers un bâtiment relié par route.', sink: true, externalOutput: true,
       inputPorts: [input('material', 'Sortie planétaire', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: 2, energyMW: 0
     }
@@ -9086,6 +9113,24 @@ globalThis.OrbitVersion = "0.34.106";
   const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 212 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
+  const BLOCK_ART = Object.freeze({
+    drill: { accent: '#ecc06e', shape: '<rect x="50" y="10" width="28" height="18" rx="4" fill="#31566a"/><path d="M44 28h40l-7 10H51z" fill="#54798a"/><path d="M61 38v17l3 8 3-8V38" fill="var(--art-accent)"/><path d="M38 63h52M44 67l8-7 8 4 8-9 7 10 8-5 7 6" fill="none"/>' },
+    oil_pump: { accent: '#e8b66e', shape: '<path d="M29 64h71M39 64l13-34M52 30h32M61 30l13 34M44 25l48 9" fill="none"/><path d="M76 31l16 3-6 6-17-4z" fill="var(--art-accent)"/><rect x="49" y="61" width="30" height="7" rx="2" fill="#385568"/><path d="M58 68v5m13-5v5"/>' },
+    water_supply: { accent: '#75cfee', shape: '<path d="M64 14C54 28 44 39 44 50a20 20 0 0 0 40 0c0-11-10-22-20-36z" fill="#16445e"/><path d="M64 22C57 33 51 41 51 50a13 13 0 0 0 13 13" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M31 68h66"/><circle cx="94" cy="24" r="3" fill="var(--art-accent)"/><circle cx="101" cy="34" r="2" fill="var(--art-accent)"/>' },
+    crusher: { accent: '#f0ad5e', shape: '<path d="M31 24h66l-8 10H39zM31 61h66l-8-10H39z" fill="#496b7b"/><circle cx="49" cy="43" r="12" fill="#142d3d"/><circle cx="79" cy="43" r="12" fill="#142d3d"/><path d="M49 34v18m-9-9h18M79 34v18m-9-9h18"/><path d="M61 32l4-5 4 6-4 5zM62 50l4-4 4 5-4 5z" fill="var(--art-accent)"/><path d="M41 68l7-6 7 5 8-7 7 7 7-5 9 6" fill="none" stroke="var(--art-accent)"/>' },
+    grinder: { accent: '#74d2ce', shape: '<path d="M36 30h56v34H36z" fill="#173448"/><circle cx="51" cy="47" r="11" fill="#0c1b2a"/><circle cx="77" cy="47" r="11" fill="#0c1b2a"/><path d="M51 38v18m-9-9h18M77 38v18m-9-9h18"/><path d="M64 15v13m-9-7h18M64 64v10M38 74h52"/><path d="M59 19l5-5 5 5" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="64" cy="47" r="3" fill="var(--art-accent)"/>' },
+    magnetic_separator: { accent: '#75d9cd', shape: '<path d="M42 26v22a22 22 0 0 0 44 0V26h-13v22a9 9 0 0 1-18 0V26z" fill="#375c71"/><path d="M42 26h13v11H42zM73 26h13v11H73z" fill="var(--art-accent)"/><path d="M34 67h60"/><circle cx="47" cy="60" r="3" fill="#e6ae69"/><circle cx="60" cy="66" r="2" fill="#a8c3cf"/><circle cx="77" cy="61" r="3" fill="var(--art-accent)"/>' },
+    gravity_separator: { accent: '#c6a7ec', shape: '<path d="M35 24h58l-7 13H42zM42 41h44l-7 12H49zM49 58h30l-5 10H54z" fill="#244255"/><path d="M40 30h48M47 47h34M54 63h20"/><circle cx="51" cy="31" r="3" fill="#e4b165"/><circle cx="73" cy="47" r="3" fill="var(--art-accent)"/><circle cx="63" cy="63" r="3" fill="#a7d0d6"/><path d="M64 16v7m-4-3 4-4 4 4" fill="none" stroke="var(--art-accent)"/>' },
+    silicon_washer: { accent: '#76cef0', shape: '<path d="M37 29h54v37H37z" fill="#123b52"/><path d="M39 48q12-7 25 0t25 0v16H39z" fill="#167aa0" stroke="var(--art-accent)"/><path d="M51 18c-4 6-6 8-6 12a6 6 0 0 0 12 0c0-4-2-6-6-12zM75 18c-3 5-5 7-5 10a5 5 0 0 0 10 0c0-3-2-5-5-10z" fill="var(--art-accent)"/><path d="M44 67v6m40-6v6"/>' },
+    silicon_dryer: { accent: '#efbc66', shape: '<rect x="34" y="29" width="60" height="36" rx="5" fill="#304b5b"/><rect x="43" y="38" width="42" height="20" rx="3" fill="#132635"/><path d="M53 54c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M41 25c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10" fill="none" stroke="var(--art-accent)" stroke-width="2"/>' },
+    carbon_separator: { accent: '#d5a36d', shape: '<path d="M32 57h64l-8 12H40z" fill="#284455"/><path d="M41 48h51M44 52l5 13m10-13 4 13m11-13 4 13"/><path d="M44 45l6-13 11 3 4 10zM67 44l8-16 12 5-3 11z" fill="#26313a" stroke="var(--art-accent)"/><circle cx="51" cy="40" r="2" fill="#d7e0d8"/><circle cx="80" cy="37" r="2" fill="#d7e0d8"/>' },
+    carbon_washer: { accent: '#74ced4', shape: '<path d="M37 30h54v37H37z" fill="#123342"/><path d="M39 49q13-7 25 0t25 0v15H39z" fill="#146277" stroke="var(--art-accent)"/><path d="M48 44l5-12 9 2 4 10zM68 44l5-13 10 4-2 9z" fill="#1f2e36" stroke="#cf9c68"/><path d="M45 24h38M46 69v4m37-4v4"/>' },
+    reduction_furnace: { accent: '#ff9863', shape: '<path d="M39 66V37l10-10h30l10 10v29z" fill="#4a3b39"/><path d="M51 66V47a13 13 0 0 1 26 0v19z" fill="#111b24"/><path d="M64 57c-9-7 3-11 0-18 9 7 11 12 4 18z" fill="var(--art-accent)" stroke="#ffd27b"/><path d="M33 68h62M49 22h30"/><circle cx="64" cy="70" r="3" fill="#ffd27b"/>' },
+    triphasic_separator: { accent: '#79cde3', shape: '<path d="M49 20h30v8l8 9v29H41V37l8-9z" fill="#18384c"/><path d="M43 44h42v8H43z" fill="#ae8154"/><path d="M43 53h42v8H43z" fill="#405c69"/><path d="M43 39h42v5H43z" fill="var(--art-accent)"/><path d="M55 17h18M37 68h54"/><circle cx="58" cy="41" r="2" fill="#d5e3e8"/><circle cx="72" cy="57" r="2" fill="#d5e3e8"/>' },
+    terril: { accent: '#bc9369', shape: '<path d="M28 66h72"/><path d="M35 65l9-17 8 7 12-23 11 16 7-6 11 23z" fill="#364855"/><path d="M42 54l7-4m17-14 5 6m9 7 6-4" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="51" cy="61" r="2" fill="#e3c293"/><circle cx="75" cy="58" r="2" fill="#e3c293"/>' },
+    input_dock: { accent: '#79d6c2', shape: '<path d="M91 43H42"/><path d="M50 34l-10 9 10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M41 56h49l-7 12H48z" fill="#254758"/><path d="M50 54V46m14 8V46m14 8V46"/><rect x="86" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M89 36h9m-9 6h9"/>' },
+    output_dock: { accent: '#75cfde', shape: '<path d="M37 43h49"/><path d="M78 34l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 56h49l-7 12H45z" fill="#254758"/><path d="M49 54V46m14 8V46m14 8V46"/><rect x="27" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M30 36h9m-9 6h9"/>' }
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
@@ -9095,6 +9140,8 @@ globalThis.OrbitVersion = "0.34.106";
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
+    const paletteOverlay = $('factory-palette-overlay'), paletteToggle = $('factory-add-block-toggle');
+    const paletteClose = $('factory-palette-close');
     let activeBuilding = null, graph = null, machines = [], connections = [];
     let pendingConnection = null, nextMachineId = 1, nextConnectionId = 1;
     const cards = new Map();
@@ -9124,6 +9171,36 @@ globalThis.OrbitVersion = "0.34.106";
     };
 
     function status(message) { $('factory-editor-status').textContent = message; }
+
+    function setPaletteOpen(open) {
+      paletteOverlay.hidden = !open;
+      paletteToggle.setAttribute('aria-expanded', String(open));
+      paletteToggle.setAttribute('aria-label', open ? 'Fermer le menu des blocs' : 'Ajouter un bloc au processus');
+      const label = paletteToggle.querySelector('span');
+      if (label) label.textContent = open ? 'FERMER LE MENU' : 'AJOUTER UN BLOC';
+      const icon = paletteToggle.querySelector('svg path');
+      if (icon) icon.setAttribute('d', open ? 'M6 6l12 12M18 6 6 18' : 'M12 5v14M5 12h14');
+      if (open) palette.querySelector('[data-add-machine]')?.focus({ preventScroll: true });
+    }
+
+    function createBlockArtwork(def) {
+      const art = BLOCK_ART[def.id] || BLOCK_ART.terril;
+      const image = document.createElementNS(SVG, 'svg');
+      image.classList.add('factory-block-art');
+      image.setAttribute('viewBox', '0 0 128 84');
+      image.setAttribute('role', 'img');
+      image.setAttribute('aria-label', `Illustration : ${def.label}`);
+      image.innerHTML = `<defs><linearGradient id="art-${def.id}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#183348"/><stop offset="1" stop-color="#0a1927"/></linearGradient></defs><rect x="1" y="1" width="126" height="82" rx="5" fill="url(#art-${def.id})" stroke="#58768a" stroke-opacity=".34"/><path d="M8 16h112M8 73h112" stroke="#507086" stroke-opacity=".18"/><path d="M14 9h2m12 0h2m12 0h2m60 0h2m12 0h2" stroke="#84a6b6" stroke-opacity=".3" stroke-width="2"/><g stroke="#8ba9b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" style="--art-accent:${art.accent}">${art.shape}</g>`;
+      return image;
+    }
+
+    function blockSpecification(def) {
+      if (def.externalInput) return 'RÉSEAU TERRESTRE';
+      if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
+      if (def.externalOutput) return `${fmt(def.throughput)} u/s · EXPORT`;
+      const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
+      return `${throughput} · ${fmt(def.energyMW)} MW`;
+    }
 
     function persist() {
       if (!activeBuilding || !graph) return;
@@ -9418,15 +9495,17 @@ globalThis.OrbitVersion = "0.34.106";
         graph?.geology?.resourceId || activeBuilding?.resourceId || null)) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
-        const icon = document.createElement('span'); icon.className = 'factory-block-icon'; icon.textContent = def.mark;
+        const specification = blockSpecification(def);
+        button.setAttribute('aria-label', `${def.label}. ${def.description || 'Machine de traitement.'} ${specification}`);
+        button.append(createBlockArtwork(def));
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
-        const detail = document.createElement('small');
-        detail.textContent = def.externalInput ? 'RÉCEPTION · DESTINATION POUR LES DOCKS DE SORTIE'
-          : def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
-          : def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
-          : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
-        copy.append(title, detail); button.append(icon, copy); palette.append(button);
+        const description = document.createElement('small');
+        description.className = 'factory-block-description';
+        description.textContent = def.description || 'Machine de traitement industriel.';
+        const specs = document.createElement('small');
+        specs.className = 'factory-block-specs'; specs.textContent = specification;
+        copy.append(title, description, specs); button.append(copy); palette.append(button);
       }
     }
 
@@ -9470,8 +9549,9 @@ globalThis.OrbitVersion = "0.34.106";
       const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
-      if (!result.ok) { status(result.reason); return; }
+      if (!result.ok) { status(result.reason); return false; }
       machines = graph.machines; renderNodes(); persist();
+      return true;
     }
 
     function removeMachine(id) {
@@ -9490,6 +9570,7 @@ globalThis.OrbitVersion = "0.34.106";
 
     function open(building, savedPlan) {
       activeBuilding = building;
+      setPaletteOpen(false);
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -9509,6 +9590,7 @@ globalThis.OrbitVersion = "0.34.106";
 
     function close() {
       if (editor.hidden) return;
+      setPaletteOpen(false);
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
@@ -9523,9 +9605,30 @@ globalThis.OrbitVersion = "0.34.106";
       if (viewportController.mode() === 'idle' && !pendingConnection) renderConnections();
     }
 
+    paletteToggle.addEventListener('click', () => setPaletteOpen(paletteOverlay.hidden));
+    paletteClose.addEventListener('click', () => {
+      setPaletteOpen(false);
+      paletteToggle.focus({ preventScroll: true });
+    });
+    paletteOverlay.addEventListener('click', event => {
+      if (event.target === paletteOverlay) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
+    editor.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !paletteOverlay.hidden) {
+        event.preventDefault();
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
     palette.addEventListener('click', event => {
       const button = event.target.closest('[data-add-machine]');
-      if (button) addMachine(button.dataset.addMachine);
+      if (button && addMachine(button.dataset.addMachine)) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
     });
     viewport.addEventListener('click', event => {
       const button = event.target.closest('[data-remove-machine]');

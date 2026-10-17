@@ -35,46 +35,46 @@
   };
 
   const templates = {
-    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', source: true, requiresDeposit: true,
+    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la ressource du gisement associé au bâtiment.', source: true, requiresDeposit: true,
       inputPorts: [], recipe: null, throughput: null, energyMW: 2.5 },
-    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', source: true, requiresDeposit: true,
+    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut d’un gisement sous-marin.', source: true, requiresDeposit: true,
       inputPorts: [], outputPorts: [output('raw_oil', 'Pétrole brut', 'raw_oil')], recipe: null,
       throughput: 2, energyMW: 2.5 },
-    water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', source: true,
+    water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', description: 'Fournit l’eau nécessaire aux procédés de lavage.', source: true,
       requiresDeposit: false, inputPorts: [], outputPorts: [output('water', 'Eau', 'water')], recipe: null,
       throughput: null, energyMW: 0 },
-    crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', throughput: 2, energyMW: 2 },
-    grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', throughput: 2, energyMW: 6 },
+    crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en minerai concassé, sans séparer les matières.', throughput: 2, energyMW: 2 },
+    grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit le minerai concassé en grains plus fins.', throughput: 2, energyMW: 6 },
     magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
-      throughput: 2, energyMW: 3 },
+      description: 'Attire le fer hors du minerai et rejette les résidus.', throughput: 2, energyMW: 3 },
     gravity_separator: { id: 'gravity_separator', label: 'SÉPARATEUR GRAVITAIRE', mark: 'SG',
-      throughput: 2, energyMW: 3 },
+      description: 'Concentre le cuivre et sépare les résidus plus légers.', throughput: 2, energyMW: 3 },
     silicon_washer: { id: 'silicon_washer', label: 'LAVEUSE DE SILICE', mark: 'LS',
-      throughput: 2, energyMW: 3 },
+      description: 'Lave la silice avec de l’eau et produit des boues.', throughput: 2, energyMW: 3 },
     silicon_dryer: { id: 'silicon_dryer', label: 'SÉCHEUR DE SILICE', mark: 'SS',
-      throughput: 2, energyMW: 4 },
+      description: 'Retire l’humidité du silicium lavé avant réduction.', throughput: 2, energyMW: 4 },
     carbon_separator: { id: 'carbon_separator', label: 'TRIEUSE DE CARBONE', mark: 'TC',
-      throughput: 2, energyMW: 3 },
+      description: 'Sépare le charbon de la roche carbonée.', throughput: 2, energyMW: 3 },
     carbon_washer: { id: 'carbon_washer', label: 'LAVAGE DU CHARBON', mark: 'LC',
-      throughput: 2, energyMW: 3 },
+      description: 'Lave le charbon à l’eau pour obtenir du carbone.', throughput: 2, energyMW: 3 },
     reduction_furnace: { id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
-      throughput: 2, energyMW: 10 },
+      description: 'Transforme le concentré en métal brut et en laitier.', throughput: 2, energyMW: 10 },
     triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
-      throughput: 2, energyMW: 4 }
+      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 }
   };
 
   const utilities = {
     input_dock: {
-      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', sink: true, externalInput: true,
+      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources livrées par le réseau routier.', sink: true, externalInput: true,
       inputPorts: [], outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
     terril: {
-      id: 'terril', label: 'TERRIL', mark: 'TE', sink: true, storesResources: true,
+      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
       inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
     output_dock: {
-      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', sink: true, externalOutput: true,
+      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', description: 'Envoie sa ressource vers un bâtiment relié par route.', sink: true, externalOutput: true,
       inputPorts: [input('material', 'Sortie planétaire', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: 2, energyMW: 0
     }

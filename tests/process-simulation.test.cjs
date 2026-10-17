@@ -66,6 +66,11 @@ test('V1 exposes resource-specific lines with shared crusher, grinder and furnac
   assert.deepEqual(plain(Data.catalog('oil_platform', 'oil').map(def => def.id)), [
     'oil_pump', 'triphasic_separator', 'terril', 'output_dock'
   ]);
+  for (const catalog of [Data.catalog('factory', 'iron'), Data.catalog('extractor', 'iron'),
+    Data.catalog('oil_platform', 'oil')]) {
+    assert.ok(catalog.every(def => typeof def.description === 'string' && def.description.length > 10),
+      'each available machine has a readable palette description');
+  }
   assert.equal(Data.get('drill').throughput, null, 'the drill has no nominal rate ceiling');
   assert.equal(Data.get('crusher').throughput, 2);
   assert.equal(Data.get('grinder').throughput, 2);
