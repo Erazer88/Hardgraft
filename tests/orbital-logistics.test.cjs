@@ -140,6 +140,7 @@ test('a dock can route a resource to another built factory inventory instead of 
   const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
     constructionState: 'complete' });
   state.surfaceBuildings.push(receiver);
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
   const network = Road.create(planetId);
   state.roadNetworks[planetId] = network;
   const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
@@ -151,6 +152,26 @@ test('a dock can route a resource to another built factory inventory instead of 
   assert.deepEqual(plain(receiver.inventory), { water: 7 });
   assert.deepEqual(plain(factory.dockStock), {});
   assert.deepEqual(plain(platform.launchStock), {});
+});
+
+test('a factory without an input dock keeps routed stock until it adds one', () => {
+  const { factory, state } = fixture({ dockStock: { raw_iron: 9 }, dockDestinations: { raw_iron: 'factory-2' } });
+  const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
+    constructionState: 'complete' });
+  state.surfaceBuildings.push(receiver);
+  const network = Road.create(planetId);
+  state.roadNetworks[planetId] = network;
+  const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
+  const receiverNode = Road.addNode(network, { x: receiver.x, y: receiver.y, buildingId: receiver.id });
+  Road.addSegment(network, { from: sourceNode.id, to: receiverNode.id,
+    points: [{ x: factory.x, y: factory.y }, { x: receiver.x, y: receiver.y }], builtLength: 110 });
+  assert.equal(Network.hasReceivingDock(state, receiver), false);
+  assert.equal(Network.transferDockStockToBuildings(state).transferred.size, 0);
+  assert.equal(factory.dockStock.raw_iron, 9);
+
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  assert.equal(Network.hasReceivingDock(state, receiver), true);
+  assert.equal(Network.transferDockStockToBuildings(state).transferred.get('factory-2:raw_iron'), 9);
 });
 
 test('a dock destination can be changed per resource and cleared', () => {

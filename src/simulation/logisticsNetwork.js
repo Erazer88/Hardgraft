@@ -28,6 +28,12 @@
     return false;
   }
 
+  function hasReceivingDock(state, building) {
+    if (building?.type === 'launch_platform') return true;
+    if (building?.type !== 'factory') return false;
+    return Boolean(state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === 'input_dock'));
+  }
+
   function transferDockStockToBuildings(state, seconds = 0) {
     const transferred = new Map();
     const buildings = state.surfaceBuildings || [];
@@ -41,6 +47,7 @@
         const destination = byId.get(destinationId);
         if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
             !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+            !hasReceivingDock(state, destination) ||
             !hasBuiltLandPath(network, source.id, destination.id)) continue;
         const stock = destination.type === 'launch_platform'
           ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
@@ -58,6 +65,6 @@
     return { transferred, rates };
   }
 
-  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath,
+  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, hasReceivingDock,
     transferDockStockToBuildings, transferDockStockToPlatforms: transferDockStockToBuildings });
 })(globalThis);

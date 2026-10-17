@@ -40,8 +40,8 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
   `npm run test:factory-editor` valide les gestes dans un vrai navigateur desktop et
   en émulation tactile.
-- Le Dock choisit une destination parmi les usines (`factory`) et les Plateformes de
-  lancement (`launch_platform`) terminées de la planète. Le transfert est instantané
+- Le Dock choisit une destination parmi les usines terminées équipées d'un Quai d'entrée
+  et les Plateformes de lancement, qui reçoivent nativement. Le transfert est instantané
   après un chemin terrestre entièrement construit ; une plateforme lance automatiquement
   ce qu'elle reçoit. Les autres bâtiments ne sont pas des destinations en V1. Les routes
   n'ont ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
@@ -63,8 +63,8 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   logistique local ; les bâtiments connectés à un réseau partagent son stock limité.
 - Le modèle cible du transport terrestre est agrégé : pas de cargaisons simulées
   individuellement, transfert économiquement instantané sous les limites du réseau.
-  L’implémentation actuelle ne couvre que la connectivité Dock → Plateforme, sans
-  capacité routière ni contre-pression générale.
+  L’implémentation actuelle permet le transfert Dock → usine équipée d'un Quai d'entrée
+  ou Plateforme de lancement, sans capacité routière ni contre-pression générale.
 - Dans un bâtiment, les processus restent précis : buffers, cycles, recettes, connexions,
   débits, énergie et blocages. Principe directeur : précision à l'intérieur,
   agrégation entre bâtiments.

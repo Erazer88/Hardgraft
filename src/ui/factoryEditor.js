@@ -61,7 +61,8 @@
       if (!card) return;
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const rate = machine.currentRate || 0;
-      const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
+      const rateText = def.externalInput ? 'RÉCEPTION · STOCK DU BÂTIMENT'
+        : `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
       if (rateElement.textContent !== rateText) rateElement.textContent = rateText;
       const rateFill = card.querySelector('.factory-rate-fill');
@@ -76,7 +77,8 @@
       const continuous = def.source || def.externalOutput;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
-      cycleLabel.textContent = def.storesResources
+      cycleLabel.textContent = def.externalInput ? 'DESTINATION DEPUIS LE RÉSEAU LOCAL'
+        : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : def.source ? (def.requiresDeposit ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
         : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
@@ -340,7 +342,8 @@
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
         const detail = document.createElement('small');
-        detail.textContent = def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
+        detail.textContent = def.externalInput ? 'RÉCEPTION · DESTINATION POUR LES DOCKS DE SORTIE'
+          : def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
           : def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
           : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
         copy.append(title, detail); button.append(icon, copy); palette.append(button);

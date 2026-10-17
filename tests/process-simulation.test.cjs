@@ -61,6 +61,8 @@ test('V1 exposes resource-specific lines with shared crusher, grinder and furnac
   assert.deepEqual(plain(Data.catalog('extractor', 'carbon').map(def => def.id)), [
     'drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer', 'terril', 'output_dock'
   ]);
+  assert.equal(Data.catalog('factory', 'iron')[0].id, 'input_dock');
+  assert.equal(Data.get('input_dock').externalInput, true);
   assert.deepEqual(plain(Data.catalog('oil_platform', 'oil').map(def => def.id)), [
     'oil_pump', 'triphasic_separator', 'terril', 'output_dock'
   ]);

@@ -10,6 +10,7 @@
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const Logistics = globalThis.OrbitLogistics;
+  const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SettlementSimulation = globalThis.OrbitSettlementSimulation;
   const SettlementConfig = globalThis.OrbitSettlementConfig;
@@ -42,6 +43,7 @@
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
         candidate.planetId === building.planetId && candidate.constructionState === 'complete' &&
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
+        LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     onDockDestinationChange(buildingId, resourceId, destinationId) {

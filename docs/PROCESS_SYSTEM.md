@@ -30,6 +30,7 @@ cartes distinctes pour permettre des retours de matière dans une évolution ult
 | Carte | Entrée | Sortie / comportement | Débit N1 | Énergie |
 | --- | --- | --- | ---: | ---: |
 | Foreuse | Gisement terrestre du bâtiment | Roche brute correspondante, sans plafond nominal | Sans plafond | 2,5 MW |
+| Quai d'entrée | Réseau terrestre | Rend l'usine éligible comme destination d'un Dock de sortie | Réception agrégée | 0 MW |
 | Concasseur | Roche brute du gisement | Minerai concassé, 1:1 | 2 u/s | 2 MW |
 | Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
 | Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
@@ -69,6 +70,10 @@ tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de m
 Le Terril accepte plusieurs connexions sur son entrée partagée et stocke sans limite
 chaque ressource reçue. Il n'a ni cycle ni débit et ses stocks sont enregistrés dans le
 graphe. Le Dock conserve une seule connexion entrante pour identifier la matière exportée.
+Le Quai d'entrée rend une usine disponible dans le menu de destination des Docks de
+sortie. Les matières livrées restent dans l'inventaire du bâtiment ; elles ne sont pas
+encore injectées dans les recettes du graphe. Les Plateformes de lancement reçoivent
+nativement et n'ont pas besoin de cette carte.
 
 Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
 cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
@@ -79,8 +84,9 @@ L'énergie reste simple : aucune ligne électrique interne. L'énergie infinie d
 
 Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
 des matériaux de construction. La destination du Dock est choisie par matière parmi les
-usines et Plateformes de lancement terminées de la planète ; une route terrestre
-entièrement construite est nécessaire. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
+usines terminées équipées d'un Quai d'entrée et les Plateformes de lancement terminées
+de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
+[`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ## Modules
 
@@ -91,7 +97,7 @@ entièrement construite est nécessaire. Référence : [`ORBITAL_LOGISTICS.md`](
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, énergie et débits soutenables |
 | `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
-| `src/ui/factoryEditor.js` | Cartes, ports, traits et palette contextuelle au gisement |
+| `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle et routage des Docks |
 | `src/storage/save.js` | Sauvegarde des bâtiments et graphes industriels versionnés |
 
 La simulation ne dépend ni du DOM ni de Canvas. La vérification ciblée du moteur est :

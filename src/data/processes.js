@@ -64,6 +64,10 @@
   };
 
   const utilities = {
+    input_dock: {
+      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', sink: true, externalInput: true,
+      inputPorts: [], outputPorts: [], recipe: null, throughput: null, energyMW: 0
+    },
     terril: {
       id: 'terril', label: 'TERRIL', mark: 'TE', sink: true, storesResources: true,
       inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
@@ -205,7 +209,9 @@
       if (!['factory', 'extractor', 'oil_platform'].includes(buildingType)) return [];
       const selected = resourceId || (buildingType === 'oil_platform' ? 'oil' : 'iron');
       if ((buildingType === 'oil_platform') !== (selected === 'oil')) return [];
-      return (catalogByResource[selected] || []).map(type => get(type, selected)).filter(Boolean);
+      const types = catalogByResource[selected] || [];
+      return [...(buildingType === 'factory' ? [get('input_dock', selected)] : []),
+        ...types.map(type => get(type, selected))].filter(Boolean);
     }
   });
 })(globalThis);
