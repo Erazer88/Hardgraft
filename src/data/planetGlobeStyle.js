@@ -8,7 +8,7 @@
       noiseAmplitude: .03, normalStrength: .02, specularStrength: .10, fresnelStrength: .05,
       coastDepthDistance: 22, bathymetryDepthScale: 42, bathymetryInfluence: .16 }),
     terrainShading: Object.freeze({ midReliefStrength: 2.2, microDetailStrength: .03,
-      mountainFacetMix: .58, mountainAoStrength: .06, ridgeAccentStrength: .10,
+      mountainFacetMix: .30, mountainAoStrength: .06, ridgeAccentStrength: .10,
       facetGrid: Object.freeze({ x: 100, y: 50 }),
       mountainMaterials: Object.freeze({
         temperate: Object.freeze({ rock: '#A28769', ridge: '#D1B38D', crevice: '#625B50' }),

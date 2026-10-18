@@ -71,17 +71,20 @@ champs structurels (`mountainMask`, `ridgeField`, `valleyField`, `ruggednessFiel
 deux longitudes de couture et les deux pôles ; chaque pôle est donc exactement une
 direction, quel que soit `x`. Les continents restent des centres sphériques avec
 rayons angulaires et lobes secondaires. Les chaînes montagneuses sont des
-polylignes courbes sur la sphère, placées préférentiellement sur les continents ;
-leurs épaules, dorsales et sillons sont rasterisés dans les champs structurels et
-contribuent explicitement à l'altitude. `planet.geology` règle leur nombre, leur
-amplitude et leurs branches. L'humidité et les faibles ondulations du terrain
-utilisent toujours des champs 3D échantillonnés sur la même direction.
+backbones courbes sur la sphère qui ne sont plus extrudés directement en dorsales :
+ils définissent de larges ceintures orogéniques, puis un ridged noise sphérique
+domain-warpé produit plusieurs crêtes internes. Des vallées plus larges sont
+rattachées aux massifs. `mountainMask` décrit la ceinture, `ridgeField` ses crêtes
+internes, `valleyField` les sillons, et `ruggednessField` la pente locale.
+L'altitude continentale monte vers un plateau ; `planet.geology` règle le nombre,
+l'amplitude et les branches des ceintures. L'humidité et les faibles ondulations du
+terrain utilisent toujours des champs 3D échantillonnés sur la même direction.
 
 La couverture d'eau est quantifiée avec le poids de surface de chaque latitude.
 La projection et la texture échantillonnent les valeurs produites sans moyenne
 de couture, moyenne de rangée, fondu polaire ou correction colorée. Leurs
 continuités viennent ainsi du terrain lui-même. La version topographique est
-déclarée dans `OrbitWorldgenData.terrain.version` ; elle passe à 6 pour ce
+déclarée dans `OrbitWorldgenData.terrain.version` ; elle passe à 7 pour ce
 changement de structure. L'incrémenter conserve la graine du monde mais régénère
 la géographie des planètes.
 

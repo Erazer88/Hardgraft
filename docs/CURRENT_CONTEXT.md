@@ -25,10 +25,12 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 - La surface 2D précédente, ses textures, masques, worker et renderers dédiés ont été
   retirés de cette branche. WebGL2 est requis ; aucun fallback surface 2D n'est maintenu.
 - La topographie actuelle est générée sur la sphère par des directions 3D, des masses
-  continentales et des chaînes montagneuses explicites. `elevation` reste la hauteur
-  canonique du gameplay ; quatre champs géologiques décrivent épaules, dorsales,
-  sillons et rugosité au renderer. Le raster x/y reste le format gameplay. La couture
-  et les pôles doivent être continus par construction, sans moyenne ni fondu correctif.
+  continentales en plateau et de larges ceintures orogéniques. Les backbones servent
+  de squelette ; le relief et les crêtes irrégulières sont générés à l'intérieur des
+  ceintures par du bruit ridgé domain-warpé. `elevation` reste la hauteur canonique
+  du gameplay ; quatre champs géologiques décrivent ceintures, crêtes, vallées et
+  rugosité. Le raster x/y reste le format gameplay. La couture et les pôles doivent
+  être continus par construction, sans moyenne ni fondu correctif.
   Voir [`WORLDGEN.md`](WORLDGEN.md).
 
 ## Systèmes en place et frontières

@@ -23,15 +23,30 @@ const surfaceWaterCoverage = terrain => {
   return wet / Math.max(1, total);
 };
 
-test('terrain v6 declares explicit spherical mountain chain parameters', () => {
+test('terrain v7 declares broad orogenic belts with restrained internal ridges', () => {
   const settings = context.OrbitWorldgenData.terrain;
-  assert.equal(settings.version, 6);
+  assert.equal(settings.version, 7);
   assert.deepEqual(Array.from(settings.relief.mountainChains.count), [1, 5]);
   assert.deepEqual(Array.from(settings.relief.mountainChains.segmentCount), [3, 6]);
   assert.ok(settings.relief.mountainChains.branchChance > .4 && settings.relief.mountainChains.branchChance < .7);
+  assert.deepEqual(Array.from(settings.relief.mountainChains.amplitude), [18, 42]);
+  assert.deepEqual(Array.from(settings.relief.mountainChains.beltWidth), [.14, .22]);
+  assert.deepEqual(Array.from(settings.relief.mountainChains.coreWidth), [.022, .045]);
+  assert.ok(settings.relief.mountainChains.valleyCarve[0] >= 2 &&
+    settings.relief.mountainChains.valleyCarve[1] <= 7);
   assert.equal('ridgePower' in settings.relief, false,
     'a global isotropic ridged noise no longer controls mountain structure');
-  assert.doesNotMatch(fs.readFileSync(__dirname + '/world.js', 'utf8'), /sampleRidge|ridgeNoise/);
+  const source = fs.readFileSync(__dirname + '/world.js', 'utf8');
+  assert.match(source, /function internalRidgeStrength/,
+    'ridge structure is generated inside the orogenic belt');
+  assert.match(source, /function warpMountainDirection/,
+    'ridge detail uses deterministic 3D domain warping');
+  assert.match(source, /function smoothMax/,
+    'neighboring belt segments join with a smooth union');
+  assert.doesNotMatch(source, /spineAmplitude|spineField/,
+    'the backbone is no longer extruded into a dominant central spine');
+  assert.match(source, /const baseTerrain = 82 \+ landPlateau \* 108 \+ continental \* 8/,
+    'continental influence saturates into a plateau rather than a round central mound');
 });
 
 test('the galaxy is deterministic, seeded, and dense in four connected arms', () => {
@@ -297,8 +312,15 @@ test('spherical terrain closes its seam and poles naturally and remains determin
   assert.ok(landMountain > seaMountain * 20,
     'mountain shoulders are clipped to land rather than being global spherical ridges');
   assert.ok(terrain.ridgeField.every((value, index) => value <= terrain.mountainMask[index]),
-    'the central ridge remains inside the broader mountain shoulder field');
+    'irregular internal ridges stay inside the broader orogenic belts');
   assert.ok(terrain.valleyField.some(value => value > 0), 'chains generate explicit carved valleys');
+  let broadBeltCells = 0, definedRidgeCells = 0;
+  for (let i = 0; i < terrain.mountainMask.length; i += 1) {
+    if (terrain.mountainMask[i] >= 48) broadBeltCells += 1;
+    if (terrain.ridgeField[i] >= 96) definedRidgeCells += 1;
+  }
+  assert.ok(broadBeltCells > definedRidgeCells,
+    `orogenic belts should cover more ground than their internal crests (${broadBeltCells} vs ${definedRidgeCells})`);
 });
 
 test('active geology produces statistically more mountain terrain than quiet geology', () => {
@@ -325,7 +347,8 @@ test('active geology produces statistically more mountain terrain than quiet geo
 
 test('most planets have two or three large deposits, with some worlds empty or especially rich', () => {
   const counts = Array(6).fill(0);
-  for (let i = 0; i < 72; i += 1) {
+  const sampleSize = 96;
+  for (let i = 0; i < sampleSize; i += 1) {
     const terrain = world.createTerrain('deposit-distribution-' + i, 48, 36,
       { kind: 'tellurique', temperature: 18, surfaceWater: .34, hasOilDeposit: false });
     const count = terrain.resources.length;
@@ -334,7 +357,7 @@ test('most planets have two or three large deposits, with some worlds empty or e
     assert.ok(terrain.resources.every(resource => !resource.marine));
     assert.ok(terrain.resources.every(resource => resource.radius >= 5));
   }
-  assert.ok((counts[2] + counts[3]) / 72 > .5, 'two and three deposits make up most planets');
+  assert.ok((counts[2] + counts[3]) / sampleSize > .5, 'two and three deposits make up most planets');
   assert.ok(counts[0] > 0 && counts[5] > 0, 'some planets have none and a few have five');
 });
 

@@ -486,7 +486,7 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.deep, '#073B5C');
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.bathymetryInfluence, .16);
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.midReliefStrength, 2.2);
-  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainFacetMix, .58);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainFacetMix, .30);
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainAoStrength, .06);
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.ridgeAccentStrength, .10);
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainMaterials.temperate.ridge, '#D1B38D');

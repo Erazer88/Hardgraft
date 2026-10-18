@@ -29,7 +29,7 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 6,
+      version: 7,
       genericWater: [.30, .46], islandWaterThreshold: .56,
       sphericalMasses: {
         continentalCount: [3, 6], islandWorldCount: [3, 6],
@@ -39,18 +39,23 @@
       },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       relief: {
-        broadAmplitude: 20,
-        mediumAmplitude: 6,
+        broadAmplitude: 24,
+        mediumAmplitude: 9,
         fineAmplitude: 1.5,
         mountainChains: {
           count: [1, 5], segmentCount: [3, 6], segmentLength: [.10, .22],
-          width: [.035, .075], amplitude: [35, 70], bend: [-.35, .35],
+          beltWidth: [.14, .22], coreWidth: [.022, .045], amplitude: [18, 42],
+          domainWarpFrequency: 3.6, domainWarpAmplitude: .038,
+          ridgeFrequency: [13, 19], ridgeDetailFrequency: [25, 34],
+          ridgeThreshold: [.58, .86], ridgePower: 1.25,
+          shoulderHeightRatio: .14, ridgeHeightRatio: .62,
+          bend: [-.35, .35],
           branchChance: .55, branchAngle: [.61, 1.22],
           branchLengthRatio: [.35, .60], branchWidthRatio: [.50, .70],
-          branchHeightRatio: [.40, .70],
+          branchHeightRatio: [.40, .70], branchCoreRatio: [.55, .75],
           valleyCount: [2, 4], valleyAngle: [.87, 1.40],
-          valleyLengthRatio: [.35, .65], valleyWidthRatio: [.14, .25],
-          valleyCarve: [4, 12]
+          valleyLengthRatio: [.35, .65], valleyWidth: [.045, .08],
+          valleyCarve: [2, 7]
         }
       },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],

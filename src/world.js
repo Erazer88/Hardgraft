@@ -295,26 +295,37 @@
     return { points, tangents, lengths };
   }
 
-  function makeMountainSegment(a, b, width, amplitude, extras = {}) {
+  function makeMountainSegment(a, b, beltWidth, coreWidth, amplitude, extras = {}) {
     const midpoint = normalizeDirection({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
     const axis = normalizeDirection({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z });
     const side = normalizeDirection(cross3(midpoint, axis));
     const chordHalf = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * .5;
     const halfLength = Math.atan2(chordHalf, Math.sqrt(Math.max(1e-12, 1 - chordHalf * chordHalf)));
-    const endBlend = Math.max(.008, width * .68);
+    const endBlend = Math.max(.018, beltWidth * .62);
     return {
-      midpoint, axis, side, inverseWidth: 1 / Math.max(.004, Math.sin(width)),
+      midpoint, axis, side,
+      inverseBeltWidth: 1 / Math.max(.004, Math.sin(beltWidth)),
+      inverseCoreWidth: 1 / Math.max(.004, Math.sin(coreWidth)),
       alongInner: Math.tan(halfLength),
       alongOuter: Math.tan(halfLength + endBlend),
-      shoulderAmplitude: amplitude * .55, spineAmplitude: amplitude * .45,
-      width, carve: extras.carve || 0
+      beltWidth, coreWidth, amplitude, carve: extras.carve || 0
     };
   }
 
-  function appendPathSegments(target, path, width, amplitude, extras = {}) {
+  function appendPathSegments(target, path, beltWidth, coreWidth, amplitude, extras = {}) {
     for (let index = 0; index < path.points.length - 1; index += 1) {
-      target.push(makeMountainSegment(path.points[index], path.points[index + 1], width, amplitude, extras));
+      target.push(makeMountainSegment(path.points[index], path.points[index + 1],
+        beltWidth, coreWidth, amplitude, extras));
     }
+  }
+
+  function smoothMax(a, b, width) {
+    if (a <= 0) return b;
+    if (b <= 0) return a;
+    const difference = Math.abs(a - b);
+    const overlap = Math.max(0, width - difference);
+    const support = smoothstep(0, width * .5, Math.min(a, b));
+    return Math.max(a, b) + overlap * overlap / Math.max(1e-9, 4 * width) * support;
   }
 
   function chooseContinentGroup(random, groups) {
@@ -329,24 +340,42 @@
   }
 
   function createMountainSystems(terrainSeed, continentGroups, geology, relief) {
-    if (!continentGroups.length) return { shoulders: [], valleys: [] };
+    if (!continentGroups.length) return [];
     const settings = relief.mountainChains;
     const random = rng((terrainSeed ^ 0x6f4a7c15) >>> 0);
     const activity = clamp(geology, 0, 1);
     const chainCount = clamp(1 + Math.floor(activity * 3) +
       (random() < activity * .55 ? 1 : 0), settings.count[0], settings.count[1]);
-    const shoulders = [], valleys = [];
+    const systems = [];
     for (let chainIndex = 0; chainIndex < chainCount; chainIndex += 1) {
       const group = chooseContinentGroup(random, continentGroups);
       const landmass = group.forms[0];
       const anchor = offsetSphereDirection(landmass.direction,
         landmass.angularRadius * randomInRange(random, [.15, .50]), random() * TAU);
       const segmentCount = randomIntegerInRange(random, settings.segmentCount);
-      const width = randomInRange(random, settings.width);
-      const amplitude = randomInRange(random, settings.amplitude) * (.48 + activity * .92);
+      const beltWidth = randomInRange(random, settings.beltWidth);
+      const coreWidth = Math.min(beltWidth * .50, randomInRange(random, settings.coreWidth));
+      const amplitude = randomInRange(random, settings.amplitude) * (.70 + activity * .45);
+      const systemSeed = (terrainSeed ^ Math.imul(chainIndex + 1, 0x45d9f3b) ^ 0x3c6ef372) >>> 0;
+      const system = {
+        segments: [], valleys: [],
+        sampleWarpX: fbm3Sampler(systemSeed ^ 0x21f0aaad, 3),
+        sampleWarpY: fbm3Sampler(systemSeed ^ 0x735a2d97, 3),
+        sampleWarpZ: fbm3Sampler(systemSeed ^ 0x4cf5ad43, 3),
+        sampleRidge: fbm3Sampler(systemSeed ^ 0x9e3779b9, 4),
+        sampleRidgeDetail: fbm3Sampler(systemSeed ^ 0x7f4a7c15, 3),
+        warpFrequency: settings.domainWarpFrequency,
+        warpAmplitude: settings.domainWarpAmplitude,
+        ridgeFrequency: randomInRange(random, settings.ridgeFrequency),
+        ridgeDetailFrequency: randomInRange(random, settings.ridgeDetailFrequency),
+        ridgeThreshold: settings.ridgeThreshold,
+        ridgePower: settings.ridgePower,
+        shoulderHeightRatio: settings.shoulderHeightRatio,
+        ridgeHeightRatio: settings.ridgeHeightRatio
+      };
       const path = createMountainPath(anchor, tangentAt(anchor, random() * TAU), segmentCount,
         settings.segmentLength, settings.bend, random);
-      appendPathSegments(shoulders, path, width, amplitude);
+      appendPathSegments(system.segments, path, beltWidth, coreWidth, amplitude);
 
       if (segmentCount > 2 && random() < settings.branchChance * (.35 + activity * .8)) {
         const pointIndex = 1 + Math.floor(random() * (segmentCount - 1));
@@ -359,8 +388,9 @@
         const branchStep = parentLength * lengthRatio / branchSegments;
         const branchPath = createMountainPath(branchStart, branchTangent, branchSegments,
           [branchStep * .78, branchStep * 1.22], settings.bend, random);
-        appendPathSegments(shoulders, branchPath,
-          width * randomInRange(random, settings.branchWidthRatio),
+        appendPathSegments(system.segments, branchPath,
+          beltWidth * randomInRange(random, settings.branchWidthRatio),
+          coreWidth * randomInRange(random, settings.branchCoreRatio),
           amplitude * randomInRange(random, settings.branchHeightRatio));
       }
 
@@ -376,27 +406,51 @@
         const valleyStep = chainLength * lengthRatio / valleySegments;
         const valleyPath = createMountainPath(valleyStart, valleyTangent, valleySegments,
           [valleyStep * .8, valleyStep * 1.2], settings.bend, random);
-        appendPathSegments(valleys, valleyPath, width * randomInRange(random, settings.valleyWidthRatio),
-          0, { carve: randomInRange(random, settings.valleyCarve) * (.58 + activity * .62) });
+        const valleyWidth = randomInRange(random, settings.valleyWidth);
+        appendPathSegments(system.valleys, valleyPath, valleyWidth, valleyWidth * .42,
+          0, { carve: randomInRange(random, settings.valleyCarve) * (.78 + activity * .32) });
       }
+      systems.push(system);
     }
-    return { shoulders, valleys };
+    return systems;
   }
 
-  function segmentProfile(direction, segment, widthWarp = 1) {
+  function warpMountainDirection(direction, system) {
+    const frequency = system.warpFrequency;
+    const x = direction.x * frequency, y = direction.y * frequency, z = direction.z * frequency;
+    const amount = system.warpAmplitude;
+    return normalizeDirection({
+      x: direction.x + system.sampleWarpX(x, y, z) * amount,
+      y: direction.y + system.sampleWarpY(x, y, z) * amount,
+      z: direction.z + system.sampleWarpZ(x, y, z) * amount
+    });
+  }
+
+  function internalRidgeStrength(direction, system) {
+    const scale = system.ridgeFrequency;
+    const fineScale = system.ridgeDetailFrequency;
+    const broad = 1 - Math.abs(system.sampleRidge(
+      direction.x * scale, direction.y * scale, direction.z * scale));
+    const detail = 1 - Math.abs(system.sampleRidgeDetail(
+      direction.x * fineScale, direction.y * fineScale, direction.z * fineScale));
+    const ridged = clamp(broad * .76 + detail * .24, 0, 1);
+    return Math.pow(smoothstep(system.ridgeThreshold[0], system.ridgeThreshold[1], ridged),
+      system.ridgePower);
+  }
+
+  function segmentProfile(direction, segment) {
     const center = dot3(direction, segment.midpoint);
     // Keep the anisotropic band on its own local hemisphere; without this
     // gate the same great-circle frame also paints a false antipodal mountain.
-    if (center <= .01) return { shoulder: 0, spine: 0, valley: 0 };
-    const crossRatio = Math.abs(dot3(direction, segment.side)) * segment.inverseWidth /
-      Math.max(.8, widthWarp);
+    if (center <= .01) return { belt: 0, core: 0 };
+    const cross = Math.abs(dot3(direction, segment.side));
     const along = Math.abs(dot3(direction, segment.axis)) / center;
     const longitudinalEnvelope = 1 - smoothstep(segment.alongInner, segment.alongOuter, along);
-    const crossSquared = crossRatio * crossRatio;
+    const beltRatio = cross * segment.inverseBeltWidth;
+    const coreRatio = cross * segment.inverseCoreWidth;
     return {
-      shoulder: Math.exp(-crossSquared * .55) * longitudinalEnvelope,
-      spine: Math.exp(-crossSquared * 3.2) * longitudinalEnvelope,
-      valley: Math.exp(-crossSquared * 4.8) * longitudinalEnvelope
+      belt: Math.exp(-beltRatio * beltRatio * .48) * longitudinalEnvelope,
+      core: Math.exp(-coreRatio * coreRatio * .62) * longitudinalEnvelope
     };
   }
 
@@ -510,28 +564,44 @@
             continental = Math.max(continental, influence);
           }
         }
-        let shoulderField = 0, spineField = 0, mountainHeight = 0;
+        const landPlateau = smoothstep(.12, .48, continental);
+        const inlandMask = smoothstep(.20, .56, continental);
+        let shoulderField = 0, internalRidgeField = 0, mountainHeight = 0;
         let valleyStrength = 0, valleyCarve = 0;
-        const widthWarp = 1 + medium * .15;
-        for (const segment of mountainSystems.shoulders) {
-          const profile = segmentProfile(direction, segment, widthWarp);
-          shoulderField = Math.max(shoulderField, profile.shoulder);
-          spineField = Math.max(spineField, profile.spine);
-          mountainHeight = Math.max(mountainHeight,
-            profile.shoulder * segment.shoulderAmplitude + profile.spine * segment.spineAmplitude);
+        for (const system of mountainSystems) {
+          const warpedDirection = warpMountainDirection(direction, system);
+          const internalRidges = internalRidgeStrength(warpedDirection, system);
+          let systemBelt = 0, systemHeight = 0, systemRidges = 0;
+          for (const segment of system.segments) {
+            const profile = segmentProfile(warpedDirection, segment);
+            const ridgeInBelt = profile.belt * internalRidges * (.78 + profile.core * .22);
+            const relief = segment.amplitude * profile.belt * system.shoulderHeightRatio +
+              segment.amplitude * ridgeInBelt * system.ridgeHeightRatio;
+            systemBelt = smoothMax(systemBelt, profile.belt, .14);
+            systemHeight = smoothMax(systemHeight, relief, 2.5);
+            systemRidges = smoothMax(systemRidges, ridgeInBelt, .10);
+          }
+          let systemValleys = 0, systemCarve = 0;
+          for (const segment of system.valleys) {
+            const profile = segmentProfile(warpedDirection, segment);
+            const valley = profile.belt * systemBelt;
+            systemValleys = smoothMax(systemValleys, valley, .12);
+            systemCarve = smoothMax(systemCarve, valley * segment.carve, 1.2);
+          }
+          shoulderField = smoothMax(shoulderField, systemBelt * inlandMask, .14);
+          internalRidgeField = smoothMax(internalRidgeField, systemRidges * inlandMask, .10);
+          mountainHeight = smoothMax(mountainHeight, systemHeight * inlandMask, 2.5);
+          valleyStrength = smoothMax(valleyStrength, systemValleys * inlandMask, .12);
+          valleyCarve = smoothMax(valleyCarve, systemCarve * inlandMask, 1.2);
         }
-        for (const segment of mountainSystems.valleys) {
-          const profile = segmentProfile(direction, segment, widthWarp);
-          valleyStrength = Math.max(valleyStrength, profile.valley);
-          valleyCarve = Math.max(valleyCarve, profile.valley * segment.carve);
-        }
-        const baseTerrain = 88 + continental * 140 + broad * settings.relief.broadAmplitude +
-          medium * settings.relief.mediumAmplitude + fine * settings.relief.fineAmplitude;
+        const baseTerrain = 82 + landPlateau * 108 + continental * 8 +
+          broad * settings.relief.broadAmplitude + medium * settings.relief.mediumAmplitude +
+          fine * settings.relief.fineAmplitude;
         const altitude = clamp(baseTerrain + mountainHeight - valleyCarve, 0, 255);
         const index = y * width + x;
         raw[index] = altitude;
         mountainMask[index] = Math.round(clamp(shoulderField, 0, 1) * 255);
-        ridgeField[index] = Math.round(clamp(spineField, 0, 1) * 255);
+        ridgeField[index] = Math.round(clamp(internalRidgeField, 0, 1) * 255);
         valleyField[index] = Math.round(clamp(valleyStrength, 0, 1) * 255);
         histogram[Math.round(altitude)] += rowWeight;
         totalSurfaceWeight += rowWeight;
@@ -555,7 +625,7 @@
       elevation[i] = Math.round(clamp(raw[i] + seaLevel - rawSeaLevel, 0, 255));
       const landCoverage = smoothstep(seaLevel - 1.5, seaLevel + 2.5, elevation[i]);
       mountainMask[i] = Math.round(mountainMask[i] * landCoverage);
-      ridgeField[i] = Math.round(ridgeField[i] * landCoverage);
+      ridgeField[i] = Math.min(mountainMask[i], Math.round(ridgeField[i] * landCoverage));
       valleyField[i] = Math.round(valleyField[i] * landCoverage);
     }
     const ruggednessField = ruggednessFromElevation(elevation, width, height, seaLevel);
