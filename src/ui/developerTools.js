@@ -6,6 +6,7 @@
     const $ = id => document.getElementById(id);
     const container = $('developer-options');
     const diagnostics = root.OrbitTerrainDiagnostics.create(document, options);
+    const terrainTuner = root.OrbitTerrainTuner.create(document, options);
     const controls = new Map();
     const groups = new Map();
 
@@ -79,6 +80,11 @@
 
     $('terrain-diagnostics-open').addEventListener('click', () => {
       $('developer-dialog').close(); diagnostics.open();
+    });
+    $('terrain-tuner-open').addEventListener('click', () => {
+      $('developer-dialog').close();
+      options.onTerrainTuningOpen?.();
+      terrainTuner.open();
     });
     $('developer-reset').addEventListener('click', () => settings.reset());
     settings.subscribe(updateControl);

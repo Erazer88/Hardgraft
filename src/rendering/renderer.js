@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera;
+  const GlobeStyle = root.OrbitPlanetGlobeStyle;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -235,6 +236,8 @@
 
     function drawUniverse() {
       const cam = state.camera;
+      const globeStyle = activeScene.globeStyle || GlobeStyle;
+      const globePlanet = activeScene.globePlanet || state.planet;
       if (state.level === 'surface') {
         ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
         const transition = activeScene.globeTransition;
@@ -244,10 +247,10 @@
           drawSystem(local, state.context.model, state.context); ctx.restore();
         }
         const terrain = activeScene.terrainData;
-        globeRenderer.render({ terrain, planet: state.planet, view: activeScene.globeView,
-          transition, active: Boolean(state.planet && terrain) });
+        globeRenderer.render({ terrain, planet: globePlanet, view: activeScene.globeView,
+          transition, active: Boolean(globePlanet && terrain), style: globeStyle });
         globeOverlay.render({ terrain, state, view: activeScene.globeView, transition,
-          active: Boolean(state.planet && terrain && globeRenderer.available()) });
+          active: Boolean(state.planet && terrain && globeRenderer.available()), style: globeStyle });
         return;
       }
       const exitTransition = activeScene.globeTransition?.mode === 'exit' ? activeScene.globeTransition : null;
@@ -264,10 +267,10 @@
         }
       }
       if (showExitGlobe) {
-        globeRenderer.render({ terrain: activeScene.terrainData, planet: state.planet,
-          view: activeScene.globeView, transition: exitTransition, active: true });
+        globeRenderer.render({ terrain: activeScene.terrainData, planet: globePlanet,
+          view: activeScene.globeView, transition: exitTransition, active: true, style: globeStyle });
         globeOverlay.render({ terrain: activeScene.terrainData, state, view: activeScene.globeView,
-          transition: exitTransition, active: globeRenderer.available() });
+          transition: exitTransition, active: globeRenderer.available(), style: globeStyle });
       }
     }
 

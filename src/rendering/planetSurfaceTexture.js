@@ -2,6 +2,7 @@
   'use strict';
 
   const World = root.OrbitWorld;
+  const Style = root.OrbitPlanetGlobeStyle;
   const DEFAULT_WIDTH = 2048;
   const DEFAULT_HEIGHT = 1024;
   const MAX_CACHE_ENTRIES = 2;
@@ -186,25 +187,35 @@
     return 'temperate';
   }
 
-  function polarIceThreshold(temperature) {
+  function polarIceThreshold(temperature, settings = Style.polarCaps) {
     // The boundary is in angular latitude degrees, so seeded noise remains a
     // small, controllable displacement instead of a huge shift in sin(latitude).
-    return clamp(76 + ((Number.isFinite(temperature) ? temperature : 16) - 16) * .38, 48, 82);
+    return clamp(settings.thresholdBase + ((Number.isFinite(temperature) ? temperature : 16) -
+      settings.temperatureReference) * settings.temperatureScale,
+    settings.minimumThreshold, settings.maximumThreshold);
   }
 
-  function polarIceCoverage(nx, ny, nz, temperature, seed) {
-    const threshold = polarIceThreshold(temperature);
+  function polarIceCoverage(nx, ny, nz, temperature, seed, settings = Style.polarCaps) {
+    const threshold = polarIceThreshold(temperature, settings);
     const absoluteLatitude = Math.asin(clamp(Math.abs(ny), 0, 1)) * 180 / Math.PI;
-    if (absoluteLatitude < threshold - 10) return 0;
-    const broadBoundary = noise3(nx * 3.8, ny * 3.8, nz * 3.8, seed ^ 0x2b79a4d1) * .58 +
-      noise3(nx * 7.0, ny * 7.0, nz * 7.0, seed ^ 0x42c8e6f3) * .42;
-    const coastBreakup = noise3(nx * 9.2, ny * 9.2, nz * 9.2, seed ^ 0x6c8e9cf5);
+    if (absoluteLatitude < threshold - settings.eligibilityMarginDegrees) return 0;
+    const broadBoundary = noise3(nx * settings.broadFrequency, ny * settings.broadFrequency,
+      nz * settings.broadFrequency, seed ^ 0x2b79a4d1) * (1 - settings.secondWeight) +
+      noise3(nx * settings.secondFrequency, ny * settings.secondFrequency,
+        nz * settings.secondFrequency, seed ^ 0x42c8e6f3) * settings.secondWeight;
+    const coastBreakup = noise3(nx * settings.coastFrequency, ny * settings.coastFrequency,
+      nz * settings.coastFrequency, seed ^ 0x6c8e9cf5);
     // Broad noise moves the front by a few degrees; finer noise only breaks
     // the coast slightly. The pole itself remains fully covered by geometry.
-    const broadDisplacement = clamp(broadBoundary * 24.0, -5.2, 5.2);
-    const coastDisplacement = clamp(coastBreakup * 1.6, -1.2, 1.2);
-    const irregularThreshold = clamp(threshold + broadDisplacement + coastDisplacement, 42, 86);
-    return smoothstep(irregularThreshold - 1.35, irregularThreshold + 1.35, absoluteLatitude);
+    const broadDisplacement = clamp(broadBoundary * settings.broadDisplacementDegrees,
+      -settings.maximumBroadShiftDegrees, settings.maximumBroadShiftDegrees);
+    const coastDisplacement = clamp(coastBreakup * settings.coastDisplacementDegrees,
+      -settings.maximumCoastShiftDegrees, settings.maximumCoastShiftDegrees);
+    const irregularThreshold = clamp(threshold + broadDisplacement + coastDisplacement,
+      settings.minimumThreshold - settings.maximumBroadShiftDegrees,
+      settings.maximumThreshold + settings.maximumBroadShiftDegrees);
+    return smoothstep(irregularThreshold - settings.edgeHalfWidthDegrees,
+      irregularThreshold + settings.edgeHalfWidthDegrees, absoluteLatitude);
   }
 
   function createCraters(seed) {
@@ -453,8 +464,10 @@
     const height = Math.max(1, Math.floor(options.height || DEFAULT_HEIGHT));
     const id = String(planet?.id ?? 'planet');
     const planetSeed = String(planet?.seed ?? '0');
+    const polarCaps = options.polarCaps || Style.polarCaps;
+    const polarSettingsKey = JSON.stringify(polarCaps);
     const key = `${id}:${planetSeed}`;
-    const cacheKey = `${key}:${width}x${height}`;
+    const cacheKey = `${key}:${width}x${height}:${polarSettingsKey}`;
     const cached = options.cache === false ? null : textureCache.get(cacheKey);
     if (cached) {
       textureCache.delete(cacheKey); textureCache.set(cacheKey, cached);
@@ -469,7 +482,7 @@
     const iceSeed = surfaceSeed ^ 0x084ca187;
     const polarSeed = surfaceSeed ^ 0x5b1ce8a3;
     const climate = climateOf(planet), temperature = Number.isFinite(planet?.temperature) ? planet.temperature : 16;
-    const polarThreshold = polarIceThreshold(temperature);
+    const polarThreshold = polarIceThreshold(temperature, polarCaps);
     const albedoWidth = Math.min(width, 1024);
     const albedoHeight = Math.min(height, Math.max(1, Math.round(albedoWidth * height / width)));
     const craters = climate === 'arid'
@@ -501,8 +514,8 @@
       (nx, ny, nz) => noise3(nx * 24, ny * 24, nz * 24, climate === 'frozen' ? iceSeed : detailSeed)) : null;
     const usesPolarIce = climate === 'temperate' || climate === 'frozen' || climate === 'arid';
     const polarSampler = usesPolarIce ? createSphericalFieldSampler(width, height, (nx, ny, nz, latitude) =>
-      Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10
-        ? polarIceCoverage(nx, ny, nz, temperature, polarSeed) : 0) : null;
+      Math.abs(latitude) * 180 / Math.PI >= polarThreshold - polarCaps.eligibilityMarginDegrees
+        ? polarIceCoverage(nx, ny, nz, temperature, polarSeed, polarCaps) : 0) : null;
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     let basinLevel = seaLevel;
     if (climate === 'arid' || climate === 'volcanic') {
@@ -601,8 +614,9 @@
     for (let py = 0; py < albedoHeight; py += 1) {
       const v = py / (albedoHeight - 1 || 1), latitude = (.5 - v) * Math.PI;
       albedoRowDirections[py] = { latitude,
-        latitudeCooling: Math.pow(Math.abs(Math.sin(latitude)), 1.55) * 38,
-        polarEligible: Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10 };
+        latitudeCooling: Math.pow(Math.abs(Math.sin(latitude)), polarCaps.latitudeCoolingExponent) *
+          polarCaps.latitudeCoolingDegrees,
+        polarEligible: Math.abs(latitude) * 180 / Math.PI >= polarThreshold - polarCaps.eligibilityMarginDegrees };
     }
 
     for (let py = 0; py < albedoHeight; py += 1) {

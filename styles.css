@@ -283,3 +283,52 @@ body[data-level="surface"] .corner-note{display:none}
 #terrain-diagnostics-canvas{display:block;width:100%;height:auto;aspect-ratio:8/3;background:#000}
 #terrain-diagnostics-canvas[hidden]{display:none}
 @media(max-width:600px){.terrain-diagnostics-card{padding:12px}.terrain-diagnostics-controls{gap:8px}}
+
+/* Non-modal terrain workbench: keep the globe visible while tuning it. */
+#terrain-tuner-panel{position:fixed;z-index:40;top:calc(58px + env(safe-area-inset-top,0px));right:calc(10px + var(--safe-right));
+  width:min(390px,calc(100vw - 20px));max-height:calc(100dvh - 142px - env(safe-area-inset-top,0px));
+  display:flex;flex-direction:column;overflow:hidden;border:1px solid #829eaf35;border-radius:8px;
+  background:#0b1724ed;box-shadow:0 16px 42px #0008;backdrop-filter:blur(12px);color:#c7d5dc}
+#terrain-tuner-panel[hidden]{display:none}
+.terrain-tuner-header{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border-bottom:1px solid #829eaf24}
+.terrain-tuner-header>div:first-child{display:flex;flex-direction:column;gap:4px}
+.terrain-tuner-header span{color:#8ca4b2;font:8px var(--mono);letter-spacing:1.4px}
+.terrain-tuner-header strong{color:#dce6e9;font-size:10px;font-weight:500;letter-spacing:1px}
+.terrain-tuner-header-actions{display:flex;gap:6px}
+.terrain-tuner-header-actions button{width:30px;height:30px;border:1px solid #829eaf2c;border-radius:4px;background:#122231;color:#cddbe0;font-size:17px;cursor:pointer}
+.terrain-tuner-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 14px 14px}
+.terrain-tuner-panel.is-collapsed .terrain-tuner-body{display:none}
+.terrain-tuner-context,.terrain-tuner-status,.terrain-tuner-note{margin:0 0 9px;color:#8da4b0;font-size:9px;line-height:1.5}
+.terrain-tuner-status{color:#ddb17f;font-family:var(--mono)}
+.terrain-tuner-seed-block{padding:9px 0;border-top:1px solid #829eaf20;border-bottom:1px solid #829eaf20}
+.terrain-tuner-seed-block>label:first-child{display:block;margin-bottom:6px;color:#9bb0bb;font:8px var(--mono);letter-spacing:1px}
+.terrain-tuner-seed-row{display:flex;gap:6px}
+.terrain-tuner-seed-row input{min-width:0;flex:1;padding:8px 9px;border:1px solid #829eaf38;border-radius:4px;background:#101e2b;color:#e0e8eb;font:10px var(--mono)}
+.terrain-tuner-seed-row button,.terrain-tuner-secondary{border:1px solid #829eaf35;border-radius:4px;background:#132434;color:#d5e0e5;cursor:pointer}
+.terrain-tuner-seed-row button{width:36px;font-size:16px}
+.terrain-tuner-lock{display:flex;align-items:center;gap:7px;margin-top:8px;color:#9eafb8;font-size:9px;cursor:pointer}
+.terrain-tuner-lock input{accent-color:#d9a36f}
+.terrain-tuner-seed-help{margin:6px 0 0;color:#718a98;font-size:8px;line-height:1.4}
+.terrain-tuner-secondary{width:100%;margin-top:8px;padding:8px;color:#c3d2d9;font-size:8px;letter-spacing:.8px}
+.terrain-tuner-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:9px 0}
+.terrain-tuner-actions button{min-height:31px;padding:5px 3px;border:1px solid #829eaf35;border-radius:4px;background:#132434;color:#cbd9de;font-size:7px;letter-spacing:.5px;cursor:pointer}
+.terrain-tuner-actions button:first-child{border-color:#d69c604f;color:#e7b77f}
+.terrain-tuner-groups{display:flex;flex-direction:column}
+.terrain-tuner-group{border-top:1px solid #829eaf20}
+.terrain-tuner-group summary{padding:10px 2px;color:#dfb17b;font-size:8px;letter-spacing:1px;cursor:pointer;list-style:none}
+.terrain-tuner-group summary::-webkit-details-marker{display:none}
+.terrain-tuner-group summary::after{float:right;content:'+';font:12px var(--mono);color:#91a5af}
+.terrain-tuner-group[open] summary::after{content:'−'}
+.terrain-tuner-row{padding:5px 0 8px}
+.terrain-tuner-labels{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+.terrain-tuner-labels label,.terrain-tuner-color-row label{color:#b9c9d0;font-size:9px}
+.terrain-tuner-labels output{color:#e1e8eb;font:9px var(--mono);font-variant-numeric:tabular-nums}
+.terrain-tuner-controls{display:grid;grid-template-columns:minmax(0,1fr) 78px;align-items:center;gap:9px}
+.terrain-tuner-controls input[type=range]{width:100%;accent-color:#d7a16c;cursor:pointer}
+.terrain-tuner-controls input[type=number]{width:78px;padding:5px 6px;border:1px solid #829eaf32;border-radius:3px;background:#101e2b;color:#e0e8eb;font:9px var(--mono);text-align:right}
+.terrain-tuner-color-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0}
+.terrain-tuner-color-row input{width:42px;height:28px;padding:2px;border:1px solid #829eaf35;border-radius:3px;background:#101e2b;cursor:pointer}
+.terrain-tuner-note{padding:8px 0 0;border-top:1px solid #829eaf20;color:#718a98;font-size:8px}
+@media(max-width:600px){#terrain-tuner-panel{top:calc(54px + env(safe-area-inset-top,0px));right:calc(6px + var(--safe-right));
+  width:min(370px,calc(100vw - 12px));max-height:calc(100dvh - 130px - env(safe-area-inset-top,0px))}
+  .terrain-tuner-body{padding:8px 11px 11px}.terrain-tuner-controls{grid-template-columns:minmax(0,1fr) 70px}.terrain-tuner-controls input[type=number]{width:70px}}

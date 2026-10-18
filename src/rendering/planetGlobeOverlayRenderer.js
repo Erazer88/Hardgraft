@@ -11,6 +11,7 @@
   function create(canvas) {
     const ctx = canvas.getContext('2d', { alpha: true });
     let width = 1, height = 1, dpr = 1;
+    let currentStyle = Style;
     const graticuleCache = new WeakMap();
 
     function resize(nextWidth, nextHeight, ratio) {
@@ -22,7 +23,7 @@
 
     function mapProject(x, y, terrain, view) {
       const scale = root.OrbitConfig.terrain.textureScale;
-      return Projection.projectSurfacePoint(x / scale, y / scale, terrain, view, Style.relief);
+      return Projection.projectSurfacePoint(x / scale, y / scale, terrain, view, currentStyle.relief);
     }
 
     function mapCoordinate(longitude, latitude, terrain) {
@@ -33,15 +34,17 @@
     }
 
     function graticuleFor(terrain) {
-      let curves = graticuleCache.get(terrain);
-      if (curves) return curves;
-      const style = Style.graticule;
+      const style = currentStyle.graticule;
+      const cacheKey = JSON.stringify([style, currentStyle.relief]);
+      const cached = graticuleCache.get(terrain);
+      if (cached?.key === cacheKey) return cached.curves;
+      const curves = [];
       curves = [];
       function addCurve(points) {
         const values = new Float32Array(points.length * 3);
         for (let i = 0; i < points.length; i += 1) {
           const map = mapCoordinate(points[i][0], points[i][1], terrain);
-          const point = Projection.surfacePosition(map.x, map.y, terrain, Style.relief);
+          const point = Projection.surfacePosition(map.x, map.y, terrain, currentStyle.relief);
           values[i * 3] = point.x; values[i * 3 + 1] = point.y; values[i * 3 + 2] = point.z;
         }
         curves.push(values);
@@ -60,12 +63,12 @@
         }
         addCurve(points);
       }
-      graticuleCache.set(terrain, curves);
+      graticuleCache.set(terrain, { key: cacheKey, curves });
       return curves;
     }
 
     function drawGraticule(terrain, view, alpha) {
-      const style = Style.graticule, yaw = view.yaw || 0, pitch = view.pitch || 0;
+      const style = currentStyle.graticule, yaw = view.yaw || 0, pitch = view.pitch || 0;
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch);
       const radius = Number.isFinite(view.radiusPx) ? view.radiusPx : Math.min(view.width, view.height) * .4 * (view.zoom || 1);
       const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
@@ -130,10 +133,10 @@
       if (!terrain.resources?.length) return;
       ctx.save(); ctx.globalAlpha = alpha * .8;
       for (const resource of terrain.resources) {
-        const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, Style.relief);
+        const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, currentStyle.relief);
         if (!point.visible) continue;
         const edge = Projection.projectSurfacePoint(Math.min(terrain.width - 1, resource.x + resource.radius),
-          resource.y, terrain, view, Style.relief);
+          resource.y, terrain, view, currentStyle.relief);
         const sampledRadius = edge.visible ? Math.hypot(edge.x - point.x, edge.y - point.y) : 0;
         const radius = clamp(sampledRadius * 1.65, 12, 30);
         const color = Style.resources[resource.id] || '#a5b0af';
@@ -241,7 +244,8 @@
       return { x: point.x, y: point.y, visible: point.visible, id: building.id };
     }
 
-    function render({ terrain, state, view, transition = null, active = true }) {
+    function render({ terrain, state, view, transition = null, active = true, style = Style }) {
+      currentStyle = style || Style;
       ctx.clearRect(0, 0, width, height);
       const visible = Boolean(active && terrain && state?.planet);
       canvas.style.display = visible ? 'block' : 'none';
@@ -260,8 +264,9 @@
         type: state.placement.type, valid: state.placement.valid }, terrain, globeView, state, alpha, true);
     }
 
-    function hitTest(buildings, planetId, terrain, view, x, y) {
-      const radius = Style.icon.hitRadiusPx;
+    function hitTest(buildings, planetId, terrain, view, x, y, style = Style) {
+      currentStyle = style || Style;
+      const radius = currentStyle.icon.hitRadiusPx;
       for (let i = buildings.length - 1; i >= 0; i -= 1) {
         const building = buildings[i];
         if (building.planetId !== planetId) continue;

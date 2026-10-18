@@ -16,6 +16,7 @@
   const GlobeProjection = globalThis.OrbitPlanetGlobeProjection;
   const GlobeStyle = globalThis.OrbitPlanetGlobeStyle;
   const globeCamera = globalThis.OrbitPlanetGlobeCamera.create(GlobeStyle.camera);
+  let terrainTuningPreset = null, terrainPreviewRecord = null, terrainTuningTarget = null;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const pointers = new Map();
@@ -27,7 +28,10 @@
   });
   const hud = globalThis.OrbitHUD.create(document);
   globalThis.OrbitDeveloperTools.create(document, {
-    getTerrain: () => state.planet ? { terrain: prepareTerrain(state.planet).data, planet: state.planet } : null
+    getTerrain: () => state.planet ? { terrain: prepareTerrain(state.planet).data, planet: state.planet } : null,
+    getTerrainTuningContext: terrainTuningContext,
+    onTerrainTuningApply: applyTerrainTuning,
+    onTerrainTuningEnterSurface: enterTerrainTuningSurface
   });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -128,7 +132,84 @@
   function planetWorldPosition(planet, context = state.context) {
     return Camera.worldPoint(context.frame, World.planetPosition(planet, state.simulation.time));
   }
+  function locateTuningPlanet(id) {
+    if (!id) return null;
+    if (state.context) {
+      const planet = state.context.model.planets.find(candidate => candidate.id === id);
+      if (planet) return { planet, context: state.context };
+    }
+    for (const context of contexts.values()) {
+      const planet = context.model.planets.find(candidate => candidate.id === id);
+      if (planet) return { planet, context };
+    }
+    return null;
+  }
+  function terrainTuningContext() {
+    const selectedPlanet = state.context?.model.planets.find(candidate => candidate.id === state.selected?.id);
+    const planet = state.planet || state.focusPlanet || selectedPlanet;
+    if (!planet || planet.kind === 'gazeuse') return null;
+    const found = locateTuningPlanet(planet.id);
+    if (!found) return null;
+    terrainTuningTarget = found;
+    return { ...found, terrainSettings: globalThis.OrbitWorldgenData.terrain,
+      globeStyle: GlobeStyle, surfaceActive: state.level === 'surface' && state.planet?.id === planet.id };
+  }
+  function applyTerrainTuning(preset, { regenerate = false, rebuild = 'terrain' } = {}) {
+    if (!preset?.planetId) return { message: 'Aucune planète sélectionnée' };
+    const target = locateTuningPlanet(preset.planetId) || terrainTuningTarget;
+    if (!target || target.planet.id !== preset.planetId) return { message: 'Planète cible introuvable' };
+    terrainTuningTarget = target;
+    terrainTuningPreset = { planetId: preset.planetId, seed: preset.seed,
+      renderStyle: preset.renderStyle };
+    if (!regenerate) return { message: 'Shading appliqué en temps réel' };
+    if (rebuild === 'surface') {
+      prepareTerrain(target.planet, target.context);
+      return { message: 'Matériau polaire actualisé' };
+    }
+    const planet = { ...target.planet, seed: preset.seed,
+      geology: preset.planet.geology, temperature: preset.planet.temperature,
+      terrainWater: preset.planet.surfaceWater, surfaceWater: preset.planet.surfaceWater };
+    const data = World.createTerrain(preset.seed, Config.terrain.width, Config.terrain.height,
+      planet, preset.terrainSettings);
+    data.debugTuning = true;
+    terrainPreviewRecord = { planetId: planet.id, data, planet, roadCostField: null, tuned: true };
+    terrainData = data;
+    return { message: `Terrain recalculé · seed ${preset.seed} · ${planet.name || planet.id}` };
+  }
+  function enterTerrainTuningSurface() {
+    const target = terrainTuningTarget || terrainTuningContext();
+    if (!target) { toast('Sélectionnez une planète solide avant d’ouvrir sa surface.'); return; }
+    if (state.level === 'galaxy') {
+      state.context = target.context; state.system = target.context.model; state.level = 'system';
+      state.focusPlanet = target.planet; state.selected = target.planet;
+      followPlanet(target.planet, target.context);
+      const position = planetWorldPosition(target.planet, target.context);
+      const radius = target.planet.radius * target.context.frame.scale;
+      focusCamera(position.x, position.y, 130 / Math.max(1e-9, radius), true);
+      return;
+    }
+    if (state.context?.star.id !== target.context.star.id) {
+      state.context = target.context; state.system = target.context.model;
+    }
+    if (state.level === 'system') {
+      state.selected = target.planet;
+      enterPlanet();
+    }
+  }
+  function activeGlobeStyle() {
+    return terrainTuningPreset && terrainTuningPreset.planetId === state.planet?.id
+      ? terrainTuningPreset.renderStyle : GlobeStyle;
+  }
+  function activeGlobePlanet() {
+    return terrainPreviewRecord?.tuned && terrainPreviewRecord.planet?.id === state.planet?.id
+      ? terrainPreviewRecord.planet : state.planet;
+  }
   function prepareTerrain(planet, context = state.context) {
+    if (terrainPreviewRecord?.tuned && terrainPreviewRecord.data &&
+        terrainPreviewRecord.planetId === planet.id) {
+      terrainData = terrainPreviewRecord.data;
+      return terrainPreviewRecord;
+    }
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
       context.terrains.set(planet.id, { data: terrainData, roadCostField: null });
@@ -182,13 +263,13 @@
   function terrainPointAtScreen(screenX, screenY, planet = state.planet, context = state.context) {
     if (!planet || !context) return null;
     const record = prepareTerrain(planet, context);
-    const point = GlobeProjection.raycastTerrain(screenX, screenY, record.data, globeView(), GlobeStyle.relief);
+    const point = GlobeProjection.raycastTerrain(screenX, screenY, record.data, globeView(), activeGlobeStyle().relief);
     return point ? { x: point.x * Config.terrain.textureScale, y: point.y * Config.terrain.textureScale } : null;
   }
   function projectTerrainPoint(x, y, planet = state.planet, context = state.context, view = globeView()) {
     const record = prepareTerrain(planet, context);
     return GlobeProjection.projectSurfacePoint(x / Config.terrain.textureScale,
-      y / Config.terrain.textureScale, record.data, view, GlobeStyle.relief);
+      y / Config.terrain.textureScale, record.data, view, activeGlobeStyle().relief);
   }
   function systemPlanetScreenPose() {
     if (!state.planet || !state.context) return null;
@@ -356,7 +437,8 @@
     terrainData = activeTerrain || terrainData;
     const globeTransition = globeActive ? globeTransitionForFrame(now) : null;
     renderer.render({ state, galaxy, home, contexts, visibleContexts, now,
-      terrainData: activeTerrain, globeView: globeView(), globeTransition });
+      terrainData: activeTerrain, globeView: globeView(), globeTransition,
+      globeStyle: activeGlobeStyle(), globePlanet: activeGlobePlanet() });
     if (state.level !== 'surface' && globeTransition?.mode === 'exit' && !globeTransition.active) globeCamera.clearTransition();
   }
 
@@ -765,7 +847,7 @@
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
       const building = renderer.hitTestGlobeBuilding(state.surfaceBuildings, state.planet.id,
-        terrainData, globeView(), x, y);
+        terrainData, globeView(), x, y, activeGlobeStyle());
       if (building) { selectSurfaceBuilding(building); return; }
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
@@ -1018,6 +1100,7 @@
     if (e.key === 'Escape') {
       if ($('terrain-diagnostics-dialog').open) { $('terrain-diagnostics-dialog').close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
+      if (!$('terrain-tuner-panel').hidden) { $('terrain-tuner-panel').hidden = true; return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; updateUI(); }

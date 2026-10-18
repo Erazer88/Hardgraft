@@ -158,31 +158,37 @@
     return output;
   }
 
-  function createTerrain(seed, width = 960, height = 360, planet = null) {
+  function createTerrain(seed, width = 960, height = 360, planet = null, terrainSettings = null) {
     width=Math.max(1,Math.floor(width));height=Math.max(1,Math.floor(height));
-    const settings=root.OrbitWorldgenData.terrain;
+    const settings=terrainSettings || root.OrbitWorldgenData.terrain;
     const terrainSeed=hashSeed(String(seed)+':terrain:v'+settings.version);
     const random=rng(terrainSeed);
     const waterFraction=clamp(planet?.terrainWater ?? planet?.surfaceWater ??
       (settings.genericWater[0]+random()*(settings.genericWater[1]-settings.genericWater[0])),
       0,root.OrbitWorldgenData.planets.maxSurfaceWater);
-    const tectonics=root.OrbitTectonics.create(terrainSeed,width,height,planet || {});
-    const source=root.OrbitTerrainElevation.create(tectonics,terrainSeed);
-    const eroded=root.OrbitThermalErosion.erode(source.rawElevation,width,height);
-    const normalized=root.OrbitTerrainElevation.normalize(eroded,width,height,waterFraction);
+    const tectonics=root.OrbitTectonics.create(terrainSeed,width,height,planet || {},settings.tectonics);
+    const source=root.OrbitTerrainElevation.create(tectonics,terrainSeed,settings.tectonics);
+    const eroded=root.OrbitThermalErosion.erode(source.rawElevation,width,height,settings.tectonics.erosion);
+    const normalized=root.OrbitTerrainElevation.normalize(eroded,width,height,waterFraction,settings.seaLevel ?? 102);
     const {elevation,seaLevel}=normalized;
-    const structure=root.OrbitTerrainStructure.derive(elevation,source.tectonicUplift,width,height,seaLevel);
+    const structure=root.OrbitTerrainStructure.derive(elevation,source.tectonicUplift,width,height,seaLevel,
+      settings.tectonics.structure);
     const moisture=new Uint8Array(width*height),direction={};
     const sampleMoisture=root.OrbitTectonics.noise3(terrainSeed ^ 0x19191531);
+    const moistureSettings=settings.moisture || { frequency: 3.5, baseline: .52,
+      amplitude: .46, octaves: 3, altitudeScale: 153, altitudePenalty: .20 };
     for(let y=0;y<height;y++)for(let x=0;x<width;x++) {
       const index=y*width+x;
       if((x && (y===0 || y===height-1)) || (x===width-1 && width>1)) {
         moisture[index]=moisture[y*width];continue;
       }
       directionForPixel(x,y,width,height,direction);
-      const penalty=clamp((elevation[index]-seaLevel)/153,0,1)*.20;
-      moisture[index]=Math.round(clamp(.52+root.OrbitTectonics.fbm(sampleMoisture,
-        direction.x*3.5+7.4,direction.y*3.5-3.8,direction.z*3.5+1.7,3)*.46-penalty,0,1)*255);
+      const penalty=clamp((elevation[index]-seaLevel)/moistureSettings.altitudeScale,0,1)*
+        moistureSettings.altitudePenalty;
+      moisture[index]=Math.round(clamp(moistureSettings.baseline+root.OrbitTectonics.fbm(sampleMoisture,
+        direction.x*moistureSettings.frequency+7.4,direction.y*moistureSettings.frequency-3.8,
+        direction.z*moistureSettings.frequency+1.7,moistureSettings.octaves,settings.tectonics.fbm)*
+        moistureSettings.amplitude-penalty,0,1)*255);
     }
     const diagnostics={plateId:tectonics.plateId,continentalField:tectonics.continentalField,
       convergence:tectonics.convergence,divergence:tectonics.divergence,

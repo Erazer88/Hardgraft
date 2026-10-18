@@ -40,7 +40,7 @@
     }
     return {width,height,rawElevation,tectonicUplift:uplift,tectonicSubsidence:subsidence};
   }
-  function normalize(raw,width,height,waterFraction) {
+  function normalize(raw,width,height,waterFraction,seaLevel=102) {
     let min=Infinity,max=-Infinity;
     for(const n of raw) {min=Math.min(min,n);max=Math.max(max,n);}
     const histogram=new Float64Array(4096), span=Math.max(1e-6,max-min), uniqueWidth=Math.max(1,width-1);
@@ -55,7 +55,6 @@
     let sum=0,bin=0;
     for(;bin<4095;bin++) {sum+=histogram[bin];if(sum>=total*waterFraction)break;}
     const quantileLevel=waterFraction===0 ? min-4 : min+bin/4095*span;
-    const seaLevel=102;
     const scaleAt=level=>Math.min(1,146/Math.max(1,max-level),98/Math.max(1,level-min));
     let rawSeaLevel=quantileLevel;
     if(waterFraction>0) {

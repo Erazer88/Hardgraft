@@ -147,6 +147,7 @@
       </div>
       <p class="developer-description">Les modifications sont appliquées en direct et conservées sur cet appareil.</p>
       <div class="developer-options" id="developer-options"></div>
+      <button id="terrain-tuner-open" class="developer-reset" type="button">RÉGLAGE PROCÉDURAL DU TERRAIN</button>
       <button id="terrain-diagnostics-open" class="developer-reset" type="button">DIAGNOSTIC DU TERRAIN</button>
       <button id="developer-reset" class="developer-reset" type="button">RÉINITIALISER LES RÉGLAGES</button>
     </div>
@@ -160,6 +161,36 @@
       <p id="terrain-diagnostics-legend" class="developer-description"></p>
     </div>
   </dialog>
+  <aside id="terrain-tuner-panel" class="terrain-tuner-panel" aria-labelledby="terrain-tuner-title" hidden>
+    <div class="terrain-tuner-header">
+      <div><span>OUTILS DÉVELOPPEUR</span><strong id="terrain-tuner-title">RÉGLAGE DU TERRAIN</strong></div>
+      <div class="terrain-tuner-header-actions">
+        <button id="terrain-tuner-collapse" type="button" aria-label="Replier le réglage terrain">−</button>
+        <button id="terrain-tuner-close" type="button" aria-label="Fermer le réglage terrain">×</button>
+      </div>
+    </div>
+    <div id="terrain-tuner-body" class="terrain-tuner-body">
+      <p id="terrain-tuner-context" class="terrain-tuner-context">Choisissez une planète solide pour régler son terrain.</p>
+      <div class="terrain-tuner-seed-block">
+        <label for="terrain-tuner-seed">SEED DE LA PLANÈTE</label>
+        <div class="terrain-tuner-seed-row">
+          <input id="terrain-tuner-seed" maxlength="64" autocomplete="off" spellcheck="false" aria-label="Seed de la planète">
+          <button id="terrain-tuner-seed-random" type="button" aria-label="Créer une seed puis la verrouiller" title="Créer une seed puis la verrouiller">↻</button>
+        </div>
+        <label class="terrain-tuner-lock"><input id="terrain-tuner-seed-lock" type="checkbox" checked><span>Verrouiller la seed pendant le réglage</span></label>
+        <p class="terrain-tuner-seed-help">Seed déverrouillée : une nouvelle seed est créée à chaque régénération par slider. Le bouton ↻ crée une seed et la verrouille.</p>
+      </div>
+      <button id="terrain-tuner-open-surface" class="terrain-tuner-secondary" type="button">OUVRIR CETTE PLANÈTE EN SURFACE</button>
+      <div class="terrain-tuner-actions">
+        <button id="terrain-tuner-regenerate" type="button">RÉGÉNÉRER</button>
+        <button id="terrain-tuner-reset" type="button">RESET</button>
+        <button id="terrain-tuner-copy" type="button">COPIER JSON</button>
+        <button id="terrain-tuner-export" type="button">EXPORT JSON</button>
+      </div>
+      <p id="terrain-tuner-status" class="terrain-tuner-status" aria-live="polite">Prêt</p>
+      <div id="terrain-tuner-groups" class="terrain-tuner-groups"></div>
+    </div>
+  </aside>
   <script src="src/data/version.js"></script>
   <script src="src/data/developerSettings.js"></script>
   <script src="src/data/config.js"></script>
@@ -212,6 +243,7 @@
   <script src="src/ui/factoryViewport.js"></script>
   <script src="src/ui/factoryEditor.js"></script>
   <script src="src/ui/terrainDiagnostics.js"></script>
+  <script src="src/ui/terrainTuner.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>
 </body>

@@ -4,7 +4,7 @@
   const Projection = root.OrbitPlanetGlobeProjection;
   const Style = root.OrbitPlanetGlobeStyle;
 
-  function create(terrain, planet, segments = Style.mesh) {
+  function create(terrain, planet, segments = Style.mesh, relief = Style.relief) {
     const longitudeSegments = Math.max(8, Math.floor(segments.longitudeSegments));
     const latitudeSegments = Math.max(4, Math.floor(segments.latitudeSegments));
     const columns = longitudeSegments + 1, rows = latitudeSegments + 1;
@@ -13,12 +13,12 @@
     const normals = new Float32Array(vertexCount * 3);
     const uvs = new Float32Array(vertexCount * 2);
     const elevations = new Float32Array(vertexCount);
-    const reliefRange = Projection.visualReliefRange(terrain, Style.relief);
+    const reliefRange = Projection.visualReliefRange(terrain, relief);
     const indices = vertexCount <= 65535
       ? new Uint16Array(longitudeSegments * latitudeSegments * 6)
       : new Uint32Array(longitudeSegments * latitudeSegments * 6);
-    const northPole = Projection.poleSurfacePosition(terrain, true, Style.relief);
-    const southPole = Projection.poleSurfacePosition(terrain, false, Style.relief);
+    const northPole = Projection.poleSurfacePosition(terrain, true, relief);
+    const southPole = Projection.poleSurfacePosition(terrain, false, relief);
     let vertex = 0;
     for (let row = 0; row < rows; row += 1) {
       const y = row / latitudeSegments * (terrain.height - 1);
@@ -26,7 +26,7 @@
         const x = column / longitudeSegments * (terrain.width - 1);
         const isNorthPole = row === 0, isSouthPole = row === latitudeSegments;
         const point = isNorthPole ? northPole : isSouthPole ? southPole :
-          Projection.surfacePosition(x, y, terrain, Style.relief);
+          Projection.surfacePosition(x, y, terrain, relief);
         positions[vertex * 3] = point.x; positions[vertex * 3 + 1] = point.y; positions[vertex * 3 + 2] = point.z;
         uvs[vertex * 2] = column / longitudeSegments;
         uvs[vertex * 2 + 1] = row / latitudeSegments;

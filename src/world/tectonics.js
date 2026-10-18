@@ -33,11 +33,12 @@
         mix(grad(perm[AB+1], x,y-1,z-1), grad(perm[BB+1], x-1,y-1,z-1), u), v), w);
     };
   }
-  function fbm(noise, x, y, z, octaves = 3) {
+  function fbm(noise, x, y, z, octaves = 3, settings = root.OrbitWorldgenData.terrain.tectonics.fbm) {
     let value = 0, amplitude = 1, total = 0;
     for (let i = 0; i < octaves; i++) {
       value += noise(x, y, z) * amplitude; total += amplitude;
-      x *= 2.03; y *= 2.03; z *= 2.03; amplitude *= .48;
+      x *= settings.lacunarity; y *= settings.lacunarity; z *= settings.lacunarity;
+      amplitude *= settings.persistence;
     }
     return value / total;
   }
@@ -68,7 +69,7 @@
       const wz=noise(p.x*wf+4.8,p.y*wf-9.6,p.z*wf+17.2)*wa;
       const warped=normalize({x:p.x+wx,y:p.y+wy,z:p.z+wz});
       const f=settings.continentalFrequency;
-      const broad=fbm(noise,warped.x*f+17.3,warped.y*f-8.7,warped.z*f+3.1,2)*1.05;
+      const broad=fbm(noise,warped.x*f+17.3,warped.y*f-8.7,warped.z*f+3.1,2,settings.fbm)*1.05;
       const edge=detailNoise(warped.x*settings.continentalEdgeFrequency+7.2,
         warped.y*settings.continentalEdgeFrequency-11.4,warped.z*settings.continentalEdgeFrequency+5.9)*
         settings.continentalEdgeAmplitude;
@@ -203,11 +204,11 @@
     out.continentalField=clamp(model.continentalAt(p)+(weighted/Math.max(1e-9,weights)-.5)*s.plateContinentalInfluence,0,1);
     const relief=model.settings.terrainRelief;
     out.broadTerrain=fbm(model.regionalNoise,p.x*relief.regional.frequency+9.2,
-      p.y*relief.regional.frequency-3.4,p.z*relief.regional.frequency+5.8,relief.regional.octaves)*relief.regional.amplitude;
+      p.y*relief.regional.frequency-3.4,p.z*relief.regional.frequency+5.8,relief.regional.octaves,s.fbm)*relief.regional.amplitude;
     out.hillTerrain=fbm(model.hillsNoise,p.x*relief.hills.frequency-11.7,
-      p.y*relief.hills.frequency+6.8,p.z*relief.hills.frequency+2.3,relief.hills.octaves)*relief.hills.amplitude;
+      p.y*relief.hills.frequency+6.8,p.z*relief.hills.frequency+2.3,relief.hills.octaves,s.fbm)*relief.hills.amplitude;
     out.fineTerrain=fbm(model.fineNoise,p.x*relief.fine.frequency+4.9,
-      p.y*relief.fine.frequency-13.2,p.z*relief.fine.frequency+8.1,relief.fine.octaves)*relief.fine.amplitude;
+      p.y*relief.fine.frequency-13.2,p.z*relief.fine.frequency+8.1,relief.fine.octaves,s.fbm)*relief.fine.amplitude;
     return out;
   }
   function create(seed, width, height, planet = {}, settings) {

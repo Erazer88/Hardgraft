@@ -30,10 +30,17 @@
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
       version: 9,
+      // The generator has always normalized the gameplay height field around
+      // byte elevation 102. Keep that default while making it tunable in the
+      // in-game terrain workbench.
+      seaLevel: 102,
       genericWater: [.30, .46],
+      moisture: { frequency: 3.5, baseline: .52, amplitude: .46, octaves: 3,
+        altitudeScale: 153, altitudePenalty: .20 },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
+        fbm: { persistence: .48, lacunarity: 2.03 },
         continentalFrequency: 1.2, continentalWarpFrequency: .72, continentalWarpAmplitude: .105,
         continentalEdgeFrequency: 3.2, continentalEdgeAmplitude: .065,
         plateContinentalInfluence: .035,

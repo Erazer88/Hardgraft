@@ -294,6 +294,55 @@ body[data-level="surface"] .corner-note{display:none}
 #terrain-diagnostics-canvas{display:block;width:100%;height:auto;aspect-ratio:8/3;background:#000}
 #terrain-diagnostics-canvas[hidden]{display:none}
 @media(max-width:600px){.terrain-diagnostics-card{padding:12px}.terrain-diagnostics-controls{gap:8px}}
+
+/* Non-modal terrain workbench: keep the globe visible while tuning it. */
+#terrain-tuner-panel{position:fixed;z-index:40;top:calc(58px + env(safe-area-inset-top,0px));right:calc(10px + var(--safe-right));
+  width:min(390px,calc(100vw - 20px));max-height:calc(100dvh - 142px - env(safe-area-inset-top,0px));
+  display:flex;flex-direction:column;overflow:hidden;border:1px solid #829eaf35;border-radius:8px;
+  background:#0b1724ed;box-shadow:0 16px 42px #0008;backdrop-filter:blur(12px);color:#c7d5dc}
+#terrain-tuner-panel[hidden]{display:none}
+.terrain-tuner-header{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border-bottom:1px solid #829eaf24}
+.terrain-tuner-header>div:first-child{display:flex;flex-direction:column;gap:4px}
+.terrain-tuner-header span{color:#8ca4b2;font:8px var(--mono);letter-spacing:1.4px}
+.terrain-tuner-header strong{color:#dce6e9;font-size:10px;font-weight:500;letter-spacing:1px}
+.terrain-tuner-header-actions{display:flex;gap:6px}
+.terrain-tuner-header-actions button{width:30px;height:30px;border:1px solid #829eaf2c;border-radius:4px;background:#122231;color:#cddbe0;font-size:17px;cursor:pointer}
+.terrain-tuner-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 14px 14px}
+.terrain-tuner-panel.is-collapsed .terrain-tuner-body{display:none}
+.terrain-tuner-context,.terrain-tuner-status,.terrain-tuner-note{margin:0 0 9px;color:#8da4b0;font-size:9px;line-height:1.5}
+.terrain-tuner-status{color:#ddb17f;font-family:var(--mono)}
+.terrain-tuner-seed-block{padding:9px 0;border-top:1px solid #829eaf20;border-bottom:1px solid #829eaf20}
+.terrain-tuner-seed-block>label:first-child{display:block;margin-bottom:6px;color:#9bb0bb;font:8px var(--mono);letter-spacing:1px}
+.terrain-tuner-seed-row{display:flex;gap:6px}
+.terrain-tuner-seed-row input{min-width:0;flex:1;padding:8px 9px;border:1px solid #829eaf38;border-radius:4px;background:#101e2b;color:#e0e8eb;font:10px var(--mono)}
+.terrain-tuner-seed-row button,.terrain-tuner-secondary{border:1px solid #829eaf35;border-radius:4px;background:#132434;color:#d5e0e5;cursor:pointer}
+.terrain-tuner-seed-row button{width:36px;font-size:16px}
+.terrain-tuner-lock{display:flex;align-items:center;gap:7px;margin-top:8px;color:#9eafb8;font-size:9px;cursor:pointer}
+.terrain-tuner-lock input{accent-color:#d9a36f}
+.terrain-tuner-seed-help{margin:6px 0 0;color:#718a98;font-size:8px;line-height:1.4}
+.terrain-tuner-secondary{width:100%;margin-top:8px;padding:8px;color:#c3d2d9;font-size:8px;letter-spacing:.8px}
+.terrain-tuner-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:9px 0}
+.terrain-tuner-actions button{min-height:31px;padding:5px 3px;border:1px solid #829eaf35;border-radius:4px;background:#132434;color:#cbd9de;font-size:7px;letter-spacing:.5px;cursor:pointer}
+.terrain-tuner-actions button:first-child{border-color:#d69c604f;color:#e7b77f}
+.terrain-tuner-groups{display:flex;flex-direction:column}
+.terrain-tuner-group{border-top:1px solid #829eaf20}
+.terrain-tuner-group summary{padding:10px 2px;color:#dfb17b;font-size:8px;letter-spacing:1px;cursor:pointer;list-style:none}
+.terrain-tuner-group summary::-webkit-details-marker{display:none}
+.terrain-tuner-group summary::after{float:right;content:'+';font:12px var(--mono);color:#91a5af}
+.terrain-tuner-group[open] summary::after{content:'−'}
+.terrain-tuner-row{padding:5px 0 8px}
+.terrain-tuner-labels{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+.terrain-tuner-labels label,.terrain-tuner-color-row label{color:#b9c9d0;font-size:9px}
+.terrain-tuner-labels output{color:#e1e8eb;font:9px var(--mono);font-variant-numeric:tabular-nums}
+.terrain-tuner-controls{display:grid;grid-template-columns:minmax(0,1fr) 78px;align-items:center;gap:9px}
+.terrain-tuner-controls input[type=range]{width:100%;accent-color:#d7a16c;cursor:pointer}
+.terrain-tuner-controls input[type=number]{width:78px;padding:5px 6px;border:1px solid #829eaf32;border-radius:3px;background:#101e2b;color:#e0e8eb;font:9px var(--mono);text-align:right}
+.terrain-tuner-color-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0}
+.terrain-tuner-color-row input{width:42px;height:28px;padding:2px;border:1px solid #829eaf35;border-radius:3px;background:#101e2b;cursor:pointer}
+.terrain-tuner-note{padding:8px 0 0;border-top:1px solid #829eaf20;color:#718a98;font-size:8px}
+@media(max-width:600px){#terrain-tuner-panel{top:calc(54px + env(safe-area-inset-top,0px));right:calc(6px + var(--safe-right));
+  width:min(370px,calc(100vw - 12px));max-height:calc(100dvh - 130px - env(safe-area-inset-top,0px))}
+  .terrain-tuner-body{padding:8px 11px 11px}.terrain-tuner-controls{grid-template-columns:minmax(0,1fr) 70px}.terrain-tuner-controls input[type=number]{width:70px}}
 </style>
 </head>
 <body>
@@ -432,6 +481,7 @@ body[data-level="surface"] .corner-note{display:none}
       </div>
       <p class="developer-description">Les modifications sont appliquées en direct et conservées sur cet appareil.</p>
       <div class="developer-options" id="developer-options"></div>
+      <button id="terrain-tuner-open" class="developer-reset" type="button">RÉGLAGE PROCÉDURAL DU TERRAIN</button>
       <button id="terrain-diagnostics-open" class="developer-reset" type="button">DIAGNOSTIC DU TERRAIN</button>
       <button id="developer-reset" class="developer-reset" type="button">RÉINITIALISER LES RÉGLAGES</button>
     </div>
@@ -445,9 +495,39 @@ body[data-level="surface"] .corner-note{display:none}
       <p id="terrain-diagnostics-legend" class="developer-description"></p>
     </div>
   </dialog>
+  <aside id="terrain-tuner-panel" class="terrain-tuner-panel" aria-labelledby="terrain-tuner-title" hidden>
+    <div class="terrain-tuner-header">
+      <div><span>OUTILS DÉVELOPPEUR</span><strong id="terrain-tuner-title">RÉGLAGE DU TERRAIN</strong></div>
+      <div class="terrain-tuner-header-actions">
+        <button id="terrain-tuner-collapse" type="button" aria-label="Replier le réglage terrain">−</button>
+        <button id="terrain-tuner-close" type="button" aria-label="Fermer le réglage terrain">×</button>
+      </div>
+    </div>
+    <div id="terrain-tuner-body" class="terrain-tuner-body">
+      <p id="terrain-tuner-context" class="terrain-tuner-context">Choisissez une planète solide pour régler son terrain.</p>
+      <div class="terrain-tuner-seed-block">
+        <label for="terrain-tuner-seed">SEED DE LA PLANÈTE</label>
+        <div class="terrain-tuner-seed-row">
+          <input id="terrain-tuner-seed" maxlength="64" autocomplete="off" spellcheck="false" aria-label="Seed de la planète">
+          <button id="terrain-tuner-seed-random" type="button" aria-label="Créer une seed puis la verrouiller" title="Créer une seed puis la verrouiller">↻</button>
+        </div>
+        <label class="terrain-tuner-lock"><input id="terrain-tuner-seed-lock" type="checkbox" checked><span>Verrouiller la seed pendant le réglage</span></label>
+        <p class="terrain-tuner-seed-help">Seed déverrouillée : une nouvelle seed est créée à chaque régénération par slider. Le bouton ↻ crée une seed et la verrouille.</p>
+      </div>
+      <button id="terrain-tuner-open-surface" class="terrain-tuner-secondary" type="button">OUVRIR CETTE PLANÈTE EN SURFACE</button>
+      <div class="terrain-tuner-actions">
+        <button id="terrain-tuner-regenerate" type="button">RÉGÉNÉRER</button>
+        <button id="terrain-tuner-reset" type="button">RESET</button>
+        <button id="terrain-tuner-copy" type="button">COPIER JSON</button>
+        <button id="terrain-tuner-export" type="button">EXPORT JSON</button>
+      </div>
+      <p id="terrain-tuner-status" class="terrain-tuner-status" aria-live="polite">Prêt</p>
+      <div id="terrain-tuner-groups" class="terrain-tuner-groups"></div>
+    </div>
+  </aside>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.35.5";
+globalThis.OrbitVersion = "0.35.6";
 
 </script>
   <script>
@@ -941,10 +1021,17 @@ globalThis.OrbitVersion = "0.35.5";
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
       version: 9,
+      // The generator has always normalized the gameplay height field around
+      // byte elevation 102. Keep that default while making it tunable in the
+      // in-game terrain workbench.
+      seaLevel: 102,
       genericWater: [.30, .46],
+      moisture: { frequency: 3.5, baseline: .52, amplitude: .46, octaves: 3,
+        altitudeScale: 153, altitudePenalty: .20 },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
+        fbm: { persistence: .48, lacunarity: 2.03 },
         continentalFrequency: 1.2, continentalWarpFrequency: .72, continentalWarpAmplitude: .105,
         continentalEdgeFrequency: 3.2, continentalEdgeAmplitude: .065,
         plateContinentalInfluence: .035,
@@ -1251,10 +1338,34 @@ globalThis.OrbitVersion = "0.35.5";
       compressionStart: .24, landQuantile: .98, minLandRange: 28, maxLandRange: 70 }),
     water: Object.freeze({ shallow: '#42A4AE', mid: '#176F91', deep: '#073B5C',
       noiseAmplitude: .03, normalStrength: .02, specularStrength: .10, fresnelStrength: .05,
+      specularPower: 48, fresnelPower: 3,
       coastDepthDistance: 22, bathymetryDepthScale: 42, bathymetryInfluence: .16 }),
+    polarCaps: Object.freeze({ thresholdBase: 76, temperatureReference: 16,
+      temperatureScale: .38, minimumThreshold: 48, maximumThreshold: 82,
+      broadFrequency: 3.8, secondFrequency: 7, secondWeight: .42,
+      coastFrequency: 9.2, broadDisplacementDegrees: 24,
+      maximumBroadShiftDegrees: 5.2, coastDisplacementDegrees: 1.6,
+      maximumCoastShiftDegrees: 1.2, edgeHalfWidthDegrees: 1.35,
+      eligibilityMarginDegrees: 10, latitudeCoolingExponent: 1.55,
+      latitudeCoolingDegrees: 38 }),
     terrainShading: Object.freeze({ midReliefStrength: 1.25, microDetailStrength: 0,
       mountainFacetMix: .24, mountainAoStrength: .055, ridgeAccentStrength: .10,
       facetGrid: Object.freeze({ x: 100, y: 50 }),
+      controls: Object.freeze({
+        heightDerivativeStep: 2, facetStepTexels: 2, slopeScale: 2.2,
+        polarNormalBlendStartDegrees: 88, polarNormalBlendEndDegrees: 90,
+        polarNormalBlendStrength: .72, polarDetailFadeStartDegrees: 89,
+        polarDetailFadeEndDegrees: 90,
+        plainSlopeLow: .08, plainSlopeHigh: .22,
+        reliefStrengthLow: .14, reliefStrengthHigh: .82, plainReliefMultiplier: .55,
+        facetAltitudeLow: .12, facetAltitudeHigh: .42,
+        detailSlopeLow: .12, detailSlopeHigh: .30,
+        rockSlopeLow: .06, rockSlopeHigh: .20,
+        rockExposure: .66, ridgeMaterialMix: .12, valleyMaterialMix: .08,
+        lightAmbient: .58, lightDiffuse: .60,
+        waterDiffuseAmbient: .94, waterDiffuse: .07,
+        lightDirection: Object.freeze({ x: -.42, y: .55, z: .78 })
+      }),
       mountainMaterials: Object.freeze({
         temperate: Object.freeze({ rock: '#B59A76', ridge: '#DCC59D', crevice: '#665744' }),
         frozen: Object.freeze({ rock: '#849BA4', ridge: '#D7E4E6', crevice: '#586A70' }),
@@ -1442,31 +1553,37 @@ globalThis.OrbitVersion = "0.35.5";
     return output;
   }
 
-  function createTerrain(seed, width = 960, height = 360, planet = null) {
+  function createTerrain(seed, width = 960, height = 360, planet = null, terrainSettings = null) {
     width=Math.max(1,Math.floor(width));height=Math.max(1,Math.floor(height));
-    const settings=root.OrbitWorldgenData.terrain;
+    const settings=terrainSettings || root.OrbitWorldgenData.terrain;
     const terrainSeed=hashSeed(String(seed)+':terrain:v'+settings.version);
     const random=rng(terrainSeed);
     const waterFraction=clamp(planet?.terrainWater ?? planet?.surfaceWater ??
       (settings.genericWater[0]+random()*(settings.genericWater[1]-settings.genericWater[0])),
       0,root.OrbitWorldgenData.planets.maxSurfaceWater);
-    const tectonics=root.OrbitTectonics.create(terrainSeed,width,height,planet || {});
-    const source=root.OrbitTerrainElevation.create(tectonics,terrainSeed);
-    const eroded=root.OrbitThermalErosion.erode(source.rawElevation,width,height);
-    const normalized=root.OrbitTerrainElevation.normalize(eroded,width,height,waterFraction);
+    const tectonics=root.OrbitTectonics.create(terrainSeed,width,height,planet || {},settings.tectonics);
+    const source=root.OrbitTerrainElevation.create(tectonics,terrainSeed,settings.tectonics);
+    const eroded=root.OrbitThermalErosion.erode(source.rawElevation,width,height,settings.tectonics.erosion);
+    const normalized=root.OrbitTerrainElevation.normalize(eroded,width,height,waterFraction,settings.seaLevel ?? 102);
     const {elevation,seaLevel}=normalized;
-    const structure=root.OrbitTerrainStructure.derive(elevation,source.tectonicUplift,width,height,seaLevel);
+    const structure=root.OrbitTerrainStructure.derive(elevation,source.tectonicUplift,width,height,seaLevel,
+      settings.tectonics.structure);
     const moisture=new Uint8Array(width*height),direction={};
     const sampleMoisture=root.OrbitTectonics.noise3(terrainSeed ^ 0x19191531);
+    const moistureSettings=settings.moisture || { frequency: 3.5, baseline: .52,
+      amplitude: .46, octaves: 3, altitudeScale: 153, altitudePenalty: .20 };
     for(let y=0;y<height;y++)for(let x=0;x<width;x++) {
       const index=y*width+x;
       if((x && (y===0 || y===height-1)) || (x===width-1 && width>1)) {
         moisture[index]=moisture[y*width];continue;
       }
       directionForPixel(x,y,width,height,direction);
-      const penalty=clamp((elevation[index]-seaLevel)/153,0,1)*.20;
-      moisture[index]=Math.round(clamp(.52+root.OrbitTectonics.fbm(sampleMoisture,
-        direction.x*3.5+7.4,direction.y*3.5-3.8,direction.z*3.5+1.7,3)*.46-penalty,0,1)*255);
+      const penalty=clamp((elevation[index]-seaLevel)/moistureSettings.altitudeScale,0,1)*
+        moistureSettings.altitudePenalty;
+      moisture[index]=Math.round(clamp(moistureSettings.baseline+root.OrbitTectonics.fbm(sampleMoisture,
+        direction.x*moistureSettings.frequency+7.4,direction.y*moistureSettings.frequency-3.8,
+        direction.z*moistureSettings.frequency+1.7,moistureSettings.octaves,settings.tectonics.fbm)*
+        moistureSettings.amplitude-penalty,0,1)*255);
     }
     const diagnostics={plateId:tectonics.plateId,continentalField:tectonics.continentalField,
       convergence:tectonics.convergence,divergence:tectonics.divergence,
@@ -1712,11 +1829,12 @@ globalThis.OrbitVersion = "0.35.5";
         mix(grad(perm[AB+1], x,y-1,z-1), grad(perm[BB+1], x-1,y-1,z-1), u), v), w);
     };
   }
-  function fbm(noise, x, y, z, octaves = 3) {
+  function fbm(noise, x, y, z, octaves = 3, settings = root.OrbitWorldgenData.terrain.tectonics.fbm) {
     let value = 0, amplitude = 1, total = 0;
     for (let i = 0; i < octaves; i++) {
       value += noise(x, y, z) * amplitude; total += amplitude;
-      x *= 2.03; y *= 2.03; z *= 2.03; amplitude *= .48;
+      x *= settings.lacunarity; y *= settings.lacunarity; z *= settings.lacunarity;
+      amplitude *= settings.persistence;
     }
     return value / total;
   }
@@ -1747,7 +1865,7 @@ globalThis.OrbitVersion = "0.35.5";
       const wz=noise(p.x*wf+4.8,p.y*wf-9.6,p.z*wf+17.2)*wa;
       const warped=normalize({x:p.x+wx,y:p.y+wy,z:p.z+wz});
       const f=settings.continentalFrequency;
-      const broad=fbm(noise,warped.x*f+17.3,warped.y*f-8.7,warped.z*f+3.1,2)*1.05;
+      const broad=fbm(noise,warped.x*f+17.3,warped.y*f-8.7,warped.z*f+3.1,2,settings.fbm)*1.05;
       const edge=detailNoise(warped.x*settings.continentalEdgeFrequency+7.2,
         warped.y*settings.continentalEdgeFrequency-11.4,warped.z*settings.continentalEdgeFrequency+5.9)*
         settings.continentalEdgeAmplitude;
@@ -1882,11 +2000,11 @@ globalThis.OrbitVersion = "0.35.5";
     out.continentalField=clamp(model.continentalAt(p)+(weighted/Math.max(1e-9,weights)-.5)*s.plateContinentalInfluence,0,1);
     const relief=model.settings.terrainRelief;
     out.broadTerrain=fbm(model.regionalNoise,p.x*relief.regional.frequency+9.2,
-      p.y*relief.regional.frequency-3.4,p.z*relief.regional.frequency+5.8,relief.regional.octaves)*relief.regional.amplitude;
+      p.y*relief.regional.frequency-3.4,p.z*relief.regional.frequency+5.8,relief.regional.octaves,s.fbm)*relief.regional.amplitude;
     out.hillTerrain=fbm(model.hillsNoise,p.x*relief.hills.frequency-11.7,
-      p.y*relief.hills.frequency+6.8,p.z*relief.hills.frequency+2.3,relief.hills.octaves)*relief.hills.amplitude;
+      p.y*relief.hills.frequency+6.8,p.z*relief.hills.frequency+2.3,relief.hills.octaves,s.fbm)*relief.hills.amplitude;
     out.fineTerrain=fbm(model.fineNoise,p.x*relief.fine.frequency+4.9,
-      p.y*relief.fine.frequency-13.2,p.z*relief.fine.frequency+8.1,relief.fine.octaves)*relief.fine.amplitude;
+      p.y*relief.fine.frequency-13.2,p.z*relief.fine.frequency+8.1,relief.fine.octaves,s.fbm)*relief.fine.amplitude;
     return out;
   }
   function create(seed, width, height, planet = {}, settings) {
@@ -1956,7 +2074,7 @@ globalThis.OrbitVersion = "0.35.5";
     }
     return {width,height,rawElevation,tectonicUplift:uplift,tectonicSubsidence:subsidence};
   }
-  function normalize(raw,width,height,waterFraction) {
+  function normalize(raw,width,height,waterFraction,seaLevel=102) {
     let min=Infinity,max=-Infinity;
     for(const n of raw) {min=Math.min(min,n);max=Math.max(max,n);}
     const histogram=new Float64Array(4096), span=Math.max(1e-6,max-min), uniqueWidth=Math.max(1,width-1);
@@ -1971,7 +2089,6 @@ globalThis.OrbitVersion = "0.35.5";
     let sum=0,bin=0;
     for(;bin<4095;bin++) {sum+=histogram[bin];if(sum>=total*waterFraction)break;}
     const quantileLevel=waterFraction===0 ? min-4 : min+bin/4095*span;
-    const seaLevel=102;
     const scaleAt=level=>Math.min(1,146/Math.max(1,max-level),98/Math.max(1,level-min));
     let rawSeaLevel=quantileLevel;
     if(waterFraction>0) {
@@ -6578,7 +6695,7 @@ globalThis.OrbitVersion = "0.35.5";
   const Projection = root.OrbitPlanetGlobeProjection;
   const Style = root.OrbitPlanetGlobeStyle;
 
-  function create(terrain, planet, segments = Style.mesh) {
+  function create(terrain, planet, segments = Style.mesh, relief = Style.relief) {
     const longitudeSegments = Math.max(8, Math.floor(segments.longitudeSegments));
     const latitudeSegments = Math.max(4, Math.floor(segments.latitudeSegments));
     const columns = longitudeSegments + 1, rows = latitudeSegments + 1;
@@ -6587,12 +6704,12 @@ globalThis.OrbitVersion = "0.35.5";
     const normals = new Float32Array(vertexCount * 3);
     const uvs = new Float32Array(vertexCount * 2);
     const elevations = new Float32Array(vertexCount);
-    const reliefRange = Projection.visualReliefRange(terrain, Style.relief);
+    const reliefRange = Projection.visualReliefRange(terrain, relief);
     const indices = vertexCount <= 65535
       ? new Uint16Array(longitudeSegments * latitudeSegments * 6)
       : new Uint32Array(longitudeSegments * latitudeSegments * 6);
-    const northPole = Projection.poleSurfacePosition(terrain, true, Style.relief);
-    const southPole = Projection.poleSurfacePosition(terrain, false, Style.relief);
+    const northPole = Projection.poleSurfacePosition(terrain, true, relief);
+    const southPole = Projection.poleSurfacePosition(terrain, false, relief);
     let vertex = 0;
     for (let row = 0; row < rows; row += 1) {
       const y = row / latitudeSegments * (terrain.height - 1);
@@ -6600,7 +6717,7 @@ globalThis.OrbitVersion = "0.35.5";
         const x = column / longitudeSegments * (terrain.width - 1);
         const isNorthPole = row === 0, isSouthPole = row === latitudeSegments;
         const point = isNorthPole ? northPole : isSouthPole ? southPole :
-          Projection.surfacePosition(x, y, terrain, Style.relief);
+          Projection.surfacePosition(x, y, terrain, relief);
         positions[vertex * 3] = point.x; positions[vertex * 3 + 1] = point.y; positions[vertex * 3 + 2] = point.z;
         uvs[vertex * 2] = column / longitudeSegments;
         uvs[vertex * 2 + 1] = row / latitudeSegments;
@@ -6648,6 +6765,7 @@ globalThis.OrbitVersion = "0.35.5";
   'use strict';
 
   const World = root.OrbitWorld;
+  const Style = root.OrbitPlanetGlobeStyle;
   const DEFAULT_WIDTH = 2048;
   const DEFAULT_HEIGHT = 1024;
   const MAX_CACHE_ENTRIES = 2;
@@ -6832,25 +6950,35 @@ globalThis.OrbitVersion = "0.35.5";
     return 'temperate';
   }
 
-  function polarIceThreshold(temperature) {
+  function polarIceThreshold(temperature, settings = Style.polarCaps) {
     // The boundary is in angular latitude degrees, so seeded noise remains a
     // small, controllable displacement instead of a huge shift in sin(latitude).
-    return clamp(76 + ((Number.isFinite(temperature) ? temperature : 16) - 16) * .38, 48, 82);
+    return clamp(settings.thresholdBase + ((Number.isFinite(temperature) ? temperature : 16) -
+      settings.temperatureReference) * settings.temperatureScale,
+    settings.minimumThreshold, settings.maximumThreshold);
   }
 
-  function polarIceCoverage(nx, ny, nz, temperature, seed) {
-    const threshold = polarIceThreshold(temperature);
+  function polarIceCoverage(nx, ny, nz, temperature, seed, settings = Style.polarCaps) {
+    const threshold = polarIceThreshold(temperature, settings);
     const absoluteLatitude = Math.asin(clamp(Math.abs(ny), 0, 1)) * 180 / Math.PI;
-    if (absoluteLatitude < threshold - 10) return 0;
-    const broadBoundary = noise3(nx * 3.8, ny * 3.8, nz * 3.8, seed ^ 0x2b79a4d1) * .58 +
-      noise3(nx * 7.0, ny * 7.0, nz * 7.0, seed ^ 0x42c8e6f3) * .42;
-    const coastBreakup = noise3(nx * 9.2, ny * 9.2, nz * 9.2, seed ^ 0x6c8e9cf5);
+    if (absoluteLatitude < threshold - settings.eligibilityMarginDegrees) return 0;
+    const broadBoundary = noise3(nx * settings.broadFrequency, ny * settings.broadFrequency,
+      nz * settings.broadFrequency, seed ^ 0x2b79a4d1) * (1 - settings.secondWeight) +
+      noise3(nx * settings.secondFrequency, ny * settings.secondFrequency,
+        nz * settings.secondFrequency, seed ^ 0x42c8e6f3) * settings.secondWeight;
+    const coastBreakup = noise3(nx * settings.coastFrequency, ny * settings.coastFrequency,
+      nz * settings.coastFrequency, seed ^ 0x6c8e9cf5);
     // Broad noise moves the front by a few degrees; finer noise only breaks
     // the coast slightly. The pole itself remains fully covered by geometry.
-    const broadDisplacement = clamp(broadBoundary * 24.0, -5.2, 5.2);
-    const coastDisplacement = clamp(coastBreakup * 1.6, -1.2, 1.2);
-    const irregularThreshold = clamp(threshold + broadDisplacement + coastDisplacement, 42, 86);
-    return smoothstep(irregularThreshold - 1.35, irregularThreshold + 1.35, absoluteLatitude);
+    const broadDisplacement = clamp(broadBoundary * settings.broadDisplacementDegrees,
+      -settings.maximumBroadShiftDegrees, settings.maximumBroadShiftDegrees);
+    const coastDisplacement = clamp(coastBreakup * settings.coastDisplacementDegrees,
+      -settings.maximumCoastShiftDegrees, settings.maximumCoastShiftDegrees);
+    const irregularThreshold = clamp(threshold + broadDisplacement + coastDisplacement,
+      settings.minimumThreshold - settings.maximumBroadShiftDegrees,
+      settings.maximumThreshold + settings.maximumBroadShiftDegrees);
+    return smoothstep(irregularThreshold - settings.edgeHalfWidthDegrees,
+      irregularThreshold + settings.edgeHalfWidthDegrees, absoluteLatitude);
   }
 
   function createCraters(seed) {
@@ -7099,8 +7227,10 @@ globalThis.OrbitVersion = "0.35.5";
     const height = Math.max(1, Math.floor(options.height || DEFAULT_HEIGHT));
     const id = String(planet?.id ?? 'planet');
     const planetSeed = String(planet?.seed ?? '0');
+    const polarCaps = options.polarCaps || Style.polarCaps;
+    const polarSettingsKey = JSON.stringify(polarCaps);
     const key = `${id}:${planetSeed}`;
-    const cacheKey = `${key}:${width}x${height}`;
+    const cacheKey = `${key}:${width}x${height}:${polarSettingsKey}`;
     const cached = options.cache === false ? null : textureCache.get(cacheKey);
     if (cached) {
       textureCache.delete(cacheKey); textureCache.set(cacheKey, cached);
@@ -7115,7 +7245,7 @@ globalThis.OrbitVersion = "0.35.5";
     const iceSeed = surfaceSeed ^ 0x084ca187;
     const polarSeed = surfaceSeed ^ 0x5b1ce8a3;
     const climate = climateOf(planet), temperature = Number.isFinite(planet?.temperature) ? planet.temperature : 16;
-    const polarThreshold = polarIceThreshold(temperature);
+    const polarThreshold = polarIceThreshold(temperature, polarCaps);
     const albedoWidth = Math.min(width, 1024);
     const albedoHeight = Math.min(height, Math.max(1, Math.round(albedoWidth * height / width)));
     const craters = climate === 'arid'
@@ -7147,8 +7277,8 @@ globalThis.OrbitVersion = "0.35.5";
       (nx, ny, nz) => noise3(nx * 24, ny * 24, nz * 24, climate === 'frozen' ? iceSeed : detailSeed)) : null;
     const usesPolarIce = climate === 'temperate' || climate === 'frozen' || climate === 'arid';
     const polarSampler = usesPolarIce ? createSphericalFieldSampler(width, height, (nx, ny, nz, latitude) =>
-      Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10
-        ? polarIceCoverage(nx, ny, nz, temperature, polarSeed) : 0) : null;
+      Math.abs(latitude) * 180 / Math.PI >= polarThreshold - polarCaps.eligibilityMarginDegrees
+        ? polarIceCoverage(nx, ny, nz, temperature, polarSeed, polarCaps) : 0) : null;
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     let basinLevel = seaLevel;
     if (climate === 'arid' || climate === 'volcanic') {
@@ -7247,8 +7377,9 @@ globalThis.OrbitVersion = "0.35.5";
     for (let py = 0; py < albedoHeight; py += 1) {
       const v = py / (albedoHeight - 1 || 1), latitude = (.5 - v) * Math.PI;
       albedoRowDirections[py] = { latitude,
-        latitudeCooling: Math.pow(Math.abs(Math.sin(latitude)), 1.55) * 38,
-        polarEligible: Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10 };
+        latitudeCooling: Math.pow(Math.abs(Math.sin(latitude)), polarCaps.latitudeCoolingExponent) *
+          polarCaps.latitudeCoolingDegrees,
+        polarEligible: Math.abs(latitude) * 180 / Math.PI >= polarThreshold - polarCaps.eligibilityMarginDegrees };
     }
 
     for (let py = 0; py < albedoHeight; py += 1) {
@@ -7363,6 +7494,9 @@ globalThis.OrbitVersion = "0.35.5";
     uniform float uShellScale;
     uniform float uReliefLow;
     uniform float uReliefHigh;
+    uniform float uPolarNormalBlendStart;
+    uniform float uPolarNormalBlendEnd;
+    uniform float uPolarNormalBlendStrength;
     out vec3 vNormal;
     out vec3 vSphereNormal;
     out vec3 vTangentU;
@@ -7397,8 +7531,8 @@ globalThis.OrbitVersion = "0.35.5";
       }
       // Keep the correction local to the final two degrees, where the
       // equirectangular parameterization converges at the pole.
-      float polarNormalBlend = smoothstep(1.53589, 1.5707963, abs(latitude));
-      n = normalize(mix(n, normalize(p), polarNormalBlend * 0.72));
+      float polarNormalBlend = smoothstep(uPolarNormalBlendStart, uPolarNormalBlendEnd, abs(latitude));
+      n = normalize(mix(n, normalize(p), polarNormalBlend * uPolarNormalBlendStrength));
       gl_Position = vec4(p.xy * uScale + uOffset, -p.z * 0.72, 1.0);
       vNormal = normalize(n);
       vSphereNormal = normalize(p);
@@ -7425,6 +7559,32 @@ globalThis.OrbitVersion = "0.35.5";
     uniform sampler2D uTerrainStructureTexture;
     uniform vec2 uHeightTexelSize;
     uniform vec2 uFacetGrid;
+    uniform vec3 uLightDirection;
+    uniform float uHeightDerivativeStep;
+    uniform float uFacetStepTexels;
+    uniform float uSlopeScale;
+    uniform float uPlainSlopeLow;
+    uniform float uPlainSlopeHigh;
+    uniform float uReliefStrengthLow;
+    uniform float uReliefStrengthHigh;
+    uniform float uPlainReliefMultiplier;
+    uniform float uFacetAltitudeLow;
+    uniform float uFacetAltitudeHigh;
+    uniform float uDetailSlopeLow;
+    uniform float uDetailSlopeHigh;
+    uniform float uRockSlopeLow;
+    uniform float uRockSlopeHigh;
+    uniform float uRockExposure;
+    uniform float uRidgeMaterialMix;
+    uniform float uValleyMaterialMix;
+    uniform float uLightAmbient;
+    uniform float uLightDiffuse;
+    uniform float uWaterDiffuseAmbient;
+    uniform float uWaterDiffuse;
+    uniform float uWaterSpecularPower;
+    uniform float uWaterFresnelPower;
+    uniform float uPolarDetailFadeStart;
+    uniform float uPolarDetailFadeEnd;
     uniform float uReliefScale;
     uniform float uReliefShapeLinear;
     uniform float uReliefShapeExponent;
@@ -7489,16 +7649,16 @@ globalThis.OrbitVersion = "0.35.5";
         return;
       }
 
-      vec3 lightDirection = normalize(vec3(-0.42, 0.55, 0.78));
+      vec3 lightDirection = normalize(uLightDirection);
       float latitude = (0.5 - vUv.y) * 3.14159265359;
-      float polarDetailFade = 1.0 - smoothstep(1.55334, 1.5707963, abs(latitude));
+      float polarDetailFade = 1.0 - smoothstep(uPolarDetailFadeStart, uPolarDetailFadeEnd, abs(latitude));
       vec3 baseNormal = normalize(vNormal);
       vec3 tangentU = normalize(vTangentU - baseNormal * dot(vTangentU, baseNormal));
       vec3 tangentV = normalize(vTangentV - baseNormal * dot(vTangentV, baseNormal));
       float lonMetric = max(0.18, cos(latitude));
       // Geometry normals provide the calm macro form; the unsaturated source
       // height restores mountain structure that the shaped mesh flattens at summits.
-      vec2 midStep = uHeightTexelSize * 2.0;
+      vec2 midStep = uHeightTexelSize * uHeightDerivativeStep;
       float midLeft = sampleShapedLandHeight(vUv - vec2(midStep.x, 0.0), 0.0);
       float midRight = sampleShapedLandHeight(vUv + vec2(midStep.x, 0.0), 0.0);
       float midNorth = sampleShapedLandHeight(vUv - vec2(0.0, midStep.y), 0.0);
@@ -7506,11 +7666,11 @@ globalThis.OrbitVersion = "0.35.5";
       float midDx = (midRight - midLeft) / max(0.0001, 12.5663706 * midStep.x * lonMetric) * uReliefScale;
       float midDy = (midSouth - midNorth) / max(0.0001, 6.2831853 * midStep.y) * uReliefScale;
       vec3 midReliefNormal = normalize(baseNormal - tangentU * midDx * uMidReliefStrength - tangentV * midDy * uMidReliefStrength);
-      float slope = clamp(length(vec2(midDx, midDy)) * 2.2, 0.0, 1.0);
+      float slope = clamp(length(vec2(midDx, midDy)) * uSlopeScale, 0.0, 1.0);
 
       // Keep facet sampling continuous in UV space. Snapping the sample point
       // to a grid creates visible square patches on broad mountain faces.
-      vec2 facetStep = max(uHeightTexelSize * 2.0, 1.0 / uFacetGrid);
+      vec2 facetStep = max(uHeightTexelSize * uFacetStepTexels, 1.0 / uFacetGrid);
       float facetLeft = sampleShapedLandHeight(vUv - vec2(facetStep.x, 0.0), 1.0);
       float facetRight = sampleShapedLandHeight(vUv + vec2(facetStep.x, 0.0), 1.0);
       float facetNorth = sampleShapedLandHeight(vUv - vec2(0.0, facetStep.y), 1.0);
@@ -7526,18 +7686,19 @@ globalThis.OrbitVersion = "0.35.5";
       float ridgeStrength = terrainStructure.g;
       float valleyStrength = terrainStructure.b;
       float ruggedness = terrainStructure.a;
-      float plainMask = 1.0 - smoothstep(0.08, 0.22, slope);
-      float mountainSlope = smoothstep(0.08, 0.22, slope);
+      float plainMask = 1.0 - smoothstep(uPlainSlopeLow, uPlainSlopeHigh, slope);
+      float mountainSlope = smoothstep(uPlainSlopeLow, uPlainSlopeHigh, slope);
       float mountainInfluence = max(mountainMask, ruggedness * mountainSlope);
-      float reliefStrength = mix(0.14, 0.82, mountainInfluence);
-      reliefStrength *= mix(0.55, 1.0, 1.0 - plainMask);
+      float reliefStrength = mix(uReliefStrengthLow, uReliefStrengthHigh, mountainInfluence);
+      reliefStrength *= mix(uPlainReliefMultiplier, 1.0, 1.0 - plainMask);
       vec3 terrainNormal = normalize(mix(baseNormal, midReliefNormal, landCoverage * reliefStrength));
-      float facetMask = mountainMask * ruggedness * mountainSlope * smoothstep(0.12, 0.42, height);
+      float facetMask = mountainMask * ruggedness * mountainSlope *
+        smoothstep(uFacetAltitudeLow, uFacetAltitudeHigh, height);
       vec3 finalNormal = normalize(mix(terrainNormal, facetNormal, facetMask * uFacetMix));
       float microDetail = texture(uDetailTexture, vUv).r - 0.5;
       vec3 detailedNormal = normalize(midReliefNormal - (tangentU + tangentV * 0.65) * microDetail *
         polarDetailFade);
-      float detailMask = smoothstep(0.12, 0.30, slope) * mountainMask * ruggedness;
+      float detailMask = smoothstep(uDetailSlopeLow, uDetailSlopeHigh, slope) * mountainMask * ruggedness;
       finalNormal = normalize(mix(finalNormal, detailedNormal,
         detailMask * uDetailNormalStrength));
 
@@ -7549,13 +7710,13 @@ globalThis.OrbitVersion = "0.35.5";
       vec3 base = texture(uAlbedoTexture, vUv).rgb;
       base = mix(base, uCoastColor, shoreBand * 0.32);
 
-      float rockExposure = mountainInfluence * smoothstep(0.06, 0.20, slope);
-      vec3 landMaterial = mix(base, uRockColor, rockExposure * 0.66);
-      landMaterial = mix(landMaterial, uRidgeColor, ridgeStrength * 0.12);
-      landMaterial = mix(landMaterial, uCreviceColor, valleyStrength * 0.08);
+      float rockExposure = mountainInfluence * smoothstep(uRockSlopeLow, uRockSlopeHigh, slope);
+      vec3 landMaterial = mix(base, uRockColor, rockExposure * uRockExposure);
+      landMaterial = mix(landMaterial, uRidgeColor, ridgeStrength * uRidgeMaterialMix);
+      landMaterial = mix(landMaterial, uCreviceColor, valleyStrength * uValleyMaterialMix);
       float diffuse = dot(finalNormal, lightDirection) * 0.5 + 0.5;
       diffuse *= diffuse;
-      float lightTerm = 0.58 + diffuse * 0.60;
+      float lightTerm = uLightAmbient + diffuse * uLightDiffuse;
       float ao = 1.0 - slope * uAoStrength * land * mountainMask;
       float ridgeLight = ridgeStrength * mountainMask * max(dot(finalNormal, lightDirection), 0.0) * uRidgeAccentStrength;
       vec3 landColor = landMaterial * lightTerm * ao * (1.0 + ridgeLight);
@@ -7574,12 +7735,12 @@ globalThis.OrbitVersion = "0.35.5";
       waterColor *= 1.0 + oceanNoise * uWaterNoiseAmplitude;
       vec3 waterBaseNormal = normalize(vSphereNormal);
       vec3 waterNormal = normalize(waterBaseNormal - (tangentU + tangentV * 0.65) * oceanNoise * uWaterNormalStrength);
-      float waterDiffuse = 0.94 + max(dot(waterNormal, lightDirection), 0.0) * 0.07;
+      float waterDiffuse = uWaterDiffuseAmbient + max(dot(waterNormal, lightDirection), 0.0) * uWaterDiffuse;
       waterColor *= waterDiffuse;
       vec3 viewDirection = vec3(0.0, 0.0, 1.0);
       vec3 halfVector = normalize(lightDirection + viewDirection);
-      float oceanSpecular = pow(max(dot(waterNormal, halfVector), 0.0), 48.0) * uWaterSpecularStrength;
-      float oceanFresnel = pow(1.0 - max(dot(viewDirection, waterNormal), 0.0), 3.0) * uWaterFresnelStrength;
+      float oceanSpecular = pow(max(dot(waterNormal, halfVector), 0.0), uWaterSpecularPower) * uWaterSpecularStrength;
+      float oceanFresnel = pow(1.0 - max(dot(viewDirection, waterNormal), 0.0), uWaterFresnelPower) * uWaterFresnelStrength;
       waterColor += oceanSpecular * vec3(0.64, 0.84, 1.0) + oceanFresnel * vec3(0.16, 0.42, 0.54);
       float oceanCoverage = (1.0 - landCoverage) * uHasLiquidOcean;
       vec3 color = mix(landColor, waterColor, oceanCoverage);
@@ -7611,6 +7772,7 @@ globalThis.OrbitVersion = "0.35.5";
   function create(canvas, errorElement = null) {
     let gl = null, program = null, buffers = null, currentMesh = null, lastDrawn = null;
     let currentTextureWidth = SurfaceTexture.defaults.width;
+    let currentStyle = Style;
     let width = 1, height = 1, dpr = 1, lost = false, failure = '';
     const meshCache = new WeakMap();
     try {
@@ -7634,6 +7796,11 @@ globalThis.OrbitVersion = "0.35.5";
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
         opacity: gl.getUniformLocation(program, 'uOpacity'), seaLevel: gl.getUniformLocation(program, 'uSeaLevel'),
         reliefLow: gl.getUniformLocation(program, 'uReliefLow'), reliefHigh: gl.getUniformLocation(program, 'uReliefHigh'),
+        polarNormalBlendStart: gl.getUniformLocation(program, 'uPolarNormalBlendStart'),
+        polarNormalBlendEnd: gl.getUniformLocation(program, 'uPolarNormalBlendEnd'),
+        polarNormalBlendStrength: gl.getUniformLocation(program, 'uPolarNormalBlendStrength'),
+        polarDetailFadeStart: gl.getUniformLocation(program, 'uPolarDetailFadeStart'),
+        polarDetailFadeEnd: gl.getUniformLocation(program, 'uPolarDetailFadeEnd'),
         atmospherePass: gl.getUniformLocation(program, 'uAtmospherePass'), shellScale: gl.getUniformLocation(program, 'uShellScale'),
         atmosphereColor: gl.getUniformLocation(program, 'uAtmosphereColor'),
         atmosphereAlpha: gl.getUniformLocation(program, 'uAtmosphereAlpha'),
@@ -7650,6 +7817,30 @@ globalThis.OrbitVersion = "0.35.5";
         terrainStructureTexture: gl.getUniformLocation(program, 'uTerrainStructureTexture'),
         heightTexelSize: gl.getUniformLocation(program, 'uHeightTexelSize'),
         facetGrid: gl.getUniformLocation(program, 'uFacetGrid'),
+        lightDirection: gl.getUniformLocation(program, 'uLightDirection'),
+        heightDerivativeStep: gl.getUniformLocation(program, 'uHeightDerivativeStep'),
+        facetStepTexels: gl.getUniformLocation(program, 'uFacetStepTexels'),
+        slopeScale: gl.getUniformLocation(program, 'uSlopeScale'),
+        plainSlopeLow: gl.getUniformLocation(program, 'uPlainSlopeLow'),
+        plainSlopeHigh: gl.getUniformLocation(program, 'uPlainSlopeHigh'),
+        reliefStrengthLow: gl.getUniformLocation(program, 'uReliefStrengthLow'),
+        reliefStrengthHigh: gl.getUniformLocation(program, 'uReliefStrengthHigh'),
+        plainReliefMultiplier: gl.getUniformLocation(program, 'uPlainReliefMultiplier'),
+        facetAltitudeLow: gl.getUniformLocation(program, 'uFacetAltitudeLow'),
+        facetAltitudeHigh: gl.getUniformLocation(program, 'uFacetAltitudeHigh'),
+        detailSlopeLow: gl.getUniformLocation(program, 'uDetailSlopeLow'),
+        detailSlopeHigh: gl.getUniformLocation(program, 'uDetailSlopeHigh'),
+        rockSlopeLow: gl.getUniformLocation(program, 'uRockSlopeLow'),
+        rockSlopeHigh: gl.getUniformLocation(program, 'uRockSlopeHigh'),
+        rockExposure: gl.getUniformLocation(program, 'uRockExposure'),
+        ridgeMaterialMix: gl.getUniformLocation(program, 'uRidgeMaterialMix'),
+        valleyMaterialMix: gl.getUniformLocation(program, 'uValleyMaterialMix'),
+        lightAmbient: gl.getUniformLocation(program, 'uLightAmbient'),
+        lightDiffuse: gl.getUniformLocation(program, 'uLightDiffuse'),
+        waterDiffuseAmbient: gl.getUniformLocation(program, 'uWaterDiffuseAmbient'),
+        waterDiffuse: gl.getUniformLocation(program, 'uWaterDiffuse'),
+        waterSpecularPower: gl.getUniformLocation(program, 'uWaterSpecularPower'),
+        waterFresnelPower: gl.getUniformLocation(program, 'uWaterFresnelPower'),
         reliefScale: gl.getUniformLocation(program, 'uReliefScale'),
         reliefShapeLinear: gl.getUniformLocation(program, 'uReliefShapeLinear'),
         reliefShapeExponent: gl.getUniformLocation(program, 'uReliefShapeExponent'),
@@ -7679,10 +7870,10 @@ globalThis.OrbitVersion = "0.35.5";
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       buffers = null;
-      if (currentMesh) upload(currentMesh, currentTextureWidth);
+      if (currentMesh) upload(currentMesh, currentTextureWidth, currentStyle);
     }
 
-    function upload(mesh, textureWidth) {
+    function upload(mesh, textureWidth, style = Style) {
       if (!gl || lost || !mesh) return;
       lastDrawn = null;
       if (buffers) {
@@ -7707,7 +7898,8 @@ globalThis.OrbitVersion = "0.35.5";
       const indices = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
       const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
-        { width: textureWidth, height: textureWidth / 2 });
+        { width: textureWidth, height: textureWidth / 2, polarCaps: style.polarCaps,
+          cache: !mesh.terrain.debugTuning });
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       function uploadTexture(unit, internalFormat, format, pixels) {
         const texture = gl.createTexture();
@@ -7733,6 +7925,7 @@ globalThis.OrbitVersion = "0.35.5";
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
+        polarStyleKey: JSON.stringify(style.polarCaps),
         indexType: mesh.indices instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
     }
 
@@ -7755,13 +7948,19 @@ globalThis.OrbitVersion = "0.35.5";
       if (gl && !lost) gl.viewport(0, 0, canvas.width, canvas.height);
     }
 
-    function meshFor(terrain, planet, textureWidth) {
-      let mesh = meshCache.get(terrain);
-      if (!mesh || mesh.planetId !== (planet?.id || null)) {
-        mesh = Mesh.create(terrain, planet, Style.mesh); meshCache.set(terrain, mesh);
+    function meshFor(terrain, planet, textureWidth, style = Style) {
+      const reliefKey = JSON.stringify([style.mesh, style.relief]);
+      const cached = meshCache.get(terrain);
+      let mesh = cached?.mesh;
+      if (!mesh || cached.planetId !== (planet?.id || null) || cached.reliefKey !== reliefKey) {
+        mesh = Mesh.create(terrain, planet, style.mesh, style.relief);
+        meshCache.set(terrain, { mesh, planetId: planet?.id || null, reliefKey });
       }
-      if (currentMesh !== mesh || buffers?.textureWidth !== textureWidth) {
-        currentMesh = mesh; currentTextureWidth = textureWidth; upload(mesh, textureWidth);
+      const polarStyleKey = JSON.stringify(style.polarCaps);
+      if (currentMesh !== mesh || buffers?.textureWidth !== textureWidth ||
+          buffers?.polarStyleKey !== polarStyleKey) {
+        currentMesh = mesh; currentTextureWidth = textureWidth; currentStyle = style;
+        upload(mesh, textureWidth, style);
       }
       return mesh;
     }
@@ -7771,8 +7970,8 @@ globalThis.OrbitVersion = "0.35.5";
       return Math.min(requested, gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048);
     }
 
-    function atmosphereRgb(planet) {
-      const hex = Style.atmosphere.colors[planet?.kind] || Style.atmosphere.colors.default;
+    function atmosphereRgb(planet, style = Style) {
+      const hex = style.atmosphere.colors[planet?.kind] || style.atmosphere.colors.default;
       const value = Number.parseInt(hex.slice(1), 16);
       return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
     }
@@ -7783,7 +7982,9 @@ globalThis.OrbitVersion = "0.35.5";
         ((value >> 8) & 255) / 255, (value & 255) / 255);
     }
 
-    function render({ terrain, planet, view, transition = null, active = true }) {
+    function render({ terrain, planet, view, transition = null, active = true, style = Style }) {
+      style = style || Style;
+      currentStyle = style;
       const visible = Boolean(active && terrain && planet);
       const canRender = Boolean(gl && !lost && !failure);
       canvas.style.display = visible && canRender ? 'block' : 'none';
@@ -7796,12 +7997,13 @@ globalThis.OrbitVersion = "0.35.5";
       const transform = transition || view;
       const centerX = Number.isFinite(transform.centerX) ? transform.centerX : width / 2;
       const centerY = Number.isFinite(transform.centerY) ? transform.centerY : height / 2;
-      const radiusPx = Number.isFinite(transform.radiusPx) ? transform.radiusPx : Math.min(width, height) * Style.camera.radiusRatio * view.zoom;
-      const mesh = meshFor(terrain, planet, textureWidthFor(radiusPx));
+      const radiusPx = Number.isFinite(transform.radiusPx) ? transform.radiusPx : Math.min(width, height) * style.camera.radiusRatio * view.zoom;
+      const mesh = meshFor(terrain, planet, textureWidthFor(radiusPx), style);
       const opacity = Number.isFinite(transition?.globeOpacity) ? transition.globeOpacity : 1;
       if (lastDrawn && lastDrawn.mesh === mesh && lastDrawn.yaw === view.yaw && lastDrawn.pitch === view.pitch &&
         lastDrawn.centerX === centerX && lastDrawn.centerY === centerY && lastDrawn.radiusPx === radiusPx &&
-        lastDrawn.opacity === opacity && lastDrawn.width === width && lastDrawn.height === height) {
+        lastDrawn.opacity === opacity && lastDrawn.width === width && lastDrawn.height === height &&
+        lastDrawn.style === style) {
         return { available: true, failure: '', mesh, cached: true };
       }
       gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -7819,21 +8021,52 @@ globalThis.OrbitVersion = "0.35.5";
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainStructureTexture);
       gl.uniform1i(program.uniforms.terrainStructureTexture, 5);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
-      gl.uniform2f(program.uniforms.facetGrid, Style.terrainShading.facetGrid.x,
-        Style.terrainShading.facetGrid.y);
-      gl.uniform1f(program.uniforms.reliefScale, Style.relief.scale);
-      gl.uniform1f(program.uniforms.reliefShapeLinear, Style.relief.linearFraction);
-      gl.uniform1f(program.uniforms.reliefShapeExponent, Style.relief.exponent);
-      gl.uniform1f(program.uniforms.reliefCompressionStart, Style.relief.compressionStart);
-      gl.uniform1f(program.uniforms.midReliefStrength, Style.terrainShading.midReliefStrength);
-      gl.uniform1f(program.uniforms.facetMix, Style.terrainShading.mountainFacetMix);
-      gl.uniform1f(program.uniforms.detailNormalStrength, Style.terrainShading.microDetailStrength);
-      gl.uniform1f(program.uniforms.aoStrength, Style.terrainShading.mountainAoStrength);
-      gl.uniform1f(program.uniforms.ridgeAccentStrength, Style.terrainShading.ridgeAccentStrength);
+      const shading = style.terrainShading, controls = shading.controls;
+      gl.uniform2f(program.uniforms.facetGrid, shading.facetGrid.x, shading.facetGrid.y);
+      const radians = Math.PI / 180;
+      gl.uniform1f(program.uniforms.polarNormalBlendStart, controls.polarNormalBlendStartDegrees * radians);
+      gl.uniform1f(program.uniforms.polarNormalBlendEnd, controls.polarNormalBlendEndDegrees * radians);
+      gl.uniform1f(program.uniforms.polarNormalBlendStrength, controls.polarNormalBlendStrength);
+      gl.uniform1f(program.uniforms.polarDetailFadeStart, controls.polarDetailFadeStartDegrees * radians);
+      gl.uniform1f(program.uniforms.polarDetailFadeEnd, controls.polarDetailFadeEndDegrees * radians);
+      gl.uniform3f(program.uniforms.lightDirection, controls.lightDirection.x,
+        controls.lightDirection.y, controls.lightDirection.z);
+      gl.uniform1f(program.uniforms.heightDerivativeStep, controls.heightDerivativeStep);
+      gl.uniform1f(program.uniforms.facetStepTexels, controls.facetStepTexels);
+      gl.uniform1f(program.uniforms.slopeScale, controls.slopeScale);
+      gl.uniform1f(program.uniforms.plainSlopeLow, controls.plainSlopeLow);
+      gl.uniform1f(program.uniforms.plainSlopeHigh, controls.plainSlopeHigh);
+      gl.uniform1f(program.uniforms.reliefStrengthLow, controls.reliefStrengthLow);
+      gl.uniform1f(program.uniforms.reliefStrengthHigh, controls.reliefStrengthHigh);
+      gl.uniform1f(program.uniforms.plainReliefMultiplier, controls.plainReliefMultiplier);
+      gl.uniform1f(program.uniforms.facetAltitudeLow, controls.facetAltitudeLow);
+      gl.uniform1f(program.uniforms.facetAltitudeHigh, controls.facetAltitudeHigh);
+      gl.uniform1f(program.uniforms.detailSlopeLow, controls.detailSlopeLow);
+      gl.uniform1f(program.uniforms.detailSlopeHigh, controls.detailSlopeHigh);
+      gl.uniform1f(program.uniforms.rockSlopeLow, controls.rockSlopeLow);
+      gl.uniform1f(program.uniforms.rockSlopeHigh, controls.rockSlopeHigh);
+      gl.uniform1f(program.uniforms.rockExposure, controls.rockExposure);
+      gl.uniform1f(program.uniforms.ridgeMaterialMix, controls.ridgeMaterialMix);
+      gl.uniform1f(program.uniforms.valleyMaterialMix, controls.valleyMaterialMix);
+      gl.uniform1f(program.uniforms.lightAmbient, controls.lightAmbient);
+      gl.uniform1f(program.uniforms.lightDiffuse, controls.lightDiffuse);
+      gl.uniform1f(program.uniforms.waterDiffuseAmbient, controls.waterDiffuseAmbient);
+      gl.uniform1f(program.uniforms.waterDiffuse, controls.waterDiffuse);
+      gl.uniform1f(program.uniforms.waterSpecularPower, style.water.specularPower);
+      gl.uniform1f(program.uniforms.waterFresnelPower, style.water.fresnelPower);
+      gl.uniform1f(program.uniforms.reliefScale, style.relief.scale);
+      gl.uniform1f(program.uniforms.reliefShapeLinear, style.relief.linearFraction);
+      gl.uniform1f(program.uniforms.reliefShapeExponent, style.relief.exponent);
+      gl.uniform1f(program.uniforms.reliefCompressionStart, style.relief.compressionStart);
+      gl.uniform1f(program.uniforms.midReliefStrength, shading.midReliefStrength);
+      gl.uniform1f(program.uniforms.facetMix, shading.mountainFacetMix);
+      gl.uniform1f(program.uniforms.detailNormalStrength, shading.microDetailStrength);
+      gl.uniform1f(program.uniforms.aoStrength, shading.mountainAoStrength);
+      gl.uniform1f(program.uniforms.ridgeAccentStrength, shading.ridgeAccentStrength);
       gl.uniform1f(program.uniforms.coastWidth, 1.5 / buffers.coastRange);
       gl.uniform1f(program.uniforms.coastRange, buffers.coastRange);
       setHexUniform(program.uniforms.coastColor, buffers.coastColor);
-      const water = Style.water;
+      const water = style.water;
       setHexUniform(program.uniforms.waterShallowColor, water.shallow);
       setHexUniform(program.uniforms.waterMidColor, water.mid);
       setHexUniform(program.uniforms.waterDeepColor, water.deep);
@@ -7844,8 +8077,7 @@ globalThis.OrbitVersion = "0.35.5";
       gl.uniform1f(program.uniforms.waterCoastDepthDistance, water.coastDepthDistance);
       gl.uniform1f(program.uniforms.waterBathymetryDepthScale, water.bathymetryDepthScale);
       gl.uniform1f(program.uniforms.waterBathymetryInfluence, water.bathymetryInfluence);
-      const materials = Style.terrainShading.mountainMaterials[buffers.climate] ||
-        Style.terrainShading.mountainMaterials.default;
+      const materials = shading.mountainMaterials[buffers.climate] || shading.mountainMaterials.default;
       setHexUniform(program.uniforms.rockColor, materials.rock);
       setHexUniform(program.uniforms.ridgeColor, materials.ridge);
       setHexUniform(program.uniforms.creviceColor, materials.crevice);
@@ -7860,12 +8092,12 @@ globalThis.OrbitVersion = "0.35.5";
       gl.uniform1f(program.uniforms.seaLevel, terrain.seaLevel);
       gl.uniform1f(program.uniforms.reliefLow, buffers.reliefRange.low);
       gl.uniform1f(program.uniforms.reliefHigh, buffers.reliefRange.high);
-      gl.uniform1f(program.uniforms.contourInterval, Style.topography.contourInterval);
-      gl.uniform1f(program.uniforms.majorInterval, Style.topography.majorInterval);
-      gl.uniform1f(program.uniforms.contourOpacity, Style.topography.contourOpacity);
-      gl.uniform1f(program.uniforms.majorOpacity, Style.topography.majorOpacity);
+      gl.uniform1f(program.uniforms.contourInterval, style.topography.contourInterval);
+      gl.uniform1f(program.uniforms.majorInterval, style.topography.majorInterval);
+      gl.uniform1f(program.uniforms.contourOpacity, style.topography.contourOpacity);
+      gl.uniform1f(program.uniforms.majorOpacity, style.topography.majorOpacity);
       gl.drawElements(gl.TRIANGLES, buffers.count, buffers.indexType, 0);
-      const atmosphere = Style.atmosphere, rgb = atmosphereRgb(planet);
+      const atmosphere = style.atmosphere, rgb = atmosphereRgb(planet, style);
       gl.uniform3f(program.uniforms.atmosphereColor, rgb[0], rgb[1], rgb[2]);
       gl.uniform1f(program.uniforms.atmospherePass, 1);
       gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
@@ -7879,7 +8111,7 @@ globalThis.OrbitVersion = "0.35.5";
       gl.drawElements(gl.TRIANGLES, buffers.count, buffers.indexType, 0);
       gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
       gl.bindVertexArray(null);
-      lastDrawn = { mesh, yaw: view.yaw, pitch: view.pitch, centerX, centerY, radiusPx, opacity, width, height };
+      lastDrawn = { mesh, yaw: view.yaw, pitch: view.pitch, centerX, centerY, radiusPx, opacity, width, height, style };
       return { available: true, failure: '', mesh };
     }
 
@@ -7912,6 +8144,7 @@ globalThis.OrbitVersion = "0.35.5";
   function create(canvas) {
     const ctx = canvas.getContext('2d', { alpha: true });
     let width = 1, height = 1, dpr = 1;
+    let currentStyle = Style;
     const graticuleCache = new WeakMap();
 
     function resize(nextWidth, nextHeight, ratio) {
@@ -7923,7 +8156,7 @@ globalThis.OrbitVersion = "0.35.5";
 
     function mapProject(x, y, terrain, view) {
       const scale = root.OrbitConfig.terrain.textureScale;
-      return Projection.projectSurfacePoint(x / scale, y / scale, terrain, view, Style.relief);
+      return Projection.projectSurfacePoint(x / scale, y / scale, terrain, view, currentStyle.relief);
     }
 
     function mapCoordinate(longitude, latitude, terrain) {
@@ -7934,15 +8167,17 @@ globalThis.OrbitVersion = "0.35.5";
     }
 
     function graticuleFor(terrain) {
-      let curves = graticuleCache.get(terrain);
-      if (curves) return curves;
-      const style = Style.graticule;
+      const style = currentStyle.graticule;
+      const cacheKey = JSON.stringify([style, currentStyle.relief]);
+      const cached = graticuleCache.get(terrain);
+      if (cached?.key === cacheKey) return cached.curves;
+      const curves = [];
       curves = [];
       function addCurve(points) {
         const values = new Float32Array(points.length * 3);
         for (let i = 0; i < points.length; i += 1) {
           const map = mapCoordinate(points[i][0], points[i][1], terrain);
-          const point = Projection.surfacePosition(map.x, map.y, terrain, Style.relief);
+          const point = Projection.surfacePosition(map.x, map.y, terrain, currentStyle.relief);
           values[i * 3] = point.x; values[i * 3 + 1] = point.y; values[i * 3 + 2] = point.z;
         }
         curves.push(values);
@@ -7961,12 +8196,12 @@ globalThis.OrbitVersion = "0.35.5";
         }
         addCurve(points);
       }
-      graticuleCache.set(terrain, curves);
+      graticuleCache.set(terrain, { key: cacheKey, curves });
       return curves;
     }
 
     function drawGraticule(terrain, view, alpha) {
-      const style = Style.graticule, yaw = view.yaw || 0, pitch = view.pitch || 0;
+      const style = currentStyle.graticule, yaw = view.yaw || 0, pitch = view.pitch || 0;
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch);
       const radius = Number.isFinite(view.radiusPx) ? view.radiusPx : Math.min(view.width, view.height) * .4 * (view.zoom || 1);
       const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
@@ -8031,10 +8266,10 @@ globalThis.OrbitVersion = "0.35.5";
       if (!terrain.resources?.length) return;
       ctx.save(); ctx.globalAlpha = alpha * .8;
       for (const resource of terrain.resources) {
-        const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, Style.relief);
+        const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, currentStyle.relief);
         if (!point.visible) continue;
         const edge = Projection.projectSurfacePoint(Math.min(terrain.width - 1, resource.x + resource.radius),
-          resource.y, terrain, view, Style.relief);
+          resource.y, terrain, view, currentStyle.relief);
         const sampledRadius = edge.visible ? Math.hypot(edge.x - point.x, edge.y - point.y) : 0;
         const radius = clamp(sampledRadius * 1.65, 12, 30);
         const color = Style.resources[resource.id] || '#a5b0af';
@@ -8142,7 +8377,8 @@ globalThis.OrbitVersion = "0.35.5";
       return { x: point.x, y: point.y, visible: point.visible, id: building.id };
     }
 
-    function render({ terrain, state, view, transition = null, active = true }) {
+    function render({ terrain, state, view, transition = null, active = true, style = Style }) {
+      currentStyle = style || Style;
       ctx.clearRect(0, 0, width, height);
       const visible = Boolean(active && terrain && state?.planet);
       canvas.style.display = visible ? 'block' : 'none';
@@ -8161,8 +8397,9 @@ globalThis.OrbitVersion = "0.35.5";
         type: state.placement.type, valid: state.placement.valid }, terrain, globeView, state, alpha, true);
     }
 
-    function hitTest(buildings, planetId, terrain, view, x, y) {
-      const radius = Style.icon.hitRadiusPx;
+    function hitTest(buildings, planetId, terrain, view, x, y, style = Style) {
+      currentStyle = style || Style;
+      const radius = currentStyle.icon.hitRadiusPx;
       for (let i = buildings.length - 1; i >= 0; i -= 1) {
         const building = buildings[i];
         if (building.planetId !== planetId) continue;
@@ -8277,6 +8514,7 @@ globalThis.OrbitVersion = "0.35.5";
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera;
+  const GlobeStyle = root.OrbitPlanetGlobeStyle;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -8511,6 +8749,8 @@ globalThis.OrbitVersion = "0.35.5";
 
     function drawUniverse() {
       const cam = state.camera;
+      const globeStyle = activeScene.globeStyle || GlobeStyle;
+      const globePlanet = activeScene.globePlanet || state.planet;
       if (state.level === 'surface') {
         ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
         const transition = activeScene.globeTransition;
@@ -8520,10 +8760,10 @@ globalThis.OrbitVersion = "0.35.5";
           drawSystem(local, state.context.model, state.context); ctx.restore();
         }
         const terrain = activeScene.terrainData;
-        globeRenderer.render({ terrain, planet: state.planet, view: activeScene.globeView,
-          transition, active: Boolean(state.planet && terrain) });
+        globeRenderer.render({ terrain, planet: globePlanet, view: activeScene.globeView,
+          transition, active: Boolean(globePlanet && terrain), style: globeStyle });
         globeOverlay.render({ terrain, state, view: activeScene.globeView, transition,
-          active: Boolean(state.planet && terrain && globeRenderer.available()) });
+          active: Boolean(state.planet && terrain && globeRenderer.available()), style: globeStyle });
         return;
       }
       const exitTransition = activeScene.globeTransition?.mode === 'exit' ? activeScene.globeTransition : null;
@@ -8540,10 +8780,10 @@ globalThis.OrbitVersion = "0.35.5";
         }
       }
       if (showExitGlobe) {
-        globeRenderer.render({ terrain: activeScene.terrainData, planet: state.planet,
-          view: activeScene.globeView, transition: exitTransition, active: true });
+        globeRenderer.render({ terrain: activeScene.terrainData, planet: globePlanet,
+          view: activeScene.globeView, transition: exitTransition, active: true, style: globeStyle });
         globeOverlay.render({ terrain: activeScene.terrainData, state, view: activeScene.globeView,
-          transition: exitTransition, active: globeRenderer.available() });
+          transition: exitTransition, active: globeRenderer.available(), style: globeStyle });
       }
     }
 
@@ -9903,11 +10143,509 @@ globalThis.OrbitVersion = "0.35.5";
 (function (root) {
   'use strict';
 
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const definitions = Object.freeze([
+    // Large continental structures.
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalFrequency', label: 'Fréquence continentale', min: .35, max: 3.5, step: .01 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.plateCount.0', label: 'Plaques · minimum', min: 6, max: 32, step: 1 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.plateCount.1', label: 'Plaques · maximum', min: 8, max: 40, step: 1 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.angularSpeed.0', label: 'Vitesse des plaques · minimum', min: .1, max: 1.5, step: .001 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.angularSpeed.1', label: 'Vitesse des plaques · maximum', min: .1, max: 1.8, step: .001 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.plateContinentalInfluence', label: 'Influence continentale des plaques', min: 0, max: .16, step: .001 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalBase.base', label: 'Altitude de base', min: 30, max: 120, step: .1 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalBase.plateauRise', label: 'Montée du plateau continental', min: 0, max: 100, step: .1 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalBase.coastRange.0', label: 'Début de transition côtière', min: .05, max: .75, step: .001 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalBase.coastRange.1', label: 'Fin de transition côtière', min: .10, max: .95, step: .001 },
+
+    // Tectonic sources and orogenic belts.
+    { group: '2 · MONTAGNES', kind: 'planet', path: 'geology', label: 'Activité géologique', min: 0, max: 1, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.motionScale', label: 'Échelle du mouvement des plaques', min: .2, max: 2, step: .01 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.subductionOffset', label: 'Décalage de subduction', min: 0, max: .14, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.trenchWidth', label: 'Largeur des fosses', min: .005, max: .12, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.riftWidth', label: 'Largeur des rifts', min: .005, max: .14, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.continentalCollision', label: 'Collision continentale', min: 0, max: 140, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.coastalUplift', label: 'Soulèvement côtier', min: 0, max: 140, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.islandArcUplift', label: 'Soulèvement des arcs insulaires', min: 0, max: 80, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.trenchDepth', label: 'Profondeur des fosses', min: 0, max: 36, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.riftDepth', label: 'Profondeur des rifts', min: 0, max: 48, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.oceanRidgeUplift', label: 'Soulèvement des dorsales océaniques', min: 0, max: 25, step: .1 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.crustProbe', label: 'Distance de sondage de croûte', min: .005, max: .14, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.continentalThreshold.0', label: 'Seuil continental bas', min: 0, max: .9, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.continentalThreshold.1', label: 'Seuil continental haut', min: .05, max: 1, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.beltWidth', label: 'Largeur de la zone orogénique', min: .04, max: .5, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.coreWidth', label: 'Largeur du cœur montagneux', min: .005, max: .24, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeSpacing', label: 'Espacement des crêtes', min: .01, max: .16, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeExponent', label: 'Contraste des crêtes', min: .4, max: 5, step: .01 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeWarpAmplitude', label: 'Déformation des crêtes', min: 0, max: .06, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeWarpFrequency', label: 'Fréquence de déformation des crêtes', min: .5, max: 14, step: .01 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeObliqueAmplitude', label: 'Crêtes obliques', min: 0, max: .08, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.ridgeAmplitude', label: 'Force des crêtes', min: 0, max: 1.6, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.alongVariationFrequency', label: 'Variation le long des chaînes', min: .3, max: 10, step: .01 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.interruptionFrequency', label: 'Fréquence des cols', min: .3, max: 12, step: .01 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.interruptionThreshold.0', label: 'Seuil des interruptions bas', min: -1, max: .8, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.interruptionThreshold.1', label: 'Seuil des interruptions haut', min: -.8, max: 1, step: .001 },
+    { group: '2 · MONTAGNES', kind: 'terrain', path: 'tectonics.orogeny.coastalOffset', label: 'Décalage des chaînes côtières', min: 0, max: .14, step: .001 },
+
+    // Low and regional terrain away from the tectonic cores.
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.continentalBase.inlandRange.0', label: 'Début du plateau intérieur', min: .1, max: .95, step: .001 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.continentalBase.inlandRange.1', label: 'Fin du plateau intérieur', min: .15, max: 1, step: .001 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.continentalBase.inlandRise', label: 'Relief du plateau intérieur', min: 0, max: 24, step: .1 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.terrainRelief.regional.frequency', label: 'Échelle régionale', min: .3, max: 8, step: .01 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.terrainRelief.regional.amplitude', label: 'Amplitude régionale', min: 0, max: 70, step: .1 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.terrainRelief.hills.frequency', label: 'Échelle des collines', min: .5, max: 20, step: .01 },
+    { group: '3 · PLAINES', kind: 'terrain', path: 'tectonics.terrainRelief.hills.amplitude', label: 'Amplitude des collines', min: 0, max: 40, step: .1 },
+
+    // Domain warping and structural irregularity.
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.continentalWarpFrequency', label: 'Fréquence du warp continental', min: .1, max: 5, step: .01 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.continentalWarpAmplitude', label: 'Force du warp continental', min: 0, max: .35, step: .001 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.continentalEdgeFrequency', label: 'Fréquence du contour continental', min: .5, max: 14, step: .01 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.continentalEdgeAmplitude', label: 'Irrégularité du contour continental', min: 0, max: .22, step: .001 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.seedJitter', label: 'Jitter des plaques', min: 0, max: .5, step: .001 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.warpFrequency', label: 'Fréquence du warp topographique', min: .3, max: 12, step: .01 },
+    { group: '4 · WARP / IRRÉGULARITÉ', kind: 'terrain', path: 'tectonics.warpAmplitude', label: 'Force du warp topographique', min: 0, max: .08, step: .001 },
+
+    // Existing FBM controls only.
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.fbm.persistence', label: 'Persistence / gain FBM', min: .1, max: .85, step: .001 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.fbm.lacunarity', label: 'Lacunarity FBM', min: 1.1, max: 3.5, step: .001 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.terrainRelief.regional.octaves', label: 'Octaves régionales', min: 1, max: 6, step: 1 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.terrainRelief.hills.octaves', label: 'Octaves des collines', min: 1, max: 6, step: 1 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.terrainRelief.fine.frequency', label: 'Fréquence du détail fin', min: 1, max: 42, step: .01 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.terrainRelief.fine.amplitude', label: 'Amplitude du détail fin', min: 0, max: 15, step: .1 },
+    { group: '5 · DÉTAIL', kind: 'terrain', path: 'tectonics.terrainRelief.fine.octaves', label: 'Octaves du détail fin', min: 1, max: 6, step: 1 },
+
+    // Actual erosion and terrain-structure sampling thresholds.
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.erosion.passes', label: 'Passes d’érosion thermique', min: 0, max: 32, step: 1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.erosion.rate', label: 'Taux d’érosion', min: 0, max: .8, step: .001 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.erosion.talusPerRadian', label: 'Talus maximum', min: 20, max: 320, step: .1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.sampleAngle', label: 'Échelle de pente du masque', min: .005, max: .08, step: .001 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.coarseAngle', label: 'Échelle de rugosité', min: .01, max: .16, step: .001 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.upliftRange.0', label: 'Masque montagne · uplift bas', min: 0, max: 60, step: .1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.upliftRange.1', label: 'Masque montagne · uplift haut', min: 1, max: 90, step: .1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.slopeRange.0', label: 'Masque pente · bas', min: 0, max: 500, step: .1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.slopeRange.1', label: 'Masque pente · haut', min: 1, max: 650, step: .1 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.convexityRange.0', label: 'Masque crête · convexité basse', min: 0, max: 5, step: .001 },
+    { group: '6 · LISSAGE / ÉROSION', kind: 'terrain', path: 'tectonics.structure.convexityRange.1', label: 'Masque crête · convexité haute', min: .01, max: 8, step: .001 },
+
+    // Per-planet inputs and the existing polar-cap material controls.
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'seaLevel', label: 'Niveau marin gameplay', min: 70, max: 145, step: 1 },
+    { group: '7 · PLANÈTE', kind: 'planet', path: 'surfaceWater', label: 'Fraction d’eau', min: 0, max: .86, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'planet', path: 'temperature', label: 'Température de surface', min: -100, max: 120, step: .1 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.frequency', label: 'Fréquence du masque d’humidité', min: .5, max: 12, step: .01 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.baseline', label: 'Humidité de base', min: 0, max: 1, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.amplitude', label: 'Amplitude d’humidité', min: 0, max: 1, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.octaves', label: 'Octaves d’humidité', min: 1, max: 7, step: 1 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.altitudeScale', label: 'Échelle de pénalité d’altitude', min: 20, max: 255, step: .1 },
+    { group: '7 · PLANÈTE', kind: 'terrain', path: 'moisture.altitudePenalty', label: 'Pénalité d’humidité en altitude', min: 0, max: .8, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'thresholdBase', label: 'Latitude moyenne du bord polaire', min: 35, max: 88, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'temperatureReference', label: 'Température de référence polaire', min: -80, max: 80, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'temperatureScale', label: 'Réponse à la température', min: 0, max: 1.2, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'minimumThreshold', label: 'Latitude minimale', min: 15, max: 75, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'maximumThreshold', label: 'Latitude maximale', min: 55, max: 89, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'broadFrequency', label: 'Fréquence du contour polaire', min: .5, max: 10, step: .01 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'secondFrequency', label: 'Fréquence secondaire polaire', min: 1, max: 16, step: .01 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'secondWeight', label: 'Poids du bruit secondaire', min: 0, max: 1, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'coastFrequency', label: 'Fréquence de côte de glace', min: 1, max: 24, step: .01 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'broadDisplacementDegrees', label: 'Déplacement large du bord', min: 0, max: 40, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'maximumBroadShiftDegrees', label: 'Limite de déplacement large', min: 0, max: 15, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'coastDisplacementDegrees', label: 'Irrégularité fine du bord', min: 0, max: 8, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'maximumCoastShiftDegrees', label: 'Limite du détail côtier', min: 0, max: 6, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'edgeHalfWidthDegrees', label: 'Douceur du bord de glace', min: .1, max: 6, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'eligibilityMarginDegrees', label: 'Marge de calcul du pôle', min: 0, max: 30, step: .1, unit: '°' },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'latitudeCoolingExponent', label: 'Courbe de refroidissement polaire', min: .5, max: 4, step: .001 },
+    { group: '7 · PLANÈTE', kind: 'polar', path: 'latitudeCoolingDegrees', label: 'Refroidissement aux pôles', min: 0, max: 100, step: .1, unit: '°' },
+
+    // Display-only controls. These do not alter terrain.elevation.
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.scale', label: 'Exagération géométrique', min: .005, max: .12, step: .001, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.exponent', label: 'Courbe du relief', min: .4, max: 2.5, step: .001, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.linearFraction', label: 'Part linéaire', min: 0, max: 1, step: .001, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.compressionStart', label: 'Début de compression des plaines', min: 0, max: .85, step: .001, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.landQuantile', label: 'Quantile de normalisation terrestre', min: .85, max: 1, step: .001, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.minLandRange', label: 'Plage minimale de hauteur', min: 8, max: 100, step: .1, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'relief.maxLandRange', label: 'Plage maximale de hauteur', min: 15, max: 130, step: .1, live: false },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.midReliefStrength', label: 'Force de normale heightmap', min: 0, max: 3, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainFacetMix', label: 'Mélange low-poly des montagnes', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.microDetailStrength', label: 'Force du micro-détail normal', min: 0, max: .5, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainAoStrength', label: 'Ombre AO des massifs', min: 0, max: .4, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.ridgeAccentStrength', label: 'Accent lumineux des crêtes', min: 0, max: .6, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.facetGrid.x', label: 'Échelle de facettes · longitude', min: 35, max: 260, step: 1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.facetGrid.y', label: 'Échelle de facettes · latitude', min: 18, max: 140, step: 1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.heightDerivativeStep', label: 'Pas des normales terrain', min: .5, max: 8, step: .1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.facetStepTexels', label: 'Pas des normales facettées', min: .5, max: 8, step: .1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.slopeScale', label: 'Amplification de pente', min: 0, max: 6, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.plainSlopeLow', label: 'Seuil de pente bas', min: 0, max: .5, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.plainSlopeHigh', label: 'Seuil de pente haut', min: .01, max: .8, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.reliefStrengthLow', label: 'Force normale en plaine', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.reliefStrengthHigh', label: 'Force normale en massif', min: 0, max: 2, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.plainReliefMultiplier', label: 'Atténuation des plaines', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.facetAltitudeLow', label: 'Altitude initiale du faceting', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.facetAltitudeHigh', label: 'Altitude complète du faceting', min: .01, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.detailSlopeLow', label: 'Pente initiale du détail', min: 0, max: .8, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.detailSlopeHigh', label: 'Pente complète du détail', min: .01, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.rockSlopeLow', label: 'Pente initiale de roche', min: 0, max: .8, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.rockSlopeHigh', label: 'Pente complète de roche', min: .01, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.rockExposure', label: 'Exposition rocheuse', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.ridgeMaterialMix', label: 'Mélange couleur des crêtes', min: 0, max: .5, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.valleyMaterialMix', label: 'Mélange couleur des vallées', min: 0, max: .5, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.temperate.rock', label: 'Roche · tempérée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.temperate.ridge', label: 'Crête · tempérée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.temperate.crevice', label: 'Creux · tempérée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.frozen.rock', label: 'Roche · glacée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.frozen.ridge', label: 'Crête · glacée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.frozen.crevice', label: 'Creux · glacée', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.arid.rock', label: 'Roche · aride', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.arid.ridge', label: 'Crête · aride', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.arid.crevice', label: 'Creux · aride', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.volcanic.rock', label: 'Roche · volcanique', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.volcanic.ridge', label: 'Crête · volcanique', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.volcanic.crevice', label: 'Creux · volcanique', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.default.rock', label: 'Roche · autres climats', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.default.ridge', label: 'Crête · autres climats', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.mountainMaterials.default.crevice', label: 'Creux · autres climats', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.lightAmbient', label: 'Lumière ambiante', min: .1, max: 1.2, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.lightDiffuse', label: 'Force de lumière directionnelle', min: 0, max: 1.2, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.lightDirection.x', label: 'Direction lumière · X', min: -1, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.lightDirection.y', label: 'Direction lumière · Y', min: -1, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.lightDirection.z', label: 'Direction lumière · Z', min: -1, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.polarNormalBlendStartDegrees', label: 'Lissage normal pôle · début', min: 85, max: 90, step: .01, unit: '°' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.polarNormalBlendEndDegrees', label: 'Lissage normal pôle · fin', min: 85, max: 90, step: .01, unit: '°' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.polarNormalBlendStrength', label: 'Force du lissage au pôle', min: 0, max: 1, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.polarDetailFadeStartDegrees', label: 'Fondu détail polaire · début', min: 85, max: 90, step: .01, unit: '°' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'terrainShading.controls.polarDetailFadeEndDegrees', label: 'Fondu détail polaire · fin', min: 85, max: 90, step: .01, unit: '°' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.noiseAmplitude', label: 'Variation de l’eau', min: 0, max: .2, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.normalStrength', label: 'Normale de l’eau', min: 0, max: .2, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.specularStrength', label: 'Intensité spéculaire de l’eau', min: 0, max: .5, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.specularPower', label: 'Netteté du reflet (puissance)', min: 2, max: 96, step: 1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.fresnelStrength', label: 'Fresnel de l’eau', min: 0, max: .3, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.fresnelPower', label: 'Courbe Fresnel', min: .5, max: 8, step: .01 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.shallow', label: 'Couleur des hauts-fonds', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.mid', label: 'Couleur de l’océan', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'water.deep', label: 'Couleur de l’océan profond', type: 'color' },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.contourInterval', label: 'Intervalle des courbes', min: 2, max: 30, step: .1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.majorInterval', label: 'Intervalle des courbes majeures', min: 5, max: 120, step: .1 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.contourOpacity', label: 'Opacité des courbes', min: 0, max: .8, step: .001 },
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.majorOpacity', label: 'Opacité des courbes majeures', min: 0, max: .8, step: .001 }
+  ]);
+
+  function pathValue(object, path) {
+    return path.split('.').reduce((value, part) => value?.[part], object);
+  }
+
+  function setPath(object, path, value) {
+    const parts = path.split('.');
+    const leaf = parts.pop();
+    const parent = parts.reduce((item, part) => item[part], object);
+    parent[leaf] = value;
+  }
+
+  function randomSeed() {
+    const values = new Uint32Array(2);
+    if (root.crypto?.getRandomValues) root.crypto.getRandomValues(values);
+    else { values[0] = Date.now() >>> 0; values[1] = Math.floor(Math.random() * 0xffffffff); }
+    return `TERRAIN-${values[0].toString(36).toUpperCase()}-${values[1].toString(36).toUpperCase()}`;
+  }
+
+  function create(document, options = {}) {
+    const $ = id => document.getElementById(id);
+    const panel = $('terrain-tuner-panel');
+    const body = $('terrain-tuner-body');
+    const groupsContainer = $('terrain-tuner-groups');
+    const rows = new Map();
+    let preset = null, defaults = null, planetId = null, seedEdited = false, generationQueued = false;
+    let queuedRebuild = 'surface';
+
+    function rootFor(kind) {
+      if (kind === 'terrain') return preset.terrainSettings;
+      if (kind === 'planet') return preset.planet;
+      if (kind === 'polar') return preset.renderStyle.polarCaps;
+      return preset.renderStyle;
+    }
+
+    function digits(step) {
+      const text = String(step);
+      return text.includes('.') ? text.split('.')[1].length : 0;
+    }
+
+    function format(value, definition) {
+      return String(Number(value)) + (definition.unit || '');
+    }
+
+    function setValue(definition, rawValue, snap = true) {
+      const rootObject = rootFor(definition.kind);
+      const current = pathValue(rootObject, definition.path);
+      if (definition.type === 'color') {
+        setPath(rootObject, definition.path, /^#[\da-f]{6}$/i.test(rawValue) ? rawValue.toLowerCase() : current);
+        return;
+      }
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) return;
+      const clamped = Math.max(definition.min, Math.min(definition.max, value));
+      const step = definition.step || 1;
+      const snapped = snap ? Math.round((clamped - definition.min) / step) * step + definition.min : clamped;
+      const normalized = snap ? Number(snapped.toFixed(digits(step))) : clamped;
+      setPath(rootObject, definition.path, normalized);
+    }
+
+    function readValue(definition) {
+      return pathValue(rootFor(definition.kind), definition.path);
+    }
+
+    function syncRow(definition) {
+      const row = rows.get(definition.path);
+      if (!row) return;
+      const value = readValue(definition);
+      if (row.range) row.range.value = String(value);
+      if (row.number) row.number.value = String(value);
+      if (row.output) row.output.value = format(value, definition);
+      if (row.color) row.color.value = String(value);
+    }
+
+    function serialize() {
+      return {
+        format: 'nereide-terrain-tuning-v1',
+        planetId: preset.planetId,
+        planetName: preset.planetName,
+        seed: preset.seed,
+        seedLocked: preset.seedLocked,
+        planet: clone(preset.planet),
+        terrainSettings: clone(preset.terrainSettings),
+        renderStyle: clone(preset.renderStyle),
+        generatorNotes: { note: 'Les paramètres de bruit présents dans ce preset sont ceux réellement lus par le générateur.' }
+      };
+    }
+
+    function apply(regenerate = false, source = 'manual', rebuild = 'terrain') {
+      if (!preset) return;
+      if (regenerate && rebuild === 'terrain' && source !== 'seed' && source !== 'reset' &&
+          !preset.seedLocked && !seedEdited) {
+        preset.seed = randomSeed();
+        $('terrain-tuner-seed').value = preset.seed;
+      }
+      seedEdited = false;
+      const payload = clone(preset);
+      if (!regenerate) {
+        options.onTerrainTuningApply?.(payload, { regenerate: false, source, rebuild: 'render' });
+        return;
+      }
+      $('terrain-tuner-status').textContent = rebuild === 'surface'
+        ? 'Actualisation du matériau de surface…' : `Régénération · seed ${preset.seed}…`;
+      if (generationQueued) {
+        if (rebuild === 'terrain') queuedRebuild = 'terrain';
+        return;
+      }
+      generationQueued = true;
+      queuedRebuild = rebuild;
+      requestAnimationFrame(() => setTimeout(() => {
+        generationQueued = false;
+        const actualRebuild = queuedRebuild;
+        const result = options.onTerrainTuningApply?.(clone(preset), { regenerate: true, source,
+          rebuild: actualRebuild });
+        $('terrain-tuner-status').textContent = result?.message ||
+          `Terrain recalculé · seed ${preset.seed} · ${preset.planetName || 'planète'}`;
+      }, 0));
+    }
+
+    function numericControl(definition, parent) {
+      const row = document.createElement('div');
+      row.className = 'terrain-tuner-row';
+      const labels = document.createElement('div');
+      labels.className = 'terrain-tuner-labels';
+      const label = document.createElement('label');
+      const id = `terrain-tuner-${rows.size}`;
+      label.htmlFor = id;
+      label.textContent = definition.label;
+      const output = document.createElement('output');
+      output.value = '';
+      output.setAttribute('aria-live', 'off');
+      labels.append(label, output);
+      const controls = document.createElement('div');
+      controls.className = 'terrain-tuner-controls';
+      const range = document.createElement('input');
+      range.type = 'range'; range.id = id;
+      range.min = String(definition.min); range.max = String(definition.max); range.step = String(definition.step);
+      range.setAttribute('aria-label', definition.label);
+      const number = document.createElement('input');
+      number.type = 'number'; number.min = range.min; number.max = range.max; number.step = 'any';
+      number.setAttribute('aria-label', `${definition.label}, valeur numérique`);
+      controls.append(range, number);
+      row.append(labels, controls); parent.append(row);
+      rows.set(definition.path, { range, number, output });
+
+      range.addEventListener('input', () => {
+        setValue(definition, range.value); syncRow(definition);
+        if (definition.kind === 'render' && definition.live !== false) apply(false, 'render-slider');
+      });
+      range.addEventListener('change', () => {
+        setValue(definition, range.value); syncRow(definition);
+        const rebuild = definition.kind === 'terrain' || definition.kind === 'planet' ? 'terrain' : 'surface';
+        apply(definition.kind !== 'render', `slider:${definition.path}`, rebuild);
+      });
+      number.addEventListener('input', () => {
+        const value = Number(number.value);
+        if (!Number.isFinite(value)) return;
+        if (value < definition.min || value > definition.max) return;
+        setValue(definition, value, false);
+        range.value = String(value); output.value = format(value, definition);
+        if (definition.kind === 'render' && definition.live !== false) apply(false, 'render-number');
+      });
+      number.addEventListener('change', () => {
+        setValue(definition, number.value, false); syncRow(definition);
+        const rebuild = definition.kind === 'terrain' || definition.kind === 'planet' ? 'terrain' : 'surface';
+        apply(definition.kind !== 'render', `number:${definition.path}`, rebuild);
+      });
+      syncRow(definition);
+    }
+
+    function colorControl(definition, parent) {
+      const row = document.createElement('div');
+      row.className = 'terrain-tuner-row terrain-tuner-color-row';
+      const label = document.createElement('label');
+      const id = `terrain-tuner-${rows.size}`;
+      label.htmlFor = id; label.textContent = definition.label;
+      const color = document.createElement('input'); color.type = 'color'; color.id = id;
+      color.setAttribute('aria-label', definition.label);
+      row.append(label, color); parent.append(row);
+      rows.set(definition.path, { color });
+      color.addEventListener('input', () => { setValue(definition, color.value); apply(false, 'render-color'); });
+      color.addEventListener('change', () => { setValue(definition, color.value); apply(false, 'render-color'); });
+      syncRow(definition);
+    }
+
+    function buildGroups() {
+      rows.clear(); groupsContainer.replaceChildren();
+      const groups = new Map();
+      for (const definition of definitions) {
+        let group = groups.get(definition.group);
+        if (!group) {
+          group = document.createElement('details');
+          group.className = 'terrain-tuner-group';
+          group.open = groups.size === 0;
+          const summary = document.createElement('summary'); summary.textContent = definition.group;
+          const content = document.createElement('div'); content.className = 'terrain-tuner-group-content';
+          group.append(summary, content); groupsContainer.append(group); groups.set(definition.group, content);
+          group = content;
+        }
+        if (definition.type === 'color') colorControl(definition, group);
+        else numericControl(definition, group);
+      }
+      const note = document.createElement('p');
+      note.className = 'terrain-tuner-note';
+      note.textContent = 'Le générateur n’a pas de paramètre de terracing ou de lissage séparé de l’érosion thermique. Le shader n’a pas de roughness terrain : la netteté spéculaire de l’eau se règle par sa puissance de reflet.';
+      groupsContainer.append(note);
+    }
+
+    function syncHeader() {
+      $('terrain-tuner-seed').value = preset?.seed ?? '';
+      $('terrain-tuner-seed-lock').checked = preset?.seedLocked !== false;
+      $('terrain-tuner-context').textContent = preset
+        ? `${preset.planetName || 'Planète'} · ${preset.planetId} · réglages temporaires à la session`
+        : 'Choisissez une planète solide pour régler son terrain.';
+      $('terrain-tuner-open-surface').hidden = Boolean(options.getTerrainTuningContext?.()?.surfaceActive);
+      for (const definition of definitions) syncRow(definition);
+    }
+
+    function defaultsFor(context) {
+      const planet = context.planet;
+      const terrainSettings = clone(context.terrainSettings);
+      if (!Number.isFinite(terrainSettings.seaLevel)) terrainSettings.seaLevel = 102;
+      return {
+        format: 'nereide-terrain-tuning-v1',
+        planetId: planet.id,
+        planetName: planet.name || planet.label || planet.id,
+        seed: String(planet.seed ?? ''),
+        seedLocked: true,
+        planet: {
+          geology: Number.isFinite(planet.geology) ? planet.geology : .5,
+          surfaceWater: Number.isFinite(planet.terrainWater) ? planet.terrainWater :
+            Number.isFinite(planet.surfaceWater) ? planet.surfaceWater : .4,
+          temperature: Number.isFinite(planet.temperature) ? planet.temperature : 16
+        },
+        terrainSettings,
+        renderStyle: clone(context.globeStyle)
+      };
+    }
+
+    function open() {
+      const context = options.getTerrainTuningContext?.();
+      if (context?.planet) {
+        if (!preset || preset.planetId !== context.planet.id) {
+          defaults = defaultsFor(context); preset = clone(defaults); planetId = context.planet.id;
+          buildGroups(); $('terrain-tuner-status').textContent = 'Prêt';
+        }
+        syncHeader();
+      } else {
+        preset = null; defaults = null; planetId = null; rows.clear(); groupsContainer.replaceChildren();
+        $('terrain-tuner-context').textContent = 'Sélectionnez une planète solide dans un système pour commencer.';
+        $('terrain-tuner-status').textContent = 'Aucune planète active';
+        $('terrain-tuner-open-surface').hidden = true;
+        $('terrain-tuner-seed').value = '';
+      }
+      panel.hidden = false;
+    }
+
+    $('terrain-tuner-seed').addEventListener('input', event => {
+      if (!preset) return;
+      preset.seed = event.target.value.slice(0, 64); seedEdited = true;
+    });
+    $('terrain-tuner-seed').addEventListener('change', () => apply(true, 'seed'));
+    $('terrain-tuner-seed-lock').addEventListener('change', event => {
+      if (preset) preset.seedLocked = event.target.checked;
+    });
+    $('terrain-tuner-seed-random').addEventListener('click', () => {
+      if (!preset) return;
+      preset.seed = randomSeed(); preset.seedLocked = true; seedEdited = true; syncHeader(); apply(true, 'seed');
+    });
+    $('terrain-tuner-regenerate').addEventListener('click', () => apply(true, 'manual'));
+    $('terrain-tuner-reset').addEventListener('click', () => {
+      if (!defaults) return;
+      preset = clone(defaults); preset.seedLocked = true; syncHeader(); apply(true, 'reset');
+    });
+    $('terrain-tuner-collapse').addEventListener('click', () => {
+      const collapsed = panel.classList.toggle('is-collapsed');
+      $('terrain-tuner-collapse').textContent = collapsed ? '+' : '−';
+      $('terrain-tuner-collapse').setAttribute('aria-label', collapsed ? 'Déplier le réglage terrain' : 'Replier le réglage terrain');
+      body.hidden = collapsed;
+    });
+    $('terrain-tuner-close').addEventListener('click', () => { panel.hidden = true; });
+    $('terrain-tuner-copy').addEventListener('click', async () => {
+      if (!preset) return;
+      const text = JSON.stringify(serialize(), null, 2);
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+        else {
+          const textarea = document.createElement('textarea'); textarea.value = text;
+          textarea.style.position = 'fixed'; textarea.style.opacity = '0'; document.body.append(textarea);
+          textarea.select(); document.execCommand('copy'); textarea.remove();
+        }
+        $('terrain-tuner-status').textContent = 'Preset JSON copié';
+      } catch (_) { $('terrain-tuner-status').textContent = 'Copie indisponible · utilisez Export JSON'; }
+    });
+    $('terrain-tuner-export').addEventListener('click', () => {
+      if (!preset) return;
+      const blob = new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob), anchor = document.createElement('a');
+      anchor.href = url; anchor.download = `terrain-${preset.planetId}-${preset.seed}.json`; anchor.click();
+      URL.revokeObjectURL(url);
+      $('terrain-tuner-status').textContent = 'Preset JSON exporté';
+    });
+    $('terrain-tuner-open-surface').addEventListener('click', () => options.onTerrainTuningEnterSurface?.());
+
+    return Object.freeze({ open });
+  }
+
+  root.OrbitTerrainTuner = Object.freeze({ create, definitions });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   function create(document, options = {}) {
     const settings = root.OrbitDeveloperSettings;
     const $ = id => document.getElementById(id);
     const container = $('developer-options');
     const diagnostics = root.OrbitTerrainDiagnostics.create(document, options);
+    const terrainTuner = root.OrbitTerrainTuner.create(document, options);
     const controls = new Map();
     const groups = new Map();
 
@@ -9982,6 +10720,11 @@ globalThis.OrbitVersion = "0.35.5";
     $('terrain-diagnostics-open').addEventListener('click', () => {
       $('developer-dialog').close(); diagnostics.open();
     });
+    $('terrain-tuner-open').addEventListener('click', () => {
+      $('developer-dialog').close();
+      options.onTerrainTuningOpen?.();
+      terrainTuner.open();
+    });
     $('developer-reset').addEventListener('click', () => settings.reset());
     settings.subscribe(updateControl);
 
@@ -10017,6 +10760,7 @@ globalThis.OrbitVersion = "0.35.5";
   const GlobeProjection = globalThis.OrbitPlanetGlobeProjection;
   const GlobeStyle = globalThis.OrbitPlanetGlobeStyle;
   const globeCamera = globalThis.OrbitPlanetGlobeCamera.create(GlobeStyle.camera);
+  let terrainTuningPreset = null, terrainPreviewRecord = null, terrainTuningTarget = null;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const pointers = new Map();
@@ -10028,7 +10772,10 @@ globalThis.OrbitVersion = "0.35.5";
   });
   const hud = globalThis.OrbitHUD.create(document);
   globalThis.OrbitDeveloperTools.create(document, {
-    getTerrain: () => state.planet ? { terrain: prepareTerrain(state.planet).data, planet: state.planet } : null
+    getTerrain: () => state.planet ? { terrain: prepareTerrain(state.planet).data, planet: state.planet } : null,
+    getTerrainTuningContext: terrainTuningContext,
+    onTerrainTuningApply: applyTerrainTuning,
+    onTerrainTuningEnterSurface: enterTerrainTuningSurface
   });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -10129,7 +10876,84 @@ globalThis.OrbitVersion = "0.35.5";
   function planetWorldPosition(planet, context = state.context) {
     return Camera.worldPoint(context.frame, World.planetPosition(planet, state.simulation.time));
   }
+  function locateTuningPlanet(id) {
+    if (!id) return null;
+    if (state.context) {
+      const planet = state.context.model.planets.find(candidate => candidate.id === id);
+      if (planet) return { planet, context: state.context };
+    }
+    for (const context of contexts.values()) {
+      const planet = context.model.planets.find(candidate => candidate.id === id);
+      if (planet) return { planet, context };
+    }
+    return null;
+  }
+  function terrainTuningContext() {
+    const selectedPlanet = state.context?.model.planets.find(candidate => candidate.id === state.selected?.id);
+    const planet = state.planet || state.focusPlanet || selectedPlanet;
+    if (!planet || planet.kind === 'gazeuse') return null;
+    const found = locateTuningPlanet(planet.id);
+    if (!found) return null;
+    terrainTuningTarget = found;
+    return { ...found, terrainSettings: globalThis.OrbitWorldgenData.terrain,
+      globeStyle: GlobeStyle, surfaceActive: state.level === 'surface' && state.planet?.id === planet.id };
+  }
+  function applyTerrainTuning(preset, { regenerate = false, rebuild = 'terrain' } = {}) {
+    if (!preset?.planetId) return { message: 'Aucune planète sélectionnée' };
+    const target = locateTuningPlanet(preset.planetId) || terrainTuningTarget;
+    if (!target || target.planet.id !== preset.planetId) return { message: 'Planète cible introuvable' };
+    terrainTuningTarget = target;
+    terrainTuningPreset = { planetId: preset.planetId, seed: preset.seed,
+      renderStyle: preset.renderStyle };
+    if (!regenerate) return { message: 'Shading appliqué en temps réel' };
+    if (rebuild === 'surface') {
+      prepareTerrain(target.planet, target.context);
+      return { message: 'Matériau polaire actualisé' };
+    }
+    const planet = { ...target.planet, seed: preset.seed,
+      geology: preset.planet.geology, temperature: preset.planet.temperature,
+      terrainWater: preset.planet.surfaceWater, surfaceWater: preset.planet.surfaceWater };
+    const data = World.createTerrain(preset.seed, Config.terrain.width, Config.terrain.height,
+      planet, preset.terrainSettings);
+    data.debugTuning = true;
+    terrainPreviewRecord = { planetId: planet.id, data, planet, roadCostField: null, tuned: true };
+    terrainData = data;
+    return { message: `Terrain recalculé · seed ${preset.seed} · ${planet.name || planet.id}` };
+  }
+  function enterTerrainTuningSurface() {
+    const target = terrainTuningTarget || terrainTuningContext();
+    if (!target) { toast('Sélectionnez une planète solide avant d’ouvrir sa surface.'); return; }
+    if (state.level === 'galaxy') {
+      state.context = target.context; state.system = target.context.model; state.level = 'system';
+      state.focusPlanet = target.planet; state.selected = target.planet;
+      followPlanet(target.planet, target.context);
+      const position = planetWorldPosition(target.planet, target.context);
+      const radius = target.planet.radius * target.context.frame.scale;
+      focusCamera(position.x, position.y, 130 / Math.max(1e-9, radius), true);
+      return;
+    }
+    if (state.context?.star.id !== target.context.star.id) {
+      state.context = target.context; state.system = target.context.model;
+    }
+    if (state.level === 'system') {
+      state.selected = target.planet;
+      enterPlanet();
+    }
+  }
+  function activeGlobeStyle() {
+    return terrainTuningPreset && terrainTuningPreset.planetId === state.planet?.id
+      ? terrainTuningPreset.renderStyle : GlobeStyle;
+  }
+  function activeGlobePlanet() {
+    return terrainPreviewRecord?.tuned && terrainPreviewRecord.planet?.id === state.planet?.id
+      ? terrainPreviewRecord.planet : state.planet;
+  }
   function prepareTerrain(planet, context = state.context) {
+    if (terrainPreviewRecord?.tuned && terrainPreviewRecord.data &&
+        terrainPreviewRecord.planetId === planet.id) {
+      terrainData = terrainPreviewRecord.data;
+      return terrainPreviewRecord;
+    }
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
       context.terrains.set(planet.id, { data: terrainData, roadCostField: null });
@@ -10183,13 +11007,13 @@ globalThis.OrbitVersion = "0.35.5";
   function terrainPointAtScreen(screenX, screenY, planet = state.planet, context = state.context) {
     if (!planet || !context) return null;
     const record = prepareTerrain(planet, context);
-    const point = GlobeProjection.raycastTerrain(screenX, screenY, record.data, globeView(), GlobeStyle.relief);
+    const point = GlobeProjection.raycastTerrain(screenX, screenY, record.data, globeView(), activeGlobeStyle().relief);
     return point ? { x: point.x * Config.terrain.textureScale, y: point.y * Config.terrain.textureScale } : null;
   }
   function projectTerrainPoint(x, y, planet = state.planet, context = state.context, view = globeView()) {
     const record = prepareTerrain(planet, context);
     return GlobeProjection.projectSurfacePoint(x / Config.terrain.textureScale,
-      y / Config.terrain.textureScale, record.data, view, GlobeStyle.relief);
+      y / Config.terrain.textureScale, record.data, view, activeGlobeStyle().relief);
   }
   function systemPlanetScreenPose() {
     if (!state.planet || !state.context) return null;
@@ -10357,7 +11181,8 @@ globalThis.OrbitVersion = "0.35.5";
     terrainData = activeTerrain || terrainData;
     const globeTransition = globeActive ? globeTransitionForFrame(now) : null;
     renderer.render({ state, galaxy, home, contexts, visibleContexts, now,
-      terrainData: activeTerrain, globeView: globeView(), globeTransition });
+      terrainData: activeTerrain, globeView: globeView(), globeTransition,
+      globeStyle: activeGlobeStyle(), globePlanet: activeGlobePlanet() });
     if (state.level !== 'surface' && globeTransition?.mode === 'exit' && !globeTransition.active) globeCamera.clearTransition();
   }
 
@@ -10766,7 +11591,7 @@ globalThis.OrbitVersion = "0.35.5";
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
       const building = renderer.hitTestGlobeBuilding(state.surfaceBuildings, state.planet.id,
-        terrainData, globeView(), x, y);
+        terrainData, globeView(), x, y, activeGlobeStyle());
       if (building) { selectSurfaceBuilding(building); return; }
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
@@ -11019,6 +11844,7 @@ globalThis.OrbitVersion = "0.35.5";
     if (e.key === 'Escape') {
       if ($('terrain-diagnostics-dialog').open) { $('terrain-diagnostics-dialog').close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
+      if (!$('terrain-tuner-panel').hidden) { $('terrain-tuner-panel').hidden = true; return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; updateUI(); }
