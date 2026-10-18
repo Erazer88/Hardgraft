@@ -44,8 +44,8 @@
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     const elevation = sampleElevation(x, y, terrain);
     const landHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .024;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.9;
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .052;
+    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.6;
     const mountain = smoothstep(.18, .82, landHeight);
     return 1 + scale * Math.pow(mountain, exponent);
   }
@@ -59,8 +59,8 @@
     const row = north ? 0 : terrain.height - 1;
     const elevation = sampleElevation((terrain.width - 1) / 2, row, terrain);
     const landHeight = clamp((elevation - terrain.seaLevel) / Math.max(1, 255 - terrain.seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .024;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.9;
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .052;
+    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.6;
     const mountain = smoothstep(.18, .82, landHeight);
     const radius = 1 + scale * Math.pow(mountain, exponent);
     const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
@@ -104,7 +104,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .024) + .002;
+    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .052) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 

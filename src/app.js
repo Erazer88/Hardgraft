@@ -56,7 +56,7 @@
   });
   let galaxy, home, terrainData;
   let nextBuildingId = 1;
-  let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
+  let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 3), lastTime = 0;
   let lastHUD = 0, lastAutosave = 0, menuStarted = false, storageWarningShown = false, pinch = null;
   const viewport = { width: W, height: H };
   const contexts = new Map();
@@ -1041,7 +1041,7 @@
     }
   });
   function resize() {
-    W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 3);
     viewport.width = W; viewport.height = H; renderer.resize(W, H, DPR);
     if (galaxy) updateUI();
   }

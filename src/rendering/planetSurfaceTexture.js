@@ -5,7 +5,7 @@
   const Projection = root.OrbitPlanetGlobeProjection;
   const DEFAULT_WIDTH = 1024;
   const DEFAULT_HEIGHT = 512;
-  const MAX_CACHE_ENTRIES = 4;
+  const MAX_CACHE_ENTRIES = 2;
   const textureCache = new Map();
   const noiseKernels = new Map();
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -15,20 +15,20 @@
   };
 
   const PALETTES = Object.freeze({
-    temperate: Object.freeze({ deepOcean: '#0F4C6C', ocean: '#1E6A8C', shallow: '#3A8DA8',
-      coast: '#B8B07E', wetPlain: '#5F8748', plain: '#749654', dryPlain: '#8C8A58',
-      upland: '#7A8158', highland: '#8B8468', rock: '#8A7C6B', highRock: '#A19482',
-      snow: '#D9DDD8', coldSnow: '#C8D6D9', polarIce: '#BFD2D7',
-      seaIce: '#83AEB9', packedSeaIce: '#B5CCD0', iceCrack: '#688D98' }),
-    frozen: Object.freeze({ seaIce: '#6D94A2', packedIce: '#9BBBC6', brightIce: '#CBDDE2',
-      coldRock: '#68777D', darkColdRock: '#4B5D64', ridgeShadow: '#35464D',
-      snow: '#D8E2E4', blueSnow: '#B4CED6', crackTint: '#567F8E', polarCore: '#527C8B' }),
-    arid: Object.freeze({ basin: '#7C4731', lowland: '#A95F3C', plain: '#C57848', sand: '#D28A57',
-      plateau: '#A15C3B', upland: '#8D4F37', rock: '#6F4032', darkRock: '#5B342B',
-      dust: '#E0B289', polarFrost: '#DDD6CA', coldFrost: '#CFC8BD' }),
-    volcanic: Object.freeze({ deepLava: '#7A1F12', lava: '#D94A17', hotLava: '#FF8A2A',
-      coreLava: '#FFD06A', basaltDark: '#2E2524', basalt: '#423230', warmBasalt: '#58423B',
-      ashRock: '#6A5048', emberCrack: '#A92F1E', cooledCrust: '#231C1C' })
+    temperate: Object.freeze({ deepOcean: '#052F54', ocean: '#0A5C83', shallow: '#237F9D',
+      coast: '#DFC67D', wetPlain: '#3F8738', plain: '#69A942', dryPlain: '#A2A04D',
+      upland: '#7F8448', highland: '#AA925D', rock: '#936D4E', highRock: '#C1A179',
+      snow: '#E8F2F4', coldSnow: '#C3DFE9', polarIce: '#A9D7E6',
+      seaIce: '#7FC2D0', packedSeaIce: '#C0E4E8', iceCrack: '#4E8C9B' }),
+    frozen: Object.freeze({ seaIce: '#78B7C9', packedIce: '#B2D4DE', brightIce: '#DDEBF1',
+      coldRock: '#617985', darkColdRock: '#435A64', ridgeShadow: '#2D444C',
+      snow: '#E3EFF3', blueSnow: '#BADCE8', crackTint: '#477D8D', polarCore: '#699CAB' }),
+    arid: Object.freeze({ basin: '#733D28', lowland: '#AA542F', plain: '#D1793E', sand: '#E5A55B',
+      plateau: '#985038', upland: '#8C4730', rock: '#63372D', darkRock: '#432820',
+      dust: '#F0C28B', polarFrost: '#E4DBCD', coldFrost: '#CFC5B6' }),
+    volcanic: Object.freeze({ deepLava: '#7A1B0C', lava: '#E44412', hotLava: '#FF7A1C',
+      coreLava: '#FFD06A', basaltDark: '#211817', basalt: '#382522', warmBasalt: '#5B382C',
+      ashRock: '#79503B', emberCrack: '#B73518', cooledCrust: '#1A1414' })
   });
   const COLOR_PALETTES = Object.freeze(Object.fromEntries(Object.entries(PALETTES).map(([climate, palette]) =>
     [climate, Object.freeze(Object.fromEntries(Object.entries(palette).map(([name, value]) => [name, hexColor(value)])))])));
@@ -101,21 +101,24 @@
   }
 
   function polarIceThreshold(temperature) {
-    // Warmer planets keep ice close to the poles; a colder global climate
-    // moves the mean cap edge toward the equator.
-    return clamp(.88 + ((Number.isFinite(temperature) ? temperature : 16) - 16) * .0035, .50, .975);
+    // The boundary is in angular latitude degrees, so seeded noise remains a
+    // small, controllable displacement instead of a huge shift in sin(latitude).
+    return clamp(76 + ((Number.isFinite(temperature) ? temperature : 16) - 16) * .38, 48, 82);
   }
 
   function polarIceCoverage(nx, ny, nz, temperature, seed) {
     const threshold = polarIceThreshold(temperature);
-    const absoluteLatitude = Math.abs(ny);
-    if (absoluteLatitude < threshold - .18) return 0;
-    const broadBoundary = fbm3(nx * 3.25, ny * 3.25, nz * 3.25, seed ^ 0x2b79a4d1, 3);
+    const absoluteLatitude = Math.asin(clamp(Math.abs(ny), 0, 1)) * 180 / Math.PI;
+    if (absoluteLatitude < threshold - 10) return 0;
+    const broadBoundary = noise3(nx * 3.8, ny * 3.8, nz * 3.8, seed ^ 0x2b79a4d1) * .58 +
+      noise3(nx * 7.0, ny * 7.0, nz * 7.0, seed ^ 0x42c8e6f3) * .42;
     const coastBreakup = noise3(nx * 9.2, ny * 9.2, nz * 9.2, seed ^ 0x6c8e9cf5);
-    // Keep the contour away from the singular point so every pole converges
-    // to a clean, fully covered cap regardless of seed.
-    const irregularThreshold = clamp(threshold + broadBoundary * .40 + coastBreakup * .11, .46, .965);
-    return smoothstep(irregularThreshold - .018, irregularThreshold + .018, absoluteLatitude);
+    // Broad noise moves the front by a few degrees; finer noise only breaks
+    // the coast slightly. The pole itself remains fully covered by geometry.
+    const broadDisplacement = clamp(broadBoundary * 24.0, -5.2, 5.2);
+    const coastDisplacement = clamp(coastBreakup * 1.6, -1.2, 1.2);
+    const irregularThreshold = clamp(threshold + broadDisplacement + coastDisplacement, 42, 86);
+    return smoothstep(irregularThreshold - 1.35, irregularThreshold + 1.35, absoluteLatitude);
   }
 
   function createCraters(seed) {
@@ -228,22 +231,16 @@
   }
 
   function finishMaterialColor(climate, base, detail, output, work) {
-    work.tint.hueShift = detail.geology * 6;
-    work.tint.satMul = 1 + detail.fine * .1;
-    work.tint.lightMul = 1 + detail.macro * .08;
-    tintHsl(base, work.tint, work.tinted, work.hsl);
-    rgbToHsl(work.tinted[0], work.tinted[1], work.tinted[2], work.hsl);
-    const hsl = work.hsl;
-    const saturationFloor = hsl[2] > .82 ? Math.min(.08, climateSaturationFloor(climate)) : climateSaturationFloor(climate);
-    const midToneWeight = 1 - smoothstep(.74, .94, hsl[2]);
-    hsl[1] = clamp(Math.max(hsl[1], saturationFloor) * (1 + midToneWeight * .08), saturationFloor, .94);
-    // Separate adjacent materials at the source while preserving the
-    // deliberately restrained hues and preventing ice from clipping white.
-    hsl[2] = clamp(.5 + (hsl[2] - .5) * 1.13, 0, .94);
-    hslToRgb(hsl[0], hsl[1], hsl[2], output);
-    output[0] = clamp(output[0], 0, 245);
-    output[1] = clamp(output[1], 0, 245);
-    output[2] = clamp(output[2], 0, 245);
+    const floor = climateSaturationFloor(climate);
+    const luma = base[0] * .2126 + base[1] * .7152 + base[2] * .0722;
+    const saturation = 1.10 + floor * .10 + detail.fine * .025;
+    const contrast = 1.14;
+    const brightness = 1 + detail.macro * .025 + detail.geology * .012;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const chromatic = luma + (base[channel] - luma) * saturation;
+      output[channel] = clamp((112 + (chromatic - 112) * contrast) * brightness, 0, 255);
+    }
+    output[3] = 0;
   }
 
   function colorFor(climate, elevation, seaLevel, basinLevel, moisture, latitude, detail, temperature,
@@ -296,7 +293,7 @@
         const iceThickness = clamp(.50 + depth * .12 + detail.macro * 1.5 +
           detail.medium * .45 + detail.fine * .18, 0, 1);
         mixInto(base, palette.seaIce, palette.packedIce, iceThickness);
-        mixInto(temporary, base, palette.polarCore, polarCoverage * .60);
+        mixInto(temporary, base, palette.polarCore, polarCoverage * .78);
         copyInto(base, temporary);
       } else {
         if (h < .24) mixInto(base, palette.seaIce, palette.packedIce, .28 + smoothstep(0, .24, h) * .40);
@@ -370,7 +367,8 @@
     const id = String(planet?.id ?? 'planet');
     const planetSeed = String(planet?.seed ?? '0');
     const key = `${id}:${planetSeed}`;
-    const cached = options.cache === false || width !== DEFAULT_WIDTH || height !== DEFAULT_HEIGHT ? null : textureCache.get(key);
+    const cacheKey = `${key}:${width}x${height}`;
+    const cached = options.cache === false ? null : textureCache.get(cacheKey);
     if (cached) {
       textureCache.delete(key); textureCache.set(key, cached);
       return cached;
@@ -390,7 +388,11 @@
     const colorOutput = new Float32Array(4), colorWork = { a: new Float32Array(3),
       b: new Float32Array(3), c: new Float32Array(3),
       hsl: new Float32Array(3), tinted: new Float32Array(3), tint: { hueShift: 0, satMul: 1, lightMul: 1 } };
-    const detailPixels = new Uint8Array(width * height);
+    // R/G encode derivatives from the actual elevation field; B is only
+    // high-frequency spherical microstructure. The shader combines them
+    // with the mesh normal instead of inventing relief from color noise.
+    const detailPixels = new Uint8Array(width * height * 3);
+    const sampledElevation = new Float32Array(width * height);
     const detail = { macro: 0, medium: 0, fine: 0, crack: 0, ridge: 0, lava: 0, geology: 0 };
     const rowDirections = new Array(height), longitudeDirections = new Array(width);
     for (let px = 0; px < width; px += 1) {
@@ -427,11 +429,11 @@
         const mapX = u * (terrain.width - 1);
         const elevation = sampleElevation(mapX, mapY, row.latitude);
         const moisture = sampleMoisture ? sampleMoisture(mapX, mapY, row.latitude) / 255 : .5;
-        const macro = fbm3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed, 2);
+        const macro = noise3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed);
         const medium = noise3(nx * 7, ny * 7, nz * 7, geologySeed);
         const fine = noise3(nx * 24, ny * 24, nz * 24, climate === 'frozen' ? iceSeed : detailSeed);
         const polarCoverage = (climate === 'temperate' || climate === 'frozen' || climate === 'arid') &&
-          Math.abs(ny) >= polarThreshold - .18
+          Math.abs(row.latitude) * 180 / Math.PI >= polarThreshold - 10
           ? polarIceCoverage(nx, ny, nz, temperature, polarSeed) : 0;
         const crater = craters ? craters[offset + px] : 0;
         detail.macro = macro; detail.medium = medium; detail.fine = fine; detail.crack = fine;
@@ -443,13 +445,33 @@
         pixels[index + 1] = Math.round(colorOutput[1]);
         pixels[index + 2] = Math.round(colorOutput[2]);
         pixels[index + 3] = Math.round(colorOutput[3] * 255);
-        const heightDetail = clamp(.5 + medium * .23 + fine * .19, 0, 1);
-        detailPixels[offset + px] = Math.round(heightDetail * 255);
+        sampledElevation[offset + px] = elevation;
+        const detailIndex = (offset + px) * 3;
+        detailPixels[detailIndex + 2] = Math.round(clamp(.5 + fine * .22, 0, 1) * 255);
       }
     }
-    const texture = Object.freeze({ width, height, pixels, detailPixels, key, climate });
-    if (options.cache !== false && width === DEFAULT_WIDTH && height === DEFAULT_HEIGHT) {
-      textureCache.set(key, texture);
+    const xStep = Math.max(1, Math.round(width / Math.max(1, terrain.width)));
+    const yStep = Math.max(1, Math.round(height / Math.max(1, terrain.height)));
+    for (let py = 0; py < height; py += 1) {
+      const row = py * width;
+      const north = Math.max(0, py - yStep) * width;
+      const south = Math.min(height - 1, py + yStep) * width;
+      const latitude = (.5 - py / Math.max(1, height - 1)) * Math.PI;
+      const longitudeCorrection = Math.min(4, 1 / Math.max(.25, Math.cos(latitude)));
+      for (let px = 0; px < width; px += 1) {
+        const leftX = (px - xStep + width) % width;
+        const rightX = (px + xStep) % width;
+        const eastSlope = (sampledElevation[row + rightX] - sampledElevation[row + leftX]) *
+          .5 * longitudeCorrection / 28;
+        const northSlope = (sampledElevation[south + px] - sampledElevation[north + px]) * .5 / 28;
+        const index = (row + px) * 3;
+        detailPixels[index] = Math.round(clamp(.5 + eastSlope * .5, 0, 1) * 255);
+        detailPixels[index + 1] = Math.round(clamp(.5 + northSlope * .5, 0, 1) * 255);
+      }
+    }
+    const texture = Object.freeze({ width, height, pixels, detailPixels, key: cacheKey, climate });
+    if (options.cache !== false) {
+      textureCache.set(cacheKey, texture);
       while (textureCache.size > MAX_CACHE_ENTRIES) textureCache.delete(textureCache.keys().next().value);
     }
     return texture;

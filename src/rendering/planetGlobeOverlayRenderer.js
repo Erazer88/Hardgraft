@@ -14,7 +14,7 @@
     const graticuleCache = new WeakMap();
 
     function resize(nextWidth, nextHeight, ratio) {
-      width = Math.max(1, nextWidth); height = Math.max(1, nextHeight); dpr = Math.min(2, ratio || 1);
+      width = Math.max(1, nextWidth); height = Math.max(1, nextHeight); dpr = Math.min(3, ratio || 1);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

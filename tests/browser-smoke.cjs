@@ -158,7 +158,7 @@ async function launchChrome(profile) {
 
 async function enterSurface(cdp, viewport, name) {
   const { width, height, mobile } = viewport;
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile,
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 3 : 1, mobile,
     screenWidth: width, screenHeight: height });
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: 2 });
   await cdp.send('Page.navigate', { url: BASE_URL });
@@ -199,7 +199,13 @@ async function enterSurface(cdp, viewport, name) {
   await cdp.click('#enter-button');
   await cdp.until('window.OrbitalDebug.getState().level === "surface" && window.OrbitalDebug.getPlanetGlobeMetrics().transition === null',
     `${name} system-to-globe transition`, 30000);
-  await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.vertices > 0', `${name} globe mesh upload`);
+  try {
+    await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.vertices > 0', `${name} globe mesh upload`, 30000);
+  } catch (error) {
+    const state = await cdp.evaluate(`({ metrics: OrbitalDebug.getPlanetGlobeMetrics(),
+      error: document.querySelector('#planet-globe-error').textContent, resolution: devicePixelRatio })`);
+    throw new Error(`${error.message}; WebGL diagnostics: ${JSON.stringify(state)}`);
+  }
   const metrics = await cdp.evaluate(`({ globe: window.OrbitalDebug.getPlanetGlobeMetrics(),
     webgl: document.querySelector('#planet-globe').style.display,
     overlay: document.querySelector('#planet-globe-overlay').style.display,
@@ -210,8 +216,10 @@ async function enterSurface(cdp, viewport, name) {
   assert.equal(metrics.overlay, 'block', `${name} projected cartographic overlay is visible`);
   assert.equal(metrics.error, true, `${name} WebGL2 fallback message is hidden when rendering succeeds`);
   assert.ok(metrics.globe.renderer.vertices >= 18000, `${name} globe reuses the expected mobile mesh resolution`);
-  assert.equal(metrics.globe.renderer.textureWidth, 1024, `${name} globe uses the seeded procedural surface texture`);
-  assert.equal(metrics.globe.renderer.textureHeight, 512, `${name} surface texture keeps the requested mobile-safe resolution`);
+  assert.ok([1024, 2048].includes(metrics.globe.renderer.textureWidth), `${name} globe uses an adaptive seeded surface texture`);
+  assert.equal(metrics.globe.renderer.textureHeight, metrics.globe.renderer.textureWidth / 2,
+    `${name} adaptive surface texture preserves the equirectangular ratio`);
+  assert.equal(metrics.globe.renderer.dpr, mobile ? 3 : 1, `${name} globe rendering honors the mobile DPR cap of 3`);
   assert.equal(metrics.overflow <= 1, true, `${name} layout has no horizontal overflow`);
   return { planet, mobile, width, height };
 }
@@ -240,7 +248,17 @@ async function placeStorage(cdp, mobile, spacing = 0, nearBuildingId = null, max
 async function runViewport(cdp, viewport, errors) {
   const { name, mobile, width, height } = viewport;
   await enterSurface(cdp, viewport, name);
+  if (process.env.ORBITAL_BROWSER_CAPTURE_ZOOM === '1') {
+    assert.equal(mobile, false, 'the large-texture visual capture uses the desktop viewport');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: width / 2, y: height / 2, deltaX: 0, deltaY: -200 });
+    await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.textureWidth === 2048',
+      `${name} globe upgrades to its large adaptive texture`, 60000);
+  }
   await cdp.screenshot(`${name}-planet-globe.png`);
+  if (process.env.ORBITAL_BROWSER_CAPTURE_ONLY === '1') {
+    process.stdout.write(`CAPTURE ${name}: globe frame saved for visual review\n`);
+    return;
+  }
   const center = { x: width / 2, y: height / 2 };
   const beforeRotate = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera');
   await cdp.drag({ x: center.x - 44, y: center.y }, { x: center.x + 50, y: center.y + 26 }, mobile);
