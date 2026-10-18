@@ -150,10 +150,11 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   assert.ok(iceSea[0] > 130 && Math.abs(iceSea[2] - iceSea[1]) < 60,
     'frozen basins are pale blue-gray ice rather than liquid ocean');
   assert.ok(aridBasin[0] > aridBasin[2], 'arid basins use a dry warm palette');
-  assert.ok(lavaBasin[0] > lavaBasin[1] && volcanic.pixels.some((value, index) => index % 4 === 3 && value > 0),
-    'volcanic basins show orange lava with a restrained emission mask');
-  assert.ok(first.pixels.every((value, index) => index % 4 !== 3 || value === 0),
-    'non-volcanic alpha is reserved for no emission');
+  assert.ok(lavaBasin[0] > lavaBasin[1], 'volcanic basins show orange-red lava as a surface material');
+  for (const texture of [first, frozen, arid, volcanic]) {
+    assert.ok(texture.pixels.every((value, index) => index % 4 !== 3 || value === 0),
+      'terrain materials do not carry an emission/glow channel');
+  }
   assert.ok(first.pixels.every((value, index) => index % 4 === 3 || value <= 245),
     'the procedural terrain texture stays below white before lighting');
   for (const texture of [first, frozen, arid, volcanic]) {
@@ -168,10 +169,32 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   }
 });
 
+test('surface palettes keep climate materials separated and HSL tints bounded', () => {
+  const { OrbitPlanetSurfaceTexture: textures } = loadGlobeContext();
+  assert.equal(textures.palettes.temperate.deepOcean, '#0F4C6C');
+  assert.equal(textures.palettes.temperate.wetPlain, '#5F8748');
+  assert.equal(textures.palettes.frozen.seaIce, '#A9C2CB');
+  assert.equal(textures.palettes.arid.darkRock, '#5B342B');
+  assert.equal(textures.palettes.volcanic.basaltDark, '#2E2524');
+  assert.equal(textures.palettes.volcanic.coreLava, '#FFD06A');
+
+  const source = [116, 150, 84];
+  const hsl = textures.rgbToHsl(...source, new Float32Array(3));
+  const roundTrip = textures.hslToRgb(...hsl, new Float32Array(3));
+  assert.ok(roundTrip.every((value, index) => Math.abs(value - source[index]) < 1e-4));
+  const tinted = textures.tintHsl(source, { hueShift: 3, satMul: 1.05, lightMul: 1.04 });
+  const tintedHsl = textures.rgbToHsl(...tinted, new Float32Array(3));
+  assert.ok(tintedHsl[0] - hsl[0] <= 3.001);
+  assert.ok(tintedHsl[1] <= hsl[1] * 1.051);
+  assert.ok(tintedHsl[2] <= hsl[2] * 1.041);
+});
+
 test('globe shader clamps light, shades from a seeded detail texture, and fades polar detail', () => {
   const source = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
-  assert.match(source, /float lighting = 0\.82 \+ diffuse \* 0\.22;/);
-  assert.match(source, /lighting = clamp\(lighting, 0\.78, 1\.04\);/);
+  assert.match(source, /float lighting = 0\.84 \+ diffuse \* 0\.18;/);
+  assert.match(source, /lighting = clamp\(lighting, 0\.84, 1\.03\);/);
+  assert.doesNotMatch(source, /color \+= vec3\(1\.0, 0\.14, 0\.025\)/,
+    'the fragment shader does not add white/orange emission to terrain');
   assert.match(source, /uniform sampler2D uDetailTexture;/);
   assert.match(source, /uNormalDetailStrength \* 8\.0 \* polarDetailFade/);
   assert.match(source, /smoothstep\(uSeaLevel - 1\.5, uSeaLevel \+ 1\.5, vElevation\)/);

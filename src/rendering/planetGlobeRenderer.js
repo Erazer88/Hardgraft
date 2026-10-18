@@ -86,10 +86,9 @@
       float diffuse = max(dot(normalize(normal), lightDirection), 0.0);
       vec4 surface = texture(uSurfaceTexture, vUv);
       vec3 base = surface.rgb;
-      float lighting = 0.82 + diffuse * 0.22;
-      lighting = clamp(lighting, 0.78, 1.04);
+      float lighting = 0.84 + diffuse * 0.18;
+      lighting = clamp(lighting, 0.84, 1.03);
       vec3 color = base * lighting;
-      color += vec3(1.0, 0.14, 0.025) * surface.a * 0.18;
       float land = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
       float minorLevel = (vElevation - uSeaLevel) / uContourInterval;
       float majorLevel = (vElevation - uSeaLevel) / uMajorInterval;
@@ -100,7 +99,7 @@
       float minorLine = (1.0 - smoothstep(0.0, minorWidth, minorDistance)) * land;
       float majorLine = (1.0 - smoothstep(0.0, majorWidth, majorDistance)) * land;
       float contour = max(minorLine * uContourOpacity, majorLine * uMajorOpacity) * coastline;
-      color = mix(color, vec3(0.075, 0.12, 0.11), contour);
+      color = mix(color, color * 0.72, contour);
       outColor = vec4(color, uOpacity);
     }`;
 
