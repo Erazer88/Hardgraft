@@ -16,3 +16,20 @@ et ne reçoit qu'une faible influence interpolée des plaques.
 
 Validation A : `node --test tests/tectonics.test.cjs` (4 tests). L'ajout de ce modèle
 n'a pas modifié la génération d'elevation v7 à cette étape.
+
+## B — nouvelle hauteur, sans érosion
+
+`terrainElevation.js` compose base continentale basse fréquence, variation régionale,
+uplift et subsidence. Un faible déplacement 3D est appliqué aux champs tectoniques
+déjà construits. La conversion en Uint8 conserve le quantile surfacique et comprime
+la plage verticale si nécessaire, sans saturer les sommets.
+
+L'examen des cartes brutes a révélé des coupures aux jonctions de plaques. Le modèle
+combine maintenant les paires proches avec un support continu, au lieu de couper
+l'influence lors d'un changement de seconde/troisième plaque. Un test vérifie ce
+raccord à plusieurs jonctions. Les IDs restent un Voronoï strict.
+
+Validation B : 6 tests ciblés et cartes grises de trois graines en 960 × 360 via
+`node tests/terrain-topography-report.cjs`. Aucun changement de texture ou shader.
+Le remplacement du point d'entrée `createTerrain` est différé jusqu'à D pour ne pas
+brancher des champs structurels incomplets pendant les étapes B/C.

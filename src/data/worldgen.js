@@ -40,7 +40,7 @@
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
-        continentalFrequency: 1.65, plateContinentalInfluence: .035,
+        continentalFrequency: 1.2, plateContinentalInfluence: .035,
         motionScale: 1.1, shoulderWidth: .105, coreWidth: .032,
         subductionOffset: .047, trenchWidth: .033, riftWidth: .038,
         continentalCollision: 76, coastalUplift: 62, islandArcUplift: 27,

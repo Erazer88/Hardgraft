@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 function load() {
   const context = vm.createContext({});
-  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js'])
+  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js'])
     vm.runInContext(fs.readFileSync(`${__dirname}/../src/${file}`,'utf8'),context);
   return context;
 }
@@ -69,4 +69,48 @@ test('relative angular motions classify convergent, divergent and shear boundari
   assert.ok(convergent/cn>divergent/dn*1.5,'divergence produces weaker uplift than convergence');
   assert.ok(rift/dn>1,'divergent boundaries include subsidence/rifts');
   assert.ok(active>quiet*1.25,'geology amplifies tectonic activity without covering every plate');
+});
+
+test('B: new elevation is tectonic, deterministic and respects surface-weighted water coverage', () => {
+  const c=load(),T=c.OrbitTectonics,E=c.OrbitTerrainElevation;
+  for(const water of [0,.32,.5,.78]) {
+    const fields=T.create('tectonic-elevation',192,96,{geology:.65});
+    const raw=E.create(fields,'tectonic-elevation');
+    const again=E.create(fields,'tectonic-elevation');
+    equalArrays(raw.rawElevation,again.rawElevation);
+    const result=E.normalize(raw.rawElevation,192,96,water);
+    let wet=0,total=0;
+    for(let y=0;y<96;y++) for(let x=0;x<191;x++) {
+      const weight=Math.cos((.5-y/95)*Math.PI); total+=weight;
+      if(result.elevation[y*192+x]<=result.seaLevel)wet+=weight;
+    }
+    assert.ok(Math.abs(wet/total-water)<.025,`${water}: coverage ${wet/total}`);
+    assert.ok(result.elevation.every(Number.isFinite));
+    for(let y=0;y<96;y++)assert.equal(result.elevation[y*192],result.elevation[y*192+191]);
+    for(const y of [0,95])for(let x=1;x<192;x++)assert.equal(result.elevation[y*192+x],result.elevation[y*192]);
+    assert.ok(result.elevation.every(v=>v<255),'height conversion does not clip summits into flat saturated caps');
+  }
+  const a=T.create('terrain-a',96,48),b=T.create('terrain-b',96,48);
+  assert.notDeepEqual(Array.from(E.create(a,'terrain-a').rawElevation),Array.from(E.create(b,'terrain-b').rawElevation));
+});
+
+test('B: uplift stays continuous where the second-nearest plate changes at a junction', () => {
+  const c=load(),T=c.OrbitTectonics,model=T.createModel('junction-continuity',{geology:.9});
+  let checked=0;
+  const middle=(a,b)=>{const x=a.x+b.x,y=a.y+b.y,z=a.z+b.z,l=Math.hypot(x,y,z);return{x:x/l,y:y/l,z:z/l};};
+  for(let y=2;y<46 && checked<30;y++)for(let x=0;x<95 && checked<30;x++) {
+    let a=c.OrbitWorld.directionForPixel(x,y,96,48),b=c.OrbitWorld.directionForPixel(x+1,y,96,48);
+    let sa=T.sample(model,a,{}),sb=T.sample(model,b,{});
+    if(sa.plateId!==sb.plateId || sa.secondaryPlateId===sb.secondaryPlateId)continue;
+    const first=sa.plateId,second=sa.secondaryPlateId;
+    for(let k=0;k<20;k++) {
+      const m=middle(a,b),sm=T.sample(model,m,{});
+      if(sm.secondaryPlateId===second){a=m;sa=sm;}else{b=m;sb=sm;}
+    }
+    if(sa.plateId!==first || sb.plateId!==first)continue;
+    assert.ok(Math.abs(sa.tectonicUplift-sb.tectonicUplift)<.02,
+      `junction ${checked} changes uplift by ${Math.abs(sa.tectonicUplift-sb.tectonicUplift)}`);
+    checked++;
+  }
+  assert.ok(checked>=10,'inspect multiple runner-up transitions rather than just an arbitrary point');
 });

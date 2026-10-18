@@ -59,7 +59,7 @@
     const rotationAxis = randomDirection(random), rotationAngle = random() * TAU;
     const plates = [], jitter = settings.seedJitter / Math.sqrt(count);
     const continentalAt = p => clamp(.5 + fbm(noise, p.x * settings.continentalFrequency + 17.3,
-      p.y * settings.continentalFrequency - 8.7, p.z * settings.continentalFrequency + 3.1, 3) * 1.05, 0, 1);
+      p.y * settings.continentalFrequency - 8.7, p.z * settings.continentalFrequency + 3.1, 2) * 1.05, 0, 1);
     for (let i = 0; i < count; i++) {
       const y = 1 - 2 * (i + .5) / count, a = i * Math.PI * (3 - Math.sqrt(5)), r = Math.sqrt(1-y*y);
       let p = rotate({ x: r*Math.cos(a), y, z: r*Math.sin(a) }, rotationAxis, rotationAngle);
@@ -72,59 +72,77 @@
         omega: { x: axis.x*speed, y: axis.y*speed, z: axis.z*speed },
         crustType: continentality >= .48 ? 'continental' : 'oceanic', continentality });
     }
-    return { seed: modelSeed, plates, geology, settings, noise, detailNoise, continentalAt };
+    const pairs = new Array(count*count);
+    for(let i=0;i<count;i++)for(let j=i+1;j<count;j++) {
+      const A=plates[i],B=plates[j],bx=B.direction.x-A.direction.x,by=B.direction.y-A.direction.y,bz=B.direction.z-A.direction.z;
+      pairs[i*count+j]={bx,by,bz,spacing:Math.max(.1,Math.hypot(bx,by,bz)),
+        ox:B.omega.x-A.omega.x,oy:B.omega.y-A.omega.y,oz:B.omega.z-A.omega.z,
+        ca:A.crustType==='continental',cb:B.crustType==='continental'};
+    }
+    return { seed: modelSeed, plates, pairs, geology, settings, noise, detailNoise, continentalAt };
   }
   function velocityAt(plate, p) { return cross(plate.omega, p); }
 
-  // The nearest pair defines a boundary source, not a mandatory mountain.
-  function sample(model, p, out = {}) {
-    let first = 0, second = 1, best = -Infinity, runnerUp = -Infinity, weighted = 0, weights = 0;
-    for (let i = 0; i < model.plates.length; i++) {
-      const plate = model.plates[i], score = dot(p, plate.direction);
-      if (score > best) { runnerUp = best; second = first; best = score; first = i; }
-      else if (score > runnerUp) { runnerUp = score; second = i; }
-      const w = Math.max(0, score + .18) ** 4;
-      weighted += w * plate.continentality; weights += w;
-    }
-    const A = model.plates[first], B = model.plates[second], s = model.settings;
-    const bx = B.direction.x-A.direction.x, by = B.direction.y-A.direction.y, bz = B.direction.z-A.direction.z;
-    const radial = bx*p.x + by*p.y + bz*p.z;
-    const nx = bx-radial*p.x, ny = by-radial*p.y, nz = bz-radial*p.z;
-    const nLength = Math.hypot(nx,ny,nz) || 1;
-    const ox = B.omega.x-A.omega.x, oy = B.omega.y-A.omega.y, oz = B.omega.z-A.omega.z;
-    const vx = oy*p.z-oz*p.y, vy = oz*p.x-ox*p.z, vz = ox*p.y-oy*p.x;
-    const motion = (vx*nx + vy*ny + vz*nz) / nLength;
-    const convergence = clamp(-motion/s.motionScale, 0, 1), divergence = clamp(motion/s.motionScale, 0, 1);
-    const shear = Math.sqrt(Math.max(0, vx*vx+vy*vy+vz*vz-motion*motion)) / s.motionScale;
-    const distance = (best-runnerUp) / Math.max(.1, Math.hypot(bx,by,bz));
-    const shoulder = gaussian(distance/s.shoulderWidth), core = gaussian(distance/s.coreWidth);
-    const ca = A.crustType === 'continental', cb = B.crustType === 'continental';
-    const activity = .38 + model.geology * .95;
-    let uplift = 0, subsidence = 0;
-    if (ca && cb) {
-      uplift = convergence * s.continentalCollision * (shoulder*.74 + core*.26);
-      subsidence = divergence * s.riftDepth * gaussian(distance/s.riftWidth);
-    } else if (ca || cb) {
-      const continentalSide = (ca ? 1 : -1) * distance;
-      const coastal = gaussian((continentalSide-s.subductionOffset)/(s.shoulderWidth*.85));
-      const trench = gaussian((continentalSide+s.subductionOffset)/s.trenchWidth);
-      uplift = convergence * s.coastalUplift * coastal;
-      subsidence = convergence * s.trenchDepth * trench + divergence * s.riftDepth*.65*core;
+  function boundarySource(model, p, i, j, best, scores, out) {
+    const s=model.settings,{bx,by,bz,spacing,ox,oy,oz,ca,cb}=model.pairs[i*model.plates.length+j];
+    const radial=bx*p.x+by*p.y+bz*p.z;
+    const nx=bx-radial*p.x, ny=by-radial*p.y, nz=bz-radial*p.z, nLength=Math.hypot(nx,ny,nz)||1;
+    const vx=oy*p.z-oz*p.y, vy=oz*p.x-ox*p.z, vz=ox*p.y-oy*p.x;
+    const motion=(vx*nx+vy*ny+vz*nz)/nLength;
+    const convergence=clamp(-motion/s.motionScale,0,1), divergence=clamp(motion/s.motionScale,0,1);
+    const distance=Math.abs(scores[i]-scores[j])/spacing;
+    const ownerDistance=Math.max(0,best-Math.max(scores[i],scores[j]))/spacing;
+    const owner=gaussian(ownerDistance/(s.shoulderWidth*.65));
+    const shoulder=gaussian(distance/s.shoulderWidth), core=gaussian(distance/s.coreWidth);
+    let uplift=0,subsidence=0;
+    if(ca&&cb) {
+      uplift=convergence*s.continentalCollision*(shoulder*.74+core*.26);
+      subsidence=divergence*s.riftDepth*gaussian(distance/s.riftWidth);
+    } else if(ca||cb) {
+      const continentalSide=(ca?1:-1)*(scores[i]-scores[j])/spacing;
+      uplift=convergence*s.coastalUplift*gaussian((continentalSide-s.subductionOffset)/(s.shoulderWidth*.85));
+      subsidence=convergence*s.trenchDepth*gaussian((continentalSide+s.subductionOffset)/s.trenchWidth)+divergence*s.riftDepth*.65*core;
     } else {
-      uplift = convergence * s.islandArcUplift * shoulder*.65 + divergence * s.oceanRidgeUplift * shoulder;
-      subsidence = convergence * s.trenchDepth * core;
+      uplift=convergence*s.islandArcUplift*shoulder*.65+divergence*s.oceanRidgeUplift*shoulder;
+      subsidence=convergence*s.trenchDepth*core;
     }
-    // Small along-front variation adds summits only where a tectonic source exists.
-    const summit = .84 + model.detailNoise(p.x*9.1+2.7,p.y*9.1-5.3,p.z*9.1+7.6)*.22;
-    out.plateId = first; out.secondaryPlateId = second;
-    out.boundaryDistanceProxy = best-runnerUp; out.boundaryInfluence = shoulder;
-    out.convergence = convergence*shoulder; out.divergence = divergence*shoulder;
-    out.shear = clamp(shear*shoulder, 0, 1);
-    out.tectonicUplift = uplift*activity*summit;
-    out.tectonicSubsidence = subsidence*activity;
-    out.continentalField = clamp(model.continentalAt(p) +
-      (weighted/Math.max(1e-9,weights)-.5)*s.plateContinentalInfluence, 0, 1);
-    out.broadTerrain = fbm(model.detailNoise,p.x*4.3+9.2,p.y*4.3-3.4,p.z*4.3+5.8)*8;
+    out.weight=owner*shoulder;out.uplift=uplift;out.subsidence=subsidence;
+    out.convergence=convergence;out.divergence=divergence;
+    out.shear=clamp(Math.sqrt(Math.max(0,vx*vx+vy*vy+vz*vz-motion*motion))/s.motionScale,0,1);
+  }
+  // Blend only nearby pairs with compact, smooth ownership at junctions. Plate IDs are Voronoi cells,
+  // geological source fields remain continuous when the runner-up changes.
+  function sample(model, p, out = {}) {
+    let first=0,second=1,third=2,best=-Infinity,runner=-Infinity,thirdScore=-Infinity,weighted=0,weights=0;
+    const scores=model.scores||(model.scores=new Float64Array(model.plates.length));
+    for(let i=0;i<model.plates.length;i++) {
+      const plate=model.plates[i],score=dot(p,plate.direction);scores[i]=score;
+      if(score>best){third=second;thirdScore=runner;second=first;runner=best;first=i;best=score;}
+      else if(score>runner){third=second;thirdScore=runner;second=i;runner=score;}
+      else if(score>thirdScore){third=i;thirdScore=score;}
+      const w=Math.max(0,score+.18)**4;weighted+=w*plate.continentality;weights+=w;
+    }
+    const source=model.sourceScratch||(model.sourceScratch={});
+    const candidates=model.candidates||(model.candidates=new Uint8Array(model.plates.length));
+    let candidateCount=0;
+    for(let i=0;i<model.plates.length;i++)if(best-scores[i]<.22)candidates[candidateCount++]=i;
+    let total=0,uplift=0,subsidence=0,convergence=0,divergence=0,shear=0;
+    for(let ci=0;ci<candidateCount;ci++)for(let cj=ci+1;cj<candidateCount;cj++) {
+      const i=candidates[ci],j=candidates[cj];
+      boundarySource(model,p,i,j,best,scores,source);
+      const ownership=(1-smooth(.07,.22,best-scores[i]))*(1-smooth(.07,.22,best-scores[j]));
+      const w=source.weight*ownership;total+=w;uplift+=source.uplift*w;subsidence+=source.subsidence*w;
+      convergence+=source.convergence*w;divergence+=source.divergence*w;shear+=source.shear*w;
+    }
+    const normalization=Math.max(1,total),s=model.settings,activity=.38+model.geology*.95;
+    const summit=.84+model.detailNoise(p.x*9.1+2.7,p.y*9.1-5.3,p.z*9.1+7.6)*.22;
+    out.plateId=first;out.secondaryPlateId=second;out.boundaryDistanceProxy=best-runner;
+    out.boundaryInfluence=clamp(total,0,1);out.convergence=convergence/normalization;
+    out.divergence=divergence/normalization;out.shear=shear/normalization;
+    out.tectonicUplift=uplift/normalization*activity*summit;
+    out.tectonicSubsidence=subsidence/normalization*activity;
+    out.continentalField=clamp(model.continentalAt(p)+(weighted/Math.max(1e-9,weights)-.5)*s.plateContinentalInfluence,0,1);
+    out.broadTerrain=fbm(model.detailNoise,p.x*4.3+9.2,p.y*4.3-3.4,p.z*4.3+5.8)*8;
     return out;
   }
   function create(seed, width, height, planet = {}, settings) {
