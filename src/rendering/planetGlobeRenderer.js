@@ -79,7 +79,7 @@
   }
 
   function create(canvas, errorElement = null) {
-    let gl = null, program = null, buffers = null, currentMesh = null;
+    let gl = null, program = null, buffers = null, currentMesh = null, lastDrawn = null;
     let width = 1, height = 1, dpr = 1, lost = false, failure = '';
     const meshCache = new WeakMap();
     try {
@@ -90,6 +90,7 @@
     } catch (error) { failure = error?.message || 'WebGL2 unavailable'; }
 
     function initialize() {
+      lastDrawn = null;
       const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
       const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
       program = gl.createProgram(); gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
@@ -113,6 +114,7 @@
 
     function upload(mesh) {
       if (!gl || lost || !mesh) return;
+      lastDrawn = null;
       if (buffers) {
         gl.deleteBuffer(buffers.positions); gl.deleteBuffer(buffers.normals);
         gl.deleteBuffer(buffers.colors); gl.deleteBuffer(buffers.oceanColors);
@@ -139,7 +141,7 @@
     }
 
     canvas.addEventListener('webglcontextlost', event => {
-      event.preventDefault(); lost = true; buffers = null;
+      event.preventDefault(); lost = true; buffers = null; lastDrawn = null;
     });
     canvas.addEventListener('webglcontextrestored', () => {
       try { lost = false; initialize(); failure = ''; }
@@ -147,9 +149,13 @@
     });
 
     function resize(nextWidth, nextHeight, ratio) {
+      const previousWidth = width, previousHeight = height, previousDpr = dpr;
       width = Math.max(1, nextWidth); height = Math.max(1, nextHeight); dpr = Math.min(2, ratio || 1);
-      canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+      const pixelWidth = Math.round(width * dpr), pixelHeight = Math.round(height * dpr);
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
       canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
+      if (width !== previousWidth || height !== previousHeight || dpr !== previousDpr) lastDrawn = null;
       if (gl && !lost) gl.viewport(0, 0, canvas.width, canvas.height);
     }
 
@@ -177,6 +183,11 @@
       const centerY = Number.isFinite(transform.centerY) ? transform.centerY : height / 2;
       const radiusPx = Number.isFinite(transform.radiusPx) ? transform.radiusPx : Math.min(width, height) * Style.camera.radiusRatio * view.zoom;
       const opacity = Number.isFinite(transition?.globeOpacity) ? transition.globeOpacity : 1;
+      if (lastDrawn && lastDrawn.mesh === mesh && lastDrawn.yaw === view.yaw && lastDrawn.pitch === view.pitch &&
+        lastDrawn.centerX === centerX && lastDrawn.centerY === centerY && lastDrawn.radiusPx === radiusPx &&
+        lastDrawn.opacity === opacity && lastDrawn.width === width && lastDrawn.height === height) {
+        return { available: true, failure: '', mesh, cached: true };
+      }
       gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.useProgram(program); gl.bindVertexArray(buffers.vao);
       gl.uniform1f(program.uniforms.yaw, view.yaw); gl.uniform1f(program.uniforms.pitch, view.pitch);
@@ -190,6 +201,7 @@
       gl.uniform1f(program.uniforms.majorOpacity, Style.topography.majorOpacity);
       gl.drawElements(gl.TRIANGLES, buffers.count, buffers.indexType, 0);
       gl.bindVertexArray(null);
+      lastDrawn = { mesh, yaw: view.yaw, pitch: view.pitch, centerX, centerY, radiusPx, opacity, width, height };
       return { available: true, failure: '', mesh };
     }
 
