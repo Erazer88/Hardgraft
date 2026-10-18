@@ -65,19 +65,25 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 ## Géographie sphérique actuelle
 
 `createTerrain(seed, width, height, planet)` conserve le tableau equirectangulaire
-`{ width, height, elevation, moisture, seaLevel, resources }`, mais génère la
-géographie à partir de directions 3D. `directionForPixel` canonicalise les deux
-longitudes de couture et les deux pôles ; chaque pôle est donc exactement une
-direction, quel que soit `x`. Les continents sont des centres sphériques avec
-rayons angulaires, lobes secondaires et bruit 3D de frontière. Relief, crêtes et
-humidité utilisent des champs 3D échantillonnés sur la même direction.
+et `elevation` comme hauteur canonique du gameplay. Il retourne également quatre
+champs structurels (`mountainMask`, `ridgeField`, `valleyField`, `ruggednessField`)
+échantillonnés sur `width * height` cellules. `directionForPixel` canonicalise les
+deux longitudes de couture et les deux pôles ; chaque pôle est donc exactement une
+direction, quel que soit `x`. Les continents restent des centres sphériques avec
+rayons angulaires et lobes secondaires. Les chaînes montagneuses sont des
+polylignes courbes sur la sphère, placées préférentiellement sur les continents ;
+leurs épaules, dorsales et sillons sont rasterisés dans les champs structurels et
+contribuent explicitement à l'altitude. `planet.geology` règle leur nombre, leur
+amplitude et leurs branches. L'humidité et les faibles ondulations du terrain
+utilisent toujours des champs 3D échantillonnés sur la même direction.
 
 La couverture d'eau est quantifiée avec le poids de surface de chaque latitude.
 La projection et la texture échantillonnent les valeurs produites sans moyenne
 de couture, moyenne de rangée, fondu polaire ou correction colorée. Leurs
 continuités viennent ainsi du terrain lui-même. La version topographique est
-déclarée dans `OrbitWorldgenData.terrain.version` ; l'incrémenter conserve la
-graine du monde mais régénère la géographie des planètes.
+déclarée dans `OrbitWorldgenData.terrain.version` ; elle passe à 6 pour ce
+changement de structure. L'incrémenter conserve la graine du monde mais régénère
+la géographie des planètes.
 
 Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont placés sur les
 cellules terrestres du nouveau relief et gardent leur format x/y. Les champs
@@ -89,8 +95,12 @@ en eau profonde, et les plateformes pétrolières doivent être posées dans leu
 zone. Les marqueurs de ressource sont dessinés en pixels d'écran afin de conserver
 leur lisibilité au dézoom.
 
-Le globe WebGL2 construit une texture climatique procédurale à partir de
-l'altitude, l'humidité, la latitude, la température et du seed de la planète.
+Le globe WebGL2 construit une texture climatique et une texture RGBA structurelle
+à partir de l'altitude, des champs géologiques, de l'humidité, de la latitude, de
+la température et du seed de la planète. Le shader lit directement les masques de
+montagne, dorsale, vallée et rugosité ; il ne déduit plus les crêtes d'un
+Laplacien de hauteur. La projection géométrique applique une forme de relief
+monotone partagée par le maillage et les normales de shading.
 Les motifs de détail utilisent des directions 3D afin de rester continus à la
 couture et aux pôles. Les couleurs et le shader sont décrits dans
 `planetSurfaceTexture.js` et `planetGlobeRenderer.js`.

@@ -23,6 +23,17 @@ const surfaceWaterCoverage = terrain => {
   return wet / Math.max(1, total);
 };
 
+test('terrain v6 declares explicit spherical mountain chain parameters', () => {
+  const settings = context.OrbitWorldgenData.terrain;
+  assert.equal(settings.version, 6);
+  assert.deepEqual(Array.from(settings.relief.mountainChains.count), [1, 5]);
+  assert.deepEqual(Array.from(settings.relief.mountainChains.segmentCount), [3, 6]);
+  assert.ok(settings.relief.mountainChains.branchChance > .4 && settings.relief.mountainChains.branchChance < .7);
+  assert.equal('ridgePower' in settings.relief, false,
+    'a global isotropic ridged noise no longer controls mountain structure');
+  assert.doesNotMatch(fs.readFileSync(__dirname + '/world.js', 'utf8'), /sampleRidge|ridgeNoise/);
+});
+
 test('the galaxy is deterministic, seeded, and dense in four connected arms', () => {
   const galaxy = world.createGalaxy('NEREIDE-01');
   assert.equal(serialize(galaxy), serialize(world.createGalaxy('NEREIDE-01')));
@@ -261,6 +272,55 @@ test('spherical terrain closes its seam and poles naturally and remains determin
   assert.deepEqual(southWest, southEast);
   assert.equal(serialize(northWest), '{"x":0,"y":1,"z":0}');
   assert.equal(serialize(southWest), '{"x":0,"y":-1,"z":0}');
+  for (const fieldName of ['mountainMask', 'ridgeField', 'valleyField', 'ruggednessField']) {
+    assert.deepEqual(Array.from(terrain[fieldName]), Array.from(repeated[fieldName]),
+      `${fieldName} is deterministic`);
+    assert.notDeepEqual(Array.from(terrain[fieldName]), Array.from(otherSeed[fieldName]),
+      `${fieldName} varies with the terrain seed`);
+    assert.equal(terrain[fieldName].length, width * height);
+    assert.equal(Object.prototype.toString.call(terrain[fieldName]), '[object Uint8Array]');
+    for (let y = 0; y < height; y += 1) {
+      assert.equal(terrain[fieldName][y * width], terrain[fieldName][y * width + width - 1],
+        `${fieldName} closes the longitude seam at row ${y}`);
+    }
+    for (const poleY of [0, height - 1]) {
+      const value = terrain[fieldName][poleY * width];
+      for (let x = 1; x < width; x += 1) assert.equal(terrain[fieldName][poleY * width + x], value,
+        `${fieldName} has one value at pole row ${poleY}`);
+    }
+  }
+  let landMountain = 0, seaMountain = 0;
+  for (let i = 0; i < terrain.elevation.length; i += 1) {
+    if (terrain.elevation[i] > terrain.seaLevel) landMountain += terrain.mountainMask[i];
+    else seaMountain += terrain.mountainMask[i];
+  }
+  assert.ok(landMountain > seaMountain * 20,
+    'mountain shoulders are clipped to land rather than being global spherical ridges');
+  assert.ok(terrain.ridgeField.every((value, index) => value <= terrain.mountainMask[index]),
+    'the central ridge remains inside the broader mountain shoulder field');
+  assert.ok(terrain.valleyField.some(value => value > 0), 'chains generate explicit carved valleys');
+});
+
+test('active geology produces statistically more mountain terrain than quiet geology', () => {
+  let quietRelief = 0, activeRelief = 0;
+  for (let seed = 0; seed < 8; seed += 1) {
+    const quiet = world.createTerrain('geology-range-' + seed, 96, 48,
+      { surfaceWater: .42, geology: .05 });
+    const active = world.createTerrain('geology-range-' + seed, 96, 48,
+      { surfaceWater: .42, geology: .95 });
+    const landMean = terrain => {
+      let total = 0, count = 0;
+      for (let i = 0; i < terrain.elevation.length; i += 1) {
+        if (terrain.elevation[i] <= terrain.seaLevel) continue;
+        total += terrain.mountainMask[i]; count += 1;
+      }
+      return total / Math.max(1, count);
+    };
+    quietRelief += landMean(quiet);
+    activeRelief += landMean(active);
+  }
+  assert.ok(activeRelief > quietRelief * 1.2,
+    `high geology should yield broader/more pronounced mountain systems (${quietRelief} vs ${activeRelief})`);
 });
 
 test('most planets have two or three large deposits, with some worlds empty or especially rich', () => {

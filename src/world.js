@@ -229,6 +229,205 @@
     return t * t * (3 - 2 * t);
   }
 
+  function normalizeDirection(vector) {
+    const length = Math.hypot(vector.x, vector.y, vector.z) || 1;
+    return { x: vector.x / length, y: vector.y / length, z: vector.z / length };
+  }
+
+  function dot3(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+  function cross3(a, b) {
+    return { x: a.y * b.z - a.z * b.y,
+      y: a.z * b.x - a.x * b.z,
+      z: a.x * b.y - a.y * b.x };
+  }
+
+  function rotateAroundAxis(vector, axis, angle) {
+    const cosine = Math.cos(angle), sine = Math.sin(angle), projection = dot3(axis, vector);
+    const cross = cross3(axis, vector);
+    return normalizeDirection({
+      x: vector.x * cosine + cross.x * sine + axis.x * projection * (1 - cosine),
+      y: vector.y * cosine + cross.y * sine + axis.y * projection * (1 - cosine),
+      z: vector.z * cosine + cross.z * sine + axis.z * projection * (1 - cosine)
+    });
+  }
+
+  function tangentAt(direction, bearing) {
+    const reference = Math.abs(direction.y) < .85 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+    const east = normalizeDirection(cross3(reference, direction));
+    const north = normalizeDirection(cross3(direction, east));
+    return normalizeDirection({
+      x: Math.cos(bearing) * east.x + Math.sin(bearing) * north.x,
+      y: Math.cos(bearing) * east.y + Math.sin(bearing) * north.y,
+      z: Math.cos(bearing) * east.z + Math.sin(bearing) * north.z
+    });
+  }
+
+  function randomInRange(random, range) {
+    return range[0] + random() * (range[1] - range[0]);
+  }
+
+  function randomIntegerInRange(random, range) {
+    return range[0] + Math.floor(random() * (range[1] - range[0] + 1));
+  }
+
+  function createMountainPath(start, initialTangent, segmentCount, lengthRange, bendRange, random) {
+    const points = [normalizeDirection(start)], tangents = [normalizeDirection(initialTangent)];
+    const lengths = [];
+    let point = points[0], tangent = tangents[0];
+    for (let index = 0; index < segmentCount; index += 1) {
+      const step = randomInRange(random, lengthRange);
+      const cosine = Math.cos(step), sine = Math.sin(step);
+      const nextPoint = normalizeDirection({
+        x: point.x * cosine + tangent.x * sine,
+        y: point.y * cosine + tangent.y * sine,
+        z: point.z * cosine + tangent.z * sine
+      });
+      const nextTangent = normalizeDirection({
+        x: tangent.x * cosine - point.x * sine,
+        y: tangent.y * cosine - point.y * sine,
+        z: tangent.z * cosine - point.z * sine
+      });
+      const curvedTangent = rotateAroundAxis(nextTangent, nextPoint, randomInRange(random, bendRange));
+      points.push(nextPoint); tangents.push(curvedTangent); lengths.push(step);
+      point = nextPoint; tangent = curvedTangent;
+    }
+    return { points, tangents, lengths };
+  }
+
+  function makeMountainSegment(a, b, width, amplitude, extras = {}) {
+    const midpoint = normalizeDirection({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
+    const axis = normalizeDirection({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z });
+    const side = normalizeDirection(cross3(midpoint, axis));
+    const chordHalf = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * .5;
+    const halfLength = Math.atan2(chordHalf, Math.sqrt(Math.max(1e-12, 1 - chordHalf * chordHalf)));
+    const endBlend = Math.max(.008, width * .68);
+    return {
+      midpoint, axis, side, inverseWidth: 1 / Math.max(.004, Math.sin(width)),
+      alongInner: Math.tan(halfLength),
+      alongOuter: Math.tan(halfLength + endBlend),
+      shoulderAmplitude: amplitude * .55, spineAmplitude: amplitude * .45,
+      width, carve: extras.carve || 0
+    };
+  }
+
+  function appendPathSegments(target, path, width, amplitude, extras = {}) {
+    for (let index = 0; index < path.points.length - 1; index += 1) {
+      target.push(makeMountainSegment(path.points[index], path.points[index + 1], width, amplitude, extras));
+    }
+  }
+
+  function chooseContinentGroup(random, groups) {
+    let total = 0;
+    for (const group of groups) total += Math.max(.01, group.forms[0].angularRadius ** 2);
+    let selection = random() * total;
+    for (const group of groups) {
+      selection -= Math.max(.01, group.forms[0].angularRadius ** 2);
+      if (selection <= 0) return group;
+    }
+    return groups[groups.length - 1];
+  }
+
+  function createMountainSystems(terrainSeed, continentGroups, geology, relief) {
+    if (!continentGroups.length) return { shoulders: [], valleys: [] };
+    const settings = relief.mountainChains;
+    const random = rng((terrainSeed ^ 0x6f4a7c15) >>> 0);
+    const activity = clamp(geology, 0, 1);
+    const chainCount = clamp(1 + Math.floor(activity * 3) +
+      (random() < activity * .55 ? 1 : 0), settings.count[0], settings.count[1]);
+    const shoulders = [], valleys = [];
+    for (let chainIndex = 0; chainIndex < chainCount; chainIndex += 1) {
+      const group = chooseContinentGroup(random, continentGroups);
+      const landmass = group.forms[0];
+      const anchor = offsetSphereDirection(landmass.direction,
+        landmass.angularRadius * randomInRange(random, [.15, .50]), random() * TAU);
+      const segmentCount = randomIntegerInRange(random, settings.segmentCount);
+      const width = randomInRange(random, settings.width);
+      const amplitude = randomInRange(random, settings.amplitude) * (.48 + activity * .92);
+      const path = createMountainPath(anchor, tangentAt(anchor, random() * TAU), segmentCount,
+        settings.segmentLength, settings.bend, random);
+      appendPathSegments(shoulders, path, width, amplitude);
+
+      if (segmentCount > 2 && random() < settings.branchChance * (.35 + activity * .8)) {
+        const pointIndex = 1 + Math.floor(random() * (segmentCount - 1));
+        const branchStart = path.points[pointIndex];
+        const branchAngle = randomInRange(random, settings.branchAngle) * (random() < .5 ? -1 : 1);
+        const branchTangent = rotateAroundAxis(path.tangents[pointIndex], branchStart, branchAngle);
+        const parentLength = path.lengths.reduce((sum, value) => sum + value, 0);
+        const lengthRatio = randomInRange(random, settings.branchLengthRatio);
+        const branchSegments = Math.max(2, Math.round(segmentCount * lengthRatio));
+        const branchStep = parentLength * lengthRatio / branchSegments;
+        const branchPath = createMountainPath(branchStart, branchTangent, branchSegments,
+          [branchStep * .78, branchStep * 1.22], settings.bend, random);
+        appendPathSegments(shoulders, branchPath,
+          width * randomInRange(random, settings.branchWidthRatio),
+          amplitude * randomInRange(random, settings.branchHeightRatio));
+      }
+
+      const valleyCount = randomIntegerInRange(random, settings.valleyCount);
+      const chainLength = path.lengths.reduce((sum, value) => sum + value, 0);
+      for (let valleyIndex = 0; valleyIndex < valleyCount; valleyIndex += 1) {
+        const pointIndex = 1 + Math.floor(random() * (segmentCount - 1));
+        const valleyStart = path.points[pointIndex];
+        const valleyAngle = randomInRange(random, settings.valleyAngle) * (random() < .5 ? -1 : 1);
+        const valleyTangent = rotateAroundAxis(path.tangents[pointIndex], valleyStart, valleyAngle);
+        const lengthRatio = randomInRange(random, settings.valleyLengthRatio);
+        const valleySegments = 2 + Math.floor(random() * 2);
+        const valleyStep = chainLength * lengthRatio / valleySegments;
+        const valleyPath = createMountainPath(valleyStart, valleyTangent, valleySegments,
+          [valleyStep * .8, valleyStep * 1.2], settings.bend, random);
+        appendPathSegments(valleys, valleyPath, width * randomInRange(random, settings.valleyWidthRatio),
+          0, { carve: randomInRange(random, settings.valleyCarve) * (.58 + activity * .62) });
+      }
+    }
+    return { shoulders, valleys };
+  }
+
+  function segmentProfile(direction, segment, widthWarp = 1) {
+    const center = dot3(direction, segment.midpoint);
+    // Keep the anisotropic band on its own local hemisphere; without this
+    // gate the same great-circle frame also paints a false antipodal mountain.
+    if (center <= .01) return { shoulder: 0, spine: 0, valley: 0 };
+    const crossRatio = Math.abs(dot3(direction, segment.side)) * segment.inverseWidth /
+      Math.max(.8, widthWarp);
+    const along = Math.abs(dot3(direction, segment.axis)) / center;
+    const longitudinalEnvelope = 1 - smoothstep(segment.alongInner, segment.alongOuter, along);
+    const crossSquared = crossRatio * crossRatio;
+    return {
+      shoulder: Math.exp(-crossSquared * .55) * longitudinalEnvelope,
+      spine: Math.exp(-crossSquared * 3.2) * longitudinalEnvelope,
+      valley: Math.exp(-crossSquared * 4.8) * longitudinalEnvelope
+    };
+  }
+
+  function ruggednessFromElevation(elevation, width, height, seaLevel) {
+    const field = new Uint8Array(width * height), uniqueWidth = Math.max(1, width - 1);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const canonicalX = x === width - 1 && width > 1 ? 0 : x;
+        const index = y * width + canonicalX;
+        if (elevation[index] <= seaLevel) continue;
+        let total = 0, count = 0;
+        for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) {
+          if (ox === 0 && oy === 0) continue;
+          const nx = (canonicalX + ox + uniqueWidth) % uniqueWidth;
+          const ny = clamp(y + oy, 0, height - 1);
+          total += Math.abs(elevation[index] - elevation[ny * width + nx]);
+          count += 1;
+        }
+        field[y * width + canonicalX] = Math.round(clamp((total / count - 1) / 22, 0, 1) * 255);
+      }
+    }
+    if (height > 1) for (const y of [0, height - 1]) {
+      let total = 0;
+      for (let x = 0; x < uniqueWidth; x += 1) total += field[y * width + x];
+      const polarValue = Math.round(total / uniqueWidth);
+      for (let x = 0; x < width; x += 1) field[y * width + x] = polarValue;
+    }
+    for (let y = 0; y < height; y += 1) field[y * width + width - 1] = field[y * width];
+    return field;
+  }
+
   function createTerrain(seed, width = 320, height = 240, planet = null) {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
@@ -273,12 +472,16 @@
     const sampleBroad = fbm3Sampler(terrainSeed, 5);
     const sampleMedium = fbm3Sampler(terrainSeed ^ 0x5a6a4f29, 4);
     const sampleFine = fbm3Sampler(terrainSeed ^ 0x29f1483b, 3);
-    const sampleRidge = fbm3Sampler(terrainSeed ^ 0x3482f129, 4);
     const sampleMoisture = fbm3Sampler(terrainSeed ^ 0x19191531, 4);
     const sampleBorders = continentGroups.map(group => fbm3Sampler(group.borderSeed, 3));
+    const mountainSystems = createMountainSystems(terrainSeed, continentGroups,
+      Number.isFinite(planet?.geology) ? planet.geology : .5, settings.relief);
     const raw = new Float32Array(width * height);
     const elevation = new Uint8Array(width * height);
     const moisture = new Uint8Array(width * height);
+    const mountainMask = new Uint8Array(width * height);
+    const ridgeField = new Uint8Array(width * height);
+    const valleyField = new Uint8Array(width * height);
     const histogram = new Float64Array(256);
     const direction = {};
     let minAltitude = Infinity, totalSurfaceWeight = 0;
@@ -292,7 +495,6 @@
         const broad = sampleBroad(dx * 2.8, dy * 2.8, dz * 2.8);
         const medium = sampleMedium(dx * 8, dy * 8, dz * 8);
         const fine = sampleFine(dx * 22, dy * 22, dz * 22);
-        const ridgeNoise = 1 - Math.abs(sampleRidge(dx * 11, dy * 11, dz * 11));
         let continental = 0;
         for (let groupIndex = 0; groupIndex < continentGroups.length; groupIndex += 1) {
           const group = continentGroups[groupIndex];
@@ -308,11 +510,29 @@
             continental = Math.max(continental, influence);
           }
         }
-        const ridgeMask = smoothstep(.12, .48, continental);
-        const altitude = clamp(88 + continental * 140 + broad * 42 + medium * 18 + fine * 7 +
-          Math.pow(ridgeNoise, settings.relief.ridgePower) * ridgeMask * settings.relief.ridgeAmplitude, 0, 255);
+        let shoulderField = 0, spineField = 0, mountainHeight = 0;
+        let valleyStrength = 0, valleyCarve = 0;
+        const widthWarp = 1 + medium * .15;
+        for (const segment of mountainSystems.shoulders) {
+          const profile = segmentProfile(direction, segment, widthWarp);
+          shoulderField = Math.max(shoulderField, profile.shoulder);
+          spineField = Math.max(spineField, profile.spine);
+          mountainHeight = Math.max(mountainHeight,
+            profile.shoulder * segment.shoulderAmplitude + profile.spine * segment.spineAmplitude);
+        }
+        for (const segment of mountainSystems.valleys) {
+          const profile = segmentProfile(direction, segment, widthWarp);
+          valleyStrength = Math.max(valleyStrength, profile.valley);
+          valleyCarve = Math.max(valleyCarve, profile.valley * segment.carve);
+        }
+        const baseTerrain = 88 + continental * 140 + broad * settings.relief.broadAmplitude +
+          medium * settings.relief.mediumAmplitude + fine * settings.relief.fineAmplitude;
+        const altitude = clamp(baseTerrain + mountainHeight - valleyCarve, 0, 255);
         const index = y * width + x;
         raw[index] = altitude;
+        mountainMask[index] = Math.round(clamp(shoulderField, 0, 1) * 255);
+        ridgeField[index] = Math.round(clamp(spineField, 0, 1) * 255);
+        valleyField[index] = Math.round(clamp(valleyStrength, 0, 1) * 255);
         histogram[Math.round(altitude)] += rowWeight;
         totalSurfaceWeight += rowWeight;
         minAltitude = Math.min(minAltitude, altitude);
@@ -333,7 +553,12 @@
     const seaLevel = 102;
     for (let i = 0; i < raw.length; i += 1) {
       elevation[i] = Math.round(clamp(raw[i] + seaLevel - rawSeaLevel, 0, 255));
+      const landCoverage = smoothstep(seaLevel - 1.5, seaLevel + 2.5, elevation[i]);
+      mountainMask[i] = Math.round(mountainMask[i] * landCoverage);
+      ridgeField[i] = Math.round(ridgeField[i] * landCoverage);
+      valleyField[i] = Math.round(valleyField[i] * landCoverage);
     }
+    const ruggednessField = ruggednessFromElevation(elevation, width, height, seaLevel);
 
     const resources = [];
     const resourceTypes = root.OrbitWorldgenData.deposits;
@@ -384,7 +609,8 @@
           abundance: planet?.resources?.oil ?? (0.55 + random() * 0.4) });
       }
     }
-    return { width, height, elevation, moisture, seaLevel, resources };
+    return { width, height, elevation, moisture, seaLevel, resources,
+      mountainMask, ridgeField, valleyField, ruggednessField };
   }
 
   root.OrbitWorld = Object.freeze({

@@ -482,6 +482,9 @@
     // fractional source elevation prevents 8-bit derivative banding in the shader.
     const heightPixels = new Uint8Array(pixelCount * 2);
     const landMaskPixels = new Uint8Array(pixelCount);
+    const terrainStructurePixels = new Uint8Array(pixelCount * 4);
+    const structureFields = [terrain.mountainMask, terrain.ridgeField, terrain.valleyField, terrain.ruggednessField];
+    const terrainCellCount = terrain.width * terrain.height;
     const detailPixels = new Uint8Array(pixelCount);
     const sourceDetailPixels = albedoWidth === width && albedoHeight === height
       ? detailPixels : new Uint8Array(albedoWidth * albedoHeight);
@@ -577,6 +580,13 @@
         const packedHeight = Math.round(normalizedElevation * 65535), heightOffset = index * 2;
         heightPixels[heightOffset] = packedHeight >>> 8;
         heightPixels[heightOffset + 1] = packedHeight & 255;
+        const structureOffset = index * 4;
+        const mapX = xProfiles[px].center, mapY = yProfiles[py].center;
+        for (let channel = 0; channel < structureFields.length; channel += 1) {
+          const field = structureFields[channel];
+          terrainStructurePixels[structureOffset + channel] = field?.length === terrainCellCount
+            ? Math.round(clamp(sampleRaster(field, terrain.width, mapX, mapY), 0, 255)) : 0;
+        }
       }
     }
 
@@ -666,7 +676,7 @@
     const coastRange = 24;
     const coastSdfPixels = createCoastDistance(landMaskPixels, width, height, coastRange);
     const texture = Object.freeze({ width, height, pixels: albedoPixels, albedoPixels, heightPixels,
-      landMaskPixels, coastSdfPixels, detailPixels, coastRange,
+      landMaskPixels, coastSdfPixels, detailPixels, terrainStructurePixels, coastRange,
       coastColor: climate === 'temperate' ? PALETTES.temperate.coast :
         climate === 'frozen' ? PALETTES.frozen.packedIce :
           climate === 'arid' ? PALETTES.arid.sand : PALETTES.volcanic.basalt,

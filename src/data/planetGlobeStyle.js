@@ -3,7 +3,7 @@
 
   root.OrbitPlanetGlobeStyle = Object.freeze({
     mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
-    relief: Object.freeze({ scale: .052, exponent: 1.6 }),
+    relief: Object.freeze({ scale: .042, exponent: 1.45, linearFraction: .12 }),
     water: Object.freeze({ shallow: '#42A4AE', mid: '#176F91', deep: '#073B5C',
       noiseAmplitude: .03, normalStrength: .02, specularStrength: .10, fresnelStrength: .05,
       coastDepthDistance: 22, bathymetryDepthScale: 42, bathymetryInfluence: .16 }),

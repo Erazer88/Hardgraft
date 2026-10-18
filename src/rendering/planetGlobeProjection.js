@@ -5,11 +5,6 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const finite = value => Number.isFinite(value) ? value : 0;
 
-  function smoothstep(edge0, edge1, value) {
-    const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
-    return t * t * (3 - 2 * t);
-  }
-
   function terrainToSphere(x, y, terrain) {
     return root.OrbitWorld.directionForPixel(finite(x), finite(y), terrain.width, terrain.height);
   }
@@ -40,14 +35,19 @@
     return sampleField(terrain?.elevation, x, y, terrain);
   }
 
+  function shapeReliefHeight(height, relief = {}) {
+    const normalized = clamp(finite(height), 0, 1);
+    const linearFraction = Number.isFinite(relief.linearFraction) ? clamp(relief.linearFraction, 0, 1) : .12;
+    const exponent = Number.isFinite(relief.exponent) ? Math.max(.01, relief.exponent) : 1.45;
+    return linearFraction * normalized + (1 - linearFraction) * Math.pow(normalized, exponent);
+  }
+
   function surfaceRadius(x, y, terrain, relief = {}) {
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     const elevation = sampleElevation(x, y, terrain);
     const landHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .052;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.6;
-    const mountain = smoothstep(.18, .82, landHeight);
-    return 1 + scale * Math.pow(mountain, exponent);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .042;
+    return 1 + scale * shapeReliefHeight(landHeight, relief);
   }
 
   function surfacePosition(x, y, terrain, relief) {
@@ -59,10 +59,8 @@
     const row = north ? 0 : terrain.height - 1;
     const elevation = sampleElevation((terrain.width - 1) / 2, row, terrain);
     const landHeight = clamp((elevation - terrain.seaLevel) / Math.max(1, 255 - terrain.seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .052;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.6;
-    const mountain = smoothstep(.18, .82, landHeight);
-    const radius = 1 + scale * Math.pow(mountain, exponent);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .042;
+    const radius = 1 + scale * shapeReliefHeight(landHeight, relief);
     const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
     return { x: normal.x * radius, y: normal.y * radius, z: normal.z * radius };
   }
@@ -104,7 +102,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .052) + .002;
+    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .042) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 
@@ -145,6 +143,6 @@
   }
 
   root.OrbitPlanetGlobeProjection = Object.freeze({ terrainToSphere, sphereToTerrain,
-    sampleField, sampleElevation, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
+    sampleField, sampleElevation, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);

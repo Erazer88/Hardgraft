@@ -60,6 +60,13 @@ test('elevation sampling is bilinear and stylized relief stays within its declar
   assert.equal(projection.surfaceRadius(0, 0, terrain, style.relief), 1);
   const max = projection.surfaceRadius(1, 1, { ...terrain, seaLevel: 0 }, style.relief);
   assert.ok(max >= 1 && max <= 1 + style.relief.scale + 1e-12);
+  let previousShape = projection.shapeReliefHeight(0, style.relief);
+  for (let step = 1; step <= 100; step += 1) {
+    const shape = projection.shapeReliefHeight(step / 100, style.relief);
+    assert.ok(shape > previousShape, 'relief height increases strictly without summit saturation');
+    previousShape = shape;
+  }
+  assert.ok(Math.abs(previousShape - 1) < 1e-12);
   assert.ok(style.camera.maxZoom >= 1.56, 'the globe allows the requested 20% zoom increase');
 });
 
@@ -113,8 +120,9 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.equal(style.relief.scale, .052);
-  assert.equal(style.relief.exponent, 1.6);
+  assert.equal(style.relief.scale, .042);
+  assert.equal(style.relief.exponent, 1.45);
+  assert.equal(style.relief.linearFraction, .12);
   assert.equal(style.graticule.opacity, .05);
   assert.equal(style.graticule.widthPx, .55);
 });
@@ -194,6 +202,41 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
         assert.ok(Math.max(...values) - Math.min(...values) <= 1,
           `${texture.climate} pole color comes from consistent terrain directions`);
       }
+    }
+  }
+});
+
+test('surface texture samples mountain, ridge, valley, and ruggedness fields into RGBA', () => {
+  const { OrbitPlanetSurfaceTexture: textures, OrbitWorld: world } = loadGlobeContext();
+  const width = 24, height = 12;
+  const terrain = world.createTerrain('structure-texture-test', width, height,
+    { surfaceWater: .38, geology: .8 });
+  const textureWidth = 32, textureHeight = 16;
+  const texture = textures.create(terrain, { id: 'structure-texture-test', seed: 'structure-texture-test',
+    kind: 'tellurique', temperature: 16 }, { width: textureWidth, height: textureHeight, cache: false });
+  assert.equal(texture.terrainStructurePixels.length, textureWidth * textureHeight * 4);
+  const fields = [terrain.mountainMask, terrain.ridgeField, terrain.valleyField, terrain.ruggednessField];
+  const profileX = value => {
+    const period = Math.max(1, terrain.width - 1), wrapped = ((value % period) + period) % period;
+    const x0 = Math.floor(wrapped);
+    return { x0, x1: (x0 + 1) % period, t: wrapped - x0 };
+  };
+  const profileY = value => {
+    const bounded = Math.max(0, Math.min(terrain.height - 1, value)), y0 = Math.floor(bounded);
+    return { y0, y1: Math.min(terrain.height - 1, y0 + 1), t: bounded - y0 };
+  };
+  const lerp = (a, b, t) => a * (1 - t) + b * t;
+  for (const py of [0, 3, 8, textureHeight - 1]) for (const px of [0, 5, 17, textureWidth - 1]) {
+    const x = profileX(px / textureWidth * (terrain.width - 1));
+    const y = profileY(py / (textureHeight - 1) * (terrain.height - 1));
+    const offset = (py * textureWidth + px) * 4;
+    for (let channel = 0; channel < fields.length; channel += 1) {
+      const top = lerp(fields[channel][y.y0 * terrain.width + x.x0],
+        fields[channel][y.y0 * terrain.width + x.x1], x.t);
+      const bottom = lerp(fields[channel][y.y1 * terrain.width + x.x0],
+        fields[channel][y.y1 * terrain.width + x.x1], x.t);
+      assert.equal(texture.terrainStructurePixels[offset + channel], Math.round(lerp(top, bottom, y.t)),
+        `RGBA channel ${channel} samples its terrain field at (${px}, ${py})`);
     }
   }
 });
@@ -354,36 +397,41 @@ test('surface palettes keep climate materials separated and HSL tints bounded', 
 
 test('globe shader smooths high-precision terrain and limits detail to mountains', () => {
   const source = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
-  assert.match(source, /float lightTerm = 0\.58 \+ shadeBands \* 0\.60;/);
+  assert.match(source, /float lightTerm = 0\.58 \+ diffuse \* 0\.60;/);
   assert.doesNotMatch(source, /color \+= vec3\(1\.0, 0\.14, 0\.025\)/,
     'the fragment shader does not add white/orange emission to terrain');
   assert.match(source, /uniform sampler2D uAlbedoTexture;/);
   assert.match(source, /uniform sampler2D uHeightTexture;/);
   assert.match(source, /uniform sampler2D uLandMaskTexture;/);
   assert.match(source, /uniform sampler2D uCoastSdfTexture;/);
+  assert.match(source, /uniform sampler2D uTerrainStructureTexture;/);
   assert.match(source, /float decodeHeight\(vec2 rg\)/);
   assert.match(source, /float sampleLandHeight\(vec2 uv, float lod\)/,
     'the shader derives height and bathymetry from the full-precision elevation field');
-  assert.match(source, /float midLeft = sampleLandHeight\([^;]+, 0\.0\)/,
-    'mid-relief normals sample the unsaturated terrain at full resolution');
-  assert.match(source, /float facetLeft = sampleLandHeight\([^;]+, 1\.0\)/,
+  assert.match(source, /float shapeReliefHeight\(float h\)/,
+    'shader slope and mesh displacement use the same monotone relief shape');
+  assert.match(source, /float midLeft = sampleShapedLandHeight\([^;]+, 0\.0\)/,
+    'mid-relief normals follow the mesh shaped from the unsaturated terrain');
+  assert.match(source, /float facetLeft = sampleShapedLandHeight\([^;]+, 1\.0\)/,
     'mountain facets use a broader low-pass height signal');
   assert.match(source, /vec3 midReliefNormal = normalize/);
   assert.match(source, /vec2 facetStep = max\(uHeightTexelSize \* 2\.0, 1\.0 \/ uFacetGrid\)/);
   assert.doesNotMatch(source, /floor\(vUv \* uFacetGrid\)/,
     'mountain facet sampling stays continuous instead of creating square grid patches');
-  assert.match(source, /float slopeMask = smoothstep\(0\.10, 0\.24, slope\)/);
-  assert.match(source, /float altitudeMask = smoothstep\(0\.22, 0\.55, height\)/);
-  assert.match(source, /float ruggedMask = smoothstep\(0\.60, 0\.90, ridgeStrength\)/);
-  assert.match(source, /float ridgeStrength = smoothstep\(0\.0025, 0\.014, max\(0\.0, ridgeSignal\)\)/,
-    'ridge accents ignore weak curvature instead of amplifying every terrain ripple');
-  assert.doesNotMatch(source, /ridgeSignal \/ max\(/,
-    'ridge and valley material masks are not amplified by tiny UV distances');
+  assert.match(source, /vec4 terrainStructure = texture\(uTerrainStructureTexture, vUv\)/);
+  assert.match(source, /float mountainMask = terrainStructure\.r \* landCoverage/);
+  assert.match(source, /float ridgeStrength = terrainStructure\.g/);
+  assert.match(source, /float valleyStrength = terrainStructure\.b/);
+  assert.match(source, /float ruggedness = terrainStructure\.a/);
+  assert.match(source, /mix\(baseNormal, midReliefNormal, mountainMask \* 0\.85\)/);
+  assert.match(source, /float facetMask = mountainMask \* ruggedness \* smoothstep\(0\.08, 0\.25, slope\)/);
+  assert.doesNotMatch(source, /ridgeSignal|float ridgeStrength = smoothstep/,
+    'worldgen fields, not a height Laplacian, define geological ridges and valleys');
   assert.match(source, /mix\(terrainNormal, facetNormal, facetMask \* uFacetMix\)/);
-  assert.match(source, /float detailMask = smoothstep\(0\.12, 0\.30, slope\) \* mountainMask/);
+  assert.match(source, /float detailMask = smoothstep\(0\.12, 0\.30, slope\) \* mountainMask \* ruggedness/);
   assert.match(source, /detailMask \* uDetailNormalStrength/);
-  assert.match(source, /facetMask \* 0\.22/,
-    'quantized lighting accents are limited to marked mountain facets');
+  assert.doesNotMatch(source, /floor\(diffuse \* 4\.0\)/,
+    'terrain lighting is continuous rather than posterized to disguise topography');
   assert.match(source, /texture\(uCoastSdfTexture, vUv\)\.r \* 2\.0 - 1\.0/);
   assert.match(source, /float bathymetry = decodeHeight\(textureLod\(uHeightTexture, vUv, 2\.0\)\.rg\) \* 255\.0/,
     'ocean depth samples a smoothed bathymetry field');
@@ -397,9 +445,10 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /float oceanFresnel = pow\(1\.0 - max\(dot\(viewDirection, waterNormal\), 0\.0\), 3\.0\)/);
   assert.match(source, /mix\(landColor, waterColor, oceanCoverage\)/,
     'liquid water skips the land relief shading path');
-  assert.match(source, /rockExposure = mountainMask \* smoothstep\(0\.34, 0\.58, height\)/);
-  assert.match(source, /mix\(base, uRockColor, rockExposure \* 0\.44\)/);
-  assert.match(source, /ridgeStrength \* mountainMask \* 0\.07/);
+  assert.match(source, /rockExposure = mountainMask \* smoothstep\(0\.10, 0\.32, slope\)/);
+  assert.match(source, /mix\(base, uRockColor, rockExposure \* 0\.45\)/);
+  assert.match(source, /mix\(landMaterial, uRidgeColor, ridgeStrength \* 0\.12\)/);
+  assert.match(source, /mix\(landMaterial, uCreviceColor, valleyStrength \* 0\.08\)/);
   assert.match(source, /uniform float uAoStrength;/);
   assert.match(source, /float ao = 1\.0 - slope \* uAoStrength \* land \* mountainMask/);
   assert.match(source, /uniform sampler2D uDetailTexture;/);
@@ -412,6 +461,7 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
     'normal detail is faded only in the final degree at the singularity');
   assert.match(source, /smoothstep\(uSeaLevel \+ 1\.0, uSeaLevel \+ 3\.0, vElevation\)/);
   assert.match(source, /gl\.RG8, gl\.RG, surfaceData\.heightPixels/);
+  assert.match(source, /gl\.RGBA8, gl\.RGBA, surfaceData\.terrainStructurePixels/);
   assert.match(source, /gl\.R8, gl\.RED, surfaceData\.coastSdfPixels/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.midReliefStrength, Style\.terrainShading\.midReliefStrength\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.facetMix, Style\.terrainShading\.mountainFacetMix\)/);

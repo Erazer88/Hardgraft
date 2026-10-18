@@ -72,9 +72,12 @@
     uniform sampler2D uLandMaskTexture;
     uniform sampler2D uCoastSdfTexture;
     uniform sampler2D uDetailTexture;
+    uniform sampler2D uTerrainStructureTexture;
     uniform vec2 uHeightTexelSize;
     uniform vec2 uFacetGrid;
     uniform float uReliefScale;
+    uniform float uReliefShapeLinear;
+    uniform float uReliefShapeExponent;
     uniform float uMidReliefStrength;
     uniform float uFacetMix;
     uniform float uDetailNormalStrength;
@@ -115,6 +118,13 @@
       return clamp((decodeHeight(textureLod(uHeightTexture, uv, lod).rg) * 255.0 - uSeaLevel) /
         max(1.0, 255.0 - uSeaLevel), 0.0, 1.0);
     }
+    float shapeReliefHeight(float h) {
+      h = clamp(h, 0.0, 1.0);
+      return uReliefShapeLinear * h + (1.0 - uReliefShapeLinear) * pow(h, uReliefShapeExponent);
+    }
+    float sampleShapedLandHeight(vec2 uv, float lod) {
+      return shapeReliefHeight(sampleLandHeight(uv, lod));
+    }
     void main() {
       if (uAtmospherePass > 0.5) {
         float facing = dot(normalize(vNormal), vec3(0.0, 0.0, 1.0));
@@ -134,10 +144,10 @@
       // Geometry normals provide the calm macro form; the unsaturated source
       // height restores mountain structure that the shaped mesh flattens at summits.
       vec2 midStep = uHeightTexelSize * 2.0;
-      float midLeft = sampleLandHeight(vUv - vec2(midStep.x, 0.0), 0.0);
-      float midRight = sampleLandHeight(vUv + vec2(midStep.x, 0.0), 0.0);
-      float midNorth = sampleLandHeight(vUv - vec2(0.0, midStep.y), 0.0);
-      float midSouth = sampleLandHeight(vUv + vec2(0.0, midStep.y), 0.0);
+      float midLeft = sampleShapedLandHeight(vUv - vec2(midStep.x, 0.0), 0.0);
+      float midRight = sampleShapedLandHeight(vUv + vec2(midStep.x, 0.0), 0.0);
+      float midNorth = sampleShapedLandHeight(vUv - vec2(0.0, midStep.y), 0.0);
+      float midSouth = sampleShapedLandHeight(vUv + vec2(0.0, midStep.y), 0.0);
       float midDx = (midRight - midLeft) / max(0.0001, 12.5663706 * midStep.x * lonMetric) * uReliefScale;
       float midDy = (midSouth - midNorth) / max(0.0001, 6.2831853 * midStep.y) * uReliefScale;
       vec3 midReliefNormal = normalize(baseNormal - tangentU * midDx * uMidReliefStrength - tangentV * midDy * uMidReliefStrength);
@@ -146,35 +156,28 @@
       // Keep facet sampling continuous in UV space. Snapping the sample point
       // to a grid creates visible square patches on broad mountain faces.
       vec2 facetStep = max(uHeightTexelSize * 2.0, 1.0 / uFacetGrid);
-      float facetLeft = sampleLandHeight(vUv - vec2(facetStep.x, 0.0), 1.0);
-      float facetRight = sampleLandHeight(vUv + vec2(facetStep.x, 0.0), 1.0);
-      float facetNorth = sampleLandHeight(vUv - vec2(0.0, facetStep.y), 1.0);
-      float facetSouth = sampleLandHeight(vUv + vec2(0.0, facetStep.y), 1.0);
-      float facetCenter = sampleLandHeight(vUv, 1.0);
+      float facetLeft = sampleShapedLandHeight(vUv - vec2(facetStep.x, 0.0), 1.0);
+      float facetRight = sampleShapedLandHeight(vUv + vec2(facetStep.x, 0.0), 1.0);
+      float facetNorth = sampleShapedLandHeight(vUv - vec2(0.0, facetStep.y), 1.0);
+      float facetSouth = sampleShapedLandHeight(vUv + vec2(0.0, facetStep.y), 1.0);
       float fdHx = (facetRight - facetLeft) / max(0.0001, 12.5663706 * facetStep.x * lonMetric) * uReliefScale;
       float fdHy = (facetSouth - facetNorth) / max(0.0001, 6.2831853 * facetStep.y) * uReliefScale;
       vec3 facetNormal = normalize(baseNormal - tangentU * fdHx * uMidReliefStrength - tangentV * fdHy * uMidReliefStrength);
-      // Dimensionless curvature is much less eager than dividing by the tiny
-      // UV step: that normalization amplified every small terrain ripple into
-      // a dark or bright contour. Accents now appear only at actual ridges.
-      float ridgeSignal = facetCenter * 4.0 - facetLeft - facetRight - facetNorth - facetSouth;
-      float ridgeStrength = smoothstep(0.0025, 0.014, max(0.0, ridgeSignal));
-      float valleyStrength = smoothstep(0.003, 0.016, max(0.0, -ridgeSignal));
 
-      float encodedElevation = decodeHeight(texture(uHeightTexture, vUv).rg);
       float height = sampleLandHeight(vUv, 0.0);
       float landCoverage = texture(uLandMaskTexture, vUv).r;
-      float slopeMask = smoothstep(0.10, 0.24, slope);
-      float altitudeMask = smoothstep(0.22, 0.55, height);
-      float ruggedMask = smoothstep(0.60, 0.90, ridgeStrength);
-      float mountainMask = landCoverage * altitudeMask * max(slopeMask, ruggedMask);
-      vec3 terrainNormal = normalize(mix(baseNormal, midReliefNormal, mountainMask));
-      float facetMask = mountainMask * smoothstep(0.08, 0.22, slope);
+      vec4 terrainStructure = texture(uTerrainStructureTexture, vUv);
+      float mountainMask = terrainStructure.r * landCoverage;
+      float ridgeStrength = terrainStructure.g;
+      float valleyStrength = terrainStructure.b;
+      float ruggedness = terrainStructure.a;
+      vec3 terrainNormal = normalize(mix(baseNormal, midReliefNormal, mountainMask * 0.85));
+      float facetMask = mountainMask * ruggedness * smoothstep(0.08, 0.25, slope);
       vec3 finalNormal = normalize(mix(terrainNormal, facetNormal, facetMask * uFacetMix));
       float microDetail = texture(uDetailTexture, vUv).r - 0.5;
       vec3 detailedNormal = normalize(midReliefNormal - (tangentU + tangentV * 0.65) * microDetail *
         polarDetailFade);
-      float detailMask = smoothstep(0.12, 0.30, slope) * mountainMask;
+      float detailMask = smoothstep(0.12, 0.30, slope) * mountainMask * ruggedness;
       finalNormal = normalize(mix(finalNormal, detailedNormal,
         detailMask * uDetailNormalStrength));
 
@@ -186,15 +189,13 @@
       vec3 base = texture(uAlbedoTexture, vUv).rgb;
       base = mix(base, uCoastColor, shoreBand * 0.32);
 
-      float rockExposure = mountainMask * smoothstep(0.34, 0.58, height) * smoothstep(0.14, 0.34, slope);
-      vec3 landMaterial = mix(base, uRockColor, rockExposure * 0.44);
-      landMaterial = mix(landMaterial, uCreviceColor,
-        valleyStrength * mountainMask * smoothstep(0.30, 0.50, height) * 0.015);
-      landMaterial = mix(landMaterial, uRidgeColor, ridgeStrength * mountainMask * 0.07);
+      float rockExposure = mountainMask * smoothstep(0.10, 0.32, slope);
+      vec3 landMaterial = mix(base, uRockColor, rockExposure * 0.45);
+      landMaterial = mix(landMaterial, uRidgeColor, ridgeStrength * 0.12);
+      landMaterial = mix(landMaterial, uCreviceColor, valleyStrength * 0.08);
       float diffuse = dot(finalNormal, lightDirection) * 0.5 + 0.5;
       diffuse *= diffuse;
-      float shadeBands = mix(diffuse, floor(diffuse * 4.0) / 4.0, facetMask * 0.22);
-      float lightTerm = 0.58 + shadeBands * 0.60;
+      float lightTerm = 0.58 + diffuse * 0.60;
       float ao = 1.0 - slope * uAoStrength * land * mountainMask;
       float ridgeLight = ridgeStrength * mountainMask * max(dot(finalNormal, lightDirection), 0.0) * uRidgeAccentStrength;
       vec3 landColor = landMaterial * lightTerm * ao * (1.0 + ridgeLight);
@@ -285,9 +286,12 @@
         landMaskTexture: gl.getUniformLocation(program, 'uLandMaskTexture'),
         coastSdfTexture: gl.getUniformLocation(program, 'uCoastSdfTexture'),
         detailTexture: gl.getUniformLocation(program, 'uDetailTexture'),
+        terrainStructureTexture: gl.getUniformLocation(program, 'uTerrainStructureTexture'),
         heightTexelSize: gl.getUniformLocation(program, 'uHeightTexelSize'),
         facetGrid: gl.getUniformLocation(program, 'uFacetGrid'),
         reliefScale: gl.getUniformLocation(program, 'uReliefScale'),
+        reliefShapeLinear: gl.getUniformLocation(program, 'uReliefShapeLinear'),
+        reliefShapeExponent: gl.getUniformLocation(program, 'uReliefShapeExponent'),
         midReliefStrength: gl.getUniformLocation(program, 'uMidReliefStrength'),
         facetMix: gl.getUniformLocation(program, 'uFacetMix'),
         detailNormalStrength: gl.getUniformLocation(program, 'uDetailNormalStrength'),
@@ -324,7 +328,7 @@
         gl.deleteBuffer(buffers.uvs); gl.deleteBuffer(buffers.elevations); gl.deleteBuffer(buffers.indices);
         gl.deleteTexture(buffers.albedoTexture); gl.deleteTexture(buffers.heightTexture);
         gl.deleteTexture(buffers.landMaskTexture); gl.deleteTexture(buffers.coastSdfTexture);
-        gl.deleteTexture(buffers.detailTexture);
+        gl.deleteTexture(buffers.detailTexture); gl.deleteTexture(buffers.terrainStructureTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -360,9 +364,10 @@
       const landMaskTexture = uploadTexture(2, gl.R8, gl.RED, surfaceData.landMaskPixels);
       const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
       const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
+      const terrainStructureTexture = uploadTexture(5, gl.RGBA8, gl.RGBA, surfaceData.terrainStructurePixels);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
-        landMaskTexture, coastSdfTexture, detailTexture, coastRange: surfaceData.coastRange,
+        landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture, coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
@@ -449,10 +454,14 @@
       gl.uniform1i(program.uniforms.coastSdfTexture, 3);
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, buffers.detailTexture);
       gl.uniform1i(program.uniforms.detailTexture, 4);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainStructureTexture);
+      gl.uniform1i(program.uniforms.terrainStructureTexture, 5);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
       gl.uniform2f(program.uniforms.facetGrid, Style.terrainShading.facetGrid.x,
         Style.terrainShading.facetGrid.y);
       gl.uniform1f(program.uniforms.reliefScale, Style.relief.scale);
+      gl.uniform1f(program.uniforms.reliefShapeLinear, Style.relief.linearFraction);
+      gl.uniform1f(program.uniforms.reliefShapeExponent, Style.relief.exponent);
       gl.uniform1f(program.uniforms.midReliefStrength, Style.terrainShading.midReliefStrength);
       gl.uniform1f(program.uniforms.facetMix, Style.terrainShading.mountainFacetMix);
       gl.uniform1f(program.uniforms.detailNormalStrength, Style.terrainShading.microDetailStrength);
