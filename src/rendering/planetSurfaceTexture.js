@@ -2,9 +2,8 @@
   'use strict';
 
   const World = root.OrbitWorld;
-  const Projection = root.OrbitPlanetGlobeProjection;
-  const DEFAULT_WIDTH = 1024;
-  const DEFAULT_HEIGHT = 512;
+  const DEFAULT_WIDTH = 2048;
+  const DEFAULT_HEIGHT = 1024;
   const MAX_CACHE_ENTRIES = 2;
   const textureCache = new Map();
   const noiseKernels = new Map();
@@ -81,15 +80,102 @@
     return value / total;
   }
 
-  function createFieldSampler(values, terrain) {
-    const width = terrain.width, height = terrain.height;
-    return function sample(x, y) {
-      const px = clamp(x, 0, width - 1), py = clamp(y, 0, height - 1);
-      const x0 = Math.floor(px), y0 = Math.floor(py), x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(height - 1, y0 + 1);
-      const tx = px - x0, ty = py - y0, row0 = y0 * width, row1 = y1 * width;
-      const a = values[row0 + x0] * (1 - tx) + values[row0 + x1] * tx;
-      const b = values[row1 + x0] * (1 - tx) + values[row1 + x1] * tx;
-      return a * (1 - ty) + b * ty;
+  function wrappedXProfile(value, width) {
+    const period = Math.max(1, width - 1), px = ((value % period) + period) % period;
+    const x0 = Math.floor(px);
+    return { x0, x1: (x0 + 1) % period, t: px - x0 };
+  }
+
+  function clampedYProfile(value, height) {
+    const py = clamp(value, 0, height - 1), y0 = Math.floor(py);
+    return { y0, y1: Math.min(height - 1, y0 + 1), t: py - y0 };
+  }
+
+  function sampleRaster(values, width, x, y) {
+    const row0 = y.y0 * width, row1 = y.y1 * width;
+    const a = values[row0 + x.x0] * (1 - x.t) + values[row0 + x.x1] * x.t;
+    const b = values[row1 + x.x0] * (1 - x.t) + values[row1 + x.x1] * x.t;
+    return a * (1 - y.t) + b * y.t;
+  }
+
+  function createCoastDistance(landMask, width, height, range) {
+    const count = width * height, distance = new Float32Array(count);
+    const infinity = width + height + 1, diagonal = Math.SQRT2;
+    function transform(targetLand) {
+      for (let i = 0; i < count; i += 1) {
+        const isLand = landMask[i] >= 128;
+        distance[i] = isLand === targetLand ? 0 : infinity;
+      }
+      for (let y = 0; y < height; y += 1) {
+        const row = y * width, north = Math.max(0, y - 1) * width;
+        for (let x = 0; x < width; x += 1) {
+          const index = row + x, left = (x + width - 1) % width, right = (x + 1) % width;
+          let best = distance[index];
+          best = Math.min(best, distance[row + left] + 1);
+          if (y > 0) {
+            best = Math.min(best, distance[north + x] + 1,
+              distance[north + left] + diagonal, distance[north + right] + diagonal);
+          }
+          distance[index] = best;
+        }
+      }
+      for (let y = height - 1; y >= 0; y -= 1) {
+        const row = y * width, south = Math.min(height - 1, y + 1) * width;
+        for (let x = width - 1; x >= 0; x -= 1) {
+          const index = row + x, left = (x + width - 1) % width, right = (x + 1) % width;
+          let best = distance[index];
+          best = Math.min(best, distance[row + right] + 1);
+          if (y < height - 1) {
+            best = Math.min(best, distance[south + x] + 1,
+              distance[south + left] + diagonal, distance[south + right] + diagonal);
+          }
+          distance[index] = best;
+        }
+      }
+    }
+
+    const sdf = new Uint8Array(count);
+    transform(true);
+    for (let i = 0; i < count; i += 1) {
+      if (landMask[i] < 128) {
+        const signed = -Math.min(range, distance[i]);
+        sdf[i] = Math.round(clamp(.5 + signed / (2 * range), 0, 1) * 255);
+      }
+    }
+    transform(false);
+    for (let i = 0; i < count; i += 1) {
+      if (landMask[i] >= 128) {
+        const signed = Math.min(range, distance[i]);
+        sdf[i] = Math.round(clamp(.5 + signed / (2 * range), 0, 1) * 255);
+      }
+    }
+    return sdf;
+  }
+
+  function createSphericalFieldSampler(width, height, evaluate) {
+    const fieldWidth = Math.max(8, Math.min(384, width));
+    const fieldHeight = Math.max(4, Math.min(192, height));
+    const values = new Float32Array(fieldWidth * fieldHeight);
+    for (let y = 0; y < fieldHeight; y += 1) {
+      const v = y / (fieldHeight - 1), latitude = (.5 - v) * Math.PI;
+      const cosLatitude = y === 0 || y === fieldHeight - 1 ? 0 : Math.cos(latitude);
+      const ny = y === 0 ? 1 : y === fieldHeight - 1 ? -1 : Math.sin(latitude);
+      const row = y * fieldWidth;
+      for (let x = 0; x < fieldWidth; x += 1) {
+        const longitude = (x / fieldWidth - .5) * Math.PI * 2;
+        values[row + x] = evaluate(cosLatitude * Math.cos(longitude), ny,
+          cosLatitude * Math.sin(longitude), latitude);
+      }
+    }
+    return function sample(u, v) {
+      const px = ((u % 1) + 1) % 1 * fieldWidth;
+      const py = clamp(v, 0, 1) * (fieldHeight - 1);
+      const x0 = Math.floor(px), y0 = Math.floor(py), x1 = (x0 + 1) % fieldWidth;
+      const y1 = Math.min(fieldHeight - 1, y0 + 1), tx = px - x0, ty = py - y0;
+      const row0 = y0 * fieldWidth, row1 = y1 * fieldWidth;
+      const top = values[row0 + x0] * (1 - tx) + values[row0 + x1] * tx;
+      const bottom = values[row1 + x0] * (1 - tx) + values[row1 + x1] * tx;
+      return top * (1 - ty) + bottom * ty;
     };
   }
 
@@ -233,9 +319,9 @@
   function finishMaterialColor(climate, base, detail, output, work) {
     const floor = climateSaturationFloor(climate);
     const luma = base[0] * .2126 + base[1] * .7152 + base[2] * .0722;
-    const saturation = 1.10 + floor * .10 + detail.fine * .025;
-    const contrast = 1.14;
-    const brightness = 1 + detail.macro * .025 + detail.geology * .012;
+    const saturation = 1.04 + floor * .08;
+    const contrast = 1.07;
+    const brightness = 1 + detail.macro * .014 + detail.geology * .006;
     for (let channel = 0; channel < 3; channel += 1) {
       const chromatic = luma + (base[channel] - luma) * saturation;
       output[channel] = clamp((112 + (chromatic - 112) * contrast) * brightness, 0, 255);
@@ -243,13 +329,13 @@
     output[3] = 0;
   }
 
-  function colorFor(climate, elevation, seaLevel, basinLevel, moisture, latitude, detail, temperature,
+  function colorFor(climate, elevation, seaLevel, basinLevel, moisture, latitude, latitudeCooling, detail, temperature,
     crater, polarCoverage, output, work) {
     const palette = COLOR_PALETTES[climate];
     const h = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
     const depth = clamp((seaLevel - elevation) / 42, 0, 1);
     const humidity = clamp(moisture, 0, 1), absoluteLatitude = Math.abs(latitude);
-    const localTemperature = temperature - Math.pow(Math.abs(Math.sin(latitude)), 1.55) * 38 - h * 32;
+    const localTemperature = temperature - latitudeCooling - h * 32;
     const base = work.a, land = work.b, temporary = work.c;
 
     if (climate === 'temperate') {
@@ -259,14 +345,13 @@
         else copyInto(base, palette.shallow);
         if (polarCoverage > 0) {
           mixInto(temporary, palette.seaIce, palette.packedSeaIce,
-            clamp(.48 + detail.medium * .24 + detail.fine * .12, 0, 1));
-          const seaCrack = smoothstep(.965, .995, 1 - Math.abs(detail.crack));
-          mixInto(land, temporary, palette.iceCrack, seaCrack * .14);
+            clamp(.50 + detail.medium * .12 + detail.fine * .04, 0, 1));
+          const seaCrack = smoothstep(.982, .998, 1 - Math.abs(detail.crack));
+          mixInto(land, temporary, palette.iceCrack, seaCrack * .08);
           mixInto(temporary, base, land, polarCoverage * .96);
           copyInto(base, temporary);
         }
-      } else if (h < .04) copyInto(base, palette.coast);
-      else if (h < .28) {
+      } else if (h < .28) {
         mixInto(base, palette.dryPlain, palette.plain, .32 + humidity * .36);
         mixInto(temporary, base, palette.wetPlain, smoothstep(.48, .9, humidity) * .62);
         copyInto(base, temporary);
@@ -290,8 +375,8 @@
       if (elevation <= seaLevel) {
         // Ice thickness varies in broad spherical plates; the polar core is
         // colder and denser, with fractures kept visible over both regions.
-        const iceThickness = clamp(.50 + depth * .12 + detail.macro * 1.5 +
-          detail.medium * .45 + detail.fine * .18, 0, 1);
+        const iceThickness = clamp(.52 + depth * .12 + detail.macro * .62 +
+          detail.medium * .16 + detail.fine * .05, 0, 1);
         mixInto(base, palette.seaIce, palette.packedIce, iceThickness);
         mixInto(temporary, base, palette.polarCore, polarCoverage * .78);
         copyInto(base, temporary);
@@ -370,7 +455,7 @@
     const cacheKey = `${key}:${width}x${height}`;
     const cached = options.cache === false ? null : textureCache.get(cacheKey);
     if (cached) {
-      textureCache.delete(key); textureCache.set(key, cached);
+      textureCache.delete(cacheKey); textureCache.set(cacheKey, cached);
       return cached;
     }
 
@@ -383,29 +468,34 @@
     const polarSeed = surfaceSeed ^ 0x5b1ce8a3;
     const climate = climateOf(planet), temperature = Number.isFinite(planet?.temperature) ? planet.temperature : 16;
     const polarThreshold = polarIceThreshold(temperature);
-    const craters = climate === 'arid' ? craterField(width, height, createCraters(craterSeed)) : null;
-    const pixels = new Uint8Array(width * height * 4);
-    const colorOutput = new Float32Array(4), colorWork = { a: new Float32Array(3),
-      b: new Float32Array(3), c: new Float32Array(3),
-      hsl: new Float32Array(3), tinted: new Float32Array(3), tint: { hueShift: 0, satMul: 1, lightMul: 1 } };
-    // R/G encode derivatives from the actual elevation field; B is only
-    // high-frequency spherical microstructure. The shader combines them
-    // with the mesh normal instead of inventing relief from color noise.
-    const detailPixels = new Uint8Array(width * height * 3);
-    const sampledElevation = new Float32Array(width * height);
+    const albedoWidth = Math.min(width, 1024);
+    const albedoHeight = Math.min(height, Math.max(1, Math.round(albedoWidth * height / width)));
+    const craters = climate === 'arid'
+      ? craterField(albedoWidth, albedoHeight, createCraters(craterSeed)) : null;
+    const pixelCount = width * height;
+    const albedoPixels = new Uint8Array(pixelCount * 4);
+    const sourceAlbedoPixels = albedoWidth === width && albedoHeight === height
+      ? albedoPixels : new Uint8Array(albedoWidth * albedoHeight * 4);
+    const heightPixels = new Uint8Array(pixelCount);
+    const landMaskPixels = new Uint8Array(pixelCount);
+    const detailPixels = new Uint8Array(pixelCount);
+    const sourceDetailPixels = albedoWidth === width && albedoHeight === height
+      ? detailPixels : new Uint8Array(albedoWidth * albedoHeight);
+    const colorOutput = new Float32Array(4);
+    const waterColor = new Float32Array(4), landColor = new Float32Array(4);
+    const colorWork = { a: new Float32Array(3), b: new Float32Array(3), c: new Float32Array(3) };
     const detail = { macro: 0, medium: 0, fine: 0, crack: 0, ridge: 0, lava: 0, geology: 0 };
-    const rowDirections = new Array(height), longitudeDirections = new Array(width);
-    for (let px = 0; px < width; px += 1) {
-      const longitude = (px / width - .5) * Math.PI * 2;
-      longitudeDirections[px] = { cos: Math.cos(longitude), sin: Math.sin(longitude) };
-    }
-    for (let py = 0; py < height; py += 1) {
-      const v = py / (height - 1 || 1), latitude = (.5 - v) * Math.PI;
-      const northPole = py === 0, southPole = py === height - 1 && !northPole;
-      const cos = northPole || southPole ? 0 : Math.cos(latitude);
-      const y = northPole ? 1 : southPole ? -1 : Math.sin(latitude);
-      rowDirections[py] = { latitude, cos, sin: y, y, mapY: v * (terrain.height - 1) };
-    }
+    const specialDetail = climate === 'frozen' || climate === 'volcanic';
+    const macroSampler = createSphericalFieldSampler(width, height,
+      (nx, ny, nz) => noise3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed));
+    const mediumSampler = specialDetail ? createSphericalFieldSampler(width, height,
+      (nx, ny, nz) => noise3(nx * 7, ny * 7, nz * 7, geologySeed)) : null;
+    const fineSampler = specialDetail ? createSphericalFieldSampler(width, height,
+      (nx, ny, nz) => noise3(nx * 24, ny * 24, nz * 24, climate === 'frozen' ? iceSeed : detailSeed)) : null;
+    const usesPolarIce = climate === 'temperate' || climate === 'frozen' || climate === 'arid';
+    const polarSampler = usesPolarIce ? createSphericalFieldSampler(width, height, (nx, ny, nz, latitude) =>
+      Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10
+        ? polarIceCoverage(nx, ny, nz, temperature, polarSeed) : 0) : null;
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     let basinLevel = seaLevel;
     if (climate === 'arid' || climate === 'volcanic') {
@@ -418,58 +508,161 @@
         if (count >= target) { basinLevel = Math.max(seaLevel, level); break; }
       }
     }
-    const sampleElevation = createFieldSampler(terrain.elevation, terrain);
-    const sampleMoisture = climate === 'temperate' || climate === 'arid'
-      ? createFieldSampler(terrain.moisture, terrain) : null;
+    const texelMapX = Math.max(0, terrain.width - 1) / width;
+    const texelMapY = Math.max(0, terrain.height - 1) / height;
+    const coastLow = seaLevel - 1.25, coastHigh = seaLevel + 1.25;
+    const xProfiles = new Array(width), yProfiles = new Array(height);
+    for (let px = 0; px < width; px += 1) {
+      const mapX = px / width * (terrain.width - 1);
+      xProfiles[px] = { center: wrappedXProfile(mapX, terrain.width),
+        west: wrappedXProfile(mapX - .25 * texelMapX, terrain.width),
+        east: wrappedXProfile(mapX + .25 * texelMapX, terrain.width) };
+    }
     for (let py = 0; py < height; py += 1) {
-      const row = rowDirections[py], mapY = row.mapY, offset = py * width;
+      const mapY = py / (height - 1 || 1) * (terrain.height - 1);
+      yProfiles[py] = { center: clampedYProfile(mapY, terrain.height),
+        north: clampedYProfile(mapY - .25 * texelMapY, terrain.height),
+        south: clampedYProfile(mapY + .25 * texelMapY, terrain.height) };
+    }
+
+    // Pre-interpolate source columns once. Four supersamples can then read
+    // only the two neighboring rows per sample instead of repeating four
+    // bilinear source lookups for every output texel.
+    const sourceRowCount = terrain.height;
+    const profilePlaneSize = width * sourceRowCount;
+    const elevationProfiles = new Float32Array(profilePlaneSize * 3);
+    for (let px = 0; px < width; px += 1) {
+      const samples = xProfiles[px];
+      const profiles = [samples.center, samples.west, samples.east];
+      for (let profileIndex = 0; profileIndex < 3; profileIndex += 1) {
+        const x = profiles[profileIndex], planeOffset = profileIndex * profilePlaneSize + px * sourceRowCount;
+        for (let y = 0; y < sourceRowCount; y += 1) {
+          const row = y * terrain.width;
+          const left = terrain.elevation[row + x.x0], right = terrain.elevation[row + x.x1];
+          elevationProfiles[planeOffset + y] = left * (1 - x.t) + right * x.t;
+        }
+      }
+    }
+
+    for (let py = 0; py < height; py += 1) {
+      const ySamples = yProfiles[py], offset = py * width;
       for (let px = 0; px < width; px += 1) {
-        const u = px / width, longitude = longitudeDirections[px];
-        const nx = row.cos * longitude.cos, ny = row.y, nz = row.cos * longitude.sin;
-        const mapX = u * (terrain.width - 1);
-        const elevation = sampleElevation(mapX, mapY, row.latitude);
-        const moisture = sampleMoisture ? sampleMoisture(mapX, mapY, row.latitude) / 255 : .5;
-        const macro = noise3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed);
-        const medium = noise3(nx * 7, ny * 7, nz * 7, geologySeed);
-        const fine = noise3(nx * 24, ny * 24, nz * 24, climate === 'frozen' ? iceSeed : detailSeed);
-        const polarCoverage = (climate === 'temperate' || climate === 'frozen' || climate === 'arid') &&
-          Math.abs(row.latitude) * 180 / Math.PI >= polarThreshold - 10
-          ? polarIceCoverage(nx, ny, nz, temperature, polarSeed) : 0;
+        const centerBase = px * sourceRowCount;
+        const northBase = profilePlaneSize + centerBase;
+        const southBase = profilePlaneSize * 2 + centerBase;
+        const centerRows = ySamples.center;
+        const elevation = elevationProfiles[centerBase + centerRows.y0] * (1 - centerRows.t) +
+          elevationProfiles[centerBase + centerRows.y1] * centerRows.t;
+        const northWestRows = ySamples.north, southWestRows = ySamples.south;
+        const northWest = elevationProfiles[northBase + northWestRows.y0] * (1 - northWestRows.t) +
+          elevationProfiles[northBase + northWestRows.y1] * northWestRows.t;
+        const northEast = elevationProfiles[southBase + northWestRows.y0] * (1 - northWestRows.t) +
+          elevationProfiles[southBase + northWestRows.y1] * northWestRows.t;
+        const southWest = elevationProfiles[northBase + southWestRows.y0] * (1 - southWestRows.t) +
+          elevationProfiles[northBase + southWestRows.y1] * southWestRows.t;
+        const southEast = elevationProfiles[southBase + southWestRows.y0] * (1 - southWestRows.t) +
+          elevationProfiles[southBase + southWestRows.y1] * southWestRows.t;
+        const coverage = (smoothstep(coastLow, coastHigh, northWest) +
+          smoothstep(coastLow, coastHigh, northEast) + smoothstep(coastLow, coastHigh, southWest) +
+          smoothstep(coastLow, coastHigh, southEast)) * .25;
+        const normalizedHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
+        const index = offset + px;
+        landMaskPixels[index] = Math.round(clamp(coverage, 0, 1) * 255);
+        heightPixels[index] = Math.round(normalizedHeight * 255);
+      }
+    }
+
+    const albedoXProfiles = new Array(albedoWidth), albedoYProfiles = new Array(albedoHeight);
+    for (let px = 0; px < albedoWidth; px += 1) {
+      albedoXProfiles[px] = wrappedXProfile(px / albedoWidth * (terrain.width - 1), terrain.width);
+    }
+    for (let py = 0; py < albedoHeight; py += 1) {
+      albedoYProfiles[py] = clampedYProfile(py / (albedoHeight - 1 || 1) * (terrain.height - 1), terrain.height);
+    }
+    const albedoRowDirections = new Array(albedoHeight);
+    for (let py = 0; py < albedoHeight; py += 1) {
+      const v = py / (albedoHeight - 1 || 1), latitude = (.5 - v) * Math.PI;
+      albedoRowDirections[py] = { latitude,
+        latitudeCooling: Math.pow(Math.abs(Math.sin(latitude)), 1.55) * 38,
+        polarEligible: Math.abs(latitude) * 180 / Math.PI >= polarThreshold - 10 };
+    }
+
+    for (let py = 0; py < albedoHeight; py += 1) {
+      const row = albedoRowDirections[py], ySamples = albedoYProfiles[py], offset = py * albedoWidth;
+      for (let px = 0; px < albedoWidth; px += 1) {
+        const u = px / albedoWidth, v = py / (albedoHeight - 1 || 1);
+        const xSamples = albedoXProfiles[px];
+        const elevation = sampleRaster(terrain.elevation, terrain.width, xSamples, ySamples);
+        const coverage = smoothstep(coastLow, coastHigh, elevation);
+        const moisture = climate === 'temperate' || climate === 'arid'
+          ? sampleRaster(terrain.moisture, terrain.width, xSamples, ySamples) / 255 : .5;
+        const macro = macroSampler(u, v);
+        const medium = mediumSampler ? mediumSampler(u, v) : macro * .32;
+        const fine = fineSampler ? fineSampler(u, v) : 0;
+        const polarCoverage = polarSampler && row.polarEligible ? polarSampler(u, v) : 0;
         const crater = craters ? craters[offset + px] : 0;
-        detail.macro = macro; detail.medium = medium; detail.fine = fine; detail.crack = fine;
-        detail.ridge = 1 - Math.abs(medium); detail.lava = .62 * macro + .38 * medium; detail.geology = medium;
-        const index = (offset + px) * 4;
-        colorFor(climate, elevation, seaLevel, basinLevel, moisture, row.latitude, detail,
-          temperature, crater, polarCoverage, colorOutput, colorWork);
-        pixels[index] = Math.round(colorOutput[0]);
-        pixels[index + 1] = Math.round(colorOutput[1]);
-        pixels[index + 2] = Math.round(colorOutput[2]);
-        pixels[index + 3] = Math.round(colorOutput[3] * 255);
-        sampledElevation[offset + px] = elevation;
-        const detailIndex = (offset + px) * 3;
-        detailPixels[detailIndex + 2] = Math.round(clamp(.5 + fine * .22, 0, 1) * 255);
+        detail.macro = macro;
+        detail.medium = medium;
+        detail.fine = specialDetail ? fine * .45 : 0;
+        detail.crack = specialDetail ? fine : 0;
+        detail.ridge = 1 - Math.abs(medium);
+        detail.lava = .62 * macro + .38 * medium;
+        detail.geology = medium;
+
+        const rgbaIndex = (offset + px) * 4;
+        if (coverage > .002 && coverage < .998) {
+          colorFor(climate, seaLevel - 1.26, seaLevel, basinLevel, moisture, row.latitude, row.latitudeCooling, detail,
+            temperature, crater, polarCoverage, waterColor, colorWork);
+          colorFor(climate, seaLevel + 1.26, seaLevel, basinLevel, moisture, row.latitude, row.latitudeCooling, detail,
+            temperature, crater, polarCoverage, landColor, colorWork);
+          mixInto(colorOutput, waterColor, landColor, coverage);
+        } else {
+          colorFor(climate, elevation, seaLevel, basinLevel, moisture, row.latitude, row.latitudeCooling, detail,
+            temperature, crater, polarCoverage, colorOutput, colorWork);
+        }
+        sourceAlbedoPixels[rgbaIndex] = Math.round(colorOutput[0]);
+        sourceAlbedoPixels[rgbaIndex + 1] = Math.round(colorOutput[1]);
+        sourceAlbedoPixels[rgbaIndex + 2] = Math.round(colorOutput[2]);
+        sourceAlbedoPixels[rgbaIndex + 3] = 255;
+        sourceDetailPixels[offset + px] = Math.round(clamp(.5 + (specialDetail ? fine : macro) * .05, 0, 1) * 255);
       }
     }
-    const xStep = Math.max(1, Math.round(width / Math.max(1, terrain.width)));
-    const yStep = Math.max(1, Math.round(height / Math.max(1, terrain.height)));
-    for (let py = 0; py < height; py += 1) {
-      const row = py * width;
-      const north = Math.max(0, py - yStep) * width;
-      const south = Math.min(height - 1, py + yStep) * width;
-      const latitude = (.5 - py / Math.max(1, height - 1)) * Math.PI;
-      const longitudeCorrection = Math.min(4, 1 / Math.max(.25, Math.cos(latitude)));
-      for (let px = 0; px < width; px += 1) {
-        const leftX = (px - xStep + width) % width;
-        const rightX = (px + xStep) % width;
-        const eastSlope = (sampledElevation[row + rightX] - sampledElevation[row + leftX]) *
-          .5 * longitudeCorrection / 28;
-        const northSlope = (sampledElevation[south + px] - sampledElevation[north + px]) * .5 / 28;
-        const index = (row + px) * 3;
-        detailPixels[index] = Math.round(clamp(.5 + eastSlope * .5, 0, 1) * 255);
-        detailPixels[index + 1] = Math.round(clamp(.5 + northSlope * .5, 0, 1) * 255);
+
+    if (sourceAlbedoPixels !== albedoPixels) {
+      for (let py = 0; py < height; py += 1) {
+        const sourceY = py / (height - 1 || 1) * (albedoHeight - 1), y0 = Math.floor(sourceY);
+        const y1 = Math.min(albedoHeight - 1, y0 + 1), ty = sourceY - y0;
+        for (let px = 0; px < width; px += 1) {
+          const sourceX = px / width * albedoWidth, wrappedX = sourceX % albedoWidth;
+          const x0 = Math.floor(wrappedX), x1 = (x0 + 1) % albedoWidth, tx = wrappedX - x0;
+          const index = (py * width + px) * 4;
+          for (let channel = 0; channel < 3; channel += 1) {
+            const a = sourceAlbedoPixels[(y0 * albedoWidth + x0) * 4 + channel] * (1 - tx) +
+              sourceAlbedoPixels[(y0 * albedoWidth + x1) * 4 + channel] * tx;
+            const b = sourceAlbedoPixels[(y1 * albedoWidth + x0) * 4 + channel] * (1 - tx) +
+              sourceAlbedoPixels[(y1 * albedoWidth + x1) * 4 + channel] * tx;
+            albedoPixels[index + channel] = Math.round(a * (1 - ty) + b * ty);
+          }
+          albedoPixels[index + 3] = 255;
+          const detailX = sourceX % albedoWidth;
+          const detailX0 = Math.floor(detailX), detailX1 = (detailX0 + 1) % albedoWidth;
+          const da = sourceDetailPixels[y0 * albedoWidth + detailX0] * (1 - tx) +
+            sourceDetailPixels[y0 * albedoWidth + detailX1] * tx;
+          const db = sourceDetailPixels[y1 * albedoWidth + detailX0] * (1 - tx) +
+            sourceDetailPixels[y1 * albedoWidth + detailX1] * tx;
+          detailPixels[py * width + px] = Math.round(da * (1 - ty) + db * ty);
+        }
       }
     }
-    const texture = Object.freeze({ width, height, pixels, detailPixels, key: cacheKey, climate });
+
+    const coastRange = 24;
+    const coastSdfPixels = createCoastDistance(landMaskPixels, width, height, coastRange);
+    const texture = Object.freeze({ width, height, pixels: albedoPixels, albedoPixels, heightPixels,
+      landMaskPixels, coastSdfPixels, detailPixels, coastRange,
+      coastColor: climate === 'temperate' ? PALETTES.temperate.coast :
+        climate === 'frozen' ? PALETTES.frozen.packedIce :
+          climate === 'arid' ? PALETTES.arid.sand : PALETTES.volcanic.basalt,
+      key: cacheKey, climate });
     if (options.cache !== false) {
       textureCache.set(cacheKey, texture);
       while (textureCache.size > MAX_CACHE_ENTRIES) textureCache.delete(textureCache.keys().next().value);

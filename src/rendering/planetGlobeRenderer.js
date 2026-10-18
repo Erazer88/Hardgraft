@@ -58,17 +58,27 @@
       vElevation = aElevation;
     }`;
   const FRAGMENT_SHADER = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec3 vNormal;
     in vec3 vTangentU;
     in vec3 vTangentV;
     in vec2 vUv;
     in float vElevation;
-    uniform sampler2D uSurfaceTexture;
+    uniform sampler2D uAlbedoTexture;
+    uniform sampler2D uHeightTexture;
+    uniform sampler2D uLandMaskTexture;
+    uniform sampler2D uCoastSdfTexture;
     uniform sampler2D uDetailTexture;
-    uniform vec2 uDetailTexelSize;
-    uniform float uTerrainNormalStrength;
-    uniform float uMicroNormalStrength;
+    uniform vec2 uHeightTexelSize;
+    uniform vec2 uFacetGrid;
+    uniform float uReliefScale;
+    uniform float uHeightStrength;
+    uniform float uFacetStrength;
+    uniform float uFacetMix;
+    uniform float uDetailNormalStrength;
+    uniform float uCoastWidth;
+    uniform vec3 uCoastColor;
+    uniform float uHasLiquidOcean;
     uniform float uOpacity;
     uniform float uSeaLevel;
     uniform float uContourInterval;
@@ -88,41 +98,62 @@
         outColor = vec4(uAtmosphereColor, fresnel * uAtmosphereAlpha * uOpacity);
         return;
       }
+
       vec3 lightDirection = normalize(vec3(-0.42, 0.55, 0.78));
       float latitude = (0.5 - vUv.y) * 3.14159265359;
-      // Preserve relief detail almost to the pole; fade only the final row
-      // where longitude derivatives are singular.
       float polarDetailFade = 1.0 - smoothstep(1.55334, 1.5707963, abs(latitude));
-      float coastline = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
-      vec2 bumpOffset = uDetailTexelSize * 2.0;
-      vec3 detail = texture(uDetailTexture, vUv).rgb;
-      float microLeft = texture(uDetailTexture, vUv - vec2(bumpOffset.x, 0.0)).b;
-      float microRight = texture(uDetailTexture, vUv + vec2(bumpOffset.x, 0.0)).b;
-      float microNorth = texture(uDetailTexture, vUv - vec2(0.0, bumpOffset.y)).b;
-      float microSouth = texture(uDetailTexture, vUv + vec2(0.0, bumpOffset.y)).b;
-      vec2 terrainSlope = detail.rg * 2.0 - 1.0;
-      vec2 microSlope = vec2(microRight - microLeft, microSouth - microNorth);
-      vec3 normal = normalize(vNormal);
-      vec3 tangentU = normalize(vTangentU - normal * dot(vTangentU, normal));
-      vec3 tangentV = normalize(vTangentV - normal * dot(vTangentV, normal));
-      normal = normalize(normal - (tangentU * terrainSlope.x + tangentV * terrainSlope.y) *
-        (uTerrainNormalStrength * polarDetailFade * coastline));
-      normal = normalize(normal - (tangentU * microSlope.x + tangentV * microSlope.y) *
-        (uMicroNormalStrength * polarDetailFade * coastline));
-      float diffuse = max(dot(normalize(normal), lightDirection), 0.0);
-      vec4 surface = texture(uSurfaceTexture, vUv);
-      vec3 base = surface.rgb;
-      float lighting = 0.56 + diffuse * 0.65;
-      lighting = clamp(lighting, 0.50, 1.16);
-      vec3 color = base * lighting;
-      float ocean = 1.0 - smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
+      vec3 baseNormal = normalize(vNormal);
+      vec3 tangentU = normalize(vTangentU - baseNormal * dot(vTangentU, baseNormal));
+      vec3 tangentV = normalize(vTangentV - baseNormal * dot(vTangentV, baseNormal));
+      float lonMetric = max(0.18, cos(latitude));
+      float heightLeft = texture(uHeightTexture, vUv - vec2(uHeightTexelSize.x, 0.0)).r;
+      float heightRight = texture(uHeightTexture, vUv + vec2(uHeightTexelSize.x, 0.0)).r;
+      float heightNorth = texture(uHeightTexture, vUv - vec2(0.0, uHeightTexelSize.y)).r;
+      float heightSouth = texture(uHeightTexture, vUv + vec2(0.0, uHeightTexelSize.y)).r;
+      float dHx = (heightRight - heightLeft) / max(0.0001, 6.2831853 * uHeightTexelSize.x * lonMetric) * uReliefScale;
+      float dHy = (heightSouth - heightNorth) / max(0.0001, 6.2831853 * uHeightTexelSize.y) * uReliefScale;
+      vec3 terrainNormal = normalize(baseNormal - tangentU * dHx * uHeightStrength - tangentV * dHy * uHeightStrength);
+
+      vec2 facetUv = (floor(vUv * uFacetGrid) + 0.5) / uFacetGrid;
+      vec2 facetStep = max(uHeightTexelSize * 2.0, 0.5 / uFacetGrid);
+      float facetLeft = texture(uHeightTexture, facetUv - vec2(facetStep.x, 0.0)).r;
+      float facetRight = texture(uHeightTexture, facetUv + vec2(facetStep.x, 0.0)).r;
+      float facetNorth = texture(uHeightTexture, facetUv - vec2(0.0, facetStep.y)).r;
+      float facetSouth = texture(uHeightTexture, facetUv + vec2(0.0, facetStep.y)).r;
+      float fdHx = (facetRight - facetLeft) / max(0.0001, 6.2831853 * facetStep.x * lonMetric) * uReliefScale;
+      float fdHy = (facetSouth - facetNorth) / max(0.0001, 6.2831853 * facetStep.y) * uReliefScale;
+      vec3 facetNormal = normalize(baseNormal - tangentU * fdHx * uFacetStrength - tangentV * fdHy * uFacetStrength);
+
+      float height = clamp((vElevation - uSeaLevel) / max(1.0, 255.0 - uSeaLevel), 0.0, 1.0);
+      float landCoverage = texture(uLandMaskTexture, vUv).r;
+      float mountain = smoothstep(0.14, 0.62, height);
+      float faceting = landCoverage * mountain;
+      vec3 finalNormal = normalize(mix(terrainNormal, facetNormal, faceting * uFacetMix));
+      float microDetail = texture(uDetailTexture, vUv).r - 0.5;
+      finalNormal = normalize(finalNormal - (tangentU + tangentV * 0.65) * microDetail *
+        (uDetailNormalStrength * polarDetailFade * landCoverage));
+
+      float coastSdf = texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0;
+      float coastWidth = max(uCoastWidth, fwidth(coastSdf) * 1.15);
+      float coastBlend = smoothstep(-coastWidth, coastWidth, coastSdf);
+      float land = mix(landCoverage, coastBlend, 0.35);
+      float shoreBand = 1.0 - smoothstep(coastWidth * 0.45, coastWidth * 1.55, abs(coastSdf));
+      vec3 base = texture(uAlbedoTexture, vUv).rgb;
+      base = mix(base, uCoastColor, shoreBand * 0.32);
+
+      float diffuse = dot(finalNormal, lightDirection) * 0.5 + 0.5;
+      diffuse *= diffuse;
+      float shadeBands = mix(diffuse, floor(diffuse * 4.0) / 4.0, 0.18);
+      float lightTerm = 0.62 + shadeBands * 0.52;
+      float slope = clamp(length(vec2(dHx, dHy)) * 2.2, 0.0, 1.0);
+      float ao = 1.0 - slope * 0.16 * land;
+      vec3 color = base * lightTerm * ao;
+
       vec3 halfVector = normalize(lightDirection + vec3(0.0, 0.0, 1.0));
-      float oceanSpecular = pow(max(dot(normalize(normal), halfVector), 0.0), 42.0) * ocean * 0.22;
-      color += oceanSpecular * vec3(0.44, 0.78, 0.96);
-      float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
-      color = mix(vec3(luminance), color, 1.10);
-      color = (color - vec3(0.48)) * 1.10 + vec3(0.48);
-      float land = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
+      float oceanSpecular = pow(max(dot(baseNormal, halfVector), 0.0), 36.0) *
+        (1.0 - landCoverage) * uHasLiquidOcean * 0.12;
+      color += oceanSpecular * vec3(0.54, 0.80, 1.0);
+
       float minorLevel = (vElevation - uSeaLevel) / uContourInterval;
       float majorLevel = (vElevation - uSeaLevel) / uMajorInterval;
       float minorDistance = abs(fract(minorLevel + 0.5) - 0.5);
@@ -131,8 +162,9 @@
       float majorWidth = max(0.035, fwidth(majorLevel) * 0.72);
       float minorLine = (1.0 - smoothstep(0.0, minorWidth, minorDistance)) * land;
       float majorLine = (1.0 - smoothstep(0.0, majorWidth, majorDistance)) * land;
-      float contour = max(minorLine * uContourOpacity, majorLine * uMajorOpacity) * coastline;
-      color = mix(color, color * 0.72, contour);
+      float contour = max(minorLine * uContourOpacity, majorLine * uMajorOpacity) *
+        smoothstep(uSeaLevel + 1.0, uSeaLevel + 3.0, vElevation);
+      color = mix(color, color * 0.82, contour);
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }`;
 
@@ -179,11 +211,21 @@
         majorInterval: gl.getUniformLocation(program, 'uMajorInterval'),
         contourOpacity: gl.getUniformLocation(program, 'uContourOpacity'),
         majorOpacity: gl.getUniformLocation(program, 'uMajorOpacity'),
-        surfaceTexture: gl.getUniformLocation(program, 'uSurfaceTexture'),
+        albedoTexture: gl.getUniformLocation(program, 'uAlbedoTexture'),
+        heightTexture: gl.getUniformLocation(program, 'uHeightTexture'),
+        landMaskTexture: gl.getUniformLocation(program, 'uLandMaskTexture'),
+        coastSdfTexture: gl.getUniformLocation(program, 'uCoastSdfTexture'),
         detailTexture: gl.getUniformLocation(program, 'uDetailTexture'),
-        detailTexelSize: gl.getUniformLocation(program, 'uDetailTexelSize'),
-        terrainNormalStrength: gl.getUniformLocation(program, 'uTerrainNormalStrength'),
-        microNormalStrength: gl.getUniformLocation(program, 'uMicroNormalStrength') };
+        heightTexelSize: gl.getUniformLocation(program, 'uHeightTexelSize'),
+        facetGrid: gl.getUniformLocation(program, 'uFacetGrid'),
+        reliefScale: gl.getUniformLocation(program, 'uReliefScale'),
+        heightStrength: gl.getUniformLocation(program, 'uHeightStrength'),
+        facetStrength: gl.getUniformLocation(program, 'uFacetStrength'),
+        facetMix: gl.getUniformLocation(program, 'uFacetMix'),
+        detailNormalStrength: gl.getUniformLocation(program, 'uDetailNormalStrength'),
+        coastWidth: gl.getUniformLocation(program, 'uCoastWidth'),
+        coastColor: gl.getUniformLocation(program, 'uCoastColor'),
+        hasLiquidOcean: gl.getUniformLocation(program, 'uHasLiquidOcean') };
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       buffers = null;
@@ -196,7 +238,9 @@
       if (buffers) {
         gl.deleteBuffer(buffers.positions); gl.deleteBuffer(buffers.normals);
         gl.deleteBuffer(buffers.uvs); gl.deleteBuffer(buffers.elevations); gl.deleteBuffer(buffers.indices);
-        gl.deleteTexture(buffers.surfaceTexture); gl.deleteTexture(buffers.detailTexture);
+        gl.deleteTexture(buffers.albedoTexture); gl.deleteTexture(buffers.heightTexture);
+        gl.deleteTexture(buffers.landMaskTexture); gl.deleteTexture(buffers.coastSdfTexture);
+        gl.deleteTexture(buffers.detailTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -214,26 +258,28 @@
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
       const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
         { width: textureWidth, height: textureWidth / 2 });
-      const surfaceTexture = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, surfaceTexture);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, surfaceData.width, surfaceData.height, 0,
-        gl.RGBA, gl.UNSIGNED_BYTE, surfaceData.pixels);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      const detailTexture = gl.createTexture(); gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, detailTexture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, surfaceData.width, surfaceData.height, 0,
-        gl.RGB, gl.UNSIGNED_BYTE, surfaceData.detailPixels);
-      gl.generateMipmap(gl.TEXTURE_2D);
+      function uploadTexture(unit, internalFormat, format, pixels) {
+        const texture = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, surfaceData.width, surfaceData.height, 0,
+          format, gl.UNSIGNED_BYTE, pixels);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        return texture;
+      }
+      const albedoTexture = uploadTexture(0, gl.RGBA8, gl.RGBA, surfaceData.albedoPixels);
+      const heightTexture = uploadTexture(1, gl.R8, gl.RED, surfaceData.heightPixels);
+      const landMaskTexture = uploadTexture(2, gl.R8, gl.RED, surfaceData.landMaskPixels);
+      const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
+      const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
       gl.bindVertexArray(null);
-      buffers = { vao, positions, normals, uvs, elevations, indices, surfaceTexture, detailTexture, textureKey: surfaceData.key,
+      buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
+        landMaskTexture, coastSdfTexture, detailTexture, coastRange: surfaceData.coastRange,
+        coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
         indexType: mesh.indices instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
     }
@@ -269,8 +315,7 @@
     }
 
     function textureWidthFor(radiusPx) {
-      const projectedDiameter = radiusPx * 2;
-      const requested = projectedDiameter > 720 ? 2048 : 1024;
+      const requested = SurfaceTexture.defaults.width;
       return Math.min(requested, gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048);
     }
 
@@ -303,13 +348,29 @@
       }
       gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.useProgram(program); gl.bindVertexArray(buffers.vao);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, buffers.surfaceTexture);
-      gl.uniform1i(program.uniforms.surfaceTexture, 0);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, buffers.detailTexture);
-      gl.uniform1i(program.uniforms.detailTexture, 1);
-      gl.uniform2f(program.uniforms.detailTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
-      gl.uniform1f(program.uniforms.terrainNormalStrength, .68);
-      gl.uniform1f(program.uniforms.microNormalStrength, .16);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, buffers.albedoTexture);
+      gl.uniform1i(program.uniforms.albedoTexture, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, buffers.heightTexture);
+      gl.uniform1i(program.uniforms.heightTexture, 1);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, buffers.landMaskTexture);
+      gl.uniform1i(program.uniforms.landMaskTexture, 2);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, buffers.coastSdfTexture);
+      gl.uniform1i(program.uniforms.coastSdfTexture, 3);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, buffers.detailTexture);
+      gl.uniform1i(program.uniforms.detailTexture, 4);
+      gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
+      gl.uniform2f(program.uniforms.facetGrid, 220, 110);
+      gl.uniform1f(program.uniforms.reliefScale, Style.relief.scale);
+      gl.uniform1f(program.uniforms.heightStrength, 2.1);
+      gl.uniform1f(program.uniforms.facetStrength, 3.4);
+      gl.uniform1f(program.uniforms.facetMix, .55);
+      gl.uniform1f(program.uniforms.detailNormalStrength, .08);
+      gl.uniform1f(program.uniforms.coastWidth, 1.5 / buffers.coastRange);
+      const coastValue = Number.parseInt(buffers.coastColor.slice(1), 16);
+      gl.uniform3f(program.uniforms.coastColor, ((coastValue >> 16) & 255) / 255,
+        ((coastValue >> 8) & 255) / 255, (coastValue & 255) / 255);
+      gl.uniform1f(program.uniforms.hasLiquidOcean,
+        planet.kind === 'glacée' || planet.kind === 'aride' || planet.kind === 'volcanique' ? 0 : 1);
       gl.uniform1f(program.uniforms.atmospherePass, 0);
       gl.uniform1f(program.uniforms.shellScale, 1);
       gl.uniform1f(program.uniforms.yaw, view.yaw); gl.uniform1f(program.uniforms.pitch, view.pitch);
@@ -345,8 +406,9 @@
         longitudeSegments: currentMesh?.longitudeSegments || 0,
         latitudeSegments: currentMesh?.latitudeSegments || 0, textureWidth: buffers?.textureWidth || 0,
         textureHeight: buffers?.textureHeight || 0, textureKey: buffers?.textureKey || null,
-        terrainNormalStrength: buffers ? .68 : 0, microNormalStrength: buffers ? .16 : 0,
-        normalDetailStrength: buffers ? .68 : 0, contextLost: lost, failure }) });
+        heightStrength: buffers ? 2.1 : 0, facetStrength: buffers ? 3.4 : 0,
+        facetMix: buffers ? .55 : 0, detailNormalStrength: buffers ? .08 : 0,
+        coastRange: buffers?.coastRange || 0, contextLost: lost, failure }) });
   }
 
   root.OrbitPlanetGlobeRenderer = Object.freeze({ create });

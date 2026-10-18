@@ -216,9 +216,9 @@ async function enterSurface(cdp, viewport, name) {
   assert.equal(metrics.overlay, 'block', `${name} projected cartographic overlay is visible`);
   assert.equal(metrics.error, true, `${name} WebGL2 fallback message is hidden when rendering succeeds`);
   assert.ok(metrics.globe.renderer.vertices >= 18000, `${name} globe reuses the expected mobile mesh resolution`);
-  assert.ok([1024, 2048].includes(metrics.globe.renderer.textureWidth), `${name} globe uses an adaptive seeded surface texture`);
+  assert.equal(metrics.globe.renderer.textureWidth, 2048, `${name} globe uses the clean 2048px source surface maps`);
   assert.equal(metrics.globe.renderer.textureHeight, metrics.globe.renderer.textureWidth / 2,
-    `${name} adaptive surface texture preserves the equirectangular ratio`);
+    `${name} separated surface maps preserve the equirectangular ratio`);
   assert.equal(metrics.globe.renderer.dpr, mobile ? 3 : 1, `${name} globe rendering honors the mobile DPR cap of 3`);
   assert.equal(metrics.overflow <= 1, true, `${name} layout has no horizontal overflow`);
   return { planet, mobile, width, height };
@@ -250,9 +250,10 @@ async function runViewport(cdp, viewport, errors) {
   await enterSurface(cdp, viewport, name);
   if (process.env.ORBITAL_BROWSER_CAPTURE_ZOOM === '1') {
     assert.equal(mobile, false, 'the large-texture visual capture uses the desktop viewport');
+    const beforeZoom = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: width / 2, y: height / 2, deltaX: 0, deltaY: -200 });
-    await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.textureWidth === 2048',
-      `${name} globe upgrades to its large adaptive texture`, 60000);
+    await cdp.until(`window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom > ${beforeZoom}`,
+      `${name} globe zooms while retaining its full-resolution surface maps`, 60000);
   }
   await cdp.screenshot(`${name}-planet-globe.png`);
   if (process.env.ORBITAL_BROWSER_CAPTURE_ONLY === '1') {
