@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 function load() {
   const context = vm.createContext({});
-  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js'])
+  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js'])
     vm.runInContext(fs.readFileSync(`${__dirname}/../src/${file}`,'utf8'),context);
   return context;
 }
@@ -113,4 +113,33 @@ test('B: uplift stays continuous where the second-nearest plate changes at a jun
     checked++;
   }
   assert.ok(checked>=10,'inspect multiple runner-up transitions rather than just an arbitrary point');
+});
+
+test('C: thermal erosion lowers sharp peaks conservatively on a sphere, including both poles', () => {
+  const c=load(),E=c.OrbitThermalErosion,width=128,height=64,field=new Float32Array(width*height).fill(100);
+  field[30*width+60]=200;
+  for(let x=0;x<width;x++)field[x]=180;
+  const before=E.surfaceIntegral(field,width,height),after=E.erode(field,width,height);
+  const repeated=E.erode(field,width,height);
+  equalArrays(after,repeated);
+  assert.ok(after[30*width+60]<150,'isolated steep summit is softened');
+  assert.ok(after[30*width+59]>100,'eroded material is deposited beside the summit');
+  assert.ok(Math.abs(E.surfaceIntegral(after,width,height)-before)<before*1e-6,'surface-weighted material is conserved');
+  assert.ok(after.every(Number.isFinite));
+  for(let y=0;y<height;y++)assert.equal(after[y*width],after[y*width+width-1]);
+  for(const y of [0,height-1])for(let x=1;x<width;x++)assert.equal(after[y*width+x],after[y*width]);
+  equalArrays(E.erode(new Float32Array(width*height).fill(100),width,height),new Float32Array(width*height).fill(100),
+    'flat plains are not textured by erosion');
+});
+
+test('C: real tectonic terrain changes gently and keeps its long mountain systems', () => {
+  const c=load(),w=192,h=96,fields=c.OrbitTectonics.create('erosion-real',w,h,{geology:.9}),
+    raw=c.OrbitTerrainElevation.create(fields,'erosion-real').rawElevation;
+  const eroded=c.OrbitThermalErosion.erode(raw,w,h);
+  let total=0,maximum=0;
+  for(let i=0;i<raw.length;i++){const d=Math.abs(eroded[i]-raw[i]);total+=d;maximum=Math.max(maximum,d);}
+  assert.ok(maximum>.1,'erosion has a measurable effect on steep slopes');
+  assert.ok(total/raw.length<2,'thermal pass keeps the large-scale relief intact');
+  const a=c.OrbitThermalErosion.surfaceIntegral(raw,w,h),b=c.OrbitThermalErosion.surfaceIntegral(eroded,w,h);
+  assert.ok(Math.abs(a-b)<Math.abs(a)*1e-6);
 });

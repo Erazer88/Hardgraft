@@ -33,3 +33,16 @@ Validation B : 6 tests ciblés et cartes grises de trois graines en 960 × 360 v
 `node tests/terrain-topography-report.cjs`. Aucun changement de texture ou shader.
 Le remplacement du point d'entrée `createTerrain` est différé jusqu'à D pour ne pas
 brancher des champs structurels incomplets pendant les étapes B/C.
+
+## C — érosion thermique
+
+`thermalErosion.js` échange de la hauteur uniquement au-delà du talus, pendant
+12 passes. Les échanges sont pondérés par l'aire sphérique et conservatifs ; la
+couture est un graphe fermé et chaque pôle est un seul nœud relié à sa couronne.
+Il ne s'agit pas d'une moyenne de lignes polaires. Les plaines planes ne changent
+pas. L'érosion hydraulique n'est pas incluse.
+
+Validation C : 8 tests ciblés, conservation de l'intégrale surfacique, pic isolé
+adouci, dépôt dans les voisins, pôles/couture exacts, déterminisme et comparaison
+raw/eroded de trois cartes canoniques. Les grands systèmes tectoniques sont
+conservés ; l'effet reste local aux pentes dépassant le talus.
