@@ -216,12 +216,12 @@ async function enterSurface(cdp, viewport, name) {
   return { planet, mobile, width, height };
 }
 
-async function placeStorage(cdp, mobile, spacing = 0, nearBuildingId = null) {
+async function placeStorage(cdp, mobile, spacing = 0, nearBuildingId = null, maxTerrainDistance = 320) {
   await cdp.click('#build-button');
   await cdp.until('!document.querySelector("#build-menu").hidden', 'building catalogue opens');
   await cdp.click('#build-options [data-building-type="storage"]');
   await cdp.until('window.OrbitalDebug.getState().tool === "build"', 'storage placement mode activates');
-  const position = await cdp.evaluate(`window.OrbitalDebug.findBuildableScreenPosition('storage', ${spacing}, ${JSON.stringify(nearBuildingId)}, 320)`);
+  const position = await cdp.evaluate(`window.OrbitalDebug.findBuildableScreenPosition('storage', ${spacing}, ${JSON.stringify(nearBuildingId)}, ${maxTerrainDistance})`);
   assert.ok(position, 'a valid visible terrain position is available for a building');
   const before = (await cdp.evaluate('window.OrbitalDebug.getState().buildingCount'));
   await cdp.tap({ x: position.x, y: position.y }, mobile);
@@ -275,7 +275,9 @@ async function runViewport(cdp, viewport, errors) {
   assert.equal(await cdp.evaluate('document.querySelector("#selection-name").textContent'), 'DÉPÔT',
     `${name} selected icon opens the normal building description panel`);
   await cdp.click('#close-inspector');
-  const second = await placeStorage(cdp, mobile, 48, first.id);
+  // Keep the second test building nearby; the terrain still decides whether
+  // the visible gesture can reach it by a valid surface route.
+  const second = await placeStorage(cdp, mobile, 48, first.id, 180);
   await cdp.evaluate('window.OrbitalDebug.setPause(false)');
   try {
     await cdp.until(`window.OrbitalDebug.getSurfaceBuildings().filter(b => ${JSON.stringify(first.id)} === b.id || ${JSON.stringify(second.id)} === b.id).every(b => b.constructionState === "complete")`,
@@ -296,9 +298,11 @@ async function runViewport(cdp, viewport, errors) {
     const diagnostics = await cdp.evaluate(`({ state: window.OrbitalDebug.getState(), toast: document.querySelector('#toast').textContent,
       buildings: window.OrbitalDebug.getSurfaceBuildings(), first: ${JSON.stringify(firstPoint)}, second: ${JSON.stringify(secondPoint)} })`);
     await cdp.screenshot(`${name}-route-failed.png`);
-    throw new Error(`${name} road drag produced no segment: ${JSON.stringify(diagnostics)}`);
+    assert.equal(diagnostics.toast, 'Aucun tracé valide ne relie ces deux points.',
+      `${name} rejects a route crossing impassable terrain with a clear explanation`);
+  } else {
+    await cdp.screenshot(`${name}-planet-road.png`);
   }
-  await cdp.screenshot(`${name}-planet-road.png`);
 
   const beforeRotateAway = await cdp.evaluate(`window.OrbitalDebug.getPlanetGlobeMetrics().camera.yaw`);
   let hidden = false;

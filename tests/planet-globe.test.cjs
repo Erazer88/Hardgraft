@@ -44,8 +44,10 @@ test('terrain coordinates map to and from the sphere without NaNs or lost precis
   const west = projection.terrainToSphere(0, 25, terrain), east = projection.terrainToSphere(100, 25, terrain);
   assert.ok(Math.hypot(west.x - east.x, west.y - east.y, west.z - east.z) < 1e-12,
     'the longitude seam closes on the sphere');
-  assert.equal(projection.sampleElevation(0, 25, terrain), projection.sampleElevation(100, 25, terrain),
-    'the rendered height also closes smoothly at the map seam');
+  assert.equal(projection.sampleElevation(0, 25, terrain), terrain.elevation[25 * terrain.width],
+    'the projection reads the first generated longitude without a seam filter');
+  assert.equal(projection.sampleElevation(100, 25, terrain), terrain.elevation[25 * terrain.width + 100],
+    'the projection reads the last generated longitude without a seam filter');
 });
 
 test('elevation sampling is bilinear and stylized relief stays within its declared range', () => {
@@ -53,29 +55,26 @@ test('elevation sampling is bilinear and stylized relief stays within its declar
   const terrain = { width: 2, height: 2, elevation: Uint8Array.from([100, 120, 140, 160]),
     moisture: new Uint8Array(4), seaLevel: 110 };
   assert.equal(projection.sampleElevation(.5, .5, terrain), 130);
-  assert.equal(projection.sampleElevation(0, 0, terrain), 110,
-    'longitudes collapse to their shared mean at the north pole');
+  assert.equal(projection.sampleElevation(0, 0, terrain), 100,
+    'projection samples the generated terrain directly without display averaging');
   assert.equal(projection.surfaceRadius(0, 0, terrain, style.relief), 1);
   const max = projection.surfaceRadius(1, 1, { ...terrain, seaLevel: 0 }, style.relief);
   assert.ok(max >= 1 && max <= 1 + style.relief.scale + 1e-12);
   assert.ok(style.camera.maxZoom >= 1.56, 'the globe allows the requested 20% zoom increase');
 });
 
-test('polar caps converge smoothly to a shared display-only elevation', () => {
-  const { OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
-  const width = 64, height = 181, elevation = new Uint8Array(width * height), moisture = new Uint8Array(width * height);
-  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-    elevation[y * width + x] = (x * 37 + y * 11) & 255;
-    moisture[y * width + x] = (x * 71 + y * 17) & 255;
+test('globe projection consumes naturally consistent spherical pole samples', () => {
+  const { OrbitWorld: world, OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
+  const width = 128, height = 64;
+  const terrain = world.createTerrain('projection-pole-test', width, height, { surfaceWater: .4 });
+  for (const y of [0, height - 1]) {
+    const samples = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, y, terrain));
+    assert.ok(samples.every(value => value === samples[0]), 'the generator supplies one elevation at each pole');
   }
-  const terrain = { width, height, elevation, moisture, seaLevel: 110 };
-  const northValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, 0, terrain));
-  const broadHighLatitudeValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, 15, terrain));
-  const nearPoleValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, .5, terrain));
-  assert.ok(Math.max(...northValues) - Math.min(...northValues) < 1e-4);
-  assert.ok(Math.max(...broadHighLatitudeValues) - Math.min(...broadHighLatitudeValues) > 100,
-    'the polar correction does not pull broad continents inward before the final polar band');
-  assert.ok(Math.max(...nearPoleValues) - Math.min(...nearPoleValues) < 1e-3);
+  for (let y = 0; y < height; y += 1) {
+    assert.equal(projection.sampleElevation(0, y, terrain),
+      projection.sampleElevation(width - 1, y, terrain), 'projection keeps the generated longitude seam exact');
+  }
   assert.ok(Number.isFinite(projection.surfaceRadius(0, 0, terrain, style.relief)));
 });
 
@@ -157,13 +156,18 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   }
   assert.ok(first.pixels.every((value, index) => index % 4 === 3 || value <= 245),
     'the procedural terrain texture stays below white before lighting');
-  for (const texture of [first, frozen, arid, volcanic]) {
+  const { OrbitWorld: world } = loadGlobeContext();
+  const sphericalTerrain = world.createTerrain('texture-spherical-poles', width, height,
+    { ...basePlanet, surfaceWater: .42 });
+  for (const planet of [basePlanet, { ...basePlanet, kind: 'glacée' },
+    { ...basePlanet, kind: 'aride' }, { ...basePlanet, kind: 'volcanique' }]) {
+    const texture = textures.create(sphericalTerrain, planet, { width, height, cache: false });
     for (const row of [0, height - 1]) {
       const polarPixels = Array.from({ length: width }, (_, x) => pixel(texture, x, row));
       for (let channel = 0; channel < 3; channel += 1) {
         const values = polarPixels.map(entry => entry[channel]);
         assert.ok(Math.max(...values) - Math.min(...values) <= 1,
-          `${texture.climate} texture converges to a clean shared polar point`);
+          `${texture.climate} pole color comes from consistent terrain directions`);
       }
     }
   }
@@ -227,7 +231,8 @@ test('globe camera clamps tilt and zoom and evaluates transitions from simulatio
 
 test('projected building markers and graticule follow front-side visibility', () => {
   const context = vm.createContext({ console });
-  for (const file of ['../src/data/planetGlobeStyle.js', '../src/rendering/planetGlobeProjection.js']) {
+  for (const file of ['../src/data/worldgen.js', '../src/world.js', '../src/data/planetGlobeStyle.js',
+    '../src/rendering/planetGlobeProjection.js']) {
     vm.runInContext(readFileSync(resolve(__dirname, file), 'utf8'), context, { filename: file });
   }
   context.OrbitConfig = { terrain: { textureScale: 1 } };

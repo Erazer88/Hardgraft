@@ -139,30 +139,94 @@
     return { x: Math.cos(angle) * planet.orbit, y: Math.sin(angle) * planet.orbit };
   }
 
-  function lattice(x, y, seed) {
-    let value = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ seed;
-    value = Math.imul(value ^ (value >>> 13), 1274126177);
-    return ((value ^ (value >>> 16)) >>> 0) / 4294967295 * 2 - 1;
-  }
-
-  function noise(x, y, seed) {
-    const ix = Math.floor(x), iy = Math.floor(y);
-    const fx = x - ix, fy = y - iy;
-    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
-    const a = lattice(ix, iy, seed), b = lattice(ix + 1, iy, seed);
-    const c = lattice(ix, iy + 1, seed), d = lattice(ix + 1, iy + 1, seed);
-    return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
-  }
-
-  function fbm(x, y, seed, octaves) {
-    let value = 0, amplitude = 1, normalization = 0;
-    for (let octave = 0; octave < octaves; octave += 1) {
-      value += noise(x, y, (seed + Math.imul(octave, 163399)) >>> 0) * amplitude;
-      normalization += amplitude;
-      amplitude *= 0.5;
-      x *= 2.06; y *= 2.06;
+  function directionForPixel(x, y, width, height, output = {}) {
+    const pixelX = clamp(x, 0, width - 1), pixelY = clamp(y, 0, height - 1);
+    const longitude = pixelX === width - 1 && width > 1 ? -Math.PI :
+      (pixelX / Math.max(1, width - 1) - .5) * TAU;
+    const northPole = pixelY === 0;
+    const southPole = pixelY === height - 1 && !northPole;
+    const latitude = northPole ? Math.PI / 2 : southPole ? -Math.PI / 2 :
+      (.5 - pixelY / Math.max(1, height - 1)) * Math.PI;
+    if (northPole || southPole) {
+      output.x = 0; output.y = northPole ? 1 : -1; output.z = 0;
+      return output;
     }
-    return value / normalization;
+    const cosLatitude = Math.cos(latitude);
+    output.x = cosLatitude * Math.cos(longitude);
+    output.y = Math.sin(latitude);
+    output.z = cosLatitude * Math.sin(longitude);
+    return output;
+  }
+
+  const noiseKernels = new Map();
+
+  function noiseKernel(seed) {
+    const key = seed >>> 0;
+    if (noiseKernels.has(key)) return noiseKernels.get(key);
+    const random = rng(key);
+    const y = random() * 2 - 1, longitude = random() * TAU;
+    const horizontal = Math.sqrt(1 - y * y), frequency = .78 + random() * .68;
+    const kernel = Object.freeze({
+      x: Math.cos(longitude) * horizontal * frequency,
+      y: y * frequency,
+      z: Math.sin(longitude) * horizontal * frequency,
+      phase: random() * TAU
+    });
+    noiseKernels.set(key, kernel);
+    if (noiseKernels.size > 128) noiseKernels.delete(noiseKernels.keys().next().value);
+    return kernel;
+  }
+
+  function fbm3Sampler(seed, octaves) {
+    const waves = new Array(octaves);
+    let amplitude = 1, normalization = 0;
+    let octaveSeed = seed >>> 0;
+    for (let octave = 0; octave < octaves; octave += 1) {
+      waves[octave] = { ...noiseKernel(octaveSeed), amplitude };
+      normalization += amplitude;
+      amplitude *= .5;
+      octaveSeed = (octaveSeed + 0x6d2b79f5) >>> 0;
+    }
+    return function sample(x, y, z) {
+      let value = 0, frequency = 1;
+      for (const wave of waves) {
+        value += Math.sin((x * wave.x + y * wave.y + z * wave.z) * frequency + wave.phase) * wave.amplitude;
+        frequency *= 2.03;
+      }
+      return value / normalization;
+    };
+  }
+
+  function randomSphereDirection(random) {
+    const y = random() * 2 - 1;
+    const longitude = random() * TAU;
+    const horizontal = Math.sqrt(1 - y * y);
+    return { x: Math.cos(longitude) * horizontal, y,
+      z: Math.sin(longitude) * horizontal };
+  }
+
+  function offsetSphereDirection(direction, angularDistance, bearing) {
+    const reference = Math.abs(direction.y) < .85 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+    let eastX = reference.y * direction.z - reference.z * direction.y;
+    let eastY = reference.z * direction.x - reference.x * direction.z;
+    let eastZ = reference.x * direction.y - reference.y * direction.x;
+    const eastLength = Math.hypot(eastX, eastY, eastZ) || 1;
+    eastX /= eastLength; eastY /= eastLength; eastZ /= eastLength;
+    const northX = direction.y * eastZ - direction.z * eastY;
+    const northY = direction.z * eastX - direction.x * eastZ;
+    const northZ = direction.x * eastY - direction.y * eastX;
+    const tangentX = Math.cos(bearing) * eastX + Math.sin(bearing) * northX;
+    const tangentY = Math.cos(bearing) * eastY + Math.sin(bearing) * northY;
+    const tangentZ = Math.cos(bearing) * eastZ + Math.sin(bearing) * northZ;
+    const radial = Math.cos(angularDistance), tangent = Math.sin(angularDistance);
+    return { x: direction.x * radial + tangentX * tangent,
+      y: direction.y * radial + tangentY * tangent,
+      z: direction.z * radial + tangentZ * tangent };
+  }
+
+  function smoothstep(edge0, edge1, value) {
+    const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
   }
 
   function createTerrain(seed, width = 320, height = 240, planet = null) {
@@ -171,92 +235,101 @@
     const settings = root.OrbitWorldgenData.terrain;
     const terrainSeed = hashSeed(String(seed) + ':terrain:v' + (settings.version || 1));
     const random = rng(terrainSeed);
-    const offsetX = random() * 80 + 8, offsetY = random() * 80 + 8;
-    const aspect = width / height;
     const waterFraction = clamp(planet?.terrainWater ?? planet?.surfaceWater ??
       (settings.genericWater[0] + random() * (settings.genericWater[1] - settings.genericWater[0])),
     0, root.OrbitWorldgenData.planets.maxSurfaceWater);
     const islandWorld = waterFraction >= settings.islandWaterThreshold;
-    const massCount = islandWorld ? settings.islandMassCount : settings.continentalMassCount;
-    const massRadius = islandWorld ? settings.islandMassRadius : settings.continentalMassRadius;
-    const continentCount = massCount[0] + Math.floor(random() * (massCount[1] - massCount[0] + 1));
-    const continents = [];
-    for (let i = 0; i < continentCount; i += 1) {
-      const radiusX = massRadius[0] + random() * (massRadius[1] - massRadius[0]);
-      continents.push({
-        x: 0.15 + random() * 0.7,
-        y: 0.12 + random() * 0.76,
-        radiusX,
-        radiusY: radiusX * (0.78 + random() * 0.44)
-      });
+    const massCountRange = islandWorld ? settings.sphericalMasses.islandWorldCount :
+      settings.sphericalMasses.continentalCount;
+    const radiusRange = islandWorld ? settings.sphericalMasses.islandWorldRadius :
+      settings.sphericalMasses.continentalRadius;
+    const secondaryRange = islandWorld ? settings.sphericalMasses.islandSecondaryCount :
+      settings.sphericalMasses.continentalSecondaryCount;
+    const mainCount = massCountRange[0] + Math.floor(random() * (massCountRange[1] - massCountRange[0] + 1));
+    const radiusRatio = settings.sphericalMasses.secondaryRadiusRatio;
+    const distanceRatio = settings.sphericalMasses.secondaryDistanceRatio;
+    const continentGroups = [];
+    for (let i = 0; i < mainCount; i += 1) {
+      const direction = randomSphereDirection(random);
+      const angularRadius = radiusRange[0] + random() * (radiusRange[1] - radiusRange[0]);
+      const borderSeed = (terrainSeed ^ Math.imul(i + 1, 0x45d9f3b)) >>> 0;
+      const forms = [{ direction, angularRadius, strength: .9 + random() * .2,
+        borderScale: .8 + random() * .4, borderBias: (random() - .5) * .07 }];
+      const secondaryCount = secondaryRange[0] +
+        Math.floor(random() * (secondaryRange[1] - secondaryRange[0] + 1));
+      for (let lobe = 0; lobe < secondaryCount; lobe += 1) {
+        const distance = angularRadius * (distanceRatio[0] + random() * (distanceRatio[1] - distanceRatio[0]));
+        const lobeRadius = angularRadius * (radiusRatio[0] + random() * (radiusRatio[1] - radiusRatio[0]));
+        forms.push({ direction: offsetSphereDirection(direction, distance, random() * TAU),
+          angularRadius: lobeRadius, strength: .78 + random() * .35,
+          borderScale: .8 + random() * .4, borderBias: (random() - .5) * .09 });
+      }
+      for (const form of forms) {
+        const maximumRadius = form.angularRadius * (1 + .22 * 1.2 + Math.abs(form.borderBias));
+        form.influenceCutoff = Math.cos(Math.min(Math.PI, maximumRadius * 2.4));
+      }
+      continentGroups.push({ borderSeed, forms });
     }
-    const archipelago = settings.archipelago;
-    const isletRange = islandWorld ? archipelago.islandIslets : archipelago.continentalIslets;
-    const isletCount = isletRange[0] + Math.floor(random() * (isletRange[1] - isletRange[0] + 1));
-    const islets = [];
-    for (let i = 0; i < isletCount; i += 1) {
-      const parent = continents[Math.floor(random() * continents.length)];
-      const angle = random() * TAU;
-      const distance = archipelago.parentDistance[0] +
-        random() * (archipelago.parentDistance[1] - archipelago.parentDistance[0]);
-      const radiusX = archipelago.isletRadius[0] + random() *
-        (archipelago.isletRadius[1] - archipelago.isletRadius[0]);
-      islets.push({
-        x: parent.x + Math.cos(angle) * parent.radiusX * distance,
-        y: parent.y + Math.sin(angle) * parent.radiusY * distance,
-        radiusX,
-        radiusY: radiusX * (0.65 + random() * 0.7)
-      });
-    }
-    const landforms = continents.concat(islets);
+    const sampleBroad = fbm3Sampler(terrainSeed, 5);
+    const sampleMedium = fbm3Sampler(terrainSeed ^ 0x5a6a4f29, 4);
+    const sampleFine = fbm3Sampler(terrainSeed ^ 0x29f1483b, 3);
+    const sampleRidge = fbm3Sampler(terrainSeed ^ 0x3482f129, 4);
+    const sampleMoisture = fbm3Sampler(terrainSeed ^ 0x19191531, 4);
+    const sampleBorders = continentGroups.map(group => fbm3Sampler(group.borderSeed, 3));
     const raw = new Float32Array(width * height);
     const elevation = new Uint8Array(width * height);
     const moisture = new Uint8Array(width * height);
-    const histogram = new Uint32Array(256);
+    const histogram = new Float64Array(256);
+    const direction = {};
+    let minAltitude = Infinity, totalSurfaceWeight = 0;
     for (let y = 0; y < height; y += 1) {
-      const ny = y / Math.max(1, height - 1);
+      const latitude = y === 0 ? Math.PI / 2 : y === height - 1 ? -Math.PI / 2 :
+        (.5 - y / Math.max(1, height - 1)) * Math.PI;
+      const rowWeight = Math.max(0, Math.cos(latitude));
       for (let x = 0; x < width; x += 1) {
-        const nx = x / Math.max(1, width - 1);
-        const warpX = fbm(offsetX + nx * settings.relief.warpScale * aspect,
-          offsetY + ny * settings.relief.warpScale, terrainSeed ^ 0x6c8e9cf5, 3);
-        const warpY = fbm(offsetX + 41 + nx * settings.relief.warpScale * aspect,
-          offsetY + 19 + ny * settings.relief.warpScale, terrainSeed ^ 0x1b56c4e9, 3);
-        const warpedX = nx + warpX * settings.relief.warpStrength;
-        const warpedY = ny + warpY * settings.relief.warpStrength;
-        const broad = fbm(offsetX + warpedX * 3.3 * aspect, offsetY + warpedY * 3.3, terrainSeed, 4);
-        const detail = fbm(offsetX + warpedX * 15 * aspect, offsetY + warpedY * 15, terrainSeed ^ 0x5a6a4f29, 4);
-        const fine = fbm(offsetX + warpedX * settings.relief.fineScale * aspect,
-          offsetY + warpedY * settings.relief.fineScale, terrainSeed ^ 0x29f1483b, 3);
-        const micro = fbm(offsetX + warpedX * settings.relief.microScale * aspect,
-          offsetY + warpedY * settings.relief.microScale, terrainSeed ^ 0x74a1d2c7, 2);
+        directionForPixel(x, y, width, height, direction);
+        const { x: dx, y: dy, z: dz } = direction;
+        const broad = sampleBroad(dx * 2.8, dy * 2.8, dz * 2.8);
+        const medium = sampleMedium(dx * 8, dy * 8, dz * 8);
+        const fine = sampleFine(dx * 22, dy * 22, dz * 22);
+        const ridgeNoise = 1 - Math.abs(sampleRidge(dx * 11, dy * 11, dz * 11));
         let continental = 0;
-        for (const landform of landforms) {
-          const dx = (warpedX - landform.x) / landform.radiusX;
-          const dy = (warpedY - landform.y) / landform.radiusY;
-          continental = Math.max(continental, Math.exp(-(dx * dx + dy * dy) * 0.75));
+        for (let groupIndex = 0; groupIndex < continentGroups.length; groupIndex += 1) {
+          const group = continentGroups[groupIndex];
+          const borderNoise = sampleBorders[groupIndex](dx * 3.5, dy * 3.5, dz * 3.5);
+          for (const form of group.forms) {
+            const dot = dx * form.direction.x + dy * form.direction.y + dz * form.direction.z;
+            if (dot <= form.influenceCutoff) continue;
+            const effectiveRadius = form.angularRadius *
+              (1 + borderNoise * .22 * form.borderScale + form.borderBias);
+            const angularDistance = Math.acos(clamp(dot, -1, 1));
+            const normalizedDistance = angularDistance / effectiveRadius;
+            const influence = Math.exp(-normalizedDistance * normalizedDistance * 1.4) * form.strength;
+            continental = Math.max(continental, influence);
+          }
         }
-        const ridge = 1 - Math.abs(fbm(offsetX + warpedX * settings.relief.ridgeScale * aspect,
-          offsetY + warpedY * settings.relief.ridgeScale, terrainSeed ^ 0x3482f129, 3));
-        const ridgeMask = clamp((broad + continental * 0.9 - 0.53) * 2.1, 0, 1);
-        const altitude = clamp(52 + continental * 120 + broad * 52 + detail * 16 +
-          fine * settings.relief.fineAmplitude + micro * settings.relief.microAmplitude +
-          Math.pow(ridge, settings.relief.ridgePower) * ridgeMask * settings.relief.ridgeAmplitude, 0, 255);
+        const ridgeMask = smoothstep(.12, .48, continental);
+        const altitude = clamp(88 + continental * 140 + broad * 42 + medium * 18 + fine * 7 +
+          Math.pow(ridgeNoise, settings.relief.ridgePower) * ridgeMask * settings.relief.ridgeAmplitude, 0, 255);
         const index = y * width + x;
         raw[index] = altitude;
-        histogram[Math.round(altitude)] += 1;
-        moisture[index] = Math.round(clamp(0.52 + fbm(offsetX + warpedX * 6 * aspect,
-          offsetY + warpedY * 6, terrainSeed ^ 0x19191531, 4) * 0.7 -
-          ridgeMask * 0.12, 0, 1) * 255);
+        histogram[Math.round(altitude)] += rowWeight;
+        totalSurfaceWeight += rowWeight;
+        minAltitude = Math.min(minAltitude, altitude);
+        const altitudePenalty = clamp((altitude - 102) / 200, 0, 1) * .20;
+        moisture[index] = Math.round(clamp(.52 +
+          sampleMoisture(dx * 5.5, dy * 5.5, dz * 5.5) * .36 -
+          altitudePenalty, 0, 1) * 255);
       }
     }
 
-    const targetWater = raw.length * waterFraction;
+    const targetWater = totalSurfaceWeight * waterFraction;
     let cumulative = 0, rawSeaLevel = 0;
     for (; rawSeaLevel < 255; rawSeaLevel += 1) {
       cumulative += histogram[rawSeaLevel];
       if (cumulative >= targetWater) break;
     }
-    if (waterFraction === 0) rawSeaLevel = histogram.findIndex(count => count > 0) - 4;
+    if (waterFraction === 0) rawSeaLevel = Math.floor(minAltitude) - 4;
     const seaLevel = 102;
     for (let i = 0; i < raw.length; i += 1) {
       elevation[i] = Math.round(clamp(raw[i] + seaLevel - rawSeaLevel, 0, 255));
@@ -315,6 +388,6 @@
   }
 
   root.OrbitWorld = Object.freeze({
-    hashSeed, rng, createGalaxy, createSystem, planetPosition, createTerrain
+    hashSeed, rng, createGalaxy, createSystem, planetPosition, directionForPixel, createTerrain
   });
 })(globalThis);

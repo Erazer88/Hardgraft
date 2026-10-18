@@ -10,6 +10,18 @@ for (const file of ['/data/worldgen.js', '/world.js', '/world/system.js']) {
 }
 const world = context.OrbitWorld;
 const serialize = value => JSON.stringify(value);
+const surfaceWaterCoverage = terrain => {
+  let wet = 0, total = 0;
+  for (let y = 0; y < terrain.height; y += 1) {
+    const latitude = (.5 - y / Math.max(1, terrain.height - 1)) * Math.PI;
+    const weight = Math.max(0, Math.cos(latitude));
+    for (let x = 0; x < terrain.width; x += 1) {
+      total += weight;
+      if (terrain.elevation[y * terrain.width + x] <= terrain.seaLevel) wet += weight;
+    }
+  }
+  return wet / Math.max(1, total);
+};
 
 test('the galaxy is deterministic, seeded, and dense in four connected arms', () => {
   const galaxy = world.createGalaxy('NEREIDE-01');
@@ -155,7 +167,7 @@ test('the natal system always provides a temperate candidate, water and basic de
       assert.deepEqual([...new Set(landResources.map(item => item.id))].sort(), ['carbon', 'copper', 'iron', 'silicon']);
       assert.equal(oilFields.length, planet.hasOilDeposit ? 1 : 0);
       assert.ok(terrain.resources.length <= 5);
-      const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
+      const water = surfaceWaterCoverage(terrain);
       assert.ok(Math.abs(water - planet.surfaceWater) < .04);
       assert.ok(landResources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
       assert.ok(oilFields.every(item => terrain.elevation[item.y * terrain.width + item.x] <= terrain.seaLevel - 12));
@@ -168,7 +180,7 @@ test('surface water follows the planet profile while identical profiles reproduc
   const wet = world.createTerrain('climate-test', 96, 72, { surfaceWater: .75 });
   const repeated = world.createTerrain('climate-test', 96, 72, { surfaceWater: .75 });
   assert.equal(dry.elevation.filter(value => value <= dry.seaLevel).length, 0);
-  const water = wet.elevation.filter(value => value <= wet.seaLevel).length / wet.elevation.length;
+  const water = surfaceWaterCoverage(wet);
   assert.ok(water > .70 && water < .80);
   assert.deepEqual(Array.from(wet.elevation), Array.from(repeated.elevation));
   assert.equal(serialize(wet.resources), serialize(repeated.resources));
@@ -205,6 +217,52 @@ test('terrain contains coherent water, land, and reachable resources for differe
     Array.from(world.createTerrain('two', 80, 60).elevation));
 });
 
+test('spherical terrain closes its seam and poles naturally and remains deterministic', () => {
+  const width = 192, height = 96;
+  const terrain = world.createTerrain('spherical-topology', width, height, { surfaceWater: .42 });
+  const repeated = world.createTerrain('spherical-topology', width, height, { surfaceWater: .42 });
+  const otherSeed = world.createTerrain('different-spherical-topology', width, height, { surfaceWater: .42 });
+  assert.deepEqual(Array.from(terrain.elevation), Array.from(repeated.elevation));
+  assert.deepEqual(Array.from(terrain.moisture), Array.from(repeated.moisture));
+  assert.notDeepEqual(Array.from(terrain.elevation), Array.from(otherSeed.elevation));
+  for (let y = 0; y < height; y += 1) {
+    const first = y * width, last = first + width - 1;
+    assert.equal(terrain.elevation[first], terrain.elevation[last], `elevation seam at row ${y}`);
+    assert.equal(terrain.moisture[first], terrain.moisture[last], `moisture seam at row ${y}`);
+    assert.ok(Math.abs(terrain.elevation[first] - terrain.elevation[first + 1]) < 55,
+      `terrain has no artificial elevation jump at the west seam on row ${y}`);
+    assert.ok(Math.abs(terrain.elevation[last] - terrain.elevation[last - 1]) < 55,
+      `terrain has no artificial elevation jump at the east seam on row ${y}`);
+  }
+  for (const y of [0, height - 1]) {
+    const firstElevation = terrain.elevation[y * width], firstMoisture = terrain.moisture[y * width];
+    for (let x = 1; x < width; x += 1) {
+      assert.equal(terrain.elevation[y * width + x], firstElevation, `pole elevation at x ${x}, row ${y}`);
+      assert.equal(terrain.moisture[y * width + x], firstMoisture, `pole moisture at x ${x}, row ${y}`);
+    }
+    const adjacentRow = y === 0 ? 1 : height - 2;
+    let maximumPolarSlope = 0, maximumAdjacentLongitudeSlope = 0;
+    for (let x = 0; x < width; x += 1) {
+      maximumPolarSlope = Math.max(maximumPolarSlope,
+        Math.abs(terrain.elevation[y * width + x] - terrain.elevation[adjacentRow * width + x]));
+      const nextX = (x + 1) % width;
+      maximumAdjacentLongitudeSlope = Math.max(maximumAdjacentLongitudeSlope,
+        Math.abs(terrain.elevation[adjacentRow * width + x] - terrain.elevation[adjacentRow * width + nextX]));
+    }
+    assert.ok(maximumPolarSlope < 40, `terrain changes smoothly into pole row ${y}: ${maximumPolarSlope}`);
+    assert.ok(maximumAdjacentLongitudeSlope < 12,
+      `near-pole longitude samples remain continuous on row ${adjacentRow}: ${maximumAdjacentLongitudeSlope}`);
+  }
+  const northWest = world.directionForPixel(0, 0, width, height);
+  const northEast = world.directionForPixel(width - 1, 0, width, height);
+  const southWest = world.directionForPixel(0, height - 1, width, height);
+  const southEast = world.directionForPixel(width - 1, height - 1, width, height);
+  assert.deepEqual(northWest, northEast);
+  assert.deepEqual(southWest, southEast);
+  assert.equal(serialize(northWest), '{"x":0,"y":1,"z":0}');
+  assert.equal(serialize(southWest), '{"x":0,"y":-1,"z":0}');
+});
+
 test('most planets have two or three large deposits, with some worlds empty or especially rich', () => {
   const counts = Array(6).fill(0);
   for (let i = 0; i < 72; i += 1) {
@@ -233,7 +291,7 @@ test('eligible planets can carry one broad offshore oil field', () => {
   assert.equal(oil.length, 1);
   assert.ok(oil.every(resource => resource.id === 'oil' && resource.radius > 25));
   assert.ok(terrain.resources.length <= 5);
-  const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
+  const water = surfaceWaterCoverage(terrain);
   assert.ok(water > .70 && water < .78);
 });
 

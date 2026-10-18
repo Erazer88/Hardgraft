@@ -1,5 +1,9 @@
 # Génération des systèmes et terrains v3 — Agent 01
 
+> Historique : les notes du lot v3 ci-dessous décrivent l'ancienne génération
+> plane. Pour l'implémentation courante de `createTerrain`, suivre la section
+> « Géographie sphérique actuelle ».
+
 ## Périmètre et fichiers
 
 Ce lot rend les systèmes moins uniformes et prépare un monde natal exploitable.
@@ -58,31 +62,38 @@ commande la couverture liquide des cartes. Une géante gazeuse n'a ni surface
 liquide jouable ni habitabilité de surface. `resources` contient des indices
 d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
-`createTerrain(seed, width, height, planet)` utilise la couverture d'eau du
-profil, ou la couverture totale eau/glace dans `terrainWater` pour les mondes
-froids. Le terrain v2 déforme les masses continentales avec un bruit basse
-fréquence et place des îlots secondaires autour des continents. Les planètes
-riches en eau forment davantage d'archipels ; les mondes tempérés natals
-conservent leur profil de départ viable. Le relief combine plusieurs fréquences
-de détail configurées dans `OrbitWorldgenData.terrain`. Un changement de version
-du terrain conserve la graine, mais régénère la géographie des sauvegardes.
+## Géographie sphérique actuelle
 
-Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont moins nombreux
-qu'avant et possèdent un rayon déterministe en cellules de terrain. Les champs
-marins de pétrole sont également générés en eau profonde, et les plateformes
-pétrolières doivent être posées dans leur zone. Les marqueurs de ressource sont
-dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
+`createTerrain(seed, width, height, planet)` conserve le tableau equirectangulaire
+`{ width, height, elevation, moisture, seaLevel, resources }`, mais génère la
+géographie à partir de directions 3D. `directionForPixel` canonicalise les deux
+longitudes de couture et les deux pôles ; chaque pôle est donc exactement une
+direction, quel que soit `x`. Les continents sont des centres sphériques avec
+rayons angulaires, lobes secondaires et bruit 3D de frontière. Relief, crêtes et
+humidité utilisent des champs 3D échantillonnés sur la même direction.
 
-Le rendu interpole une palette de couleurs par température, altitude et
-humidité. L'éclairage directionnel est calculé depuis les pentes et la
-courbure du terrain ; un bruit albédo déterministe varie selon la graine du
-monde. Neuf textures aériennes WebP, créées pour le projet, détaillent les
-plaines boisées et marécageuses, les déserts, les plages, les montagnes et les
-glaciers, les terrains volcaniques, les hauts fonds coralliens et les océans
-profonds. Le rendu les masque selon l'altitude, la température, la neige,
-l'humidité et la profondeur, puis les multiplie à faible opacité pour garder les
-couleurs du biome sans voile. La palette climatique couvre aussi les surfaces
-au-delà de 180 °C.
+La couverture d'eau est quantifiée avec le poids de surface de chaque latitude.
+La projection et la texture échantillonnent les valeurs produites sans moyenne
+de couture, moyenne de rangée, fondu polaire ou correction colorée. Leurs
+continuités viennent ainsi du terrain lui-même. La version topographique est
+déclarée dans `OrbitWorldgenData.terrain.version` ; l'incrémenter conserve la
+graine du monde mais régénère la géographie des planètes.
+
+Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont placés sur les
+cellules terrestres du nouveau relief et gardent leur format x/y. Les champs
+marins de pétrole sont générés sous le niveau de la mer.
+
+Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) gardent un rayon
+déterministe en cellules de terrain. Les champs marins de pétrole sont générés
+en eau profonde, et les plateformes pétrolières doivent être posées dans leur
+zone. Les marqueurs de ressource sont dessinés en pixels d'écran afin de conserver
+leur lisibilité au dézoom.
+
+Le globe WebGL2 construit une texture climatique procédurale à partir de
+l'altitude, l'humidité, la latitude, la température et du seed de la planète.
+Les motifs de détail utilisent des directions 3D afin de rester continus à la
+couture et aux pôles. Les couleurs et le shader sont décrits dans
+`planetSurfaceTexture.js` et `planetGlobeRenderer.js`.
 
 ## Départ viable et sauvegardes
 

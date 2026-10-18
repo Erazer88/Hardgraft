@@ -29,15 +29,16 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 4,
+      version: 5,
       genericWater: [.30, .46], islandWaterThreshold: .56,
-      continentalMassCount: [2, 4], islandMassCount: [6, 10],
-      continentalMassRadius: [.20, .39], islandMassRadius: [.10, .23],
-      archipelago: { continentalIslets: [5, 11], islandIslets: [12, 24],
-        isletRadius: [.012, .038], parentDistance: [1.15, 2.2] },
+      sphericalMasses: {
+        continentalCount: [3, 6], islandWorldCount: [3, 6],
+        continentalRadius: [.48, .88], islandWorldRadius: [.28, .56],
+        continentalSecondaryCount: [1, 4], islandSecondaryCount: [1, 4],
+        secondaryRadiusRatio: [.22, .48], secondaryDistanceRatio: [.45, 1.35]
+      },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
-      relief: { warpScale: 2.2, warpStrength: .035, fineScale: 40, fineAmplitude: 8,
-        microScale: 92, microAmplitude: 3.8, ridgeScale: 7, ridgePower: 3.2, ridgeAmplitude: 94 },
+      relief: { ridgePower: 4, ridgeAmplitude: 42 },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
         startingCandidateCount: 4, spacingRatio: .21, radiusRatio: [.06, .09] },
       offshoreOil: { planetChance: 1 / 3, temperatureRange: [-10, 40], minimumWater: .18,

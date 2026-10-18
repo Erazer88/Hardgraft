@@ -24,6 +24,10 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   logiques bâtiments/routes restent les x/y de terrain. Voir [`PLANET_GLOBE.md`](PLANET_GLOBE.md).
 - La surface 2D précédente, ses textures, masques, worker et renderers dédiés ont été
   retirés de cette branche. WebGL2 est requis ; aucun fallback surface 2D n'est maintenu.
+- La topographie actuelle est générée sur la sphère par des directions 3D et des
+  masses continentales à distances angulaires ; le raster x/y reste le format gameplay.
+  La couture et les pôles doivent être continus par construction, sans moyenne ni fondu
+  de correction dans la projection. Voir [`WORLDGEN.md`](WORLDGEN.md).
 
 ## Systèmes en place et frontières
 

@@ -82,47 +82,13 @@
 
   function createFieldSampler(values, terrain) {
     const width = terrain.width, height = terrain.height;
-    const edges = new Float32Array(height);
-    for (let y = 0; y < height; y += 1) {
-      const offset = y * width;
-      edges[y] = (values[offset] + values[offset + width - 1]) * .5;
-    }
-    const capRows = Math.max(0, Math.min(height - 2, Math.ceil((height - 1) * 12 / 180)));
-    function capAverage(north) {
-      const first = north ? 0 : height - 1 - capRows, last = north ? capRows : height - 1;
-      let sum = 0, weightSum = 0;
-      for (let row = first; row <= last; row += 1) {
-        const latitude = (.5 - row / Math.max(1, height - 1)) * Math.PI;
-        const weight = Math.max(.02, Math.cos(latitude)), offset = row * width;
-        for (let column = 0; column < width; column += 1) {
-          sum += values[offset + column] * weight;
-          weightSum += weight;
-        }
-      }
-      return sum / (weightSum || 1);
-    }
-    const northCap = capAverage(true), southCap = capAverage(false);
     return function sample(x, y) {
       const px = clamp(x, 0, width - 1), py = clamp(y, 0, height - 1);
       const x0 = Math.floor(px), y0 = Math.floor(py), x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(height - 1, y0 + 1);
       const tx = px - x0, ty = py - y0, row0 = y0 * width, row1 = y1 * width;
       const a = values[row0 + x0] * (1 - tx) + values[row0 + x1] * tx;
       const b = values[row1 + x0] * (1 - tx) + values[row1 + x1] * tx;
-      let result = a * (1 - ty) + b * ty;
-      const edgeFraction = Math.min(px, width - 1 - px) / Math.max(1, width - 1);
-      const edgeT = clamp(edgeFraction / .035, 0, 1), edgeSmooth = edgeT * edgeT * (3 - 2 * edgeT);
-      const seamBlend = 1 - edgeSmooth;
-      if (seamBlend > 0) {
-        const edge = edges[y0] * (1 - ty) + edges[y1] * ty;
-        result += (edge - result) * seamBlend;
-      }
-      // Collapse longitude only in the last polar band, where the equirectangular
-      // map truly becomes singular. Keep the continents broad up to that point.
-      const latitude = Math.abs((.5 - py / Math.max(1, height - 1)) * Math.PI);
-      const polarBlend = smoothstep(82 * Math.PI / 180, 89.5 * Math.PI / 180, latitude);
-      const cap = py < height * .5 ? northCap : southCap;
-      result += (cap - result) * polarBlend;
-      return result;
+      return a * (1 - ty) + b * ty;
     };
   }
 
@@ -267,7 +233,6 @@
     const humidity = clamp(moisture, 0, 1), absoluteLatitude = Math.abs(latitude);
     const localTemperature = temperature - Math.pow(Math.abs(Math.sin(latitude)), 1.55) * 38 - h * 32;
     const base = work.a, land = work.b, temporary = work.c;
-    const polarMask = smoothstep(1.36, 1.50, absoluteLatitude);
 
     if (climate === 'temperate') {
       if (elevation <= seaLevel) {
@@ -349,22 +314,6 @@
       copyInto(base, temporary);
     }
 
-    // Equirectangular map rows collapse to a single point at each pole. Fill
-    // that singular area with a quiet climate material instead of letting
-    // unrelated map longitudes converge into a bright, pinched patch.
-    const polarCap = work.d;
-    if (climate === 'temperate') {
-      const polarMaterial = elevation <= seaLevel ? palette.deepOcean : palette.polarIce;
-      copyInto(polarCap, polarMaterial);
-    } else if (climate === 'frozen') {
-      copyInto(polarCap, elevation <= seaLevel ? palette.seaIce : palette.packedIce);
-    } else if (climate === 'arid') {
-      const frost = 1 - smoothstep(-2, 8, localTemperature);
-      mixInto(polarCap, palette.darkRock, palette.polarFrost, frost * .7);
-    } else copyInto(polarCap, palette.cooledCrust);
-    mixInto(temporary, base, polarCap, polarMask);
-    copyInto(base, temporary);
-
     finishMaterialColor(climate, base, detail, output, work);
     output[3] = 0;
   }
@@ -391,7 +340,7 @@
     const craters = climate === 'arid' ? craterField(width, height, createCraters(craterSeed)) : null;
     const pixels = new Uint8Array(width * height * 4);
     const colorOutput = new Float32Array(4), colorWork = { a: new Float32Array(3),
-      b: new Float32Array(3), c: new Float32Array(3), d: new Float32Array(3),
+      b: new Float32Array(3), c: new Float32Array(3),
       hsl: new Float32Array(3), tinted: new Float32Array(3), tint: { hueShift: 0, satMul: 1, lightMul: 1 } };
     const detailPixels = new Uint8Array(width * height);
     const detail = { macro: 0, medium: 0, fine: 0, crack: 0, ridge: 0, lava: 0, geology: 0 };
@@ -402,8 +351,10 @@
     }
     for (let py = 0; py < height; py += 1) {
       const v = py / (height - 1 || 1), latitude = (.5 - v) * Math.PI;
-      rowDirections[py] = { latitude, cos: Math.cos(latitude), sin: Math.sin(latitude),
-        y: Math.sin(latitude), mapY: v * (terrain.height - 1) };
+      const northPole = py === 0, southPole = py === height - 1 && !northPole;
+      const cos = northPole || southPole ? 0 : Math.cos(latitude);
+      const y = northPole ? 1 : southPole ? -1 : Math.sin(latitude);
+      rowDirections[py] = { latitude, cos, sin: y, y, mapY: v * (terrain.height - 1) };
     }
     const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     let basinLevel = seaLevel;
