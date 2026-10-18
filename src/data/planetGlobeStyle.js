@@ -2,9 +2,9 @@
   'use strict';
 
   root.OrbitPlanetGlobeStyle = Object.freeze({
-    mesh: Object.freeze({ longitudeSegments: 360, latitudeSegments: 180 }),
-    relief: Object.freeze({ scale: .085, exponent: 1.28 }),
-    camera: Object.freeze({ minZoom: .8, maxZoom: 1.3, initialZoom: 1,
+    mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
+    relief: Object.freeze({ scale: .105, exponent: 1.24 }),
+    camera: Object.freeze({ minZoom: .8, maxZoom: 1.56, initialZoom: 1,
       radiusRatio: .4, rotationSensitivity: .006, maxPitch: .72, transitionMs: 320 }),
     colors: Object.freeze({
       temperate: Object.freeze({ ocean: '#3279a4', deepOcean: '#1b5277', shore: '#c9b783',
@@ -20,6 +20,8 @@
       carbon: '#a6ad83', oil: '#8f877a' }),
     graticule: Object.freeze({ color: '#d0dddc', opacity: .19, widthPx: .75,
       longitudeStepDegrees: 30, latitudeStepDegrees: 30, sampleStepDegrees: 6 }),
-    icon: Object.freeze({ sizePx: 34, hitRadiusPx: 24 })
+    icon: Object.freeze({ sizePx: 34, hitRadiusPx: 24 }),
+    topography: Object.freeze({ contourInterval: 9, majorInterval: 36,
+      contourOpacity: .16, majorOpacity: .3 })
   });
 })(globalThis);

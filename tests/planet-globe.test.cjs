@@ -57,6 +57,22 @@ test('elevation sampling is bilinear and stylized relief stays within its declar
   assert.equal(projection.surfaceRadius(0, 0, terrain, style.relief), 1);
   const max = projection.surfaceRadius(1, 1, { ...terrain, seaLevel: 0 }, style.relief);
   assert.ok(max >= 1 && max <= 1 + style.relief.scale + 1e-12);
+  assert.ok(style.camera.maxZoom >= 1.56, 'the globe allows the requested 20% zoom increase');
+});
+
+test('polar caps converge smoothly to a shared display-only elevation', () => {
+  const { OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
+  const width = 64, height = 181, elevation = new Uint8Array(width * height), moisture = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    elevation[y * width + x] = (x * 37 + y * 11) & 255;
+    moisture[y * width + x] = (x * 71 + y * 17) & 255;
+  }
+  const terrain = { width, height, elevation, moisture, seaLevel: 110 };
+  const northValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, 0, terrain));
+  const nearPoleValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, .5, terrain));
+  assert.ok(Math.max(...northValues) - Math.min(...northValues) < 1e-4);
+  assert.ok(Math.max(...nearPoleValues) - Math.min(...nearPoleValues) < 1e-3);
+  assert.ok(Number.isFinite(projection.surfaceRadius(0, 0, terrain, style.relief)));
 });
 
 test('screen ray intersects the relief surface and returns terrain coordinates', () => {
@@ -92,7 +108,7 @@ test('same seed produces identical terrain globe mesh, finite colors, and unit n
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.colors.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.ok(style.relief.scale > 0 && style.relief.scale < .1);
+  assert.ok(style.relief.scale > 0 && style.relief.scale < .12);
 });
 
 test('globe camera clamps tilt and zoom and evaluates transitions from simulation time', () => {

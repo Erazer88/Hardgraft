@@ -134,14 +134,17 @@
         if (!point.visible) continue;
         const edge = Projection.projectSurfacePoint(Math.min(terrain.width - 1, resource.x + resource.radius),
           resource.y, terrain, view, Style.relief);
-        const radius = edge.visible ? clamp(Math.hypot(edge.x - point.x, edge.y - point.y), 3.5, 17) : 4;
+        const sampledRadius = edge.visible ? Math.hypot(edge.x - point.x, edge.y - point.y) : 0;
+        const radius = clamp(sampledRadius * 1.65, 12, 30);
         const color = Style.resources[resource.id] || '#a5b0af';
-        ctx.strokeStyle = color; ctx.globalAlpha = alpha * .18; ctx.lineWidth = 1;
+        ctx.fillStyle = color; ctx.globalAlpha = alpha * .12;
+        ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = color; ctx.globalAlpha = alpha * .62; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = alpha * .9; ctx.fillStyle = color;
-        ctx.beginPath(); ctx.arc(point.x, point.y, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(point.x, point.y, 3.6, 0, Math.PI * 2); ctx.fill();
         if (radius >= 7) {
-          ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
+          ctx.font = '9px ui-monospace, SFMono-Regular, Consolas, monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#d6dfd8';
           ctx.fillText(RESOURCE_ABBREVIATION[resource.id] || resource.id.slice(0, 2).toUpperCase(), point.x, point.y - radius - 5);
         }

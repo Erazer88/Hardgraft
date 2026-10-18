@@ -211,6 +211,13 @@
     const zoom = systemViewZoom(state.context.model);
     return worldCamera(state.context.frame, { x: 0, y: -30 / zoom, zoom });
   }
+  function systemCameraAtPlanet(planet = state.planet) {
+    if (!planet || !state.context) return systemCamera();
+    const position = planetWorldPosition(planet, state.context);
+    const radiusPx = clamp(Math.min(W, H) * .14, 44, 70);
+    const zoom = radiusPx / Math.max(1e-9, planet.radius * state.context.frame.scale);
+    return { x: position.x, y: position.y, zoom };
+  }
   function homeCamera() {
     if (state.level === 'galaxy') return { x: home.x - 200, y: home.y - 160, zoom: Math.max(.09, fitZoom(1900)) };
     if (state.level === 'system') return systemCamera();
@@ -662,8 +669,8 @@
   function back() {
     if (state.level === 'surface') {
       if (globeCamera.transitionMode() !== 'exit') globeCamera.beginExit(W, H, performance.now());
-      clearSelection(); state.tracking = null; state.focusPlanet = null;
-      const camera = systemCamera();
+      clearSelection(); state.tracking = null; state.focusPlanet = state.planet;
+      const camera = systemCameraAtPlanet();
       focusCamera(camera.x, camera.y, camera.zoom);
     } else if (state.level === 'system') {
       clearSelection(); state.tracking = null;
@@ -1128,7 +1135,8 @@
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),
-    getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y), id: p.id, kind: p.kind }; }),
+    getPlanetScreenPositions: () => (state.system?.planets || []).map(p => { const pos = planetWorldPosition(p); return { ...project(pos.x, pos.y),
+      radiusPx: p.radius * state.context.frame.scale * state.camera.zoom, id: p.id, kind: p.kind }; }),
     getArkScreenPosition: () => {
       if (!state.system?.ark || !state.context) return null;
       const position = globalThis.OrbitOrbitalTransit.arkPosition(state.system.ark, state.system.star, state.simulation.time);

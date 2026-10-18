@@ -4,7 +4,7 @@
   const TAU = Math.PI * 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const ease = value => value * value * (3 - 2 * value);
-  const DEFAULTS = Object.freeze({ minZoom: .8, maxZoom: 1.3, initialZoom: 1,
+  const DEFAULTS = Object.freeze({ minZoom: .8, maxZoom: 1.56, initialZoom: 1,
     initialYaw: -.38, initialPitch: .16, rotationSensitivity: .006,
     maxPitch: .72, radiusRatio: .4, transitionMs: 320 });
 

@@ -27,14 +27,12 @@
     return Style.colors.temperate;
   }
 
-  function terrainColor(x, y, terrain, planet) {
+  function terrainColorComponents(x, y, terrain, planet) {
     const elevation = Projection.sampleElevation(x, y, terrain), sea = terrain.seaLevel;
     const palette = paletteFor(planet);
-    if (elevation <= sea) {
-      const depth = clamp((sea - elevation) / 58, 0, 1);
-      return blend(rgb(palette.ocean), rgb(palette.deepOcean), smoothstep(.04, .86, depth));
-    }
     const landHeight = clamp((elevation - sea) / Math.max(1, 255 - sea), 0, 1);
+    const depth = clamp((sea - elevation) / 58, 0, 1);
+    const ocean = blend(rgb(palette.ocean), rgb(palette.deepOcean), smoothstep(.04, .86, depth));
     const moisture = Projection.sampleField(terrain.moisture, x, y, terrain) / 255;
     const latitude = Math.abs(.5 - y / Math.max(1, terrain.height - 1)) * Math.PI;
     const baseTemperature = Number.isFinite(planet?.temperature) ? planet.temperature : 16;
@@ -50,7 +48,14 @@
     const coldness = clamp((10 - temperature) / 46, 0, .7);
     const mountainSnow = smoothstep(.58, .92, landHeight) * .48;
     const snowCover = clamp(coldness * .62 + mountainSnow + (moisture > .3 ? .07 : 0), 0, .84);
-    return blend(relief, rgb(palette.snow), snowCover);
+    const land = blend(relief, rgb(palette.snow), snowCover);
+    return { ocean, land };
+  }
+
+  function terrainColor(x, y, terrain, planet) {
+    const colors = terrainColorComponents(x, y, terrain, planet);
+    const elevation = Projection.sampleElevation(x, y, terrain);
+    return blend(colors.ocean, colors.land, smoothstep(terrain.seaLevel - 1.4, terrain.seaLevel + 2.8, elevation));
   }
 
   function create(terrain, planet, segments = Style.mesh) {
@@ -58,23 +63,18 @@
     const latitudeSegments = Math.max(4, Math.floor(segments.latitudeSegments));
     const columns = longitudeSegments + 1, rows = latitudeSegments + 1;
     const vertexCount = columns * rows;
-    if (vertexCount > 65535) throw new RangeError('Globe mesh exceeds 16-bit index capacity');
     const positions = new Float32Array(vertexCount * 3);
     const normals = new Float32Array(vertexCount * 3);
     const colors = new Float32Array(vertexCount * 3);
-    const indices = new Uint16Array(longitudeSegments * latitudeSegments * 6);
+    const oceanColors = new Float32Array(vertexCount * 3);
+    const elevations = new Float32Array(vertexCount);
+    const indices = vertexCount <= 65535
+      ? new Uint16Array(longitudeSegments * latitudeSegments * 6)
+      : new Uint32Array(longitudeSegments * latitudeSegments * 6);
     const northPole = Projection.poleSurfacePosition(terrain, true, Style.relief);
     const southPole = Projection.poleSurfacePosition(terrain, false, Style.relief);
-    function poleColor(row) {
-      const color = [0, 0, 0], y = row === 0 ? 0 : terrain.height - 1;
-      for (let x = 0; x < terrain.width; x += Math.max(1, Math.floor(terrain.width / 96))) {
-        const sample = terrainColor(x, y, terrain, planet);
-        color[0] += sample[0]; color[1] += sample[1]; color[2] += sample[2];
-      }
-      const samples = Math.ceil(terrain.width / Math.max(1, Math.floor(terrain.width / 96)));
-      return color.map(channel => channel / samples);
-    }
-    const northColor = poleColor(0), southColor = poleColor(terrain.height - 1);
+    const northColors = terrainColorComponents((terrain.width - 1) / 2, 0, terrain, planet);
+    const southColors = terrainColorComponents((terrain.width - 1) / 2, terrain.height - 1, terrain, planet);
     let vertex = 0;
     for (let row = 0; row < rows; row += 1) {
       const y = row / latitudeSegments * (terrain.height - 1);
@@ -84,8 +84,14 @@
         const point = isNorthPole ? northPole : isSouthPole ? southPole :
           Projection.surfacePosition(x, y, terrain, Style.relief);
         positions[vertex * 3] = point.x; positions[vertex * 3 + 1] = point.y; positions[vertex * 3 + 2] = point.z;
-        const color = isNorthPole ? northColor : isSouthPole ? southColor : terrainColor(x, y, terrain, planet);
-        colors[vertex * 3] = color[0] / 255; colors[vertex * 3 + 1] = color[1] / 255; colors[vertex * 3 + 2] = color[2] / 255;
+        const components = isNorthPole ? northColors : isSouthPole ? southColors : terrainColorComponents(x, y, terrain, planet);
+        colors[vertex * 3] = components.land[0] / 255;
+        colors[vertex * 3 + 1] = components.land[1] / 255;
+        colors[vertex * 3 + 2] = components.land[2] / 255;
+        oceanColors[vertex * 3] = components.ocean[0] / 255;
+        oceanColors[vertex * 3 + 1] = components.ocean[1] / 255;
+        oceanColors[vertex * 3 + 2] = components.ocean[2] / 255;
+        elevations[vertex] = Projection.sampleElevation(x, y, terrain);
         vertex += 1;
       }
     }
@@ -104,9 +110,9 @@
       const abx = positions[ib] - positions[ia], aby = positions[ib + 1] - positions[ia + 1], abz = positions[ib + 2] - positions[ia + 2];
       const acx = positions[ic] - positions[ia], acy = positions[ic + 1] - positions[ia + 1], acz = positions[ic + 2] - positions[ia + 2];
       const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
-      for (const target of [ia, ib, ic]) {
-        normals[target] += nx; normals[target + 1] += ny; normals[target + 2] += nz;
-      }
+      normals[ia] += nx; normals[ia + 1] += ny; normals[ia + 2] += nz;
+      normals[ib] += nx; normals[ib + 1] += ny; normals[ib + 2] += nz;
+      normals[ic] += nx; normals[ic + 1] += ny; normals[ic + 2] += nz;
     }
     for (let i = 0; i < vertexCount; i += 1) {
       const offset = i * 3, px = positions[offset], py = positions[offset + 1], pz = positions[offset + 2];
@@ -116,9 +122,9 @@
       if (length < 1e-9) { nx = px; ny = py; nz = pz; length = Math.hypot(px, py, pz) || 1; }
       normals[offset] = nx / length; normals[offset + 1] = ny / length; normals[offset + 2] = nz / length;
     }
-    return Object.freeze({ positions, normals, colors, indices, vertexCount,
+    return Object.freeze({ positions, normals, colors, oceanColors, elevations, indices, vertexCount,
       longitudeSegments, latitudeSegments, terrain, planetId: planet?.id || null });
   }
 
-  root.OrbitPlanetGlobeMesh = Object.freeze({ create, terrainColor });
+  root.OrbitPlanetGlobeMesh = Object.freeze({ create, terrainColor, terrainColorComponents });
 })(globalThis);

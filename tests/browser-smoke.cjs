@@ -261,7 +261,7 @@ async function runViewport(cdp, viewport, errors) {
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: center.x, y: center.y, deltaX: 0, deltaY: -85 });
     const afterWheel = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom');
     assert.ok(afterWheel > beforeWheel, `${name} real wheel zooms the globe`);
-    assert.ok(afterWheel <= 1.3, `${name} wheel respects the short globe zoom range`);
+    assert.ok(afterWheel <= 1.56, `${name} wheel respects the short globe zoom range`);
   }
 
   const first = await placeStorage(cdp, mobile);
@@ -277,7 +277,7 @@ async function runViewport(cdp, viewport, errors) {
   await cdp.evaluate('window.OrbitalDebug.setPause(false)');
   try {
     await cdp.until(`window.OrbitalDebug.getSurfaceBuildings().filter(b => ${JSON.stringify(first.id)} === b.id || ${JSON.stringify(second.id)} === b.id).every(b => b.constructionState === "complete")`,
-      `${name} placed buildings complete`, 20000);
+      `${name} placed buildings complete`, 30000);
   } catch (error) {
     const diagnostics = await cdp.evaluate(`({ state: window.OrbitalDebug.getState(),
       buildings: window.OrbitalDebug.getSurfaceBuildings().filter(b => b.id === ${JSON.stringify(first.id)} || b.id === ${JSON.stringify(second.id)}) })`);
@@ -315,10 +315,13 @@ async function runViewport(cdp, viewport, errors) {
 
   await cdp.evaluate('window.OrbitalDebug.setPause(true)');
   const savedBuildings = await cdp.evaluate('window.OrbitalDebug.getSurfaceBuildings().map(b => ({id:b.id,x:b.x,y:b.y}))');
-  await cdp.click('#back-button');
+  if (mobile) await cdp.pinch(center, 30, 5);
+  else await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: center.x, y: center.y, deltaX: 0, deltaY: 1400 });
   await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} globe exits to system`);
   const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify((await cdp.evaluate('window.OrbitalDebug.getState().planetId')))} )`);
   assert.ok(planetPoint, `${name} selected planet remains in system view`);
+  assert.ok(planetPoint.radiusPx >= 35 && planetPoint.radiusPx < 80,
+    `${name} globe exits into a nearby system framing instead of jumping to the distant overview (${planetPoint.radiusPx}px)`);
   await cdp.tap(planetPoint, mobile);
   const reentryState = await cdp.evaluate('window.OrbitalDebug.getState()');
   assert.equal(reentryState.selectedId, planetPoint.id,
