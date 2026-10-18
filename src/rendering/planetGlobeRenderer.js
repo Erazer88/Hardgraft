@@ -14,27 +14,51 @@
     uniform vec2 uScale;
     uniform vec2 uOffset;
     out vec3 vNormal;
+    out vec3 vTangentU;
+    out vec3 vTangentV;
     out vec2 vUv;
     out float vElevation;
     void main() {
       float cy = cos(uYaw), sy = sin(uYaw), cx = cos(uPitch), sx = sin(uPitch);
+      float longitude = (aUv.x - 0.5) * 6.28318530718;
+      float latitude = (0.5 - aUv.y) * 3.14159265359;
       vec3 p = vec3(cy * aPosition.x + sy * aPosition.z, aPosition.y,
         -sy * aPosition.x + cy * aPosition.z);
       vec3 n = vec3(cy * aNormal.x + sy * aNormal.z, aNormal.y,
         -sy * aNormal.x + cy * aNormal.z);
+      vec3 tangentU = vec3(-sin(longitude), 0.0, cos(longitude));
+      vec3 tangentV = vec3(sin(latitude) * cos(longitude), -cos(latitude),
+        sin(latitude) * sin(longitude));
+      tangentU = vec3(cy * tangentU.x + sy * tangentU.z, tangentU.y,
+        -sy * tangentU.x + cy * tangentU.z);
+      tangentV = vec3(cy * tangentV.x + sy * tangentV.z, tangentV.y,
+        -sy * tangentV.x + cy * tangentV.z);
       p = vec3(p.x, cx * p.y - sx * p.z, sx * p.y + cx * p.z);
       n = vec3(n.x, cx * n.y - sx * n.z, sx * n.y + cx * n.z);
+      tangentU = vec3(tangentU.x, cx * tangentU.y - sx * tangentU.z,
+        sx * tangentU.y + cx * tangentU.z);
+      tangentV = vec3(tangentV.x, cx * tangentV.y - sx * tangentV.z,
+        sx * tangentV.y + cx * tangentV.z);
+      float polarNormalBlend = smoothstep(1.43117, 1.56207, abs(latitude));
+      n = normalize(mix(n, normalize(p), polarNormalBlend * 0.72));
       gl_Position = vec4(p.xy * uScale + uOffset, -p.z * 0.72, 1.0);
       vNormal = normalize(n);
+      vTangentU = normalize(tangentU);
+      vTangentV = normalize(tangentV);
       vUv = aUv;
       vElevation = aElevation;
     }`;
   const FRAGMENT_SHADER = `#version 300 es
     precision mediump float;
     in vec3 vNormal;
+    in vec3 vTangentU;
+    in vec3 vTangentV;
     in vec2 vUv;
     in float vElevation;
     uniform sampler2D uSurfaceTexture;
+    uniform sampler2D uDetailTexture;
+    uniform vec2 uDetailTexelSize;
+    uniform float uNormalDetailStrength;
     uniform float uOpacity;
     uniform float uSeaLevel;
     uniform float uContourInterval;
@@ -44,17 +68,29 @@
     out vec4 outColor;
     void main() {
       vec3 lightDirection = normalize(vec3(-0.42, 0.55, 0.78));
-      float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
+      float latitude = (0.5 - vUv.y) * 3.14159265359;
+      float polarDetailFade = 1.0 - smoothstep(1.43117, 1.56207, abs(latitude));
+      float coastline = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
+      vec2 bumpOffset = uDetailTexelSize * 2.0;
+      float bumpLeft = texture(uDetailTexture, vUv - vec2(bumpOffset.x, 0.0)).r;
+      float bumpRight = texture(uDetailTexture, vUv + vec2(bumpOffset.x, 0.0)).r;
+      float bumpNorth = texture(uDetailTexture, vUv - vec2(0.0, bumpOffset.y)).r;
+      float bumpSouth = texture(uDetailTexture, vUv + vec2(0.0, bumpOffset.y)).r;
+      float bumpU = bumpRight - bumpLeft;
+      float bumpV = bumpSouth - bumpNorth;
+      vec3 normal = normalize(vNormal);
+      vec3 tangentU = normalize(vTangentU - normal * dot(vTangentU, normal));
+      vec3 tangentV = normalize(vTangentV - normal * dot(vTangentV, normal));
+      normal = normalize(normal - (tangentU * bumpU + tangentV * bumpV) *
+        (uNormalDetailStrength * 8.0 * polarDetailFade * coastline));
+      float diffuse = max(dot(normalize(normal), lightDirection), 0.0);
       vec4 surface = texture(uSurfaceTexture, vUv);
       vec3 base = surface.rgb;
-      float lighting = 0.68 + diffuse * 0.40;
-      float facing = clamp(vNormal.z, 0.0, 1.0);
-      float limb = mix(0.86, 1.0, smoothstep(0.0, 0.65, facing));
-      float coastWidth = clamp(fwidth(vElevation) * 0.85, 1.4, 8.0);
-      float coastline = smoothstep(uSeaLevel - coastWidth, uSeaLevel + coastWidth, vElevation);
-      vec3 color = base * lighting * limb;
+      float lighting = 0.82 + diffuse * 0.22;
+      lighting = clamp(lighting, 0.78, 1.04);
+      vec3 color = base * lighting;
       color += vec3(1.0, 0.14, 0.025) * surface.a * 0.18;
-      float land = smoothstep(uSeaLevel - coastWidth, uSeaLevel + coastWidth, vElevation);
+      float land = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
       float minorLevel = (vElevation - uSeaLevel) / uContourInterval;
       float majorLevel = (vElevation - uSeaLevel) / uMajorInterval;
       float minorDistance = abs(fract(minorLevel + 0.5) - 0.5);
@@ -106,7 +142,10 @@
         majorInterval: gl.getUniformLocation(program, 'uMajorInterval'),
         contourOpacity: gl.getUniformLocation(program, 'uContourOpacity'),
         majorOpacity: gl.getUniformLocation(program, 'uMajorOpacity'),
-        surfaceTexture: gl.getUniformLocation(program, 'uSurfaceTexture') };
+        surfaceTexture: gl.getUniformLocation(program, 'uSurfaceTexture'),
+        detailTexture: gl.getUniformLocation(program, 'uDetailTexture'),
+        detailTexelSize: gl.getUniformLocation(program, 'uDetailTexelSize'),
+        normalDetailStrength: gl.getUniformLocation(program, 'uNormalDetailStrength') };
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       buffers = null;
@@ -119,7 +158,7 @@
       if (buffers) {
         gl.deleteBuffer(buffers.positions); gl.deleteBuffer(buffers.normals);
         gl.deleteBuffer(buffers.uvs); gl.deleteBuffer(buffers.elevations); gl.deleteBuffer(buffers.indices);
-        gl.deleteTexture(buffers.surfaceTexture);
+        gl.deleteTexture(buffers.surfaceTexture); gl.deleteTexture(buffers.detailTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -145,8 +184,17 @@
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, surfaceData.width, surfaceData.height, 0,
         gl.RGBA, gl.UNSIGNED_BYTE, surfaceData.pixels);
       gl.generateMipmap(gl.TEXTURE_2D);
+      const detailTexture = gl.createTexture(); gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, detailTexture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, surfaceData.width, surfaceData.height, 0,
+        gl.RED, gl.UNSIGNED_BYTE, surfaceData.detailPixels);
+      gl.generateMipmap(gl.TEXTURE_2D);
       gl.bindVertexArray(null);
-      buffers = { vao, positions, normals, uvs, elevations, indices, surfaceTexture, textureKey: surfaceData.key,
+      buffers = { vao, positions, normals, uvs, elevations, indices, surfaceTexture, detailTexture, textureKey: surfaceData.key,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
         indexType: mesh.indices instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
     }
@@ -203,6 +251,10 @@
       gl.useProgram(program); gl.bindVertexArray(buffers.vao);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, buffers.surfaceTexture);
       gl.uniform1i(program.uniforms.surfaceTexture, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, buffers.detailTexture);
+      gl.uniform1i(program.uniforms.detailTexture, 1);
+      gl.uniform2f(program.uniforms.detailTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
+      gl.uniform1f(program.uniforms.normalDetailStrength, .15);
       gl.uniform1f(program.uniforms.yaw, view.yaw); gl.uniform1f(program.uniforms.pitch, view.pitch);
       gl.uniform2f(program.uniforms.scale, radiusPx * 2 / width, radiusPx * 2 / height);
       gl.uniform2f(program.uniforms.offset, centerX * 2 / width - 1, 1 - centerY * 2 / height);
@@ -223,7 +275,7 @@
         longitudeSegments: currentMesh?.longitudeSegments || 0,
         latitudeSegments: currentMesh?.latitudeSegments || 0, textureWidth: buffers?.textureWidth || 0,
         textureHeight: buffers?.textureHeight || 0, textureKey: buffers?.textureKey || null,
-        contextLost: lost, failure }) });
+        normalDetailStrength: buffers ? .15 : 0, contextLost: lost, failure }) });
   }
 
   root.OrbitPlanetGlobeRenderer = Object.freeze({ create });

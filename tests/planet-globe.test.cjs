@@ -70,8 +70,11 @@ test('polar caps converge smoothly to a shared display-only elevation', () => {
   }
   const terrain = { width, height, elevation, moisture, seaLevel: 110 };
   const northValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, 0, terrain));
+  const broadHighLatitudeValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, 15, terrain));
   const nearPoleValues = Array.from({ length: width }, (_, x) => projection.sampleElevation(x, .5, terrain));
   assert.ok(Math.max(...northValues) - Math.min(...northValues) < 1e-4);
+  assert.ok(Math.max(...broadHighLatitudeValues) - Math.min(...broadHighLatitudeValues) > 100,
+    'the polar correction does not pull broad continents inward before the final polar band');
   assert.ok(Math.max(...nearPoleValues) - Math.min(...nearPoleValues) < 1e-3);
   assert.ok(Number.isFinite(projection.surfaceRadius(0, 0, terrain, style.relief)));
 });
@@ -111,9 +114,9 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.equal(style.relief.scale, .026);
-  assert.equal(style.relief.exponent, 1.85);
-  assert.equal(style.graticule.opacity, .08);
+  assert.equal(style.relief.scale, .024);
+  assert.equal(style.relief.exponent, 1.9);
+  assert.equal(style.graticule.opacity, .05);
   assert.equal(style.graticule.widthPx, .55);
 });
 
@@ -131,8 +134,11 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   const first = textures.create(terrain, basePlanet, { width, height, cache: false });
   const repeated = textures.create(terrain, basePlanet, { width, height, cache: false });
   assert.deepEqual(Array.from(first.pixels), Array.from(repeated.pixels));
+  assert.deepEqual(Array.from(first.detailPixels), Array.from(repeated.detailPixels));
+  assert.equal(first.detailPixels.length, width * height);
   const differentSeed = textures.create(terrain, { ...basePlanet, seed: 'another-world-seed' }, { width, height, cache: false });
   assert.notDeepEqual(Array.from(first.pixels), Array.from(differentSeed.pixels));
+  assert.notDeepEqual(Array.from(first.detailPixels), Array.from(differentSeed.detailPixels));
 
   const frozen = textures.create(terrain, { ...basePlanet, kind: 'glacée' }, { width, height, cache: false });
   const arid = textures.create(terrain, { ...basePlanet, kind: 'aride' }, { width, height, cache: false });
@@ -148,6 +154,8 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
     'volcanic basins show orange lava with a restrained emission mask');
   assert.ok(first.pixels.every((value, index) => index % 4 !== 3 || value === 0),
     'non-volcanic alpha is reserved for no emission');
+  assert.ok(first.pixels.every((value, index) => index % 4 === 3 || value <= 245),
+    'the procedural terrain texture stays below white before lighting');
   for (const texture of [first, frozen, arid, volcanic]) {
     for (const row of [0, height - 1]) {
       const polarPixels = Array.from({ length: width }, (_, x) => pixel(texture, x, row));
@@ -158,6 +166,17 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
       }
     }
   }
+});
+
+test('globe shader clamps light, shades from a seeded detail texture, and fades polar detail', () => {
+  const source = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
+  assert.match(source, /float lighting = 0\.82 \+ diffuse \* 0\.22;/);
+  assert.match(source, /lighting = clamp\(lighting, 0\.78, 1\.04\);/);
+  assert.match(source, /uniform sampler2D uDetailTexture;/);
+  assert.match(source, /uNormalDetailStrength \* 8\.0 \* polarDetailFade/);
+  assert.match(source, /smoothstep\(uSeaLevel - 1\.5, uSeaLevel \+ 1\.5, vElevation\)/);
+  assert.match(source, /gl\.R8/);
+  assert.match(source, /normalDetailStrength, \.15/);
 });
 
 test('globe camera clamps tilt and zoom and evaluates transitions from simulation time', () => {
