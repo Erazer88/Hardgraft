@@ -93,7 +93,11 @@
     const normalized = clamp(finite(height), 0, 1);
     const linearFraction = Number.isFinite(relief.linearFraction) ? clamp(relief.linearFraction, 0, 1) : .25;
     const exponent = Number.isFinite(relief.exponent) ? Math.max(.01, relief.exponent) : 1.10;
-    return linearFraction * normalized + (1 - linearFraction) * Math.pow(normalized, exponent);
+    const compressionStart = Number.isFinite(relief.compressionStart) ?
+      clamp(relief.compressionStart, 0, .99) : .24;
+    const mountainCurve = clamp((normalized - compressionStart) / (1 - compressionStart), 0, 1);
+    const smoothMountainCurve = mountainCurve * mountainCurve * (3 - 2 * mountainCurve);
+    return linearFraction * normalized + (1 - linearFraction) * Math.pow(smoothMountainCurve, exponent);
   }
 
   function surfaceRadius(x, y, terrain, relief = {}) {

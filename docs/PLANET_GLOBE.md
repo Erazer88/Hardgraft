@@ -23,8 +23,10 @@ Le relief de rendu est radial et borné par `src/data/planetGlobeStyle.js`. Sa
 plage verticale est recalculée depuis le quantile surfacique 98 % des altitudes
 terrestres de chaque planète (pondération par latitude), entre 28 et 70 unités au-dessus du niveau marin. La projection,
 le maillage et le shader partagent cette même plage ; les normales suivent la
-heightmap sur toute la terre, tandis que les masques tectoniques ne contrôlent que
-les accents de montagne. Les valeurs d'altitude de gameplay ne sont pas modifiées.
+heightmap sur toute la terre, tandis que leur intensité monte avec la pente et la
+rugosité. Une courbe visuelle comprime les basses altitudes et réserve les facettes
+et matériaux rocheux aux reliefs marqués. Les masques tectoniques contrôlent les
+accents de montagne. Les valeurs d'altitude de gameplay ne sont pas modifiées.
 
 ## Responsabilités
 

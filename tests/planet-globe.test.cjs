@@ -122,7 +122,8 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
   assert.equal(style.relief.scale, .045);
   assert.equal(style.relief.exponent, 1.10);
-  assert.equal(style.relief.linearFraction, .25);
+  assert.equal(style.relief.linearFraction, .34);
+  assert.equal(style.relief.compressionStart, .24);
   assert.equal(style.relief.landQuantile, .98);
   assert.equal(style.relief.minLandRange, 28);
   assert.equal(style.relief.maxLandRange, 70);
@@ -430,9 +431,11 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /float ridgeStrength = terrainStructure\.g/);
   assert.match(source, /float valleyStrength = terrainStructure\.b/);
   assert.match(source, /float ruggedness = terrainStructure\.a/);
-  assert.match(source, /mix\(baseNormal, midReliefNormal, landRelief\)/,
+  assert.match(source, /mix\(baseNormal, midReliefNormal, landCoverage \* reliefStrength\)/,
     'heightmap normals are applied across land, including outside tectonic mountain masks');
-  assert.match(source, /float facetMask = mountainMask \* ruggedness \* smoothstep\(0\.08, 0\.25, slope\) \* smoothstep\(0\.08, 0\.32, height\)/);
+  assert.match(source, /float reliefStrength = mix\(0\.14, 0\.82, mountainInfluence\)/,
+    'heightmap shading stays faint on plains and strengthens with mountain influence');
+  assert.match(source, /float facetMask = mountainMask \* ruggedness \* mountainSlope \* smoothstep\(0\.12, 0\.42, height\)/);
   assert.doesNotMatch(source, /ridgeSignal|float ridgeStrength = smoothstep/,
     'worldgen fields, not a height Laplacian, define geological ridges and valleys');
   assert.match(source, /mix\(terrainNormal, facetNormal, facetMask \* uFacetMix\)/);
@@ -453,8 +456,8 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /float oceanFresnel = pow\(1\.0 - max\(dot\(viewDirection, waterNormal\), 0\.0\), 3\.0\)/);
   assert.match(source, /mix\(landColor, waterColor, oceanCoverage\)/,
     'liquid water skips the land relief shading path');
-  assert.match(source, /rockExposure = mountainMask \* smoothstep\(0\.10, 0\.32, slope\)/);
-  assert.match(source, /mix\(base, uRockColor, rockExposure \* 0\.45\)/);
+  assert.match(source, /rockExposure = mountainInfluence \* smoothstep\(0\.06, 0\.20, slope\)/);
+  assert.match(source, /mix\(base, uRockColor, rockExposure \* 0\.66\)/);
   assert.match(source, /mix\(landMaterial, uRidgeColor, ridgeStrength \* 0\.12\)/);
   assert.match(source, /mix\(landMaterial, uCreviceColor, valleyStrength \* 0\.08\)/);
   assert.match(source, /uniform float uAoStrength;/);
@@ -474,6 +477,7 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.midReliefStrength, Style\.terrainShading\.midReliefStrength\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.facetMix, Style\.terrainShading\.mountainFacetMix\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.detailNormalStrength, Style\.terrainShading\.microDetailStrength\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.reliefCompressionStart, Style\.relief\.compressionStart\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterNoiseAmplitude, water\.noiseAmplitude\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterSpecularStrength, water\.specularStrength\)/);
   assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterFresnelStrength, water\.fresnelStrength\)/);
@@ -493,11 +497,12 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.mid, '#176F91');
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.deep, '#073B5C');
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.bathymetryInfluence, .16);
-  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.midReliefStrength, 2.2);
-  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainFacetMix, .30);
-  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainAoStrength, .06);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.midReliefStrength, 1.25);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainFacetMix, .24);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.microDetailStrength, 0);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainAoStrength, .055);
   assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.ridgeAccentStrength, .10);
-  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainMaterials.temperate.ridge, '#D1B38D');
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainMaterials.temperate.ridge, '#DCC59D');
   assert.match(readFileSync(resolve(__dirname, '../src/rendering/planetSurfaceTexture.js'), 'utf8'),
     /const albedoWidth = Math\.min\(width, 1024\)/,
   'color albedo generation stays bounded for mobile while height and coast maps keep full resolution');

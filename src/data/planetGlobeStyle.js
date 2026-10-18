@@ -3,20 +3,20 @@
 
   root.OrbitPlanetGlobeStyle = Object.freeze({
     mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
-    relief: Object.freeze({ scale: .045, exponent: 1.10, linearFraction: .25,
-      landQuantile: .98, minLandRange: 28, maxLandRange: 70 }),
+    relief: Object.freeze({ scale: .045, exponent: 1.10, linearFraction: .34,
+      compressionStart: .24, landQuantile: .98, minLandRange: 28, maxLandRange: 70 }),
     water: Object.freeze({ shallow: '#42A4AE', mid: '#176F91', deep: '#073B5C',
       noiseAmplitude: .03, normalStrength: .02, specularStrength: .10, fresnelStrength: .05,
       coastDepthDistance: 22, bathymetryDepthScale: 42, bathymetryInfluence: .16 }),
-    terrainShading: Object.freeze({ midReliefStrength: 2.2, microDetailStrength: .03,
-      mountainFacetMix: .30, mountainAoStrength: .06, ridgeAccentStrength: .10,
+    terrainShading: Object.freeze({ midReliefStrength: 1.25, microDetailStrength: 0,
+      mountainFacetMix: .24, mountainAoStrength: .055, ridgeAccentStrength: .10,
       facetGrid: Object.freeze({ x: 100, y: 50 }),
       mountainMaterials: Object.freeze({
-        temperate: Object.freeze({ rock: '#A28769', ridge: '#D1B38D', crevice: '#625B50' }),
-        frozen: Object.freeze({ rock: '#849BA4', ridge: '#DEE8E9', crevice: '#54666C' }),
-        arid: Object.freeze({ rock: '#A86B49', ridge: '#D89D6A', crevice: '#684438' }),
-        volcanic: Object.freeze({ rock: '#6E4C3F', ridge: '#9F6747', crevice: '#302625' }),
-        default: Object.freeze({ rock: '#A28769', ridge: '#D1B38D', crevice: '#625B50' })
+        temperate: Object.freeze({ rock: '#B59A76', ridge: '#DCC59D', crevice: '#665744' }),
+        frozen: Object.freeze({ rock: '#849BA4', ridge: '#D7E4E6', crevice: '#586A70' }),
+        arid: Object.freeze({ rock: '#B67852', ridge: '#E0AD78', crevice: '#684438' }),
+        volcanic: Object.freeze({ rock: '#765044', ridge: '#A36C50', crevice: '#302625' }),
+        default: Object.freeze({ rock: '#B59A76', ridge: '#DCC59D', crevice: '#665744' })
       }) }),
     atmosphere: Object.freeze({ shellScale: 1.025, haloScale: 1.075,
       haloAlpha: .28, rimAlpha: .62, haloPower: 1.55, rimPower: 3.0,
