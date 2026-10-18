@@ -38,6 +38,18 @@
         secondaryRadiusRatio: [.22, .48], secondaryDistanceRatio: [.45, 1.35]
       },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
+      tectonics: {
+        plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
+        continentalFrequency: 1.65, plateContinentalInfluence: .035,
+        motionScale: 1.1, shoulderWidth: .105, coreWidth: .032,
+        subductionOffset: .047, trenchWidth: .033, riftWidth: .038,
+        continentalCollision: 76, coastalUplift: 62, islandArcUplift: 27,
+        trenchDepth: 12, riftDepth: 19, oceanRidgeUplift: 7,
+        warpAmplitude: .014, warpFrequency: 4.2,
+        erosion: { passes: 12, rate: .32, talusPerRadian: 155 },
+        structure: { sampleAngle: .025, coarseAngle: .055,
+          upliftRange: [4, 27], slopeRange: [65, 310], convexityRange: [.12, 2.4] }
+      },
       relief: {
         broadAmplitude: 24,
         mediumAmplitude: 9,
