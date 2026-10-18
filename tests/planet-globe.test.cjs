@@ -120,9 +120,12 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.equal(style.relief.scale, .042);
-  assert.equal(style.relief.exponent, 1.45);
-  assert.equal(style.relief.linearFraction, .12);
+  assert.equal(style.relief.scale, .045);
+  assert.equal(style.relief.exponent, 1.10);
+  assert.equal(style.relief.linearFraction, .25);
+  assert.equal(style.relief.landQuantile, .98);
+  assert.equal(style.relief.minLandRange, 28);
+  assert.equal(style.relief.maxLandRange, 70);
   assert.equal(style.graticule.opacity, .05);
   assert.equal(style.graticule.widthPx, .55);
 });
@@ -407,7 +410,11 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /uniform sampler2D uTerrainStructureTexture;/);
   assert.match(source, /float decodeHeight\(vec2 rg\)/);
   assert.match(source, /float sampleLandHeight\(vec2 uv, float lod\)/,
-    'the shader derives height and bathymetry from the full-precision elevation field');
+    'the shader samples full-precision elevation before applying the visual land range');
+  assert.match(source, /\(elevation - uReliefLow\) \/ max\(1\.0, uReliefHigh - uReliefLow\)/,
+    'fragment normals use the same quantile-derived visual height interval as the mesh');
+  assert.match(source, /vVisualHeight = clamp\(\(aElevation - uReliefLow\) \/ max\(1\.0, uReliefHigh - uReliefLow\)/,
+    'the vertex shader uses the same visual elevation normalization');
   assert.match(source, /float shapeReliefHeight\(float h\)/,
     'shader slope and mesh displacement use the same monotone relief shape');
   assert.match(source, /float midLeft = sampleShapedLandHeight\([^;]+, 0\.0\)/,
@@ -423,8 +430,9 @@ test('globe shader smooths high-precision terrain and limits detail to mountains
   assert.match(source, /float ridgeStrength = terrainStructure\.g/);
   assert.match(source, /float valleyStrength = terrainStructure\.b/);
   assert.match(source, /float ruggedness = terrainStructure\.a/);
-  assert.match(source, /mix\(baseNormal, midReliefNormal, mountainMask \* 0\.85\)/);
-  assert.match(source, /float facetMask = mountainMask \* ruggedness \* smoothstep\(0\.08, 0\.25, slope\)/);
+  assert.match(source, /mix\(baseNormal, midReliefNormal, landRelief\)/,
+    'heightmap normals are applied across land, including outside tectonic mountain masks');
+  assert.match(source, /float facetMask = mountainMask \* ruggedness \* smoothstep\(0\.08, 0\.25, slope\) \* smoothstep\(0\.08, 0\.32, height\)/);
   assert.doesNotMatch(source, /ridgeSignal|float ridgeStrength = smoothstep/,
     'worldgen fields, not a height Laplacian, define geological ridges and valleys');
   assert.match(source, /mix\(terrainNormal, facetNormal, facetMask \* uFacetMix\)/);

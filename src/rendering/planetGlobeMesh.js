@@ -13,6 +13,7 @@
     const normals = new Float32Array(vertexCount * 3);
     const uvs = new Float32Array(vertexCount * 2);
     const elevations = new Float32Array(vertexCount);
+    const reliefRange = Projection.visualReliefRange(terrain, Style.relief);
     const indices = vertexCount <= 65535
       ? new Uint16Array(longitudeSegments * latitudeSegments * 6)
       : new Uint32Array(longitudeSegments * latitudeSegments * 6);
@@ -60,7 +61,7 @@
       if (length < 1e-9) { nx = px; ny = py; nz = pz; length = Math.hypot(px, py, pz) || 1; }
       normals[offset] = nx / length; normals[offset + 1] = ny / length; normals[offset + 2] = nz / length;
     }
-    return Object.freeze({ positions, normals, uvs, elevations, indices, vertexCount,
+    return Object.freeze({ positions, normals, uvs, elevations, indices, vertexCount, reliefRange,
       longitudeSegments, latitudeSegments, terrain, planet, planetId: planet?.id || null });
   }
 

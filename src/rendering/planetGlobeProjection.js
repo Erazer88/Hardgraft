@@ -4,6 +4,7 @@
   const TAU = Math.PI * 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const finite = value => Number.isFinite(value) ? value : 0;
+  const reliefRangeCache = new WeakMap();
 
   function terrainToSphere(x, y, terrain) {
     return root.OrbitWorld.directionForPixel(finite(x), finite(y), terrain.width, terrain.height);
@@ -35,18 +36,70 @@
     return sampleField(terrain?.elevation, x, y, terrain);
   }
 
+  function visualReliefRange(terrain, relief = {}) {
+    const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
+    const quantile = Number.isFinite(relief.landQuantile) ? clamp(relief.landQuantile, 0, 1) : .98;
+    const minRange = Number.isFinite(relief.minLandRange) ? Math.max(1, relief.minLandRange) : 28;
+    const maxRange = Number.isFinite(relief.maxLandRange) ? Math.max(minRange, relief.maxLandRange) : 70;
+    const values = terrain?.elevation;
+    if (!terrain || typeof terrain !== 'object' || !values?.length) {
+      return { low: seaLevel, high: seaLevel + minRange };
+    }
+
+    let cached = reliefRangeCache.get(terrain);
+    if (!cached || cached.values !== values || cached.seaLevel !== seaLevel) {
+      // Equirectangular rows have unequal surface area. Weight each latitude
+      // by cos(latitude), matching the spherical area convention in worldgen.
+      const histogram = new Float64Array(256);
+      let landArea = 0;
+      const width = Math.max(1, Math.floor(terrain.width || values.length));
+      const height = Math.max(1, Math.floor(terrain.height || Math.ceil(values.length / width)));
+      for (let y = 0; y < height; y += 1) {
+        const latitude = (.5 - y / Math.max(1, height - 1)) * Math.PI;
+        const areaWeight = Math.max(0, Math.cos(latitude));
+        const rowStart = y * width;
+        const rowEnd = Math.min(values.length, rowStart + width);
+        for (let i = rowStart; i < rowEnd; i += 1) {
+          const elevation = finite(values[i]);
+          if (elevation <= seaLevel) continue;
+          histogram[clamp(Math.floor(elevation), 0, 255)] += areaWeight;
+          landArea += areaWeight;
+        }
+      }
+      cached = { values, seaLevel, histogram, landArea, ranges: new Map() };
+      reliefRangeCache.set(terrain, cached);
+    }
+
+    const cacheKey = `${quantile}:${minRange}:${maxRange}`;
+    if (cached.ranges.has(cacheKey)) return cached.ranges.get(cacheKey);
+    const target = Math.max(Number.EPSILON, cached.landArea * quantile);
+    let count = 0, landHigh = seaLevel;
+    for (let elevation = 0; elevation < cached.histogram.length; elevation += 1) {
+      count += cached.histogram[elevation];
+      if (count >= target) { landHigh = elevation; break; }
+    }
+    const high = clamp(landHigh, seaLevel + minRange, seaLevel + maxRange);
+    const range = Object.freeze({ low: seaLevel, high });
+    cached.ranges.set(cacheKey, range);
+    return range;
+  }
+
+  function visualHeight(elevation, terrain, relief = {}) {
+    const range = visualReliefRange(terrain, relief);
+    return clamp((finite(elevation) - range.low) / Math.max(1, range.high - range.low), 0, 1);
+  }
+
   function shapeReliefHeight(height, relief = {}) {
     const normalized = clamp(finite(height), 0, 1);
-    const linearFraction = Number.isFinite(relief.linearFraction) ? clamp(relief.linearFraction, 0, 1) : .12;
-    const exponent = Number.isFinite(relief.exponent) ? Math.max(.01, relief.exponent) : 1.45;
+    const linearFraction = Number.isFinite(relief.linearFraction) ? clamp(relief.linearFraction, 0, 1) : .25;
+    const exponent = Number.isFinite(relief.exponent) ? Math.max(.01, relief.exponent) : 1.10;
     return linearFraction * normalized + (1 - linearFraction) * Math.pow(normalized, exponent);
   }
 
   function surfaceRadius(x, y, terrain, relief = {}) {
-    const seaLevel = Number.isFinite(terrain?.seaLevel) ? terrain.seaLevel : 0;
     const elevation = sampleElevation(x, y, terrain);
-    const landHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .042;
+    const landHeight = visualHeight(elevation, terrain, relief);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
     return 1 + scale * shapeReliefHeight(landHeight, relief);
   }
 
@@ -58,8 +111,8 @@
   function poleSurfacePosition(terrain, north, relief = {}) {
     const row = north ? 0 : terrain.height - 1;
     const elevation = sampleElevation((terrain.width - 1) / 2, row, terrain);
-    const landHeight = clamp((elevation - terrain.seaLevel) / Math.max(1, 255 - terrain.seaLevel), 0, 1);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .042;
+    const landHeight = visualHeight(elevation, terrain, relief);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
     const radius = 1 + scale * shapeReliefHeight(landHeight, relief);
     const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
     return { x: normal.x * radius, y: normal.y * radius, z: normal.z * radius };
@@ -102,7 +155,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .042) + .002;
+    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .045) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 
@@ -143,6 +196,6 @@
   }
 
   root.OrbitPlanetGlobeProjection = Object.freeze({ terrainToSphere, sphereToTerrain,
-    sampleField, sampleElevation, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
+    sampleField, sampleElevation, visualReliefRange, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);
