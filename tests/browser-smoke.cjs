@@ -210,6 +210,8 @@ async function enterSurface(cdp, viewport, name) {
   assert.equal(metrics.overlay, 'block', `${name} projected cartographic overlay is visible`);
   assert.equal(metrics.error, true, `${name} WebGL2 fallback message is hidden when rendering succeeds`);
   assert.ok(metrics.globe.renderer.vertices >= 18000, `${name} globe reuses the expected mobile mesh resolution`);
+  assert.equal(metrics.globe.renderer.textureWidth, 1024, `${name} globe uses the seeded procedural surface texture`);
+  assert.equal(metrics.globe.renderer.textureHeight, 512, `${name} surface texture keeps the requested mobile-safe resolution`);
   assert.equal(metrics.overflow <= 1, true, `${name} layout has no horizontal overflow`);
   return { planet, mobile, width, height };
 }

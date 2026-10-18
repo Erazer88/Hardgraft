@@ -111,9 +111,10 @@
     const elevation = sampleElevation(x, y, terrain);
     const landHeight = Math.max(0, elevation - seaLevel) / Math.max(1, 255 - seaLevel);
     if (landHeight <= 0) return 1;
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .055;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.35;
-    return 1 + scale * Math.pow(landHeight, exponent);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .026;
+    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.85;
+    const mountain = smoothstep(.12, .92, landHeight);
+    return 1 + scale * Math.pow(mountain, exponent);
   }
 
   function surfacePosition(x, y, terrain, relief) {
@@ -125,9 +126,10 @@
     const row = north ? 0 : terrain.height - 1;
     const elevation = polarCapAverage(terrain.elevation, terrain, north);
     const landHeight = Math.max(0, elevation - terrain.seaLevel) / Math.max(1, 255 - terrain.seaLevel);
-    const scale = Number.isFinite(relief.scale) ? relief.scale : .055;
-    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.35;
-    const radius = 1 + scale * Math.pow(landHeight, exponent);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .026;
+    const exponent = Number.isFinite(relief.exponent) ? relief.exponent : 1.85;
+    const mountain = smoothstep(.12, .92, landHeight);
+    const radius = 1 + scale * Math.pow(mountain, exponent);
     const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
     return { x: normal.x * radius, y: normal.y * radius, z: normal.z * radius };
   }
@@ -169,7 +171,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .055) + .002;
+    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .026) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 

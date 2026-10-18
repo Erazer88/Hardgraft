@@ -11,6 +11,7 @@ function loadGlobeContext() {
   for (const file of [
     '../src/data/worldgen.js', '../src/world.js', '../src/data/planetGlobeStyle.js',
     '../src/rendering/planetGlobeProjection.js', '../src/rendering/planetGlobeMesh.js',
+    '../src/rendering/planetSurfaceTexture.js',
     '../src/navigation/planetGlobeCamera.js'
   ]) vm.runInContext(readFileSync(resolve(__dirname, file), 'utf8'), context, { filename: file });
   return context;
@@ -89,7 +90,7 @@ test('screen ray intersects the relief surface and returns terrain coordinates',
   assert.ok(Math.hypot(projected.x - 200, projected.y - 150) < 2);
 });
 
-test('same seed produces identical terrain globe mesh, finite colors, and unit normals', () => {
+test('same seed produces identical terrain globe mesh, UVs, and unit normals', () => {
   const { OrbitWorld: world, OrbitPlanetGlobeMesh: meshBuilder, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
   const planet = { id: 'n-1', seed: 'globe-test-seed', kind: 'tellurique', temperature: 16,
     resources: { iron: .55, copper: .3 } };
@@ -100,15 +101,63 @@ test('same seed produces identical terrain globe mesh, finite colors, and unit n
   const first = meshBuilder.create(firstTerrain, planet, settings);
   const second = meshBuilder.create(secondTerrain, planet, settings);
   assert.deepEqual(Array.from(first.positions), Array.from(second.positions));
-  assert.deepEqual(Array.from(first.colors), Array.from(second.colors));
+  assert.deepEqual(Array.from(first.uvs), Array.from(second.uvs));
   assert.deepEqual(Array.from(first.indices), Array.from(second.indices));
   assert.equal(first.vertexCount, 65 * 33);
+  assert.equal(first.uvs.length, first.vertexCount * 2);
+  assert.deepEqual(Array.from(first.uvs.slice(0, 8)), [0, 0, 1 / 64, 0, 2 / 64, 0, 3 / 64, 0]);
   for (let i = 0; i < first.normals.length; i += 3) {
     const length = Math.hypot(first.normals[i], first.normals[i + 1], first.normals[i + 2]);
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
-  assert.ok(first.colors.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.ok(style.relief.scale > 0 && style.relief.scale < .12);
+  assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
+  assert.equal(style.relief.scale, .026);
+  assert.equal(style.relief.exponent, 1.85);
+  assert.equal(style.graticule.opacity, .08);
+  assert.equal(style.graticule.widthPx, .55);
+});
+
+test('procedural planet textures are deterministic, seed-unique, and climate-specific', () => {
+  const { OrbitPlanetSurfaceTexture: textures } = loadGlobeContext();
+  const width = 64, height = 32, seaLevel = 100;
+  const elevation = new Uint8Array(width * height), moisture = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const index = y * width + x;
+    elevation[index] = x < width / 2 ? 82 + (y % 13) : 130 + ((x * 11 + y * 7) % 105);
+    moisture[index] = (x * 17 + y * 29) & 255;
+  }
+  const terrain = { width, height, elevation, moisture, seaLevel };
+  const basePlanet = { id: 'texture-test', seed: 'same-world-seed', temperature: 16, kind: 'tellurique' };
+  const first = textures.create(terrain, basePlanet, { width, height, cache: false });
+  const repeated = textures.create(terrain, basePlanet, { width, height, cache: false });
+  assert.deepEqual(Array.from(first.pixels), Array.from(repeated.pixels));
+  const differentSeed = textures.create(terrain, { ...basePlanet, seed: 'another-world-seed' }, { width, height, cache: false });
+  assert.notDeepEqual(Array.from(first.pixels), Array.from(differentSeed.pixels));
+
+  const frozen = textures.create(terrain, { ...basePlanet, kind: 'glacée' }, { width, height, cache: false });
+  const arid = textures.create(terrain, { ...basePlanet, kind: 'aride' }, { width, height, cache: false });
+  const volcanic = textures.create(terrain, { ...basePlanet, kind: 'volcanique' }, { width, height, cache: false });
+  const pixel = (texture, x, y) => Array.from(texture.pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 4));
+  const temperateOcean = pixel(first, 8, 15), iceSea = pixel(frozen, 8, 15);
+  const aridBasin = pixel(arid, 8, 15), lavaBasin = pixel(volcanic, 8, 15);
+  assert.ok(temperateOcean[2] > temperateOcean[0], 'temperate basins remain blue oceans');
+  assert.ok(iceSea[0] > 130 && Math.abs(iceSea[2] - iceSea[1]) < 60,
+    'frozen basins are pale blue-gray ice rather than liquid ocean');
+  assert.ok(aridBasin[0] > aridBasin[2], 'arid basins use a dry warm palette');
+  assert.ok(lavaBasin[0] > lavaBasin[1] && volcanic.pixels.some((value, index) => index % 4 === 3 && value > 0),
+    'volcanic basins show orange lava with a restrained emission mask');
+  assert.ok(first.pixels.every((value, index) => index % 4 !== 3 || value === 0),
+    'non-volcanic alpha is reserved for no emission');
+  for (const texture of [first, frozen, arid, volcanic]) {
+    for (const row of [0, height - 1]) {
+      const polarPixels = Array.from({ length: width }, (_, x) => pixel(texture, x, row));
+      for (let channel = 0; channel < 3; channel += 1) {
+        const values = polarPixels.map(entry => entry[channel]);
+        assert.ok(Math.max(...values) - Math.min(...values) <= 1,
+          `${texture.climate} texture converges to a clean shared polar point`);
+      }
+    }
+  }
 });
 
 test('globe camera clamps tilt and zoom and evaluates transitions from simulation time', () => {
