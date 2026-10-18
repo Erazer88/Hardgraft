@@ -476,7 +476,9 @@
     const albedoPixels = new Uint8Array(pixelCount * 4);
     const sourceAlbedoPixels = albedoWidth === width && albedoHeight === height
       ? albedoPixels : new Uint8Array(albedoWidth * albedoHeight * 4);
-    const heightPixels = new Uint8Array(pixelCount);
+    // Two normalized 8-bit channels encode a 16-bit height value. Keeping the
+    // fractional source elevation prevents 8-bit derivative banding in the shader.
+    const heightPixels = new Uint8Array(pixelCount * 2);
     const landMaskPixels = new Uint8Array(pixelCount);
     const detailPixels = new Uint8Array(pixelCount);
     const sourceDetailPixels = albedoWidth === width && albedoHeight === height
@@ -568,7 +570,9 @@
         const normalizedHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
         const index = offset + px;
         landMaskPixels[index] = Math.round(clamp(coverage, 0, 1) * 255);
-        heightPixels[index] = Math.round(normalizedHeight * 255);
+        const packedHeight = Math.round(normalizedHeight * 65535), heightOffset = index * 2;
+        heightPixels[heightOffset] = packedHeight >>> 8;
+        heightPixels[heightOffset + 1] = packedHeight & 255;
       }
     }
 

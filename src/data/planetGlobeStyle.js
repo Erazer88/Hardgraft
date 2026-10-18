@@ -17,6 +17,7 @@
       longitudeStepDegrees: 30, latitudeStepDegrees: 30, sampleStepDegrees: 6 }),
     icon: Object.freeze({ sizePx: 34, hitRadiusPx: 24 }),
     topography: Object.freeze({ contourInterval: 9, majorInterval: 36,
-      contourOpacity: .055, majorOpacity: .11 })
+      // Regular elevation bands read as global shadow waves on the globe.
+      contourOpacity: 0, majorOpacity: 0 })
   });
 })(globalThis);

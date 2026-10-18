@@ -72,10 +72,12 @@
     uniform vec2 uHeightTexelSize;
     uniform vec2 uFacetGrid;
     uniform float uReliefScale;
+    uniform float uReliefExponent;
     uniform float uHeightStrength;
     uniform float uFacetStrength;
     uniform float uFacetMix;
     uniform float uDetailNormalStrength;
+    uniform float uAoStrength;
     uniform float uCoastWidth;
     uniform vec3 uCoastColor;
     uniform float uHasLiquidOcean;
@@ -90,6 +92,12 @@
     uniform float uAtmosphereAlpha;
     uniform float uAtmospherePower;
     out vec4 outColor;
+    float decodeHeight(vec2 rg) {
+      return dot(rg, vec2(65280.0, 255.0)) / 65535.0;
+    }
+    float shapedReliefHeight(float height) {
+      return pow(smoothstep(0.18, 0.82, height), uReliefExponent);
+    }
     void main() {
       if (uAtmospherePass > 0.5) {
         float facing = dot(normalize(vNormal), vec3(0.0, 0.0, 1.0));
@@ -106,32 +114,37 @@
       vec3 tangentU = normalize(vTangentU - baseNormal * dot(vTangentU, baseNormal));
       vec3 tangentV = normalize(vTangentV - baseNormal * dot(vTangentV, baseNormal));
       float lonMetric = max(0.18, cos(latitude));
-      float heightLeft = texture(uHeightTexture, vUv - vec2(uHeightTexelSize.x, 0.0)).r;
-      float heightRight = texture(uHeightTexture, vUv + vec2(uHeightTexelSize.x, 0.0)).r;
-      float heightNorth = texture(uHeightTexture, vUv - vec2(0.0, uHeightTexelSize.y)).r;
-      float heightSouth = texture(uHeightTexture, vUv + vec2(0.0, uHeightTexelSize.y)).r;
-      float dHx = (heightRight - heightLeft) / max(0.0001, 6.2831853 * uHeightTexelSize.x * lonMetric) * uReliefScale;
+      float heightLeft = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, vUv - vec2(uHeightTexelSize.x, 0.0), 1.0).rg));
+      float heightRight = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, vUv + vec2(uHeightTexelSize.x, 0.0), 1.0).rg));
+      float heightNorth = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, vUv - vec2(0.0, uHeightTexelSize.y), 1.0).rg));
+      float heightSouth = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, vUv + vec2(0.0, uHeightTexelSize.y), 1.0).rg));
+      float dHx = (heightRight - heightLeft) / max(0.0001, 12.5663706 * uHeightTexelSize.x * lonMetric) * uReliefScale;
       float dHy = (heightSouth - heightNorth) / max(0.0001, 6.2831853 * uHeightTexelSize.y) * uReliefScale;
-      vec3 terrainNormal = normalize(baseNormal - tangentU * dHx * uHeightStrength - tangentV * dHy * uHeightStrength);
+      vec3 smoothTerrainNormal = normalize(baseNormal - tangentU * dHx * uHeightStrength - tangentV * dHy * uHeightStrength);
+      float slope = clamp(length(vec2(dHx, dHy)) * 2.2, 0.0, 1.0);
 
       vec2 facetUv = (floor(vUv * uFacetGrid) + 0.5) / uFacetGrid;
       vec2 facetStep = max(uHeightTexelSize * 2.0, 0.5 / uFacetGrid);
-      float facetLeft = texture(uHeightTexture, facetUv - vec2(facetStep.x, 0.0)).r;
-      float facetRight = texture(uHeightTexture, facetUv + vec2(facetStep.x, 0.0)).r;
-      float facetNorth = texture(uHeightTexture, facetUv - vec2(0.0, facetStep.y)).r;
-      float facetSouth = texture(uHeightTexture, facetUv + vec2(0.0, facetStep.y)).r;
-      float fdHx = (facetRight - facetLeft) / max(0.0001, 6.2831853 * facetStep.x * lonMetric) * uReliefScale;
+      float facetLeft = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, facetUv - vec2(facetStep.x, 0.0), 2.0).rg));
+      float facetRight = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, facetUv + vec2(facetStep.x, 0.0), 2.0).rg));
+      float facetNorth = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, facetUv - vec2(0.0, facetStep.y), 2.0).rg));
+      float facetSouth = shapedReliefHeight(decodeHeight(textureLod(uHeightTexture, facetUv + vec2(0.0, facetStep.y), 2.0).rg));
+      float fdHx = (facetRight - facetLeft) / max(0.0001, 12.5663706 * facetStep.x * lonMetric) * uReliefScale;
       float fdHy = (facetSouth - facetNorth) / max(0.0001, 6.2831853 * facetStep.y) * uReliefScale;
       vec3 facetNormal = normalize(baseNormal - tangentU * fdHx * uFacetStrength - tangentV * fdHy * uFacetStrength);
 
-      float height = clamp((vElevation - uSeaLevel) / max(1.0, 255.0 - uSeaLevel), 0.0, 1.0);
+      float height = decodeHeight(texture(uHeightTexture, vUv).rg);
       float landCoverage = texture(uLandMaskTexture, vUv).r;
-      float mountain = smoothstep(0.14, 0.62, height);
-      float faceting = landCoverage * mountain;
-      vec3 finalNormal = normalize(mix(terrainNormal, facetNormal, faceting * uFacetMix));
+      float slopeMask = smoothstep(0.08, 0.22, slope);
+      float altitudeMask = smoothstep(0.18, 0.55, height);
+      float facetMask = landCoverage * slopeMask * altitudeMask;
+      vec3 finalNormal = normalize(mix(smoothTerrainNormal, facetNormal, facetMask * uFacetMix));
       float microDetail = texture(uDetailTexture, vUv).r - 0.5;
-      finalNormal = normalize(finalNormal - (tangentU + tangentV * 0.65) * microDetail *
-        (uDetailNormalStrength * polarDetailFade * landCoverage));
+      vec3 detailedNormal = normalize(smoothTerrainNormal - (tangentU + tangentV * 0.65) * microDetail *
+        polarDetailFade);
+      float detailMask = smoothstep(0.10, 0.28, slope) * landCoverage;
+      finalNormal = normalize(mix(finalNormal, detailedNormal,
+        detailMask * uDetailNormalStrength));
 
       float coastSdf = texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0;
       float coastWidth = max(uCoastWidth, fwidth(coastSdf) * 1.15);
@@ -143,10 +156,11 @@
 
       float diffuse = dot(finalNormal, lightDirection) * 0.5 + 0.5;
       diffuse *= diffuse;
-      float shadeBands = mix(diffuse, floor(diffuse * 4.0) / 4.0, 0.18);
+      // Keep broad terrain smoothly shaded. Quantized accents are restricted
+      // to steep, high terrain so they cannot form contour-like bands over plains.
+      float shadeBands = mix(diffuse, floor(diffuse * 4.0) / 4.0, facetMask * 0.16);
       float lightTerm = 0.62 + shadeBands * 0.52;
-      float slope = clamp(length(vec2(dHx, dHy)) * 2.2, 0.0, 1.0);
-      float ao = 1.0 - slope * 0.16 * land;
+      float ao = 1.0 - slope * uAoStrength * land;
       vec3 color = base * lightTerm * ao;
 
       vec3 halfVector = normalize(lightDirection + vec3(0.0, 0.0, 1.0));
@@ -219,10 +233,12 @@
         heightTexelSize: gl.getUniformLocation(program, 'uHeightTexelSize'),
         facetGrid: gl.getUniformLocation(program, 'uFacetGrid'),
         reliefScale: gl.getUniformLocation(program, 'uReliefScale'),
+        reliefExponent: gl.getUniformLocation(program, 'uReliefExponent'),
         heightStrength: gl.getUniformLocation(program, 'uHeightStrength'),
         facetStrength: gl.getUniformLocation(program, 'uFacetStrength'),
         facetMix: gl.getUniformLocation(program, 'uFacetMix'),
         detailNormalStrength: gl.getUniformLocation(program, 'uDetailNormalStrength'),
+        aoStrength: gl.getUniformLocation(program, 'uAoStrength'),
         coastWidth: gl.getUniformLocation(program, 'uCoastWidth'),
         coastColor: gl.getUniformLocation(program, 'uCoastColor'),
         hasLiquidOcean: gl.getUniformLocation(program, 'uHasLiquidOcean') };
@@ -272,7 +288,7 @@
         return texture;
       }
       const albedoTexture = uploadTexture(0, gl.RGBA8, gl.RGBA, surfaceData.albedoPixels);
-      const heightTexture = uploadTexture(1, gl.R8, gl.RED, surfaceData.heightPixels);
+      const heightTexture = uploadTexture(1, gl.RG8, gl.RG, surfaceData.heightPixels);
       const landMaskTexture = uploadTexture(2, gl.R8, gl.RED, surfaceData.landMaskPixels);
       const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
       const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
@@ -359,12 +375,14 @@
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, buffers.detailTexture);
       gl.uniform1i(program.uniforms.detailTexture, 4);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
-      gl.uniform2f(program.uniforms.facetGrid, 220, 110);
+      gl.uniform2f(program.uniforms.facetGrid, 150, 75);
       gl.uniform1f(program.uniforms.reliefScale, Style.relief.scale);
-      gl.uniform1f(program.uniforms.heightStrength, 2.1);
-      gl.uniform1f(program.uniforms.facetStrength, 3.4);
-      gl.uniform1f(program.uniforms.facetMix, .55);
-      gl.uniform1f(program.uniforms.detailNormalStrength, .08);
+      gl.uniform1f(program.uniforms.reliefExponent, Style.relief.exponent);
+      gl.uniform1f(program.uniforms.heightStrength, 1.6);
+      gl.uniform1f(program.uniforms.facetStrength, 2.4);
+      gl.uniform1f(program.uniforms.facetMix, .38);
+      gl.uniform1f(program.uniforms.detailNormalStrength, .04);
+      gl.uniform1f(program.uniforms.aoStrength, .08);
       gl.uniform1f(program.uniforms.coastWidth, 1.5 / buffers.coastRange);
       const coastValue = Number.parseInt(buffers.coastColor.slice(1), 16);
       gl.uniform3f(program.uniforms.coastColor, ((coastValue >> 16) & 255) / 255,
@@ -406,8 +424,8 @@
         longitudeSegments: currentMesh?.longitudeSegments || 0,
         latitudeSegments: currentMesh?.latitudeSegments || 0, textureWidth: buffers?.textureWidth || 0,
         textureHeight: buffers?.textureHeight || 0, textureKey: buffers?.textureKey || null,
-        heightStrength: buffers ? 2.1 : 0, facetStrength: buffers ? 3.4 : 0,
-        facetMix: buffers ? .55 : 0, detailNormalStrength: buffers ? .08 : 0,
+        heightStrength: buffers ? 1.6 : 0, facetStrength: buffers ? 2.4 : 0,
+        facetMix: buffers ? .38 : 0, detailNormalStrength: buffers ? .04 : 0,
         coastRange: buffers?.coastRange || 0, contextLost: lost, failure }) });
   }
 
