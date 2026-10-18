@@ -39,7 +39,9 @@
         sx * tangentU.y + cx * tangentU.z);
       tangentV = vec3(tangentV.x, cx * tangentV.y - sx * tangentV.z,
         sx * tangentV.y + cx * tangentV.z);
-      float polarNormalBlend = smoothstep(1.43117, 1.56207, abs(latitude));
+      // Keep the correction local to the final two degrees, where the
+      // equirectangular parameterization converges at the pole.
+      float polarNormalBlend = smoothstep(1.53589, 1.5707963, abs(latitude));
       n = normalize(mix(n, normalize(p), polarNormalBlend * 0.72));
       gl_Position = vec4(p.xy * uScale + uOffset, -p.z * 0.72, 1.0);
       vNormal = normalize(n);
@@ -69,7 +71,9 @@
     void main() {
       vec3 lightDirection = normalize(vec3(-0.42, 0.55, 0.78));
       float latitude = (0.5 - vUv.y) * 3.14159265359;
-      float polarDetailFade = 1.0 - smoothstep(1.43117, 1.56207, abs(latitude));
+      // Preserve relief detail almost to the pole; fade only the final row
+      // where longitude derivatives are singular.
+      float polarDetailFade = 1.0 - smoothstep(1.55334, 1.5707963, abs(latitude));
       float coastline = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
       vec2 bumpOffset = uDetailTexelSize * 2.0;
       float bumpLeft = texture(uDetailTexture, vUv - vec2(bumpOffset.x, 0.0)).r;
@@ -86,8 +90,8 @@
       float diffuse = max(dot(normalize(normal), lightDirection), 0.0);
       vec4 surface = texture(uSurfaceTexture, vUv);
       vec3 base = surface.rgb;
-      float lighting = 0.84 + diffuse * 0.18;
-      lighting = clamp(lighting, 0.84, 1.03);
+      float lighting = 0.68 + diffuse * 0.40;
+      lighting = clamp(lighting, 0.66, 1.08);
       vec3 color = base * lighting;
       float land = smoothstep(uSeaLevel - 1.5, uSeaLevel + 1.5, vElevation);
       float minorLevel = (vElevation - uSeaLevel) / uContourInterval;

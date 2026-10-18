@@ -146,8 +146,8 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   const temperateOcean = pixel(first, 8, 15), iceSea = pixel(frozen, 8, 15);
   const aridBasin = pixel(arid, 8, 15), lavaBasin = pixel(volcanic, 8, 15);
   assert.ok(temperateOcean[2] > temperateOcean[0], 'temperate basins remain blue oceans');
-  assert.ok(iceSea[0] > 130 && Math.abs(iceSea[2] - iceSea[1]) < 60,
-    'frozen basins are pale blue-gray ice rather than liquid ocean');
+  assert.ok(iceSea[0] > 80 && iceSea[2] > iceSea[0] + 25,
+    'frozen basins are blue-gray ice rather than liquid ocean or washed-out white');
   assert.ok(aridBasin[0] > aridBasin[2], 'arid basins use a dry warm palette');
   assert.ok(lavaBasin[0] > lavaBasin[1], 'volcanic basins show orange-red lava as a surface material');
   for (const texture of [first, frozen, arid, volcanic]) {
@@ -173,11 +173,90 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
   }
 });
 
+test('polar ice boundaries are seeded, irregular on both hemispheres, and climate sized', () => {
+  const { OrbitPlanetSurfaceTexture: textures } = loadGlobeContext();
+  const warmThreshold = textures.polarIceThreshold(24);
+  const coldThreshold = textures.polarIceThreshold(-42);
+  assert.ok(coldThreshold < warmThreshold,
+    'a colder global temperature expands the mean polar ice coverage');
+
+  const seedSummaries = [];
+  for (const seedText of ['cap-seed-a', 'cap-seed-b', 'cap-seed-c', 'cap-seed-d']) {
+    const { OrbitWorld: world } = loadGlobeContext();
+    const seed = world.hashSeed(seedText);
+    const summaries = [];
+    for (const sign of [1, -1]) {
+      let hasAdvancingAndRetreatingEdge = false;
+      const hemisphere = [];
+      for (let step = -12; step <= 12; step += 1) {
+        const y = sign * (warmThreshold + step * .012);
+        if (Math.abs(y) >= 1) continue;
+        const coverage = [];
+        for (let index = 0; index < 256; index += 1) {
+          const longitude = index / 256 * Math.PI * 2;
+          const radius = Math.sqrt(1 - y * y);
+          coverage.push(textures.polarIceCoverage(radius * Math.cos(longitude), y,
+            radius * Math.sin(longitude), 24, seed));
+        }
+        const minimum = Math.min(...coverage), maximum = Math.max(...coverage);
+        if (minimum < .25 && maximum > .75) hasAdvancingAndRetreatingEdge = true;
+        hemisphere.push(...coverage);
+      }
+      assert.ok(hasAdvancingAndRetreatingEdge,
+        `${seedText} has an irregular advancing/retreating edge on ${sign > 0 ? 'north' : 'south'} cap`);
+      summaries.push(hemisphere);
+    }
+    seedSummaries.push(summaries);
+    for (const sign of [1, -1]) {
+      assert.equal(textures.polarIceCoverage(0, sign, 0, 24, seed), 1,
+        'the pole itself remains fully covered and independent of longitude');
+    }
+  }
+  assert.notDeepEqual(seedSummaries[0], seedSummaries[1], 'cap outlines change with the planet seed');
+
+  const width = 128, height = 64, seaLevel = 100;
+  const ocean = { width, height, elevation: new Uint8Array(width * height).fill(80),
+    moisture: new Uint8Array(width * height), seaLevel };
+  const planet = { id: 'polar-ocean', seed: 'temperate-cap-seed', kind: 'tellurique', temperature: 18 };
+  const texture = textures.create(ocean, planet, { width, height, cache: false });
+  const pixel = (x, y) => Array.from(texture.pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 3));
+  const capOcean = pixel(0, 0), equatorialOcean = pixel(width / 2, height / 2);
+  assert.ok(capOcean[0] > equatorialOcean[0] + 35,
+    'temperate polar ocean renders as sea ice, separate from open water');
+  const edgeRow = 10;
+  const edgeColors = Array.from({ length: width }, (_, x) => pixel(x, edgeRow));
+  const redSpread = Math.max(...edgeColors.map(color => color[0])) - Math.min(...edgeColors.map(color => color[0]));
+  assert.ok(redSpread > 20, 'the ice front moves irregularly with longitude instead of forming a latitude ring');
+
+  const continent = { ...ocean, elevation: new Uint8Array(width * height).fill(170) };
+  const landTexture = textures.create(continent, planet, { width, height, cache: false });
+  const polarLand = Array.from(landTexture.pixels.slice(0, 3));
+  const equatorialLand = Array.from(landTexture.pixels.slice((height / 2 * width + width / 2) * 4,
+    (height / 2 * width + width / 2) * 4 + 3));
+  assert.ok(polarLand[2] > equatorialLand[2] + 20,
+    'continental snow remains distinct from temperate sea ice and land');
+
+  const frozenPlanet = { ...planet, kind: 'glacée', temperature: -66 };
+  const frozenOcean = textures.create(ocean, frozenPlanet, { width, height, cache: false });
+  const frozenPixel = (x, y) => Array.from(frozenOcean.pixels.slice((y * width + x) * 4,
+    (y * width + x) * 4 + 3));
+  const polarSeaIce = frozenPixel(0, 0), polarReference = frozenPixel(width / 2, height / 2);
+  assert.ok(polarSeaIce[0] + 12 < polarReference[0],
+    'the colder, compact polar sea ice is visibly distinct from mid-latitude ice');
+  assert.ok(Math.max(...polarSeaIce) < 225,
+    'frozen polar ice remains blue-gray rather than washing out to white');
+  const frozenLand = textures.create(continent, frozenPlanet, { width, height, cache: false });
+  const frozenLandRow = Array.from({ length: width }, (_, x) => frozenLand.pixels[(16 * width + x) * 4]);
+  assert.ok(Math.max(...frozenLandRow) - Math.min(...frozenLandRow) > 20,
+    'an icy continent keeps exposed rock and ice material variation');
+});
+
 test('surface palettes keep climate materials separated and HSL tints bounded', () => {
   const { OrbitPlanetSurfaceTexture: textures } = loadGlobeContext();
   assert.equal(textures.palettes.temperate.deepOcean, '#0F4C6C');
   assert.equal(textures.palettes.temperate.wetPlain, '#5F8748');
-  assert.equal(textures.palettes.frozen.seaIce, '#A9C2CB');
+  assert.equal(textures.palettes.frozen.seaIce, '#6D94A2');
+  assert.equal(textures.palettes.frozen.polarCore, '#527C8B');
   assert.equal(textures.palettes.arid.darkRock, '#5B342B');
   assert.equal(textures.palettes.volcanic.basaltDark, '#2E2524');
   assert.equal(textures.palettes.volcanic.coreLava, '#FFD06A');
@@ -195,12 +274,16 @@ test('surface palettes keep climate materials separated and HSL tints bounded', 
 
 test('globe shader clamps light, shades from a seeded detail texture, and fades polar detail', () => {
   const source = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
-  assert.match(source, /float lighting = 0\.84 \+ diffuse \* 0\.18;/);
-  assert.match(source, /lighting = clamp\(lighting, 0\.84, 1\.03\);/);
+  assert.match(source, /float lighting = 0\.68 \+ diffuse \* 0\.40;/);
+  assert.match(source, /lighting = clamp\(lighting, 0\.66, 1\.08\);/);
   assert.doesNotMatch(source, /color \+= vec3\(1\.0, 0\.14, 0\.025\)/,
     'the fragment shader does not add white/orange emission to terrain');
   assert.match(source, /uniform sampler2D uDetailTexture;/);
   assert.match(source, /uNormalDetailStrength \* 8\.0 \* polarDetailFade/);
+  assert.match(source, /smoothstep\(1\.53589, 1\.5707963, abs\(latitude\)\)/,
+    'geometric normal smoothing is limited to the final two degrees');
+  assert.match(source, /smoothstep\(1\.55334, 1\.5707963, abs\(latitude\)\)/,
+    'normal detail is faded only in the final degree at the singularity');
   assert.match(source, /smoothstep\(uSeaLevel - 1\.5, uSeaLevel \+ 1\.5, vElevation\)/);
   assert.match(source, /gl\.R8/);
   assert.match(source, /normalDetailStrength, \.15/);
