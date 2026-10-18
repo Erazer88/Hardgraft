@@ -320,7 +320,7 @@
       $('secondary-value').textContent = level === 'galaxy' ? (known / galaxy.systems.length * 100).toFixed(1) + ' %' :
         level === 'system' ? 'CLASSE ' + state.system.star.type : state.planet.kind.toUpperCase();
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
-        level === 'system' ? 'NAVIGATION ORBITALE' : 'RELEVÉ TOPOGRAPHIQUE';
+        level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE PLANÉTAIRE 3D';
       $('view-title').textContent = level === 'galaxy' ? 'Secteur Néréide' : level === 'system' ? state.system.name : state.planet.name;
       $('system-crumb-wrap').hidden = level === 'galaxy';
       $('surface-crumb-wrap').hidden = level !== 'surface';
@@ -361,14 +361,14 @@
         state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
           level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'road' ? 'TRACÉ ROUTIER MANUEL' : state.tool === 'build' ?
             `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
-              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
+              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'GLOBE EN DIRECT';
       $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
         level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
           level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'road' ?
             'Glisser · Bâtiment ou route → bâtiment ou route' : state.tool === 'build' ?
             `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
               'Choisir une infrastructure à poser' :
-              'Glisser · Inspecter le relief · Pincer pour zoomer';
+              'Glisser · Tourner la planète · Pincer ou molette pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;

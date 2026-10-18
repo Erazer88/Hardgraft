@@ -1,29 +1,21 @@
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera;
-  const SurfaceStyle = root.OrbitSurfaceStyle;
-  const surfaceAspect = root.OrbitConfig.terrain.width / root.OrbitConfig.terrain.height;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const lerp = (a, b, t) => a + (b - a) * t;
   const ease = t => t * t * (3 - 2 * t);
 
   function create(canvas, options = {}) {
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', { alpha: true });
     let W = 1, H = 1, DPR = 1;
-    let state, galaxy, home, contexts, visibleContexts, now;
+    let state, galaxy, home, contexts, visibleContexts, now, activeScene;
     let galaxyTexture, fogCanvas, fogMask;
     const viewport = { width: W, height: H };
     function project(x, y, cam = state.camera) { return Camera.project({ x, y }, cam, viewport); }
     function localCamera(frame) { return Camera.toLocal(frame, state.camera); }
     function planetWorldPosition(planet, context = state.context) {
       return Camera.worldPoint(context.frame, World.planetPosition(planet, state.simulation.time));
-    }
-    function surfaceFrame(planet, context) {
-      const record = context.terrains.get(planet.id);
-      const texture = record.texture;
-      return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale,
-        { width: texture.logicalWidth || texture.width, height: texture.logicalHeight || texture.height });
     }
     function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
     function dot(c, x, y, r, color) { c.fillStyle = color; c.beginPath(); c.arc(x, y, Math.max(.1, r), 0, TAU); c.fill(); }
@@ -38,20 +30,10 @@
       c.font = `${size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       c.fillStyle = color; c.textAlign = align; c.textBaseline = 'middle'; c.fillText(text, x, y);
     }
-    const surfaceRenderer = root.OrbitSurfaceRenderer.create(ctx, {
-      project, localCamera, surfaceFrame,
-      getState: () => state,
-      getViewport: () => viewport,
-      getNow: () => now,
-      isCameraInteracting: options.isCameraInteracting || (() => false),
-      drawLine: line, drawCircle: circle, drawLabel: label,
-      layers: {
-        roads: root.OrbitRoadRenderer,
-        settlements: root.OrbitSettlementRenderer,
-        buildings: root.OrbitBuildingRenderer,
-        vehicles: root.OrbitVehicleRenderer
-      }
-    });
+    const globeRenderer = root.OrbitPlanetGlobeRenderer.create(options.globeCanvas || root.document.getElementById('planet-globe'),
+      options.globeErrorElement || root.document.getElementById('planet-globe-error'));
+    const globeOverlay = root.OrbitPlanetGlobeOverlayRenderer.create(options.globeOverlayCanvas ||
+      root.document.getElementById('planet-globe-overlay'));
     function prepareGalaxy(model, seed) {
       const resolution = 1500, extent = 5900;
       galaxyTexture = makeCanvas(resolution, resolution);
@@ -208,18 +190,16 @@
       for (const planet of system.planets) {
         const pos = World.planetPosition(planet, state.simulation.time), p = project(pos.x, pos.y, cam);
         const radius = Math.max(1.1, planet.radius * cam.zoom);
-        if (p.x + radius * surfaceAspect < 0 || p.x - radius * surfaceAspect > W || p.y + radius < 0 || p.y - radius > H) continue;
+        if (p.x + radius < 0 || p.x - radius > W || p.y + radius < 0 || p.y - radius > H) continue;
         dot(ctx, p.x, p.y, radius, '#102230'); circle(ctx, p.x, p.y, radius, planet.color, 1);
-        if (radius > 4 && radius < 90) {
-          ctx.save(); ctx.beginPath(); ctx.arc(p.x, p.y, radius - .5, 0, TAU); ctx.clip();
-          ctx.strokeStyle = planet.color + '77'; ctx.lineWidth = .6;
-          ctx.beginPath(); ctx.ellipse(p.x, p.y, radius * .45, radius, 0, 0, TAU); ctx.stroke();
-          line(ctx, [{ x: p.x - radius, y: p.y }, { x: p.x + radius, y: p.y }], planet.color + '99', .6); ctx.restore();
-        }
-        if (planet.kind !== 'gazeuse' && radius > 18 && context.terrains.has(planet.id)) {
-          const suppressPreviewContours = state.level !== 'surface' || state.planet?.id !== planet.id;
-          surfaceRenderer.drawPlanetTerrain(planet, context, p, radius, suppressPreviewContours);
-        }
+        if (radius > 3) {
+          const sphere = ctx.createRadialGradient(p.x - radius * .28, p.y - radius * .33, radius * .08,
+            p.x, p.y, radius);
+          sphere.addColorStop(0, '#d5dfdb'); sphere.addColorStop(.48, planet.color || '#82999b');
+          sphere.addColorStop(1, '#182936');
+          ctx.fillStyle = sphere; ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, TAU); ctx.fill();
+          circle(ctx, p.x, p.y, radius, planet.color || '#91a8aa', .65);
+        } else dot(ctx, p.x, p.y, radius, planet.color || '#91a8aa');
         const selected = state.selected?.id === planet.id;
         if (selected && radius < 90) circle(ctx, p.x, p.y, radius + 5, '#e6a25a', 1);
         if (!detailed || radius > 90) continue;
@@ -254,23 +234,40 @@
     }
 
     function drawUniverse() {
-      ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       const cam = state.camera;
       if (state.level === 'surface') {
-        if (state.planet && state.context) {
-          const p = planetWorldPosition(state.planet), center = project(p.x, p.y);
-          const r = state.planet.radius * state.context.frame.scale * cam.zoom;
-          surfaceRenderer.drawPlanetTerrain(state.planet, state.context, center, r);
+        ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
+        const transition = activeScene.globeTransition;
+        if (transition && transition.systemOpacity > 0 && state.context) {
+          const local = localCamera(state.context.frame);
+          ctx.save(); ctx.globalAlpha = transition.systemOpacity;
+          drawSystem(local, state.context.model, state.context); ctx.restore();
         }
+        const terrain = activeScene.terrainData;
+        globeRenderer.render({ terrain, planet: state.planet, view: activeScene.globeView,
+          transition, active: Boolean(state.planet && terrain) });
+        globeOverlay.render({ terrain, state, view: activeScene.globeView, transition,
+          active: Boolean(state.planet && terrain && globeRenderer.available()) });
         return;
       }
+      const exitTransition = activeScene.globeTransition?.mode === 'exit' ? activeScene.globeTransition : null;
+      const showExitGlobe = Boolean(exitTransition && state.planet && activeScene.terrainData);
+      if (!showExitGlobe) { globeRenderer.render({ active: false }); globeOverlay.render({ active: false }); }
+      ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, W, H);
       drawGalaxy(cam);
-      if (cam.zoom < .7) return;
-      if (state.context && state.level === 'system') drawGrid(localCamera(state.context.frame), true);
-      for (const context of visibleContexts) {
-        const local = localCamera(context.frame);
-        if (local.zoom < .025) continue;
-        drawSystem(local, context.model, context);
+      if (cam.zoom >= .7) {
+        if (state.context && state.level === 'system') drawGrid(localCamera(state.context.frame), true);
+        for (const context of visibleContexts) {
+          const local = localCamera(context.frame);
+          if (local.zoom < .025) continue;
+          drawSystem(local, context.model, context);
+        }
+      }
+      if (showExitGlobe) {
+        globeRenderer.render({ terrain: activeScene.terrainData, planet: state.planet,
+          view: activeScene.globeView, transition: exitTransition, active: true });
+        globeOverlay.render({ terrain: activeScene.terrainData, state, view: activeScene.globeView,
+          transition: exitTransition, active: globeRenderer.available() });
       }
     }
 
@@ -279,20 +276,21 @@
       viewport.width = W; viewport.height = H;
       canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      globeRenderer.resize(W, H, DPR); globeOverlay.resize(W, H, DPR);
     }
     function render(scene) {
       ({ state, galaxy, home, contexts, visibleContexts, now } = scene);
+      activeScene = scene;
       drawUniverse();
     }
     return Object.freeze({
       resize,
       render,
       prepareGalaxy,
-      createTerrainTexture: surfaceRenderer.createTerrainTexture,
-      createSurfaceDetail: surfaceRenderer.createSurfaceDetail,
-      cancelSurfaceDetail: surfaceRenderer.cancelSurfaceDetail,
-      getResourceRenderStyle: surfaceRenderer.getResourceRenderStyle,
-      releaseSurfaceDetail: surfaceRenderer.releaseDetail
+      globeMetrics: globeRenderer.metrics,
+      globeAvailable: globeRenderer.available,
+      hitTestGlobeBuilding: globeOverlay.hitTest,
+      projectGlobeMapPoint: globeOverlay.projectMapPoint
     });
   }
   root.OrbitRenderer = Object.freeze({ create });

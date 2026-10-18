@@ -1,10 +1,12 @@
 # Routes de surface et quartiers décoratifs
 
-Cette référence décrit les routes actuellement constructibles et les rues
-résidentielles décoratives. La seule interaction économique actuelle vérifie qu’un
-chemin terrestre terminé relie un Dock à une Plateforme de lancement. Les routes
-n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle logistique, voir
-[`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
+Cette référence décrit les routes constructibles et les quartiers résidentiels.
+Sur `codex/planet-globe-3d-experiment`, l'ancien descriptif du rendu 2D est
+historique : la surface est désormais une sphère, et ses routes sont dessinées par
+la couche projetée du globe. La seule interaction économique actuelle vérifie
+qu’un chemin terrestre terminé relie un Dock à une Plateforme de lancement. Les
+routes n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle
+logistique, voir [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 
 ## Modules
 
@@ -19,8 +21,7 @@ n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle logistiq
 | `src/simulation/roadConstruction.js` | Progression des travaux et dépendances entre segments |
 | `src/simulation/settlements.js` | Génération déterministe de rues et d'habitations décoratives |
 | `src/gameplay/roadPlacement.js` | Raccordement des extrémités, création et recalcul des itinéraires |
-| `src/rendering/roadRenderer.js` | Affichage des routes, connexions maritimes et intersections |
-| `src/rendering/settlementRenderer.js` | Affichage des rues secondaires et sprites de quartiers |
+| `src/rendering/planetGlobeOverlayRenderer.js` | Projection des routes, gisements, icônes et repères de districts |
 
 ## Routes constructibles
 
@@ -49,18 +50,19 @@ les itinéraires.
 Les quartiers décoratifs se développent autour des bâtiments de production
 raccordés. La simulation conserve leurs centres, rues, collectrices, maisons et
 identifiants d'assets. Elle peut prolonger les rues et fermer des boucles lorsque
-le relief et la place disponible le permettent. Les trois modèles de maisons
-alternent le long des rues ; six sprites de rues représentent les formes en ligne,
-en T et en croix, en version village ou ville. Cette croissance ne simule pas de
-population et reste séparée du réseau manuel.
+le relief et la place disponible le permettent. Ces données restent sauvegardées.
+Sur cette branche, le globe affiche un repère discret par district ; les anciennes
+maisons et rues en sprites ne sont plus dessinées. Cette croissance ne simule pas
+de population et reste séparée du réseau manuel.
 
-L'ordre visuel de surface est : terrain, gisements, routes, bâtiments physiques,
-véhicules, ancres et cartes des bâtiments, sélection, labels. `developerSettings.js`
-permet de masquer routes et maisons pendant les ajustements visuels sans effacer
-leurs données.
+L'ordre visuel actuel est : sphère et relief WebGL2, grille cartographique,
+gisements, routes, repères de districts, bâtiments sous forme d'icônes et aperçu de
+placement. La conversion terrain/sphère est centralisée dans
+`src/rendering/planetGlobeProjection.js`.
 
 ## Vérifications
 
 - Croissance : `node --test tests/settlement-growth.test.cjs`.
-- Rendu de quartiers : `node --test tests/settlement-renderer.test.cjs`.
-- Comportement intégré, sauvegardes, navigation : `node --test tests/architecture.test.cjs`.
+- Projection et visibilité des icônes : `node --test tests/planet-globe.test.cjs`.
+- Comportement intégré et sauvegardes : `node --test tests/architecture.test.cjs`.
+- Interaction souris/tactile : `node tests/browser-smoke.cjs`.

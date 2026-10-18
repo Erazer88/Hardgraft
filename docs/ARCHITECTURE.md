@@ -24,11 +24,14 @@ Points d'entrée spécialisés :
 - `docs/ROAD_SYSTEM.md` décrit les routes constructibles et les quartiers décoratifs.
 - `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → plateforme et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
+- `docs/PLANET_GLOBE.md` décrit la projection sphérique et la surface WebGL2 de cette branche.
 
 Les fichiers importants comprennent `src/data/processes.js`,
 `src/simulation/processGraph.js` et `processSimulation.js`,
 `src/gameplay/industry.js`, `src/navigation/camera.js`,
-`src/rendering/renderer.js`, `src/rendering/surfaceRenderer.js`,
+`src/rendering/renderer.js`, `src/rendering/planetGlobeProjection.js`,
+`src/rendering/planetGlobeMesh.js`, `src/rendering/planetGlobeRenderer.js`,
+`src/rendering/planetGlobeOverlayRenderer.js`, `src/navigation/planetGlobeCamera.js`,
 `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js` et `src/app.js`.
 
 ## Dépendances et chargement
@@ -53,9 +56,11 @@ scripts, CSS et ressources dans les exports de `dist/`. Cette simplicité est
 volontaire pour le prototype ; aucune migration globale vers ESM ou npm n'est
 prévue dans une tâche locale.
 
-Le rendu de surface combine Canvas pour terrain, relief et couches interactives
-avec un renderer WebGL2 pour les matières détaillées ; la texture intégrée reste
-le repli lorsque WebGL2 est indisponible.
+La surface ne partage plus le renderer Canvas 2D de la carte système. `renderer.js`
+dessine toujours galaxie et systèmes en Canvas2D puis délègue la surface sphérique
+au renderer WebGL2 natif ; `planetGlobeOverlayRenderer.js` projette les icônes,
+routes, gisements et grille. `planetGlobeProjection.js` centralise coordonnées
+terrain ↔ sphère, relief, raycast et projection. WebGL2 est requis pour la surface.
 
 ## Modules denses et limites de refactorisation
 
@@ -66,10 +71,10 @@ le repli lorsque WebGL2 est indisponible.
 - `src/ui/factoryEditor.js` rend les cartes, ports et connexions. Les gestes de la vue
   industrielle sont isolés dans `src/ui/factoryViewport.js` ; le graphe et sa simulation
   restent indépendants du DOM.
-- `src/rendering/surfaceRenderer.js` gère rendu, caches de détails et contours ; le
-  rendu WebGL des matières est déjà isolé dans `surfaceMaterialRenderer.js`. C'est le
-  prochain candidat d'extraction si les contours ou la préparation des détails
-  évoluent indépendamment.
+- `src/app.js` garde encore la coordination des gestes de surface, la projection
+  des actions de placement et la navigation. `planetGlobeCamera.js` isole l'état
+  de rotation/zoom/transition ; l'extraction ultérieure d'un contrôleur d'entrée
+  devra garder l'intégration avec les moteurs de placement explicite.
 - `src/simulation/settlements.js` et `roadNetwork.js` sont volumineux mais portent
   chacun un modèle cohérent (croissance urbaine décorative, topologie et migration du
   réseau). Une extraction doit suivre une responsabilité modifiée, pas un seuil de lignes.
@@ -79,8 +84,9 @@ le repli lorsque WebGL2 est indisponible.
 - Tests unitaires et d'intégration : `npm test`.
 - Processus : `node --test tests/process-simulation.test.cjs`.
 - Éditeur et gestes desktop/tactile : `npm run test:factory-editor`.
-- Smoke navigateur : `node tests/browser-smoke.cjs`, pertinent si l'application,
-  la navigation ou l'UI changent ; Chromium et un serveur sur le port 8000 sont requis.
+- Globe pur : `node --test tests/planet-globe.test.cjs`.
+- Smoke navigateur : `node tests/browser-smoke.cjs`, avec interactions Chromium
+  desktop et tactile ; un serveur sur le port 8000 est requis.
 - Export autonome : `python3 build.py` lors d'une livraison.
 
 Ne lancez que la vérification pertinente pendant une itération. Le workflow complet

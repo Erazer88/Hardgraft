@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Export the prototype into one HTML file, with no network dependencies."""
 from pathlib import Path
-import base64
 import json
-import mimetypes
 import re
 import zipfile
 
@@ -17,7 +15,6 @@ version = json.loads((ROOT / 'package.json').read_text())['version']
 )
 html = (ROOT / 'index.html').read_text()
 html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>' + (ROOT / 'styles.css').read_text() + '</style>')
-embedded_settlement_assets = {}
 def embed_script(match):
     # Follow the HTML load order: adding a module never requires a second list.
     relative = match.group(1)
@@ -28,31 +25,6 @@ def embed_script(match):
     return '<script>\n' + js + '\n</script>'
 
 html = re.sub(r'<script src="([^"]+)"></script>', embed_script, html)
-for asset in sorted((ROOT / 'assets').rglob('*')):
-    if not asset.is_file():
-        continue
-    relative = asset.relative_to(ROOT).as_posix()
-    mime = mimetypes.guess_type(relative)[0] or 'application/octet-stream'
-    encoded = base64.b64encode(asset.read_bytes()).decode('ascii')
-    data_url = f'data:{mime};base64,{encoded}'
-    html = html.replace(relative, data_url)
-    if asset.parent == ROOT / 'assets' / 'settlements' and asset.name.startswith(('village_', 'ville_')):
-        embedded_settlement_assets[relative] = data_url
-if embedded_settlement_assets:
-    manifest = '<script>globalThis.OrbitEmbeddedAssets = ' + json.dumps(embedded_settlement_assets) + ';</script>'
-    html = html.replace('</head>', manifest + '</head>')
-worker_path = ROOT / 'src/workers/surfaceDetailWorker.js'
-worker_import = "importScripts('../data/worldgen.js', '../data/surfaceStyle.js', '../world.js',\n  '../rendering/surfaceMaterialMasks.js');"
-worker_source = worker_path.read_text()
-worker_sources = '\n'.join((ROOT / relative).read_text() for relative in (
-    'src/data/worldgen.js', 'src/data/surfaceStyle.js', 'src/world.js',
-    'src/rendering/surfaceMaterialMasks.js'))
-if worker_import not in worker_source:
-    raise ValueError('Surface detail worker imports changed; update its standalone bundle.')
-worker_source = worker_source.replace(worker_import, worker_sources)
-worker_data = json.dumps(worker_source).replace('</script', '<\\/script')
-html = html.replace('</head>', '<script>globalThis.OrbitSurfaceTerrainWorkerSource = ' +
-    worker_data + ';</script></head>')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)
@@ -64,7 +36,7 @@ print(f'Export autonome : {destination} ({destination.stat().st_size:,} octets)'
 print(f'Aperçu versionné : {versioned_preview}')
 with zipfile.ZipFile(OUT / 'nereide-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     sources = ['index.html', 'styles.css', 'manifest.webmanifest', 'build.py', 'README.md', 'package.json', '.gitignore', 'AGENTS.md',
-        'docs/CURRENT_CONTEXT.md', 'docs/ARCHITECTURE.md', 'docs/WORLDGEN.md',
+        'docs/CURRENT_CONTEXT.md', 'docs/ARCHITECTURE.md', 'docs/PLANET_GLOBE.md', 'docs/WORLDGEN.md',
         'docs/PROCESS_SYSTEM.md', 'docs/ROAD_SYSTEM.md', 'docs/ORBITAL_LOGISTICS.md']
     sources += [str(path.relative_to(ROOT)) for folder in ('src', 'tests', 'docs/reference')
                 for path in sorted((ROOT / folder).rglob('*'))

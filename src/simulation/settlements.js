@@ -453,7 +453,7 @@
       const tangent = tangentAtDistance(collector.points, collector.length);
       visuals.push({ id: `${neighborhood.id}:center`, kind: 'center', neighborhoodId: neighborhood.id,
         roadId: collector.id, roadDistance: collector.length, x: neighborhood.x, y: neighborhood.y,
-        rotation: Math.atan2(tangent.y, tangent.x), widthWorld: Config.render.districtWidthWorld * 1.35,
+        rotation: Math.atan2(tangent.y, tangent.x), widthWorld: Config.districtVisuals.widthWorld * 1.35,
         variant: World.hashSeed(`${neighborhood.id}:center`) % 2,
         asset: assetForDistrict(2, districtScale(settlement, neighborhood.id)) });
     }
@@ -463,7 +463,7 @@
       visuals.push({ id: `${road.id}:junction:start`, kind: 'junction', neighborhoodId: road.neighborhoodId,
         roadId: road.id, roadDistance: 0.01, x: road.anchor.x, y: road.anchor.y,
         rotation: Math.atan2(road.tangent?.y || 0, road.tangent?.x || 1), degree,
-        widthWorld: Config.render.districtWidthWorld, variant: World.hashSeed(`${road.id}:junction:start`) % 2,
+        widthWorld: Config.districtVisuals.widthWorld, variant: World.hashSeed(`${road.id}:junction:start`) % 2,
         asset: assetForDistrict(degree, districtScale(settlement, road.neighborhoodId)) });
       if (road.endpoint && road.endHostId && Number.isFinite(road.endHostMeasure)) {
         const endDegree = attachmentDegree(settlement, road.endHostId, road.endHostKind, road.endHostMeasure);
@@ -471,7 +471,7 @@
           roadId: road.id, roadDistance: Math.max(0, road.length - 0.01), x: road.endpoint.x, y: road.endpoint.y,
           rotation: Math.atan2(road.endTangent?.y ?? road.tangent?.y ?? 0,
             road.endTangent?.x ?? road.tangent?.x ?? 1), degree: endDegree,
-          widthWorld: Config.render.districtWidthWorld, variant: World.hashSeed(`${road.id}:junction:end`) % 2,
+          widthWorld: Config.districtVisuals.widthWorld, variant: World.hashSeed(`${road.id}:junction:end`) % 2,
           asset: assetForDistrict(endDegree, districtScale(settlement, road.neighborhoodId)) });
       }
     }
@@ -496,7 +496,7 @@
       visuals.push({ id: `main-junction:${nodeId}`, kind: 'junction', roadId: segment.id,
         routeId: segment.routeId || segment.id, mainRoadAsset: true, roadDistance,
         x: node.x, y: node.y, rotation: Math.atan2(tangent.y, tangent.x), degree: Math.min(4, entries.length),
-        widthWorld: Config.render.districtWidthWorld, variant: World.hashSeed(`main-junction:${nodeId}`) % 2,
+        widthWorld: Config.districtVisuals.widthWorld, variant: World.hashSeed(`main-junction:${nodeId}`) % 2,
         asset: assetForDistrict(entries.length, entries.length >= 4) });
     }
 

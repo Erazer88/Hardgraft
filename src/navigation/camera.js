@@ -23,11 +23,6 @@
     return { x: frame.x + point.x * frame.scale, y: frame.y + point.y * frame.scale };
   }
 
-  function surfaceFrame(center, radius, size) {
-    const scale = radius * 2 / size.height;
-    return { x: center.x - size.width * scale / 2, y: center.y - size.height * scale / 2, scale };
-  }
-
   function anchoredZoom(camera, viewport, zoom, anchor, previousAnchor = anchor) {
     const before = unproject(previousAnchor, camera, viewport);
     return { x: before.x - (anchor.x - viewport.width / 2) / zoom,
@@ -47,5 +42,5 @@
     return next;
   }
 
-  root.OrbitCamera = Object.freeze({ project, unproject, toLocal, toWorld, worldPoint, surfaceFrame, anchoredZoom, moving, smooth });
+  root.OrbitCamera = Object.freeze({ project, unproject, toLocal, toWorld, worldPoint, anchoredZoom, moving, smooth });
 })(globalThis);

@@ -155,14 +155,6 @@ test('a pinch with a moving midpoint keeps its original world point under the ne
   close(projected.x, nextMidpoint.x); close(projected.y, nextMidpoint.y);
 });
 
-test('surface center remains exactly on the planetary center at every scale', () => {
-  const center = { x: 3300.125, y: -1400.4 }, size = { width: 1440, height: 1080 };
-  const frame = Camera.surfaceFrame(center, .04, size);
-  const mapCenter = Camera.worldPoint(frame, { x: size.width / 2, y: size.height / 2 });
-  close(mapCenter.x, center.x); close(mapCenter.y, center.y);
-  close(frame.scale * size.height, .08);
-});
-
 test('automatic recadrage converges continuously and marks only its exact endpoint as settled', () => {
   let camera = { x: 0, y: 0, zoom: .05 };
   const target = { x: 3300, y: -1400, zoom: 14000 };

@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { existsSync, readFileSync } = require('node:fs');
+const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
@@ -141,19 +141,19 @@ test('neighborhood road growth stays deterministic and land-bound across relief 
   }
 });
 
-test('district topology selects every village and city road model', () => {
+test('district topology retains stable identifiers for village and city road models', () => {
   const simulation = context.OrbitSettlementSimulation;
   const expected = [];
-  for (const asset of [...simulation.modelAssets.houses, ...simulation.modelAssets.districts]) {
-    assert.ok(existsSync(resolve(__dirname, '..', asset)), `missing settlement model ${asset}`);
-  }
+  assert.equal(simulation.modelAssets.houses.length, 3);
+  assert.equal(simulation.modelAssets.districts.length, 6);
   for (const urban of [false, true]) for (const degree of [2, 3, 4]) {
     const asset = simulation.districtAssetForTopology(degree, urban);
     expected.push(asset);
     assert.ok(simulation.modelAssets.districts.includes(asset));
   }
   assert.equal(new Set(expected).size, 6);
-  assert.equal(simulation.modelAssets.houses.length, 3);
+  assert.ok(expected.every(asset => asset.startsWith('assets/settlements/')),
+    'legacy asset identifiers remain available to saved settlement records');
 });
 
 test('four-way road junctions use the city crossing model', () => {

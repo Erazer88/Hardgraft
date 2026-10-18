@@ -4,26 +4,6 @@
   const storageKey = 'nereide-atlas-dev-settings-v1';
   const definitions = Object.freeze([
     Object.freeze({
-      id: 'overviewContourColor', type: 'color', group: 'Courbes de relief',
-      label: 'Couleur des courbes', help: 'Teinte des lignes de relief à toutes les échelles.',
-      defaultValue: '#ffffff'
-    }),
-    Object.freeze({
-      id: 'overviewContourOpacity', type: 'range', group: 'Courbes de relief',
-      label: 'Opacité', help: 'Intensité des lignes de relief à toutes les échelles.',
-      defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
-    }),
-    Object.freeze({
-      id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',
-      label: 'Routes', help: 'Affiche les routes posées manuellement. Les rues secondaires des quartiers sont temporairement masquées.',
-      defaultValue: true
-    }),
-    Object.freeze({
-      id: 'showSurfaceHouses', type: 'checkbox', group: 'Affichage du terrain',
-      label: 'Maisons', help: 'Affiche les maisons décoratives générées autour des bâtiments.',
-      defaultValue: true
-    }),
-    Object.freeze({
       id: 'simulationSpeed', type: 'select', group: 'Simulation',
       label: 'Vitesse du temps', help: 'Accélère les cycles industriels, la construction et les mouvements orbitaux.',
       defaultValue: 1,
@@ -33,36 +13,6 @@
         Object.freeze({ value: 5, label: 'x5' }),
         Object.freeze({ value: 10, label: 'x10' })
       ])
-    }),
-    Object.freeze({
-      id: 'depositMarkerSizePercent', type: 'range', group: 'Gisements',
-      label: 'Taille réelle', help: 'Emprise sur la carte. À l’écran, les gisements suivent le zoom comme le terrain.',
-      defaultValue: 100, min: 25, max: 200, step: 5, unit: '%'
-    }),
-    Object.freeze({
-      id: 'depositIronColor', type: 'color', group: 'Gisements',
-      label: 'Fer', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ffdb45'
-    }),
-    Object.freeze({
-      id: 'depositCopperColor', type: 'color', group: 'Gisements',
-      label: 'Cuivre', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ff9d3d'
-    }),
-    Object.freeze({
-      id: 'depositSiliconColor', type: 'color', group: 'Gisements',
-      label: 'Silicium', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#58efff'
-    }),
-    Object.freeze({
-      id: 'depositCarbonColor', type: 'color', group: 'Gisements',
-      label: 'Carbone', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#c6f34a'
-    }),
-    Object.freeze({
-      id: 'depositOilColor', type: 'color', group: 'Gisements',
-      label: 'Pétrole', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ffbd43'
     }),
     Object.freeze({
       id: 'infiniteMinerals', type: 'checkbox', group: 'Ressources',

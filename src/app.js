@@ -13,14 +13,16 @@
   const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SettlementSimulation = globalThis.OrbitSettlementSimulation;
-  const SettlementConfig = globalThis.OrbitSettlementConfig;
-  const SurfaceStyle = globalThis.OrbitSurfaceStyle;
-  const surfaceAspect = Config.terrain.width / Config.terrain.height;
+  const GlobeProjection = globalThis.OrbitPlanetGlobeProjection;
+  const GlobeStyle = globalThis.OrbitPlanetGlobeStyle;
+  const globeCamera = globalThis.OrbitPlanetGlobeCamera.create(GlobeStyle.camera);
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
   const pointers = new Map();
   let pointerMoved = false;
   const renderer = globalThis.OrbitRenderer.create(canvas, {
+    globeCanvas: $('planet-globe'), globeOverlayCanvas: $('planet-globe-overlay'),
+    globeErrorElement: $('planet-globe-error'),
     isCameraInteracting: () => pointers.size > 0 && pointerMoved
   });
   const hud = globalThis.OrbitHUD.create(document);
@@ -52,7 +54,7 @@
       return true;
     }
   });
-  let galaxy, home, terrainTexture, terrainData;
+  let galaxy, home, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
   let lastHUD = 0, lastAutosave = 0, menuStarted = false, storageWarningShown = false, pinch = null;
@@ -127,10 +129,7 @@
   function prepareTerrain(planet, context = state.context) {
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
-      terrainTexture = renderer.createTerrainTexture(planet, terrainData, {
-        retainMaterialMasks: true
-      });
-      context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture, roadCostField: null });
+      context.terrains.set(planet.id, { data: terrainData, roadCostField: null });
     }
     const record = context.terrains.get(planet.id);
     terrainData = record.data;
@@ -157,68 +156,6 @@
     }
     return record;
   }
-  function prepareSurfaceDetail(planet, context = state.context) {
-    const record = prepareTerrain(planet, context);
-    if (!record.detailTexture && !record.detailPending && !record.detailFailed) {
-      const detailFactor = Config.terrain.renderDetailFactor;
-      const detailedWidth = record.data.width * detailFactor;
-      const detailedHeight = record.data.height * detailFactor;
-      const textureScale = (record.texture.logicalWidth || record.texture.width) *
-        Config.terrain.renderTexturePixelRatio / detailedWidth;
-      const request = (record.detailRequest || 0) + 1;
-      record.detailRequest = request;
-      record.detailPending = true;
-      const startWhenIdle = () => {
-        if (record.detailRequest !== request) return;
-        if (cameraMoving()) {
-          requestAnimationFrame(startWhenIdle);
-          return;
-        }
-        renderer.createSurfaceDetail(planet, planet.seed, detailedWidth, detailedHeight, record.texture, {
-          textureScale,
-          logicalWidth: record.texture.logicalWidth || record.texture.width,
-          logicalHeight: record.texture.logicalHeight || record.texture.height
-        }).then(result => {
-          if (record.detailRequest !== request) return;
-          record.detailTerrain = result.terrain;
-          record.detailTexture = result.texture;
-          record.detailPending = false;
-        }).catch(error => {
-          if (record.detailRequest !== request) return;
-          record.detailPending = false;
-          if (error?.name === 'AbortError') return;
-          record.detailFailed = true;
-          console.warn('Le relief détaillé reste indisponible; la carte de base reste affichée.', error);
-        });
-      };
-      requestAnimationFrame(startWhenIdle);
-    }
-    return record;
-  }
-  function releaseSurfaceDetail(planet = state.planet, context = state.context) {
-    renderer.cancelSurfaceDetail();
-    renderer.releaseSurfaceDetail();
-    const record = planet && context?.terrains.get(planet.id);
-    if (record) {
-      record.detailRequest = (record.detailRequest || 0) + 1;
-      record.detailPending = false;
-      record.detailTexture = null;
-      record.detailTerrain = null;
-    }
-  }
-  function surfacePreviewRadius(planet, context) {
-    if (!planet || !context) return 0;
-    return planet.radius * context.frame.scale * state.camera.zoom;
-  }
-  function shouldRetainSurfaceDetailPreview(planet, context) {
-    return state.level === 'system' && state.context === context && state.planet?.id === planet?.id &&
-      state.focusPlanet?.id === planet?.id && surfacePreviewRadius(planet, context) >
-        Config.terrain.materialPreviewReleaseRadiusPx;
-  }
-  function shouldKeepSurfaceDetail(planet, context) {
-    if (!planet || state.context !== context || state.planet?.id !== planet.id) return false;
-    return state.level === 'surface' || shouldRetainSurfaceDetailPreview(planet, context);
-  }
   function refreshSettlements(planetId) {
     const network = state.roadNetworks[planetId];
     if (!network) return false;
@@ -239,11 +176,28 @@
     if (result.changed) persist();
     return result.changed;
   }
-  function surfaceFrame(planet = state.planet, context = state.context) {
+  function globeView() { return globeCamera.view(W, H); }
+  function terrainPointAtScreen(screenX, screenY, planet = state.planet, context = state.context) {
+    if (!planet || !context) return null;
     const record = prepareTerrain(planet, context);
-    const texture = record.texture;
-    return Camera.surfaceFrame(planetWorldPosition(planet, context), planet.radius * context.frame.scale,
-      { width: texture.logicalWidth || texture.width, height: texture.logicalHeight || texture.height });
+    const point = GlobeProjection.raycastTerrain(screenX, screenY, record.data, globeView(), GlobeStyle.relief);
+    return point ? { x: point.x * Config.terrain.textureScale, y: point.y * Config.terrain.textureScale } : null;
+  }
+  function projectTerrainPoint(x, y, planet = state.planet, context = state.context, view = globeView()) {
+    const record = prepareTerrain(planet, context);
+    return GlobeProjection.projectSurfacePoint(x / Config.terrain.textureScale,
+      y / Config.terrain.textureScale, record.data, view, GlobeStyle.relief);
+  }
+  function systemPlanetScreenPose() {
+    if (!state.planet || !state.context) return null;
+    const position = planetWorldPosition(state.planet, state.context), point = project(position.x, position.y);
+    return { x: point.x, y: point.y,
+      radiusPx: state.planet.radius * state.context.frame.scale * state.camera.zoom };
+  }
+  function globeTransitionForFrame(now) {
+    const mode = globeCamera.transitionMode();
+    if (state.level !== 'surface' && mode !== 'exit') return null;
+    return globeCamera.transitionFrame(now, W, H, mode === 'exit' ? systemPlanetScreenPose() : null);
   }
   function cameraMoving() { return Camera.moving(state.camera, state.target); }
   function followPlanet(planet, context = state.context) {
@@ -260,16 +214,7 @@
   function homeCamera() {
     if (state.level === 'galaxy') return { x: home.x - 200, y: home.y - 160, zoom: Math.max(.09, fitZoom(1900)) };
     if (state.level === 'system') return systemCamera();
-    return surfaceCamera();
-  }
-  function surfaceCamera(planet = state.planet) {
-    const record = prepareTerrain(planet);
-    const width = record.texture.logicalWidth || record.texture.width;
-    const height = record.texture.logicalHeight || record.texture.height;
-    // Fill both screen dimensions, including wide mobile landscape displays.
-    // Keep world proportions intact; pan and pinch reach the rest of the map.
-    const zoom = Math.max(W / width, H / height) * 1.08;
-    return worldCamera(surfaceFrame(planet), { x: width / 2, y: height / 2, zoom });
+    return { ...state.camera };
   }
   function resetCamera(immediate = false) { const cam = homeCamera(); focusCamera(cam.x, cam.y, cam.zoom, immediate); }
 
@@ -290,7 +235,7 @@
     state.roadPreview = null;
     cancelRoadDrag();
     state.tool = 'pan';
-    terrainData = null; terrainTexture = null;
+    terrainData = null; globeCamera.clearTransition(); globeCamera.reset();
     contexts.clear();
     const restored = Save.restore(state, galaxy, restoring, performance.now());
     nextBuildingId = state.surfaceBuildings.reduce((next, building) => {
@@ -326,7 +271,7 @@
 
   function updateSceneContext() {
     if (!galaxy) return;
-    const previousLevel = state.level, previousContext = state.context, previousPlanet = state.planet;
+    const previousLevel = state.level, previousContext = state.context;
     if (state.tracking) state.context = state.tracking.context;
     if (state.camera.zoom >= .7 && !state.tracking && !cameraMoving()) {
       const known = galaxy.systems.filter(s => s.discovered || state.reveal);
@@ -350,18 +295,18 @@
         if (planet && !context.model.planets.some(p => p.id === planet.id)) planet = nearest;
         const isVisible = p => {
           const position = planetWorldPosition(p, context), point = project(position.x, position.y), r = p.radius * localZoom;
-          return point.x + r * surfaceAspect >= 0 && point.x - r * surfaceAspect <= W && point.y + r >= 0 && point.y - r <= H;
+          return point.x + r >= 0 && point.x - r <= W && point.y + r >= 0 && point.y - r <= H;
         };
         if (nearest && planet && !isVisible(planet) && isVisible(nearest)) planet = nearest;
         if (planet && planet.kind !== 'gazeuse') {
           const pp = planetWorldPosition(planet, context), point = project(pp.x, pp.y), r = planet.radius * localZoom;
-          const visible = point.x + r * surfaceAspect >= 0 && point.x - r * surfaceAspect <= W && point.y + r >= 0 && point.y - r <= H;
+          const visible = point.x + r >= 0 && point.x - r <= W && point.y + r >= 0 && point.y - r <= H;
           if (visible && r > 18) {
             state.focusPlanet = planet; prepareTerrain(planet, context);
             if (r > 45) followPlanet(planet, context);
             if (r >= 80) {
               state.level = 'surface'; state.planet = planet;
-              const record = prepareSurfaceDetail(planet, context); terrainTexture = record.texture; terrainData = record.data;
+              terrainData = prepareTerrain(planet, context).data;
             }
           }
         }
@@ -372,21 +317,17 @@
       if (r < 22) state.tracking = null;
     }
     if (previousLevel !== state.level) {
+      if (state.level === 'surface' && state.planet) {
+        const position = planetWorldPosition(state.planet), point = project(position.x, position.y);
+        const radius = state.planet.radius * state.context.frame.scale * state.camera.zoom;
+        globeCamera.beginEnter(point, radius, W, H, performance.now());
+      } else if (previousLevel === 'surface' && state.level !== 'surface') {
+        if (globeCamera.transitionMode() !== 'exit') globeCamera.beginExit(W, H, performance.now());
+      } else globeCamera.clearTransition();
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
       cancelRoadDrag();
       if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
-    }
-    const surfaceChanged = previousLevel === 'surface' &&
-      (state.level !== 'surface' || previousPlanet?.id !== state.planet?.id);
-    if (surfaceChanged && !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
-      releaseSurfaceDetail(previousPlanet, previousContext);
-    } else if (previousLevel !== 'surface' && previousPlanet &&
-        !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
-      const previousRecord = previousContext?.terrains.get(previousPlanet.id);
-      if (previousRecord?.detailTexture || previousRecord?.detailTerrain) {
-        releaseSurfaceDetail(previousPlanet, previousContext);
-      }
     }
   }
 
@@ -400,7 +341,50 @@
       if (state.context && !visibleStars.some(s => s.id === state.context.star.id)) visibleStars.push(state.context.star);
       visibleContexts = visibleStars.map(prepareSystem);
     }
-    renderer.render({ state, galaxy, home, contexts, visibleContexts, now });
+    const transitionMode = globeCamera.transitionMode();
+    const globeActive = state.level === 'surface' || transitionMode === 'exit';
+    const activeTerrain = globeActive && state.planet ? prepareTerrain(state.planet).data : null;
+    terrainData = activeTerrain || terrainData;
+    const globeTransition = globeActive ? globeTransitionForFrame(now) : null;
+    renderer.render({ state, galaxy, home, contexts, visibleContexts, now,
+      terrainData: activeTerrain, globeView: globeView(), globeTransition });
+    if (state.level !== 'surface' && globeTransition?.mode === 'exit' && !globeTransition.active) globeCamera.clearTransition();
+  }
+
+  function findBuildableScreenPosition(type, minSpacingPx = 0, nearBuildingId = null, maxTerrainDistance = Infinity) {
+    if (state.level !== 'surface' || !state.planet || !terrainData) return null;
+    const definition = BuildingData.get(type);
+    if (!definition) return null;
+    const view = globeView(), radius = view.radiusPx * .86, step = 16;
+    const nearBuilding = nearBuildingId && state.surfaceBuildings.find(building => building.id === nearBuildingId);
+    const anchor = nearBuilding ? projectTerrainPoint(nearBuilding.x, nearBuilding.y) : { x: W / 2, y: H / 2 };
+    const candidates = [];
+    for (let y = Math.max(90, H / 2 - radius); y <= Math.min(H - 100, H / 2 + radius); y += step) {
+      for (let x = Math.max(28, W / 2 - radius); x <= Math.min(W - 28, W / 2 + radius); x += step) {
+        const dx = x - W / 2, dy = y - H / 2, distanceFromCenter = Math.hypot(dx, dy);
+        if (distanceFromCenter > radius) continue;
+        candidates.push({ x, y, distanceFromCenter });
+      }
+    }
+    candidates.sort((a, b) => Math.hypot(a.x - anchor.x, a.y - anchor.y) -
+      Math.hypot(b.x - anchor.x, b.y - anchor.y));
+    for (const candidate of candidates) {
+      const position = terrainPointAtScreen(candidate.x, candidate.y);
+      if (!position) continue;
+      if (nearBuilding && distance(position, nearBuilding) > maxTerrainDistance) continue;
+      const validation = BuildingPlacement.validate({ terrain: terrainData,
+        textureScale: Config.terrain.textureScale, definition, position,
+        planetId: state.planet.id, buildings: state.surfaceBuildings });
+      if (!validation.valid) continue;
+      const tooClose = state.surfaceBuildings.some(building => {
+        if (building.planetId !== state.planet.id) return false;
+        const point = projectTerrainPoint(building.x, building.y);
+        return point.visible && Math.hypot(point.x - candidate.x, point.y - candidate.y) < minSpacingPx;
+      });
+      if (!tooClose) return { x: candidate.x, y: candidate.y, mapX: position.x, mapY: position.y,
+        type, resourceId: validation.resourceId || null };
+    }
+    return null;
   }
 
   function clearSelection() {
@@ -409,11 +393,12 @@
     $('inspector').hidden = true; $('toast').classList.remove('visible');
   }
   function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
-    if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
+    if (state.level !== 'surface' || !state.planet || !terrainData) return;
     const definition = BuildingData.get(type);
     if (!definition) return;
-    const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
-    const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
+    const point = terrainPointAtScreen(screenX, screenY);
+    if (!point) { state.placement = null; return; }
+    const position = point;
     const validation = BuildingPlacement.validate({ terrain: terrainData,
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
@@ -476,34 +461,6 @@
     toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli. Récupéré : ${amountSummary(refund)}.`);
     updateUI(); persist();
   }
-  function buildingHit(frame, building, definition, x, y) {
-    const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
-    const localZoom = state.camera.zoom * frame.scale;
-    const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
-    if (definition.sprite) {
-      const style = SurfaceStyle.buildings;
-      const spriteWidth = Math.max(style.spriteMinWidthPx,
-        Math.max(definition.footprint.width, definition.footprint.height) * style.spriteFootprintScale * localZoom);
-      const spriteHeight = spriteWidth / (definition.spriteAspectRatio || 1);
-      const rotation = (building.rotation || 0) + (definition.spriteRotationOffset || 0);
-      const dx = x - anchor.x, dy = y - anchor.y;
-      const localX = dx * Math.cos(rotation) + dy * Math.sin(rotation);
-      const localY = -dx * Math.sin(rotation) + dy * Math.cos(rotation);
-      if (Math.abs(localX) <= spriteWidth / 2 + 4 && Math.abs(localY) <= spriteHeight / 2 + 4) return true;
-    }
-    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
-    if (building.constructionState === 'complete') return false;
-
-    const style = SurfaceStyle.buildings;
-    const width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
-    const edge = definition.footprint.width * localZoom / 2 + 12;
-    let cardX = anchor.x + edge, cardY = anchor.y - style.cardHeightPx / 2;
-    if (cardX + width > W - 8) cardX = anchor.x - edge - width;
-    cardX = Math.max(8, Math.min(W - width - 8, cardX));
-    cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
-    return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
-  }
-
   function nearestSettlementConnection(settlement, position) {
     let best = null;
     for (const road of settlement?.roads || []) {
@@ -530,14 +487,13 @@
 
   function roadEndpointAt(screenX, screenY, from = null) {
     if (state.level !== 'surface' || !state.planet || !terrainData) return null;
-    const frame = surfaceFrame();
     const network = state.roadNetworks[state.planet.id];
     const radius = RoadPlacement.config.interaction.roadSnapRadiusPx;
     const originBuilding = from?.kind === 'building'
       ? state.surfaceBuildings.find(candidate => candidate.id === from.buildingId) : null;
     const platformRequiresPort = originBuilding?.type === 'oil_platform';
-    const world = unproject(screenX, screenY);
-    const position = { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
+    const position = terrainPointAtScreen(screenX, screenY);
+    if (!position) return null;
     const marineConnection = network?.segments.length
       ? RoadNetwork.nearestBuiltConnection(network, position, candidate => candidate.kind === 'segment' &&
         (candidate.segment.routeType === 'marine' ||
@@ -545,8 +501,7 @@
       : null;
     let marineRouteHit = false;
     if (marineConnection) {
-      const point = project(frame.x + marineConnection.point.x * frame.scale,
-        frame.y + marineConnection.point.y * frame.scale);
+      const point = projectTerrainPoint(marineConnection.point.x, marineConnection.point.y);
       marineRouteHit = Math.hypot(point.x - screenX, point.y - screenY) <= radius;
     }
 
@@ -560,7 +515,7 @@
       const points = (platformRequiresPort ? [candidate.waterPort] :
         [candidate.roadPort, candidate.waterPort]).filter(Boolean);
       for (const point of points) {
-        const screenPoint = project(frame.x + point.x * frame.scale, frame.y + point.y * frame.scale);
+        const screenPoint = projectTerrainPoint(point.x, point.y);
         const screenDistance = Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY);
         if (screenDistance <= Math.min(radius, 12) &&
             (!connectorTarget || screenDistance < connectorTarget.screenDistance)) {
@@ -576,8 +531,9 @@
       if (platformRequiresPort && candidate.type !== 'surface_port') return false;
       if (marineRouteHit && candidate.type !== 'surface_port' && candidate.type !== 'oil_platform') return false;
       const definition = BuildingData.get(candidate.type);
-      return Boolean((definition?.roadRequired || candidate.type === 'oil_platform') &&
-        buildingHit(frame, candidate, definition, screenX, screenY));
+      if (!(definition?.roadRequired || candidate.type === 'oil_platform')) return false;
+      const point = projectTerrainPoint(candidate.x, candidate.y);
+      return point.visible && Math.hypot(point.x - screenX, point.y - screenY) <= GlobeStyle.icon.hitRadiusPx;
     });
     if (building) return { kind: 'building', buildingId: building.id,
       point: { ...(building.roadPort || building.waterPort || { x: building.x, y: building.y }) } };
@@ -588,7 +544,7 @@
 
     let closest = null;
     function consider(endpoint) {
-      const screenPoint = project(frame.x + endpoint.point.x * frame.scale, frame.y + endpoint.point.y * frame.scale);
+      const screenPoint = projectTerrainPoint(endpoint.point.x, endpoint.point.y);
       const screenDistance = Math.hypot(screenPoint.x - screenX, screenPoint.y - screenY);
       if (screenDistance <= radius && (!closest || screenDistance < closest.screenDistance)) {
         closest = { ...endpoint, screenDistance };
@@ -604,9 +560,9 @@
         consider({ kind: 'road', point: { ...connection.point }, connection: target });
       }
     }
-    if (state.camera.zoom * frame.scale >= SettlementConfig.render.minZoom) {
-      const settlementConnection = nearestSettlementConnection(state.surfaceSettlements[state.planet.id], position);
-      if (settlementConnection) consider({ kind: 'settlement', point: settlementConnection.point,
+    const settlementConnection = nearestSettlementConnection(state.surfaceSettlements[state.planet.id], position);
+    if (globeCamera.snapshot().zoom >= globalThis.OrbitSettlementConfig.interaction.roadSnapMinZoom && settlementConnection) {
+      consider({ kind: 'settlement', point: settlementConnection.point,
         connection: { kind: 'settlement', id: settlementConnection.road.id,
           roadDistance: settlementConnection.roadDistance } });
     }
@@ -623,8 +579,7 @@
   }
 
   function roadTerrainPointAt(screenX, screenY) {
-    const frame = surfaceFrame(), world = unproject(screenX, screenY);
-    return { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
+    return terrainPointAtScreen(screenX, screenY);
   }
 
   function updateRoadPreview(screenX, screenY, force = false) {
@@ -652,6 +607,7 @@
     }
 
     const point = roadTerrainPointAt(screenX, screenY);
+    if (!point) { state.roadPreview = null; roadDrag.preview = null; roadDrag.target = null; return; }
     state.roadPreview = {
       points: [roadDrag.from.point, point],
       surfaceTypes: [],
@@ -696,16 +652,16 @@
     const planet = selectedPlanet || state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     refreshSettlements(planet.id);
     clearSelection();
-    const camera = surfaceCamera(planet);
-    focusCamera(camera.x, camera.y, camera.zoom);
+    const position = planetWorldPosition(planet), radius = planet.radius * state.context.frame.scale;
+    focusCamera(position.x, position.y, 130 / Math.max(1e-9, radius));
     persist();
   }
   function back() {
     if (state.level === 'surface') {
-      releaseSurfaceDetail();
+      if (globeCamera.transitionMode() !== 'exit') globeCamera.beginExit(W, H, performance.now());
       clearSelection(); state.tracking = null; state.focusPlanet = null;
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
@@ -723,16 +679,14 @@
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
     } else {
-      followPlanet(state.planet);
-      const camera = surfaceCamera();
-      focusCamera(camera.x, camera.y, camera.zoom);
+      globeCamera.reset(); updateUI();
     }
     persist();
   }
   function focusHome() {
     if (state.level === 'galaxy') { state.context = prepareSystem(home); state.tracking = null; select(home); resetCamera(); }
     else if (state.level === 'system') { state.tracking = null; state.focusPlanet = null; resetCamera(); }
-    else { followPlanet(state.planet); resetCamera(); }
+    else { globeCamera.reset(); updateUI(); }
     persist();
   }
 
@@ -755,10 +709,14 @@
     }
   }
   function updateUI() {
-    const frame = state.level === 'surface' ? surfaceFrame() : null;
-    const scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) : localCamera(frame);
-    const buildingPosition = state.selected?.kind === 'building' && frame
-      ? project(frame.x + state.selected.x * frame.scale, frame.y + state.selected.y * frame.scale) : null;
+    let scaleCamera = state.level === 'galaxy' ? state.camera : state.level === 'system' ? localCamera(state.context.frame) : null;
+    if (state.level === 'surface' && state.planet) {
+      const record = prepareTerrain(state.planet), radiusPx = globeView().radiusPx;
+      scaleCamera = { zoom: radiusPx * Math.PI * 2 /
+        Math.max(1, record.data.width * Config.terrain.textureScale) };
+    }
+    const buildingPosition = state.selected?.kind === 'building' && state.level === 'surface'
+      ? projectTerrainPoint(state.selected.x, state.selected.y) : null;
     hud.update({ state, galaxy, terrainData, width: W, scaleCamera, buildingPosition });
   }
 
@@ -790,18 +748,15 @@
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
       if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
-      const frame = surfaceFrame(), terrainPoint = { x: (point.x - frame.x) / frame.scale, y: (point.y - frame.y) / frame.scale };
+      const terrainPoint = terrainPointAtScreen(x, y);
+      if (!terrainPoint) return;
       if (state.tool === 'build') {
         updateBuildingPreview(x, y); placeSurfaceBuilding(); return;
       }
       const tx = Math.floor(terrainPoint.x / Config.terrain.textureScale), ty = Math.floor(terrainPoint.y / Config.terrain.textureScale);
       if (tx < 0 || ty < 0 || tx >= terrainData.width || ty >= terrainData.height) return;
-      const building = [...state.surfaceBuildings].reverse().find(candidate => {
-        if (candidate.planetId !== state.planet.id) return false;
-        const definition = BuildingData.get(candidate.type);
-        if (!definition) return false;
-        return buildingHit(frame, candidate, definition, x, y);
-      });
+      const building = renderer.hitTestGlobeBuilding(state.surfaceBuildings, state.planet.id,
+        terrainData, globeView(), x, y);
       if (building) { selectSurfaceBuilding(building); return; }
       const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
@@ -811,6 +766,11 @@
     }
   }
   function zoomAt(factor, x = W / 2, y = H / 2) {
+    if (state.level === 'surface') {
+      const result = globeCamera.zoomBy(factor);
+      if (result.crossedMinimum) back();
+      updateUI(); persist(); return;
+    }
     const before = unproject(x, y), [min, max] = zoomLimits(before);
     const z = clamp(state.camera.zoom * factor, min, max);
     state.target = Camera.anchoredZoom(state.camera, viewport, z, { x, y });
@@ -830,6 +790,15 @@
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
+    if (state.level === 'surface') {
+      if (state.tool === 'road' && pointers.size === 1) {
+        const from = roadEndpointAt(e.clientX, e.clientY);
+        roadDrag = from ? { pointerId: e.pointerId, from,
+          startScreen: { x: e.clientX, y: e.clientY }, lastPreviewAt: -Infinity, target: null, preview: null } : null;
+      } else if (pointers.size > 1 && state.tool === 'road') cancelRoadDrag();
+      if (pointers.size === 2) beginPinch();
+      return;
+    }
     if (state.tool === 'road') {
       if (pointers.size === 1) {
         const from = roadEndpointAt(e.clientX, e.clientY);
@@ -851,6 +820,30 @@
     }
     const previous = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (state.level === 'surface') {
+      if (pointers.size >= 2 && pinch) {
+        const points = [...pointers.values()], nextDistance = distance(points[0], points[1]);
+        const ratio = nextDistance / Math.max(1, pinch.distance);
+        const result = globeCamera.zoomBy(ratio);
+        pinch = { distance: nextDistance,
+          midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
+        pointerMoved = true;
+        if (result.crossedMinimum) { pinch = null; back(); }
+        else updateUI();
+      } else if (pointers.size === 1 && state.tool === 'road' && roadDrag) {
+        if (Math.hypot(e.clientX - roadDrag.startScreen.x, e.clientY - roadDrag.startScreen.y) > 5) pointerMoved = true;
+        if (pointerMoved) updateRoadPreview(e.clientX, e.clientY);
+      } else if (pointers.size === 1) {
+        const dx = e.clientX - previous.x, dy = e.clientY - previous.y;
+        if (Math.hypot(dx, dy) > 5) pointerMoved = true;
+        if (pointerMoved) {
+          globeCamera.rotateBy(dx, dy);
+          if (state.tool === 'build') updateBuildingPreview(e.clientX, e.clientY);
+          updateUI();
+        }
+      }
+      return;
+    }
     if (pointers.size >= 2 && pinch) {
       const points = [...pointers.values()], nextDistance = distance(points[0], points[1]);
       const midpoint = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
@@ -1028,9 +1021,16 @@
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }
     if (e.key === 'Enter' && state.selected && !$('menu-dialog').open && !$('enter-button').hidden) $('enter-button').click();
     if (!$('menu-dialog').open && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-      e.preventDefault(); const step = 70 / state.target.zoom;
-      state.target.x += e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
-      state.target.y += e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      e.preventDefault();
+      if (state.level === 'surface') {
+        const step = 50;
+        globeCamera.rotateBy(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0,
+          e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0);
+      } else {
+        const step = 70 / state.target.zoom;
+        state.target.x += e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        state.target.y += e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      }
     }
   });
   function resize() {
@@ -1044,10 +1044,9 @@
 
   function createOrbitalLogisticsFixture() {
     if (state.level !== 'surface' || !state.planet) throw new Error('Open a planetary surface before creating the logistics fixture');
-    const frame = surfaceFrame(), center = unproject(W / 2, H / 2);
     const width = terrainData.width * Config.terrain.textureScale, height = terrainData.height * Config.terrain.textureScale;
-    const centerX = clamp((center.x - frame.x) / frame.scale, 220, width - 240);
-    const centerY = clamp((center.y - frame.y) / frame.scale, 50, height - 50);
+    const center = terrainPointAtScreen(W / 2, H / 2) || { x: width / 2, y: height / 2 };
+    const centerX = clamp(center.x, 220, width - 240), centerY = clamp(center.y, 50, height - 50);
     const planetId = state.planet.id, suffix = `${planetId}-${Math.floor(state.simulation.time)}`;
     const source = BuildingModel.create({ id: `fixture-factory-${suffix}`, type: 'factory', planetId,
       x: centerX - 200, y: centerY, constructionState: 'complete', inventory: { iron: 77 }, dockStock: { raw_iron: 8 } });
@@ -1102,7 +1101,6 @@
     completeMissions(now);
     state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
     updateSceneContext();
-    if (state.level === 'surface' && cameraMoving()) renderer.cancelSurfaceDetail();
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
@@ -1115,23 +1113,18 @@
     getState: () => ({ level: state.level, seed: state.seed, selectedId: state.selected?.id || null,
       systemCount: galaxy.systems.length, discoveredCount: galaxy.systems.filter(s => s.discovered || state.reveal).length,
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
+      paused: state.paused,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
-      planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
-    getSurfaceDetailMetrics: () => {
-      const record = state.planet && state.context?.terrains.get(state.planet.id);
-      if (!record?.detailTerrain || !record.detailTexture) return null;
-      return { baseWidth: record.data.width, baseHeight: record.data.height,
-        detailWidth: record.detailTerrain.width, detailHeight: record.detailTerrain.height,
-        textureWidth: record.detailTexture.width, textureHeight: record.detailTexture.height,
-        logicalWidth: record.detailTexture.logicalWidth, logicalHeight: record.detailTexture.logicalHeight,
-        surfaceZoom: localCamera(surfaceFrame(state.planet), state.camera).zoom };
-    },
+      planetId: state.planet?.id || null, planetKind: state.planet?.kind || null,
+      buildingCount: state.surfaceBuildings.length, missions: state.exploration.missions.length }),
+    getPlanetGlobeMetrics: () => ({ camera: globeCamera.snapshot(), renderer: renderer.globeMetrics(),
+      transition: globeCamera.transitionMode(), available: renderer.globeAvailable() }),
+    findBuildableScreenPosition,
     getSurfaceResourceMetrics: () => {
       const record = state.planet && state.context?.terrains.get(state.planet.id);
       return record?.data?.resources?.map(resource => ({ id: resource.id, x: resource.x, y: resource.y,
         radius: resource.radius, marine: resource.marine })) || [];
     },
-    getResourceRenderStyle: (...args) => renderer.getResourceRenderStyle(...args),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),
@@ -1146,9 +1139,18 @@
     getBuildingScreenPosition: id => {
       const building = state.surfaceBuildings.find(item => item.id === id);
       if (!building || !state.planet || building.planetId !== state.planet.id) return null;
-      const frame = surfaceFrame(), point = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
-      return { ...point, id };
+      const point = projectTerrainPoint(building.x, building.y);
+      return point.visible ? { x: point.x, y: point.y, id } : null;
     },
+    getRoadNetworkMetrics: planetId => {
+      const network = state.roadNetworks[planetId || state.planet?.id];
+      return network ? { nodeCount: network.nodes.length, segmentCount: network.segments.length,
+        builtLength: network.segments.reduce((sum, segment) => sum + Math.min(segment.length, segment.builtLength || 0), 0) } :
+        { nodeCount: 0, segmentCount: 0, builtLength: 0 };
+    },
+    getSurfaceBuildings: () => state.surfaceBuildings.map(building => ({ id: building.id, type: building.type,
+      planetId: building.planetId, x: building.x, y: building.y, constructionState: building.constructionState,
+      constructionProgress: building.constructionProgress })),
     getOrbitalBuildingState: id => {
       const building = state.surfaceBuildings.find(item => item.id === id);
       return building ? { id: building.id, type: building.type, dockStock: { ...building.dockStock },

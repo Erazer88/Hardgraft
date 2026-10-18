@@ -6,7 +6,6 @@
   const definitions = {
     factory: {
       id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
-      sprite: 'assets/buildings/factory.webp', spriteAspectRatio: 4 / 3,
       description: 'Transforme les minerais en matériaux.',
       functions: { transformsMinerals: true },
       cost: { iron: 35, copper: 16, silicon: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -16,7 +15,6 @@
     },
     extractor: {
       id: 'extractor', label: 'EXTRACTEUR', shortLabel: 'EX', category: 'resource', icon: 'extractor',
-      sprite: 'assets/buildings/extractor.webp',
       description: 'Extrait les minerais des gisements compatibles.',
       functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
       cost: { iron: 18, copper: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -27,7 +25,6 @@
     },
     surface_port: {
       id: 'surface_port', label: 'PORT', shortLabel: 'PO', category: 'logistics', icon: 'surface-port',
-      sprite: 'assets/buildings/surface-port.webp', spriteRotationOffset: Math.PI / 2,
       description: 'Relie les quais maritimes au réseau de camions.',
       functions: { transfersShipTruck: true },
       cost: { iron: 24, copper: 12 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -38,7 +35,6 @@
     },
     oil_platform: {
       id: 'oil_platform', label: 'PLATEFORME PÉTROLIÈRE', shortLabel: 'PP', category: 'resource', icon: 'oil-platform',
-      sprite: 'assets/buildings/oil-platform.webp',
       description: 'Extrait les ressources des grands fonds marins.',
       functions: { extractsOffshoreResources: true }, extracts: ['oil'],
       cost: { iron: 40, copper: 20, silicon: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -49,7 +45,6 @@
     },
     storage: {
       id: 'storage', label: 'DÉPÔT', shortLabel: 'DÉ', category: 'logistics', icon: 'storage',
-      sprite: 'assets/buildings/depot.webp',
       description: 'Stocke tous types de matériaux acheminés vers le site.',
       functions: { storesAllMaterials: true },
       cost: { iron: 12, copper: 4 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -59,7 +54,6 @@
     },
     launch_platform: {
       id: 'launch_platform', label: 'PLATEFORME DE LANCEMENT', shortLabel: 'PL', category: 'logistics', icon: 'hub',
-      sprite: 'assets/buildings/orbital-hub.webp',
       description: 'Reçoit les stocks des Docks reliés par route et les exporte vers l’Arche.',
       functions: { exportsToOrbit: true },
       cost: { iron: 25, copper: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
@@ -69,7 +63,6 @@
     },
     wind_turbine: {
       id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
-      sprite: 'assets/buildings/wind-turbine.webp',
       description: 'Produit de l’énergie sur la terre ferme.',
       functions: { generatesEnergy: true },
       cost: { iron: 15, copper: 10, carbon: 2 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,

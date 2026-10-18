@@ -1,90 +1,65 @@
 #!/usr/bin/env node
 'use strict';
 
-// Real-browser smoke checks using Chromium and Node's built-in WebSocket.
-// Start the app first, then run: node tests/browser-smoke.cjs
+// Real Chromium interaction checks for the experimental WebGL2 planet view.
+// Start the prototype on port 8000 first, or set ORBITAL_BASE_URL.
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
-const { mkdtemp, mkdir, rm, stat, writeFile } = require('node:fs/promises');
+const { mkdtemp, mkdir, rm, writeFile } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
-const { fileURLToPath } = require('node:url');
 
 const BASE_URL = process.env.ORBITAL_BASE_URL || 'http://127.0.0.1:8000';
 const CHROME = process.env.CHROMIUM_BIN || '/usr/bin/chromium';
 const ARTIFACTS = path.resolve(__dirname, '../artifacts');
-const ARTIFACT_PREFIX = process.env.ORBITAL_ARTIFACT_PREFIX || '';
-const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 class CDP {
   constructor(socket) {
-    this.socket = socket;
-    this.nextId = 0;
-    this.pending = new Map();
-    this.listeners = new Map();
+    this.socket = socket; this.nextId = 0; this.pending = new Map(); this.listeners = new Map();
     socket.addEventListener('message', ({ data }) => {
       const message = JSON.parse(data);
       if (message.id) {
         const entry = this.pending.get(message.id);
         if (!entry) return;
-        this.pending.delete(message.id);
-        clearTimeout(entry.timeout);
+        this.pending.delete(message.id); clearTimeout(entry.timeout);
         if (message.error) entry.reject(new Error(`${entry.method}: ${message.error.message}`));
         else entry.resolve(message.result);
-      } else {
-        for (const callback of this.listeners.get(message.method) || []) callback(message.params);
-      }
+      } else for (const callback of this.listeners.get(message.method) || []) callback(message.params);
     });
     socket.addEventListener('close', () => {
       for (const entry of this.pending.values()) {
-        clearTimeout(entry.timeout);
-        entry.reject(new Error(`CDP disconnected during ${entry.method}`));
+        clearTimeout(entry.timeout); entry.reject(new Error(`CDP closed during ${entry.method}`));
       }
       this.pending.clear();
     });
   }
-
   static async connect(url) {
     const socket = new WebSocket(url);
     await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('CDP connection timed out')), 10000);
-      socket.addEventListener('open', () => { clearTimeout(timeout); resolve(); }, { once: true });
-      socket.addEventListener('error', () => { clearTimeout(timeout); reject(new Error('CDP connection failed')); }, { once: true });
+      const timer = setTimeout(() => reject(new Error('Chromium CDP connection timed out')), 10000);
+      socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Chromium CDP connection failed')); }, { once: true });
     });
     return new CDP(socket);
   }
-
   on(method, callback) {
-    const callbacks = this.listeners.get(method) || [];
-    callbacks.push(callback);
-    this.listeners.set(method, callbacks);
+    const callbacks = this.listeners.get(method) || []; callbacks.push(callback); this.listeners.set(method, callbacks);
   }
-
   send(method, params = {}) {
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`${method} timed out`));
-      }, 15000);
+      const timeout = setTimeout(() => { this.pending.delete(id); reject(new Error(`${method} timed out`)); }, 15000);
       this.pending.set(id, { resolve, reject, timeout, method });
       this.socket.send(JSON.stringify({ id, method, params }));
     });
   }
-
   async evaluate(expression) {
-    const result = await this.send('Runtime.evaluate', {
-      expression,
-      returnByValue: true,
-      awaitPromise: true,
-    });
-    if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
-    }
+    const result = await this.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
     return result.result.value;
   }
-
-  async until(expression, description, timeout = 15000) {
+  async until(expression, description, timeout = 20000) {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       if (await this.evaluate(expression)) return;
@@ -92,770 +67,320 @@ class CDP {
     }
     throw new Error(`Timed out waiting for ${description}`);
   }
-
   async click(selector) {
     const point = await this.evaluate(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
-      if (!element) throw new Error('Missing element: ' + ${JSON.stringify(selector)});
+      if (!element) throw new Error('Missing UI element: ' + ${JSON.stringify(selector)});
+      element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       const box = element.getBoundingClientRect();
-      if (!box.width || !box.height) throw new Error('Invisible element: ' + ${JSON.stringify(selector)});
+      if (!box.width || !box.height || getComputedStyle(element).visibility === 'hidden')
+        throw new Error('UI element is not visible: ' + ${JSON.stringify(selector)});
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     })()`);
     await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
     await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
     await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
-    await sleep(120);
+    await sleep(100);
   }
-
-  async tapAt(point, mobile) {
+  async tap(point, mobile) {
     if (mobile) {
       await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 1 }] });
       await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     } else {
+      await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
       await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
       await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
     }
-    await sleep(150);
+    await sleep(120);
   }
-
+  async drag(from, to, mobile, steps = 8) {
+    if (mobile) {
+      await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...from, id: 1 }] });
+      for (let i = 1; i <= steps; i += 1) {
+        const t = i / steps;
+        await this.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+          x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, id: 1
+        }] });
+        await sleep(18);
+      }
+      await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...from });
+      await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', ...from });
+      for (let i = 1; i <= steps; i += 1) {
+        const t = i / steps;
+        await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1,
+          x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+        await sleep(18);
+      }
+      await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', ...to });
+    }
+    await sleep(180);
+  }
+  async pinch(center, fromSpread, toSpread) {
+    const touches = spread => [
+      { x: center.x - spread, y: center.y, id: 1 },
+      { x: center.x + spread, y: center.y, id: 2 }
+    ];
+    await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touches(fromSpread) });
+    for (let i = 1; i <= 6; i += 1) {
+      const spread = fromSpread + (toSpread - fromSpread) * i / 6;
+      await this.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touches(spread) });
+      await sleep(25);
+    }
+    await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await sleep(200);
+  }
   async screenshot(filename) {
-    await this.until('!document.querySelector("#toast")?.classList.contains("visible")', 'notification fades before screenshot', 6000);
-    // Let the animation loop draw two complete frames after a state transition.
     await this.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     const { data } = await this.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-    await writeFile(path.join(ARTIFACTS, ARTIFACT_PREFIX + filename), Buffer.from(data, 'base64'));
+    await writeFile(path.join(ARTIFACTS, filename), Buffer.from(data, 'base64'));
   }
 }
 
 async function launchChrome(profile) {
-  const child = spawn(CHROME, [
-    '--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
+  const child = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage',
     '--enable-unsafe-swiftshader', '--no-first-run', '--no-default-browser-check',
     '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=0',
-    `--user-data-dir=${profile}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   let log = '';
   const url = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error(`Chromium startup timed out. ${log.slice(-1500)}`));
-    }, 15000);
-    child.stderr.on('data', (chunk) => {
-      log += chunk.toString();
-      const match = log.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-      if (match) { clearTimeout(timeout); resolve(match[1]); }
+    const timer = setTimeout(() => { child.kill('SIGTERM'); reject(new Error(`Chromium startup timeout: ${log.slice(-1000)}`)); }, 15000);
+    child.stderr.on('data', chunk => {
+      log += chunk.toString(); const match = log.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (match) { clearTimeout(timer); resolve(match[1]); }
     });
-    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Chromium exited (${code}) before readiness. ${log.slice(-1500)}`));
-    });
+    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('exit', code => { clearTimeout(timer); reject(new Error(`Chromium exited ${code}: ${log.slice(-1000)}`)); });
   });
   return { child, url };
 }
 
-const stateExpression = 'window.OrbitalDebug.getState()';
-const cameraExpression = 'window.OrbitalDebug.getCamera()';
-const startingPlanetIdExpression = `(() => {
-  const state = window.OrbitalDebug.getState();
-  const galaxy = window.OrbitWorld.createGalaxy(state.seed);
-  return window.OrbitWorld.createSystem(state.seed, state.homeId, galaxy).startingPlanetId;
-})()`;
-const settledExpression = '!window.OrbitalDebug.getState().moving';
-const menuVisibleExpression = `(() => {
-  const menu = document.querySelector('#menu-dialog');
-  if (!menu) return false;
-  const style = getComputedStyle(menu);
-  return menu.getBoundingClientRect().width > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-})()`;
-
-async function checkLayout(cdp, width, height) {
-  const layout = await cdp.evaluate(`(() => {
-    const canvas = document.querySelector('#universe');
-    const box = canvas?.getBoundingClientRect();
-    return {
-      viewport: [innerWidth, innerHeight],
-      overflow: document.documentElement.scrollWidth - innerWidth,
-      canvas: box ? [box.width, box.height] : null,
-      canvasPixels: canvas ? [canvas.width, canvas.height] : null,
-    };
-  })()`);
-  assert.deepEqual(layout.viewport, [width, height], 'Viewport dimensions');
-  assert.ok(layout.overflow <= 1, `Horizontal overflow: ${layout.overflow}px`);
-  assert.ok(layout.canvas?.[0] > width * 0.8 && layout.canvas?.[1] > height * 0.65, 'Universe canvas is visible');
-  assert.ok(layout.canvasPixels?.[0] > 0 && layout.canvasPixels?.[1] > 0, 'Canvas has drawable pixels');
-}
-
-async function settle(cdp, description) {
-  await cdp.until(settledExpression, description);
-  await cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-}
-
-async function zoomStep(cdp, factor, focal, gesture = 'direct') {
-  const before = await cdp.evaluate(cameraExpression);
-  const viewport = await cdp.evaluate('({ width: innerWidth, height: innerHeight })');
-  // A single galactic coordinate must project to the same pixel through every
-  // detail threshold; a view-specific recenter would violate this invariant.
-  const fixedWorld = {
-    x: before.x + (focal.x - viewport.width / 2) / before.zoom,
-    y: before.y + (focal.y - viewport.height / 2) / before.zoom,
-  };
-  if (gesture === 'wheel') {
-    await cdp.send('Input.dispatchMouseEvent', {
-      type: 'mouseWheel', x: focal.x, y: focal.y, deltaX: 0,
-      deltaY: -Math.log(factor) / .0015,
-    });
-  } else if (gesture === 'pinch') {
-    const touches = spread => [
-      { x: focal.x - spread, y: focal.y, id: 1 },
-      { x: focal.x + spread, y: focal.y, id: 2 },
-    ];
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touches(24) });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touches(24 * factor) });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } else {
-    await cdp.evaluate(`window.OrbitalDebug.zoomAt(${factor}, ${focal.x}, ${focal.y})`);
-  }
-  await cdp.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-  const after = await cdp.evaluate(cameraExpression);
-  const state = await cdp.evaluate(stateExpression);
-  assert.ok(Math.abs(after.zoom / before.zoom - factor) < 1e-6,
-    `${gesture} zoom preserves factor ${factor}: ${after.zoom / before.zoom}`);
-  const projected = {
-    x: viewport.width / 2 + (fixedWorld.x - after.x) * after.zoom,
-    y: viewport.height / 2 + (fixedWorld.y - after.y) * after.zoom,
-  };
-  assert.ok(Math.hypot(projected.x - focal.x, projected.y - focal.y) < .5,
-    `${gesture} keeps its focal point fixed through ${state.level} (${Math.hypot(projected.x - focal.x, projected.y - focal.y)}px)`);
-  assert.equal(Boolean(state.moving), false, 'Gesture zoom never starts automatic camera movement');
-  assert.equal(Boolean(state.transitioning), false, 'Gesture zoom never starts a scene transition');
-  return state;
-}
-
-async function checkBoundary(cdp, name, mobile, from, to, focal) {
-  const original = await cdp.evaluate(cameraExpression);
-  assert.equal((await cdp.evaluate(stateExpression)).level, from, `${name} begins boundary test in ${from}`);
-  let crossed = false;
-  // Locate the threshold using powers of two, then approach it in 3% steps.
-  // This avoids a slow traversal of the entire galactic-to-terrain scale.
-  for (let i = 0; i < 30; i++) {
-    const state = await zoomStep(cdp, 2, focal);
-    if (state.level === to) { crossed = true; break; }
-    assert.equal(state.level, from, `${name} does not skip ${to}`);
-  }
-  assert.ok(crossed, `${name} continuous zoom reaches ${to}`);
-  await zoomStep(cdp, .5, focal);
-  assert.equal((await cdp.evaluate(stateExpression)).level, from, `${name} returns just before ${to} threshold`);
-  crossed = false;
-  for (let i = 0; i < 25; i++) {
-    const state = await zoomStep(cdp, 1.03, focal);
-    if (state.level === to) { crossed = true; break; }
-    assert.equal(state.level, from, `${name} fine zoom stays in ${from} before its threshold`);
-  }
-  assert.ok(crossed, `${name} a 3% step crosses ${from} → ${to}`);
-  await cdp.screenshot(`${name}-${from}-to-${to}-boundary.png`);
-  await zoomStep(cdp, 1 / 1.03, focal);
-  assert.equal((await cdp.evaluate(stateExpression)).level, from, `${name} reverse 3% step returns to ${from}`);
-  const gesture = mobile ? 'pinch' : 'wheel';
-  assert.equal((await zoomStep(cdp, 1.03, focal, gesture)).level, to,
-    `${name} real ${gesture} crosses ${from} → ${to} continuously`);
-  assert.equal((await zoomStep(cdp, 1 / 1.03, focal, gesture)).level, from,
-    `${name} real ${gesture} returns through the same threshold`);
-  const current = await cdp.evaluate(cameraExpression);
-  await zoomStep(cdp, original.zoom / current.zoom, focal);
-  const returned = await cdp.evaluate(cameraExpression);
-  assert.equal((await cdp.evaluate(stateExpression)).level, from, `${name} zoom round trip restores ${from}`);
-  assert.ok(Math.abs(returned.zoom / original.zoom - 1) < 1e-6, `${name} round trip restores magnification`);
-  assert.ok(Math.hypot(returned.x - original.x, returned.y - original.y) * original.zoom < .5,
-    `${name} round trip restores the same position`);
-  process.stdout.write(`PASS ${name}: ${from} ↔ ${to}, 3% ${gesture} threshold, fixed focal point, exact camera round trip\n`);
-}
-
-async function checkTerrainZoomLimit(cdp, name) {
-  const measurement = await cdp.evaluate(`(() => {
-    const debug = window.OrbitalDebug;
-    const focal = { x: innerWidth * .61, y: innerHeight * .48 };
-    const before = debug.getCamera();
-    const fixedWorld = { x: before.x + (focal.x-innerWidth/2)/before.zoom,
-      y: before.y + (focal.y-innerHeight/2)/before.zoom };
-    debug.zoomAt(999, focal.x, focal.y);
-    const capped = debug.getCamera();
-    debug.zoomAt(2, focal.x, focal.y);
-    const repeated = debug.getCamera();
-    const projected = { x: innerWidth/2 + (fixedWorld.x-repeated.x)*repeated.zoom,
-      y: innerHeight/2 + (fixedWorld.y-repeated.y)*repeated.zoom };
-    const level = debug.getState().level;
-    debug.zoomAt(before.zoom/repeated.zoom, focal.x, focal.y);
-    return { before, capped, repeated, focal, projected, level, returned: debug.getCamera() };
-  })()`);
-  assert.equal(measurement.level, 'surface', `${name} terrain zoom limit preserves surface context`);
-  assert.ok(measurement.capped.zoom > measurement.before.zoom, `${name} terrain can zoom farther before its limit`);
-  assert.ok(measurement.capped.zoom < measurement.before.zoom * 999, `${name} terrain has a useful detail limit`);
-  assert.deepEqual(measurement.repeated, measurement.capped, `${name} another zoom at the limit leaves the camera fixed`);
-  assert.ok(Math.hypot(measurement.projected.x-measurement.focal.x,
-    measurement.projected.y-measurement.focal.y) < .5, `${name} terrain zoom limit preserves the focal point`);
-  assert.ok(Math.abs(measurement.returned.zoom/measurement.before.zoom-1) < 1e-6,
-    `${name} zooming back from the limit restores magnification`);
-  assert.ok(Math.hypot(measurement.returned.x-measurement.before.x,
-    measurement.returned.y-measurement.before.y)*measurement.before.zoom < .5,
-    `${name} zooming back from the limit restores position`);
-  process.stdout.write(`PASS ${name}: terrain detail limit, fixed focal point, reversible camera\n`);
-}
-
-async function checkContinuousZoom(cdp, name, mobile) {
-  const gpuBaseline = await cdp.evaluate(`({ draws: window.__terrainGpuStats.draws,
-    uploads: window.__terrainGpuStats.storage.length,
-    tileScales: window.__terrainGpuStats.tileWorldSizes.length,
-    detailBlends: window.__terrainGpuStats.detailBlends.length,
-    arrayMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'array').length })`);
-  await cdp.evaluate('window.OrbitalDebug.focusHome()');
-  await settle(cdp, `${name} home camera settles before continuous zoom`);
-  await cdp.evaluate('window.OrbitalDebug.setPause(true)');
-  const homePoint = await cdp.evaluate('window.OrbitalDebug.getHomeScreenPosition()');
-  await checkBoundary(cdp, name, mobile, 'galaxy', 'system', homePoint);
-  await cdp.evaluate('window.OrbitalDebug.enterSystem()');
-  await settle(cdp, `${name} system camera settles before continuous zoom`);
-  const gas = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.kind === 'gazeuse' && p.x > 40 && p.x < innerWidth - 40 && p.y > 210 && p.y < innerHeight - 150)`);
-  assert.ok(gas, `${name} gas planet visible for surface guard test`);
-  const beforeGas = await cdp.evaluate(cameraExpression);
-  await cdp.tapAt({ x: gas.x, y: gas.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, gas.id, `${name} gas planet can be selected`);
-  await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} gas planet has no enterable terrain surface`);
-  assert.deepEqual(await cdp.evaluate(cameraExpression), beforeGas, `${name} gas surface request leaves camera fixed`);
-  await cdp.click('#close-inspector');
-  const startingPlanetId = await cdp.evaluate(startingPlanetIdExpression);
-  const planet = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify(startingPlanetId)} && p.x > 40 && p.x < innerWidth - 40 && p.y > 210 && p.y < innerHeight - 150)`);
-  assert.ok(planet, `${name} starting planet visible for surface threshold`);
-  const planetPoint = { x: planet.x, y: planet.y };
-  await checkBoundary(cdp, name, mobile, 'system', 'surface', planetPoint);
-  await cdp.tapAt(planetPoint, mobile);
-  await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
-  await settle(cdp, `${name} surface camera settles before close terrain zoom`);
-  await cdp.until('window.OrbitalDebug.getSurfaceDetailMetrics()',
-    `${name} background worker finishes the high-resolution terrain`, 15000);
-  const detail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
-  assert.ok(detail, `${name} active surface builds its high-resolution terrain`);
-  const gpuReady = `window.__terrainGpuStats.draws > ${gpuBaseline.draws} &&
-    window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}).some(upload =>
-      upload.width === ${detail.detailWidth} && upload.height === ${detail.detailHeight} && upload.depth === 3 && upload.levels > 1)`;
-  await cdp.until(gpuReady, `${name} WebGL uploads and draws the high-resolution material masks`, 15000);
-  const atlas = await cdp.evaluate(`({ scale: window.OrbitConfig.terrain.materialTextureResolutionScale,
-    uploads: window.__terrainGpuStats.storage.slice(${gpuBaseline.uploads}) })`);
-  const expectedAtlasSize = Math.round(1254 * atlas.scale);
-  assert.ok(atlas.uploads.some(upload => upload.width === expectedAtlasSize &&
-    upload.height === expectedAtlasSize && upload.depth === 9),
-  `${name} max-zoom biome images use one quarter of their source width and height`);
-  const initialMix = await cdp.evaluate(`({ zoom: window.OrbitalDebug.getSurfaceDetailMetrics().surfaceZoom,
-    start: window.OrbitConfig.terrain.materialTextureDetailBlendStartZoom,
-    blends: window.__terrainGpuStats.detailBlends.slice(${gpuBaseline.detailBlends}) })`);
-  if (initialMix.zoom <= initialMix.start) {
-    assert.ok(initialMix.blends.some(value => value < .001),
-      `${name} keeps the baked map unchanged while the planet is viewed wide`);
-  }
-  const detailFactor = await cdp.evaluate('window.OrbitConfig.terrain.renderDetailFactor');
-  assert.equal(detail.detailWidth, detail.baseWidth * detailFactor,
-    `${name} maximum terrain image uses the configured horizontal samples`);
-  assert.equal(detail.detailHeight, detail.baseHeight * detailFactor,
-    `${name} maximum terrain image uses the configured vertical samples`);
-  const pixelRatio = await cdp.evaluate('window.OrbitConfig.terrain.renderTexturePixelRatio');
-  assert.equal(detail.textureWidth, detail.logicalWidth * pixelRatio, `${name} high-resolution texture keeps the established map extent`);
-  assert.equal(detail.textureHeight, detail.logicalHeight * pixelRatio, `${name} high-resolution texture keeps the established map extent`);
-  await zoomStep(cdp, 2, { x: planetPoint.x, y: planetPoint.y });
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} close terrain keeps surface detail`);
-  const highDetailFactor = Math.max(1.01, 2.6 / (detail.surfaceZoom * 2));
-  await zoomStep(cdp, highDetailFactor, { x: planetPoint.x, y: planetPoint.y });
-  const zoomedDetail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
-  assert.ok(zoomedDetail.surfaceZoom >= 2, `${name} screenshot reaches the high-resolution terrain renderer`);
-  const detailMix = await cdp.evaluate(`({ current: window.__terrainGpuStats.detailBlends.at(-1),
-    maximum: window.OrbitConfig.terrain.materialTextureMaxBlend })`);
-  assert.ok(detailMix.current >= detailMix.maximum * .95,
-    `${name} brings in the alternate texture motifs at close zoom`);
-  await cdp.until(`window.__terrainGpuStats.tileWorldSizes.length > ${gpuBaseline.tileScales}`,
-    `${name} records a stable world-space material scale`);
-  const maxTileWorldSize = await cdp.evaluate('window.__terrainGpuStats.tileWorldSizes.at(-1)');
-  const mipmapState = await cdp.evaluate(`({
-    arrayMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'array').length,
-    textureMipmaps: window.__terrainGpuStats.mipmaps.filter(target => target === 'texture').length,
-    mipFilter: window.__terrainGpuStats.mipmapFilter,
-    minFilters: window.__terrainGpuStats.minFilters
-  })`);
-  assert.ok(mipmapState.arrayMipmaps > gpuBaseline.arrayMipmaps,
-    `${name} builds mip levels for the high-resolution material masks`);
-  assert.ok(mipmapState.textureMipmaps > 0,
-    `${name} builds mip levels for the high-resolution base color`);
-  assert.ok(mipmapState.minFilters.some(filter => filter.value === mipmapState.mipFilter),
-    `${name} uses trilinear mip filtering to blend terrain detail during zoom`);
-
-  // Keep the planet large enough to stay visible in system view, then confirm
-  // the retained high-resolution surface keeps drawing at its minified mip LOD.
-  const previewZoom = 90 / zoomedDetail.logicalHeight;
-  const drawsBeforePreview = await cdp.evaluate('window.__terrainGpuStats.draws');
-  await zoomStep(cdp, previewZoom / zoomedDetail.surfaceZoom, { x: planetPoint.x, y: planetPoint.y });
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} zooms out into the system preview`);
-  await cdp.until(`window.__terrainGpuStats.draws > ${drawsBeforePreview}`,
-    `${name} keeps rendering the detailed texture in the system preview`);
-  const previewState = await cdp.evaluate(`({ detail: window.OrbitalDebug.getSurfaceDetailMetrics(),
-    tileWorldSize: window.__terrainGpuStats.tileWorldSizes.at(-1) })`);
-  assert.ok(previewState.detail, `${name} retains high-resolution terrain while its preview remains visible`);
-  assert.ok(Math.abs(previewState.tileWorldSize - maxTileWorldSize) < 1e-6,
-    `${name} texture remains anchored at the same world scale through zoom out`);
-  await cdp.screenshot(`${name}-terrain-transition.png`);
-  await zoomStep(cdp, zoomedDetail.surfaceZoom / previewZoom, { x: planetPoint.x, y: planetPoint.y });
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} zooming back re-enters the same surface`);
-  await cdp.screenshot(`${name}-terrain-close.png`);
-  await checkTerrainZoomLimit(cdp, name);
-  assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
-    `${name} orbital rendezvous API is removed`);
-  assert.equal(await cdp.evaluate('/rendez[ -]?vous/i.test(document.body.textContent)'), false,
-    `${name} orbital rendezvous interface is removed`);
-}
-
-async function checkSystemVariety(cdp, name, mobile) {
-  await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
-  await cdp.evaluate('document.querySelector("#reveal-toggle").checked = true; document.querySelector("#reveal-toggle").dispatchEvent(new Event("change"))');
-  const scenarios = [
-    ['empty', 'model.planets.length === 0 && model.debris.length === 0 && !model.wreck'],
-    ['single', 'model.planets.length === 1'],
-    ['gas-only', 'model.planets.length > 0 && model.planets.every(p => p.kind === "gazeuse")'],
-    ['rich', 'model.planets.length >= 8 && model.debris.length >= 2']
-  ];
-  for (const [scenario, predicate] of scenarios) {
-    await cdp.click('#overview-button');
-    await settle(cdp, `${name} galaxy overview before ${scenario}`);
-    const target = await cdp.evaluate(`(() => {
-      const debug = window.OrbitalDebug, state = debug.getState();
-      const galaxy = window.OrbitWorld.createGalaxy(state.seed), camera = debug.getCamera();
-      for (const star of galaxy.systems) {
-        const point = window.OrbitCamera.project(star, camera, {width:innerWidth,height:innerHeight});
-        if (point.x < 60 || point.x > innerWidth-60 || point.y < 270 || point.y > innerHeight-230) continue;
-        const model = window.OrbitWorld.createSystem(state.seed, star.id, galaxy);
-        if (${predicate}) return {id:star.id, point, count:model.planets.length};
-      }
-      return null;
-    })()`);
-    assert.ok(target, `${name} ${scenario} system is available for real selection`);
-    await cdp.evaluate(`window.OrbitalDebug.zoomAt(8, ${target.point.x}, ${target.point.y})`);
-    await cdp.tapAt(target.point, mobile);
-    assert.equal((await cdp.evaluate(stateExpression)).selectedId, target.id, `${name} ${scenario} star tap selects its system`);
-    if (scenario === 'empty') assert.match(await cdp.evaluate('document.querySelector("#selection-info").textContent'), /Aucune planète/);
-    await cdp.click('#enter-button');
-    await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} enters ${scenario}`);
-    assert.equal((await cdp.evaluate(stateExpression)).planetCount, target.count);
-    await cdp.click('#overview-button');
-    await settle(cdp, `${name} ${scenario} system overview`);
-    assert.equal((await cdp.evaluate(stateExpression)).level, 'system');
-    await cdp.click('#home-button');
-    await settle(cdp, `${name} ${scenario} recenter`);
-    const camera = await cdp.evaluate(cameraExpression);
-    assert.ok(Object.values(camera).every(Number.isFinite));
-    if (scenario === 'empty' || scenario === 'gas-only') {
-      await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
-      assert.equal((await cdp.evaluate(stateExpression)).level, 'system');
-      assert.deepEqual(await cdp.evaluate(cameraExpression), camera);
-    }
-    await cdp.screenshot(`${name}-worldgen-${scenario}.png`);
-    await cdp.click('#back-button');
-    await cdp.until('window.OrbitalDebug.getState().level === "galaxy" && !window.OrbitalDebug.getState().moving', `${name} leaves ${scenario}`);
-  }
-  process.stdout.write(`PASS ${name}: empty, single-planet, gas-only and rich systems, overview and return\n`);
-}
-
-async function checkDeveloperDepositSettings(cdp, name) {
-  await cdp.click('#menu-button');
-  await cdp.click('#developer-tools-button');
-  await cdp.until('document.querySelector("#developer-dialog").open', `${name} developer settings open`);
-  const controls = await cdp.evaluate(`(() => ({
-    size: document.querySelector('#developer-setting-depositMarkerSizePercent')?.value,
-    iron: document.querySelector('#developer-setting-depositIronColor')?.value,
-    oil: document.querySelector('#developer-setting-depositOilColor')?.value,
-    infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked,
-    showSurfaceRoads: document.querySelector('#developer-setting-showSurfaceRoads')?.checked,
-    showSurfaceHouses: document.querySelector('#developer-setting-showSurfaceHouses')?.checked
-  }))()`);
-  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43', infiniteMinerals: false,
-    showSurfaceRoads: true, showSurfaceHouses: true },
-    `${name} developer panel exposes deposit and visibility controls with roads and houses enabled by default`);
-
-  const visibility = await cdp.evaluate(`(() => {
-    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
-      const input = document.querySelector('#developer-setting-' + id);
-      input.checked = false; input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const hidden = ['showSurfaceRoads', 'showSurfaceHouses'].map(id => window.OrbitDeveloperSettings.get(id));
-    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
-      const input = document.querySelector('#developer-setting-' + id);
-      input.checked = true; input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    return { hidden, restored: ['showSurfaceRoads', 'showSurfaceHouses']
-      .map(id => window.OrbitDeveloperSettings.get(id)) };
-  })()`);
-  assert.deepEqual(visibility, { hidden: [false, false], restored: [true, true] },
-    `${name} road and house visibility settings apply and restore immediately`);
-
-  const infiniteMinerals = await cdp.evaluate(`(() => {
-    const setting = document.querySelector('#developer-setting-infiniteMinerals');
-    setting.checked = true; setting.dispatchEvent(new Event('input', { bubbles: true }));
-    const stock = {};
-    const cost = { iron: 35, copper: 16, silicon: 8, carbon: 2 };
-    const missing = window.OrbitInventory.missing(stock, cost);
-    const consumed = window.OrbitInventory.consume(stock, cost);
-    return { enabled: window.OrbitDeveloperSettings.get('infiniteMinerals'), missing,
-      consumed, stock, waterIsInfinite: window.OrbitInventory.isInfinite('water') };
-  })()`);
-  assert.deepEqual(infiniteMinerals, { enabled: true, missing: [], consumed: true,
-    stock: {}, waterIsInfinite: true }, `${name} prototype colony reserve covers resource costs`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
-    `${name} prototype colony reserve display`);
-
-  const scalesWithZoom = await cdp.evaluate(`(() => ({
-    zoomedOut: window.OrbitalDebug.getResourceRenderStyle('iron', 40, .5),
-    zoomedIn: window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2)
-  }))()`);
-  assert.deepEqual(scalesWithZoom, {
-    zoomedOut: { radiusWorldKm: 54, radiusPx: 27, hatchColor: '#ffdb45f2' },
-    zoomedIn: { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' }
-  }, `${name} deposit map size stays fixed while its screen size follows the zoom`);
-
-  const updated = await cdp.evaluate(`(() => {
-    const size = document.querySelector('#developer-setting-depositMarkerSizePercent');
-    size.value = '150'; size.dispatchEvent(new Event('input', { bubbles: true }));
-    const color = document.querySelector('#developer-setting-depositIronColor');
-    color.value = '#7c2eea'; color.dispatchEvent(new Event('input', { bubbles: true }));
-    return window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2);
-  })()`);
-  assert.deepEqual(updated, { radiusWorldKm: 81, radiusPx: 162, hatchColor: '#7c2eeaf2' },
-    `${name} deposit size and color settings update their map appearance immediately`);
-
-  await cdp.click('#developer-reset');
-  assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron", 40, 2)'),
-    { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' },
-    `${name} reset restores the default deposit appearance`);
-  assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
-    `${name} developer reset disables infinite minerals`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
-    `${name} colony reserve display remains active after developer reset`);
-  await cdp.click('#developer-tools-close');
-}
-
-async function runViewport(cdp, viewport, runtimeErrors) {
-  const { name, width, height, mobile } = viewport;
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+async function enterSurface(cdp, viewport, name) {
+  const { width, height, mobile } = viewport;
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile,
+    screenWidth: width, screenHeight: height });
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: 2 });
-  const navigation = await cdp.send('Page.navigate', { url: BASE_URL });
-  if (navigation.errorText) throw new Error(`Browser navigation blocked: ${navigation.errorText} (${BASE_URL})`);
-  await cdp.until('Boolean(window.OrbitalDebug && document.querySelector("#universe"))', `${name} application ready`, 20000);
-  await cdp.until('window.OrbitalDebug.getState().systemCount > 0', `${name} galaxy generation`);
-  if (await cdp.evaluate(menuVisibleExpression)) await cdp.click('#continue-button');
-  await cdp.until(`!(${menuVisibleExpression})`, `${name} initial menu closed`);
-  await checkDeveloperDepositSettings(cdp, name);
-  await checkLayout(cdp, width, height);
-  if (mobile) await cdp.screenshot('mobile-startup.png');
-
-  await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
-  await cdp.evaluate('document.querySelector("#reveal-toggle").checked = false; document.querySelector("#reveal-toggle").dispatchEvent(new Event("change"))');
-  await cdp.evaluate('window.OrbitalDebug.focusHome()');
-  await settle(cdp, `${name} home camera settles`);
-  const initial = await cdp.evaluate(stateExpression);
-  assert.equal(initial.level, 'galaxy', `${name} starts in galaxy`);
-  assert.ok(initial.systemCount >= 100, `${name} galaxy contains enough systems`);
-  assert.ok(initial.discoveredCount > 0 && initial.discoveredCount < initial.systemCount, `${name} has explored and unexplored systems`);
-  assert.ok(initial.selectedId !== null && initial.selectedId !== undefined, `${name} home system selected`);
-  await cdp.screenshot(`${name}-galaxy.png`);
-
-  await cdp.click('#close-inspector');
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, null, `${name} selection closes`);
-  await cdp.click('#overview-button');
-  await settle(cdp, `${name} overview camera settles`);
-  await cdp.screenshot(`${name}-galaxy-overview.png`);
-  await cdp.evaluate('window.OrbitalDebug.focusHome()');
-  await settle(cdp, `${name} home camera settles after overview`);
-  await cdp.click('#close-inspector');
-  if (mobile) {
-    const beforeZoom = (await cdp.evaluate(stateExpression)).zoom;
-    const y = height * 0.48;
-    const touches = (spread) => [{ x: width / 2 - spread, y, id: 1 }, { x: width / 2 + spread, y, id: 2 }];
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touches(40) });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: touches(58) });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await sleep(200);
-    assert.ok((await cdp.evaluate(stateExpression)).zoom > beforeZoom * 1.1, 'Mobile two-finger pinch zooms');
-    const beforePan = await cdp.evaluate('window.OrbitalDebug.getHomeScreenPosition()');
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: width / 2, y: height * .55, id: 1 }] });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: width / 2, y: height * .55 + 45, id: 1 }] });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    const afterPan = await cdp.evaluate('window.OrbitalDebug.getHomeScreenPosition()');
-    assert.ok(afterPan.y - beforePan.y > 30, 'Mobile one-finger drag pans the map');
-    await cdp.evaluate('window.OrbitalDebug.focusHome()');
-    await settle(cdp, `${name} home camera settles after gestures`);
-    await cdp.click('#close-inspector');
+  await cdp.send('Page.navigate', { url: BASE_URL });
+  await cdp.until('Boolean(window.OrbitalDebug && document.querySelector("#universe"))', `${name} application boot`);
+  if (await cdp.evaluate('document.querySelector("#menu-dialog").open')) {
+    await cdp.click('#continue-button');
+    await cdp.until('!document.querySelector("#menu-dialog").open', `${name} initial menu closes`);
   }
-  const homePoint = await cdp.evaluate('window.OrbitalDebug.getHomeScreenPosition()');
-  await cdp.tapAt(homePoint, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, initial.homeId, `${name} real star tap selects home`);
+  const seed = mobile ? 'GLOBE-MOBILE-SMOKE' : 'GLOBE-DESKTOP-SMOKE';
+  await cdp.evaluate(`window.OrbitalDebug.regenerate(${JSON.stringify(seed)}); window.OrbitalDebug.focusHome(); window.OrbitalDebug.setPause(true)`);
+  await cdp.until('window.OrbitalDebug.getState().level === "galaxy" && !window.OrbitalDebug.getState().moving', `${name} home camera`);
   await cdp.click('#enter-button');
-  await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} system navigation`);
-  await cdp.evaluate('window.OrbitalDebug.setPause(true)');
-  const system = await cdp.evaluate(stateExpression);
-  assert.ok(system.planetCount > 0, `${name} system contains planets`);
-  await checkLayout(cdp, width, height);
-  await cdp.screenshot(`${name}-system.png`);
-
-  const arkPoint = await cdp.evaluate('window.OrbitalDebug.getArkScreenPosition()');
-  assert.ok(arkPoint && arkPoint.x > 18 && arkPoint.x < width - 18 && arkPoint.y > 170 && arkPoint.y < height - 120,
-    `${name} primary Ark is visible and reachable independently in system view`);
-  await cdp.tapAt({ x: arkPoint.x, y: arkPoint.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, arkPoint.id, `${name} real tap selects the Ark`);
-  assert.equal(await cdp.evaluate('document.querySelector("#orbital-hub-logistics").hidden'), false,
-    `${name} Ark selection opens its logistics panel`);
-  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#orbital-hub-logistics .logistics-card > strong")].map(item => item.textContent)'),
-    ['QUAIS', 'CORE', 'STOCK · ∞', 'ÉNERGIE', 'FLUX ENTRANTS'], `${name} hub panel shows the five V1 cards`);
-  assert.equal(await cdp.evaluate('document.querySelector("#enter-button").hidden'), true,
-    `${name} Ark cannot be mistaken for a planet surface`);
-  await cdp.screenshot(`${name}-ark-hub.png`);
-  await cdp.click('#close-inspector');
-
-  const startingPlanetId = await cdp.evaluate(startingPlanetIdExpression);
-  const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify(startingPlanetId)} && p.x > 35 && p.x < innerWidth - 35 && p.y > 245 && p.y < innerHeight - 145)`);
-  assert.ok(planetPoint, `${name} starting planet can be tapped in the viewport`);
-  await cdp.tapAt({ x: planetPoint.x, y: planetPoint.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, planetPoint.id, `${name} real planet tap selects planet`);
-  await cdp.click('#enter-button');
-  await cdp.until('["surface", "planet"].includes(window.OrbitalDebug.getState().level) && !window.OrbitalDebug.getState().moving', `${name} surface navigation`);
-  await checkLayout(cdp, width, height);
-  const resourceMetrics = await cdp.evaluate('window.OrbitalDebug.getSurfaceResourceMetrics()');
-  assert.ok(resourceMetrics.length >= 4 && resourceMetrics.length <= 5,
-    `${name} starting surface contains four or five resource fields`);
-  assert.deepEqual(resourceMetrics.filter(resource => !resource.marine).map(resource => resource.id).sort(),
-    ['carbon', 'copper', 'iron', 'silicon'], `${name} starting surface keeps all four basic mineral deposits`);
-  assert.ok(resourceMetrics.every(resource => resource.radius > 0), `${name} resource fields have visible areas`);
-  await cdp.screenshot(`${name}-surface.png`);
-
-  const fixture = await cdp.evaluate('window.OrbitalDebug.createOrbitalLogisticsFixture()');
-  const sourcePoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(fixture.sourceId)})`);
-  await cdp.tapAt({ x: sourcePoint.x, y: sourcePoint.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, fixture.sourceId, `${name} source factory can be selected`);
-  await cdp.click('#factory-edit-button');
-  await cdp.until('!document.querySelector("#factory-editor").hidden', `${name} source Dock editor opens`);
-  const dockOption = await cdp.evaluate(`(() => {
-    const select = document.querySelector('#factory-nodes [data-dock-destination]');
-    return { exists: Boolean(select), disabled: select?.disabled,
-      options: [...(select?.options || [])].map(option => option.value) };
-  })()`);
-  assert.equal(dockOption.exists, true, `${name} output Dock exposes a destination selector`);
-  assert.ok(dockOption.options.includes(fixture.platformId), `${name} Dock lists the built launch platform on its planet`);
-  await cdp.evaluate(`(() => {
-    const select = document.querySelector('#factory-nodes [data-dock-destination]');
-    select.value = ${JSON.stringify(fixture.platformId)};
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.sourceId)}).dockDestinations.raw_iron === ${JSON.stringify(fixture.platformId)}`,
-    `${name} Dock saves the chosen destination`);
-  await cdp.click('#factory-editor-close');
-  await cdp.until('document.querySelector("#factory-editor").hidden', `${name} source Dock editor closes`);
-
-  const platformPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(fixture.platformId)})`);
-  assert.ok(platformPoint && platformPoint.x > 12 && platformPoint.x < width - 12 && platformPoint.y > 100 && platformPoint.y < height - 100,
-    `${name} launch platform can be selected on the actual planetary map`);
-  await cdp.tapAt({ x: platformPoint.x, y: platformPoint.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, fixture.platformId, `${name} real tap selects the launch platform`);
-  assert.equal(await cdp.evaluate('document.querySelector("#platform-logistics").hidden'), false,
-    `${name} launch platform opens its dedicated panel`);
-  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#platform-logistics .logistics-card > strong")].map(item => item.textContent)'),
-    ['RÉCEPTION', 'LANCEMENT'], `${name} platform shows reception and launch status only`);
-  assert.equal(await cdp.evaluate('Boolean(document.querySelector("#platform-export-data"))'), false,
-    `${name} export destination is no longer configured on the platform`);
-
-  await cdp.evaluate('window.OrbitalDebug.setPause(false)');
-  await cdp.until(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.platformId)}).launchReceivedTotal.raw_iron === 8`,
-    `${name} connected Dock stock reaches the platform`);
-  const sourceInventory = await cdp.evaluate(`window.OrbitalDebug.getOrbitalBuildingState(${JSON.stringify(fixture.sourceId)})`);
-  assert.equal(sourceInventory.inventory.iron, 77, `${name} unrelated factory inventory remains untouched`);
-  assert.deepEqual(sourceInventory.dockStock, {}, `${name} connected Dock stock is transferred locally`);
-
-  await cdp.until('window.OrbitalDebug.getOrbitalLogistics().transit.some(lot => lot.resourceId === "raw_iron")',
-    `${name} whole iron units enter spatial transit`, 15000);
-  const cargo = await cdp.evaluate('window.OrbitalDebug.getOrbitalLogistics().transit.find(lot => lot.resourceId === "raw_iron")');
-  assert.ok(Number.isInteger(cargo.amount) && cargo.amount > 0, `${name} cargo contains only whole units`);
-  assert.ok(cargo.arrivalTime > cargo.departureTime, `${name} cargo has a scheduled arrival time`);
-  await cdp.evaluate('window.OrbitalDebug.setPause(true)');
-  await cdp.screenshot(`${name}-launch-platform.png`);
-
-  await cdp.evaluate('window.OrbitalDebug.back()');
-  await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} return to system`);
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} surface returns to system`);
-  const arkArrivalPoint = await cdp.evaluate('window.OrbitalDebug.getArkScreenPosition()');
-  await cdp.tapAt({ x: arkArrivalPoint.x, y: arkArrivalPoint.y }, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).selectedId, arkArrivalPoint.id, `${name} Ark remains selectable after a launch`);
-  const inTransit = await cdp.evaluate('document.querySelector("#hub-incoming-data").textContent');
-  assert.match(inTransit, /Transit/);
-  assert.match(inTransit, /Entrée/);
-  assert.match(inTransit, /Fer brut/);
-  const firstArrival = cargo.arrivalTime;
-  await cdp.evaluate(`window.OrbitalDebug.advanceOrbitalSimulationTo(${firstArrival})`);
-  const storedAtHub = await cdp.evaluate(`window.OrbitalDebug.getOrbitalLogistics().hubs[${JSON.stringify(startingPlanetId.split(':p-')[0])}].stock.raw_iron`);
-  assert.ok(storedAtHub >= cargo.amount, `${name} whole iron stock arrives at the exact scheduled simulation time`);
-  await cdp.until('document.querySelector("#hub-incoming-data").textContent.includes("Stock")', `${name} Hub stock display refreshes`);
-  await cdp.screenshot(`${name}-ark-arrival.png`);
-
-  await cdp.evaluate('window.OrbitalDebug.back()');
-  await cdp.until('window.OrbitalDebug.getState().level === "galaxy" && !window.OrbitalDebug.getState().moving', `${name} return to galaxy`);
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'galaxy', `${name} system returns to galaxy`);
-
-  await checkContinuousZoom(cdp, name, mobile);
-
-  await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
-  await cdp.evaluate('window.OrbitalDebug.focusHome()');
-  await settle(cdp, `${name} repeated seed camera settles`);
-  const repeated = await cdp.evaluate(stateExpression);
-  for (const key of ['seed', 'selectedId', 'systemCount', 'discoveredCount']) {
-    assert.equal(repeated[key], initial[key], `${name} seed reproduces ${key}`);
+  try {
+    await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} system view`);
+  } catch (error) {
+    const state = await cdp.evaluate(`(() => { const button = document.querySelector('#enter-button'), box = button.getBoundingClientRect();
+      return { state: OrbitalDebug.getState(), enterHidden: button.hidden, inspectorHidden: document.querySelector('#inspector').hidden,
+        name: document.querySelector('#selection-name').textContent, box: [box.x,box.y,box.width,box.height],
+        hit: document.elementFromPoint(box.x+box.width/2,box.y+box.height/2)?.id,
+        target: OrbitalDebug.getCamera() } })()`);
+    throw new Error(`${error.message}; after system command: ${JSON.stringify(state)}`);
   }
-  await cdp.evaluate('window.OrbitalDebug.regenerate(517823)');
-  const different = await cdp.evaluate(stateExpression);
-  assert.notEqual(String(different.seed), String(initial.seed), `${name} accepts a different seed`);
-
-  await cdp.evaluate('window.OrbitalDebug.regenerate(424242)');
-  await cdp.evaluate('window.OrbitalDebug.focusHome()');
-  await settle(cdp, `${name} camera settles before probe test`);
-  const scanPoint = await cdp.evaluate(`(() => {
+  const planet = await cdp.evaluate(`(() => {
     const state = window.OrbitalDebug.getState();
     const galaxy = window.OrbitWorld.createGalaxy(state.seed);
-    const home = galaxy.systems.find(s => s.id === galaxy.homeId);
-    const center = window.OrbitalDebug.getHomeScreenPosition();
-    return galaxy.systems.filter(s => !s.discovered && Math.hypot(s.x-home.x,s.y-home.y) > 620)
-      .map(s => ({ x: center.x + (s.x-home.x)*state.zoom, y: center.y + (s.y-home.y)*state.zoom }))
-      .find(p => p.x > 25 && p.x < innerWidth-25 && p.y > 250 && p.y < innerHeight-155);
+    const model = window.OrbitWorld.createSystem(state.seed, state.homeId, galaxy);
+    const starting = window.OrbitalDebug.getPlanetScreenPositions().find(point => point.id === model.startingPlanetId);
+    return starting && starting.x > 42 && starting.x < innerWidth - 42 && starting.y > 105 && starting.y < innerHeight - 85
+      ? starting : window.OrbitalDebug.getPlanetScreenPositions()
+        .filter(point => point.kind !== 'gazeuse' && point.x > 42 && point.x < innerWidth - 42 &&
+          point.y > 105 && point.y < innerHeight - 85)
+        .sort((a,b) => Math.hypot(a.x-innerWidth/2,a.y-innerHeight/2)-Math.hypot(b.x-innerWidth/2,b.y-innerHeight/2))[0];
   })()`);
-  assert.ok(scanPoint, `${name} an unexplored sector is reachable on screen`);
-  const beforeScan = (await cdp.evaluate(stateExpression)).discoveredCount;
-  await cdp.click('#scan-button');
-  assert.equal((await cdp.evaluate(stateExpression)).tool, 'scan', `${name} scan tool activates`);
-  await cdp.tapAt(scanPoint, mobile);
-  assert.equal((await cdp.evaluate(stateExpression)).missions, 1, `${name} tapping the map launches a probe`);
-  await cdp.until('window.OrbitalDebug.getState().missions === 0', `${name} probe completes`, 6000);
-  assert.ok((await cdp.evaluate(stateExpression)).discoveredCount > beforeScan, `${name} probe discovers systems`);
+  assert.ok(planet, `${name} has a tappable solid planet`);
+  await cdp.tap(planet, mobile);
+  assert.equal((await cdp.evaluate('window.OrbitalDebug.getState().selectedId')), planet.id,
+    `${name} real tap selects a planet in the system`);
+  await cdp.click('#enter-button');
+  await cdp.until('window.OrbitalDebug.getState().level === "surface" && window.OrbitalDebug.getPlanetGlobeMetrics().transition === null',
+    `${name} system-to-globe transition`, 30000);
+  await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.vertices > 0', `${name} globe mesh upload`);
+  const metrics = await cdp.evaluate(`({ globe: window.OrbitalDebug.getPlanetGlobeMetrics(),
+    webgl: document.querySelector('#planet-globe').style.display,
+    overlay: document.querySelector('#planet-globe-overlay').style.display,
+    error: document.querySelector('#planet-globe-error').hidden,
+    viewport: [innerWidth, innerHeight], overflow: document.documentElement.scrollWidth-innerWidth })`);
+  assert.equal(metrics.globe.available, true, `${name} WebGL2 context is available`);
+  assert.equal(metrics.webgl, 'block', `${name} 3D canvas is visible`);
+  assert.equal(metrics.overlay, 'block', `${name} projected cartographic overlay is visible`);
+  assert.equal(metrics.error, true, `${name} WebGL2 fallback message is hidden when rendering succeeds`);
+  assert.ok(metrics.globe.renderer.vertices >= 18000, `${name} globe reuses the expected mobile mesh resolution`);
+  assert.equal(metrics.overflow <= 1, true, `${name} layout has no horizontal overflow`);
+  return { planet, mobile, width, height };
+}
 
-  await cdp.click('#menu-button');
-  await cdp.until(menuVisibleExpression, `${name} menu opens`);
-  if (mobile) await cdp.screenshot('mobile-menu.png');
-  await cdp.evaluate(`(() => {
-    const input = document.querySelector('#seed-input');
-    if (!input) throw new Error('Missing seed input');
-    input.value = '883401';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  })()`);
-  await cdp.click('#generate-button');
-  await cdp.until('String(window.OrbitalDebug.getState().seed) === "883401"', `${name} menu generates requested seed`);
-  if (await cdp.evaluate(menuVisibleExpression)) await cdp.click('#continue-button');
-  await cdp.until(`!(${menuVisibleExpression})`, `${name} continue closes menu`);
-  assert.equal((await cdp.evaluate(stateExpression)).level, 'galaxy', `${name} regenerate returns to galaxy`);
-  await checkLayout(cdp, width, height);
-  await checkSystemVariety(cdp, name, mobile);
-  assert.deepEqual(runtimeErrors, [], `${name} has no JavaScript or console errors`);
-  process.stdout.write(`PASS ${name}: galaxy → system → surface → back, seeds, menu, layout\n`);
+async function placeStorage(cdp, mobile, spacing = 0, nearBuildingId = null) {
+  await cdp.click('#build-button');
+  await cdp.until('!document.querySelector("#build-menu").hidden', 'building catalogue opens');
+  await cdp.click('#build-options [data-building-type="storage"]');
+  await cdp.until('window.OrbitalDebug.getState().tool === "build"', 'storage placement mode activates');
+  const position = await cdp.evaluate(`window.OrbitalDebug.findBuildableScreenPosition('storage', ${spacing}, ${JSON.stringify(nearBuildingId)}, 320)`);
+  assert.ok(position, 'a valid visible terrain position is available for a building');
+  const before = (await cdp.evaluate('window.OrbitalDebug.getState().buildingCount'));
+  await cdp.tap({ x: position.x, y: position.y }, mobile);
+  try {
+    await cdp.until(`window.OrbitalDebug.getState().buildingCount === ${before + 1}`, 'building placement by a real tap');
+  } catch (error) {
+    const diagnostics = await cdp.evaluate(`({ state: window.OrbitalDebug.getState(), toast: document.querySelector('#toast').textContent,
+      inspector: document.querySelector('#inspector').hidden, position: ${JSON.stringify(position)},
+      canvas: (() => { const r = document.querySelector('#universe').getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; })() })`);
+    throw new Error(`${error.message}; placement diagnostics: ${JSON.stringify(diagnostics)}`);
+  }
+  const buildings = await cdp.evaluate('window.OrbitalDebug.getSurfaceBuildings()');
+  return buildings[buildings.length - 1];
+}
+
+async function runViewport(cdp, viewport, errors) {
+  const { name, mobile, width, height } = viewport;
+  await enterSurface(cdp, viewport, name);
+  await cdp.screenshot(`${name}-planet-globe.png`);
+  const center = { x: width / 2, y: height / 2 };
+  const beforeRotate = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera');
+  await cdp.drag({ x: center.x - 44, y: center.y }, { x: center.x + 50, y: center.y + 26 }, mobile);
+  const afterRotate = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera');
+  assert.ok(Math.abs(afterRotate.yaw - beforeRotate.yaw) > .15, `${name} real ${mobile ? 'touch drag' : 'mouse drag'} rotates the globe`);
+  if (mobile) {
+    const beforePinch = afterRotate.zoom;
+    await cdp.pinch(center, 30, 43);
+    const afterPinch = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom');
+    assert.ok(afterPinch > beforePinch * 1.1, `${name} real pinch smoothly zooms in`);
+    await cdp.pinch(center, 42, 28);
+    const afterPinchOut = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom');
+    assert.ok(afterPinchOut < afterPinch, `${name} real pinch zooms back out`);
+    const beforePostPinchDrag = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.yaw');
+    await cdp.drag({ x: center.x - 36, y: center.y }, { x: center.x + 38, y: center.y - 16 }, true);
+    assert.ok(Math.abs((await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.yaw')) - beforePostPinchDrag) > .12,
+      `${name} one-finger rotation works after pinch`);
+  } else {
+    const beforeWheel = afterRotate.zoom;
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: center.x, y: center.y, deltaX: 0, deltaY: -85 });
+    const afterWheel = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.zoom');
+    assert.ok(afterWheel > beforeWheel, `${name} real wheel zooms the globe`);
+    assert.ok(afterWheel <= 1.3, `${name} wheel respects the short globe zoom range`);
+  }
+
+  const first = await placeStorage(cdp, mobile);
+  let firstPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(first.id)})`);
+  assert.ok(firstPoint?.x, `${name} placed icon is projected on the visible hemisphere`);
+  await cdp.tap(firstPoint, mobile);
+  assert.equal((await cdp.evaluate('window.OrbitalDebug.getState().selectedId')), first.id,
+    `${name} real tap selects its projected building icon`);
+  assert.equal(await cdp.evaluate('document.querySelector("#selection-name").textContent'), 'DÉPÔT',
+    `${name} selected icon opens the normal building description panel`);
+  await cdp.click('#close-inspector');
+  const second = await placeStorage(cdp, mobile, 48, first.id);
+  await cdp.evaluate('window.OrbitalDebug.setPause(false)');
+  try {
+    await cdp.until(`window.OrbitalDebug.getSurfaceBuildings().filter(b => ${JSON.stringify(first.id)} === b.id || ${JSON.stringify(second.id)} === b.id).every(b => b.constructionState === "complete")`,
+      `${name} placed buildings complete`, 20000);
+  } catch (error) {
+    const diagnostics = await cdp.evaluate(`({ state: window.OrbitalDebug.getState(),
+      buildings: window.OrbitalDebug.getSurfaceBuildings().filter(b => b.id === ${JSON.stringify(first.id)} || b.id === ${JSON.stringify(second.id)}) })`);
+    throw new Error(`${error.message}; construction diagnostics: ${JSON.stringify(diagnostics)}`);
+  }
+
+  firstPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(first.id)})`);
+  const secondPoint = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(second.id)})`);
+  assert.ok(firstPoint && secondPoint, `${name} both route endpoints are visible`);
+  await cdp.click('#road-button');
+  await cdp.drag(firstPoint, secondPoint, mobile, 12);
+  const route = await cdp.evaluate(`window.OrbitalDebug.getRoadNetworkMetrics(${JSON.stringify(first.planetId)})`);
+  if (!route.segmentCount) {
+    const diagnostics = await cdp.evaluate(`({ state: window.OrbitalDebug.getState(), toast: document.querySelector('#toast').textContent,
+      buildings: window.OrbitalDebug.getSurfaceBuildings(), first: ${JSON.stringify(firstPoint)}, second: ${JSON.stringify(secondPoint)} })`);
+    await cdp.screenshot(`${name}-route-failed.png`);
+    throw new Error(`${name} road drag produced no segment: ${JSON.stringify(diagnostics)}`);
+  }
+  await cdp.screenshot(`${name}-planet-road.png`);
+
+  const beforeRotateAway = await cdp.evaluate(`window.OrbitalDebug.getPlanetGlobeMetrics().camera.yaw`);
+  let hidden = false;
+  for (let i = 0; i < 5 && !hidden; i += 1) {
+    const x0 = Math.max(22, width / 2 - 155), x1 = Math.min(width - 22, x0 + 205);
+    await cdp.drag({ x: x0, y: center.y }, { x: x1, y: center.y }, mobile, 6);
+    hidden = await cdp.evaluate(`window.OrbitalDebug.getBuildingScreenPosition(${JSON.stringify(first.id)}) === null`);
+  }
+  assert.ok(hidden, `${name} rotating the globe hides a rear-side building marker`);
+  assert.notEqual(await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera.yaw'), beforeRotateAway,
+    `${name} rear-side occlusion follows the actual globe rotation`);
+  await cdp.click('#pan-button');
+  await cdp.tap(center, mobile);
+  assert.notEqual(await cdp.evaluate('window.OrbitalDebug.getState().selectedId'), first.id,
+    `${name} hidden rear-side building cannot be selected through the globe`);
+
+  await cdp.evaluate('window.OrbitalDebug.setPause(true)');
+  const savedBuildings = await cdp.evaluate('window.OrbitalDebug.getSurfaceBuildings().map(b => ({id:b.id,x:b.x,y:b.y}))');
+  await cdp.click('#back-button');
+  await cdp.until('window.OrbitalDebug.getState().level === "system" && !window.OrbitalDebug.getState().moving', `${name} globe exits to system`);
+  const planetPoint = await cdp.evaluate(`window.OrbitalDebug.getPlanetScreenPositions().find(p => p.id === ${JSON.stringify((await cdp.evaluate('window.OrbitalDebug.getState().planetId')))} )`);
+  assert.ok(planetPoint, `${name} selected planet remains in system view`);
+  await cdp.tap(planetPoint, mobile);
+  const reentryState = await cdp.evaluate('window.OrbitalDebug.getState()');
+  assert.equal(reentryState.selectedId, planetPoint.id,
+    `${name} real tap reselects the same planet before re-entry (selected ${reentryState.selectedId})`);
+  await cdp.click('#enter-button');
+  await cdp.until('window.OrbitalDebug.getState().level === "surface" && window.OrbitalDebug.getPlanetGlobeMetrics().transition === null',
+    `${name} returns to the same 3D surface`);
+  const restoredBuildings = await cdp.evaluate('window.OrbitalDebug.getSurfaceBuildings().map(b => ({id:b.id,x:b.x,y:b.y}))');
+  assert.deepEqual(restoredBuildings, savedBuildings, `${name} globe rotation never changes saved building coordinates`);
+  await cdp.screenshot(`${name}-planet-reentry.png`);
+
+  const canLoseContext = await cdp.evaluate(`(() => Boolean(document.querySelector('#planet-globe').getContext('webgl2')?.getExtension('WEBGL_lose_context')) )()`);
+  if (canLoseContext) {
+    await cdp.evaluate(`window.__globeLossExtension = document.querySelector('#planet-globe').getContext('webgl2').getExtension('WEBGL_lose_context'); window.__globeLossExtension.loseContext()`);
+    await cdp.until('window.OrbitalDebug.getPlanetGlobeMetrics().renderer.contextLost', `${name} WebGL context loss event`);
+    await cdp.until('document.querySelector("#planet-globe-error").hidden === false', `${name} visible WebGL context loss status`);
+    assert.equal(await cdp.evaluate('document.querySelector("#planet-globe-error").hidden'), false,
+      `${name} context loss has a visible status message`);
+    await cdp.evaluate('window.__globeLossExtension.restoreContext()');
+    await cdp.until('!window.OrbitalDebug.getPlanetGlobeMetrics().renderer.contextLost && window.OrbitalDebug.getPlanetGlobeMetrics().renderer.vertices > 0',
+      `${name} WebGL context restores the cached mesh`, 12000);
+  }
+  assert.deepEqual(errors, [], `${name} browser has no JavaScript exceptions or console errors`);
+  process.stdout.write(`PASS ${name}: system → globe, controls, placement, selection, route, occlusion, re-entry${canLoseContext ? ', WebGL restore' : ''}\n`);
 }
 
 async function main() {
   await mkdir(ARTIFACTS, { recursive: true });
-  const profile = await mkdtemp(path.join(tmpdir(), 'orbital-browser-'));
-  let chrome;
-  let cdp;
+  const profile = await mkdtemp(path.join(tmpdir(), 'planet-globe-browser-'));
+  let chrome, cdp;
   try {
-    const appUrl = new URL(BASE_URL);
-    if (appUrl.protocol === 'file:') {
-      assert.ok((await stat(fileURLToPath(appUrl))).isFile(), 'Standalone HTML exists');
-    } else {
-      const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(10000) });
-      assert.ok(response.ok, `App server response: ${response.status}`);
-      // Consume the bundle before closing this read-only availability check.
-      // Leaving a large HTTP/1.0 response paused trips Node 24's parser at EOF.
-      await response.arrayBuffer();
-    }
+    const response = await fetch(BASE_URL, { signal: AbortSignal.timeout(10000) });
+    assert.ok(response.ok, `Prototype server response: ${response.status} at ${BASE_URL}`);
+    await response.arrayBuffer();
     chrome = await launchChrome(profile);
     const endpoint = new URL(chrome.url);
     const targetResponse = await fetch(`http://${endpoint.host}/json/new?${encodeURIComponent('about:blank')}`, { method: 'PUT' });
-    assert.ok(targetResponse.ok, 'Chromium created page target');
-    const target = await targetResponse.json();
-    cdp = await CDP.connect(target.webSocketDebuggerUrl);
-    const runtimeErrors = [];
-    const externalRequests = [];
-    cdp.on('Network.requestWillBeSent', ({ request }) => {
-      if (!/^https?:/.test(request.url)) return;
-      if (appUrl.protocol === 'file:' || new URL(request.url).origin !== appUrl.origin) externalRequests.push(request.url);
-    });
-    cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => {
-      runtimeErrors.push(exceptionDetails.exception?.description || exceptionDetails.text);
-    });
+    assert.ok(targetResponse.ok, 'Chromium page target created');
+    cdp = await CDP.connect((await targetResponse.json()).webSocketDebuggerUrl);
+    const errors = [], externalRequests = [];
+    const baseOrigin = new URL(BASE_URL).origin;
+    cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => errors.push(exceptionDetails.exception?.description || exceptionDetails.text));
     cdp.on('Runtime.consoleAPICalled', ({ type, args }) => {
-      if (type === 'error') runtimeErrors.push(args.map((argument) => argument.value ?? argument.description ?? '').join(' '));
+      if (type === 'error') errors.push(args.map(item => item.value ?? item.description ?? '').join(' '));
     });
-    await cdp.send('Runtime.enable');
-    await cdp.send('Page.enable');
-    await cdp.send('Network.enable');
-    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
-      globalThis.__terrainGpuStats = { draws: 0, storage: [], tileWorldSizes: [], detailBlends: [], mipmaps: [], minFilters: [] };
-      const originalGetContext = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function(type, options) {
-        const context = originalGetContext.call(this, type, options);
-        if (type !== 'webgl2' || !context) return context;
-        const stats = globalThis.__terrainGpuStats;
-        stats.mipmapFilter = context.LINEAR_MIPMAP_LINEAR;
-        const originalDrawArrays = context.drawArrays.bind(context);
-        context.drawArrays = (...args) => { stats.draws += 1; return originalDrawArrays(...args); };
-        let tileWorldSizeLocation = null;
-        let detailBlendLocation = null;
-        const originalGetUniformLocation = context.getUniformLocation.bind(context);
-        context.getUniformLocation = (program, name) => {
-          const location = originalGetUniformLocation(program, name);
-          if (name === 'uTileWorldSize') tileWorldSizeLocation = location;
-          if (name === 'uDetailBlend') detailBlendLocation = location;
-          return location;
-        };
-        const originalUniform1f = context.uniform1f.bind(context);
-        context.uniform1f = (location, value) => {
-          if (location === tileWorldSizeLocation) stats.tileWorldSizes.push(value);
-          if (location === detailBlendLocation) stats.detailBlends.push(value);
-          return originalUniform1f(location, value);
-        };
-        const originalTexStorage3D = context.texStorage3D.bind(context);
-        context.texStorage3D = (target, levels, format, width, height, depth) => {
-          stats.storage.push({ width, height, depth, levels });
-          return originalTexStorage3D(target, levels, format, width, height, depth);
-        };
-        const originalGenerateMipmap = context.generateMipmap.bind(context);
-        context.generateMipmap = target => {
-          stats.mipmaps.push(target === context.TEXTURE_2D_ARRAY ? 'array' : 'texture');
-          return originalGenerateMipmap(target);
-        };
-        const originalTexParameteri = context.texParameteri.bind(context);
-        context.texParameteri = (target, pname, value) => {
-          if (pname === context.TEXTURE_MIN_FILTER) {
-            stats.minFilters.push({ target: target === context.TEXTURE_2D_ARRAY ? 'array' : 'texture', value });
-          }
-          return originalTexParameteri(target, pname, value);
-        };
-        return context;
-      };
-    ` });
-    await runViewport(cdp, { name: 'mobile', width: 390, height: 844, mobile: true }, runtimeErrors);
-    if (process.env.ORBITAL_MOBILE_ONLY !== '1') {
-      await runViewport(cdp, { name: 'desktop', width: 1440, height: 900, mobile: false }, runtimeErrors);
-    }
-    assert.deepEqual(externalRequests, [], 'App makes no requests to external network resources');
+    cdp.on('Network.requestWillBeSent', ({ request }) => {
+      if (/^https?:/.test(request.url) && new URL(request.url).origin !== baseOrigin) externalRequests.push(request.url);
+    });
+    await cdp.send('Runtime.enable'); await cdp.send('Page.enable'); await cdp.send('Network.enable');
+    const viewports = [
+      { name: 'desktop', width: 1280, height: 800, mobile: false },
+      { name: 'mobile-portrait', width: 390, height: 844, mobile: true },
+      { name: 'mobile-landscape', width: 844, height: 390, mobile: true }
+    ].filter(viewport => !process.env.ORBITAL_BROWSER_VIEWPORT || viewport.name === process.env.ORBITAL_BROWSER_VIEWPORT);
+    for (const viewport of viewports) await runViewport(cdp, viewport, errors);
+    assert.deepEqual(externalRequests, [], 'globe prototype requests no external network resources');
     process.stdout.write(`Screenshots: ${ARTIFACTS}\n`);
-  } catch (error) {
-    if (cdp) {
-      try { await cdp.screenshot('failure.png'); } catch { /* Preserve original failure. */ }
-    }
-    throw error;
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome && chrome.child.exitCode === null) {
-      const stopped = new Promise((resolve) => chrome.child.once('exit', resolve));
-      chrome.child.kill('SIGTERM');
-      await Promise.race([stopped, sleep(2000)]);
+      const stopped = new Promise(resolve => chrome.child.once('exit', resolve));
+      chrome.child.kill('SIGTERM'); await Promise.race([stopped, sleep(2000)]);
       if (chrome.child.exitCode === null) chrome.child.kill('SIGKILL');
     }
     await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
@@ -863,9 +388,7 @@ async function main() {
 }
 
 module.exports = { CDP, launchChrome };
-if (require.main === module) {
-  main().catch((error) => {
-    process.stderr.write(`FAIL ${error.stack || error}\n`);
-    process.exitCode = 1;
-  });
-}
+
+if (require.main === module) main().catch(error => {
+  process.stderr.write(`FAIL ${error.stack || error}\n`); process.exitCode = 1;
+});

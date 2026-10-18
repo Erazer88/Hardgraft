@@ -1,13 +1,15 @@
 # Contexte courant
 
-État de référence compact pour les petites tâches. Il décrit les décisions de jeu
+État de référence compact pour les petites tâches. Sur `codex/planet-globe-3d-experiment`,
+la surface 2D a été remplacée par un globe WebGL2 expérimental. Ce choix est isolé
+sur cette branche et ne change pas `codex/nereide-prototype`. Il décrit les décisions de jeu
 validées et distingue les systèmes en place des choix encore temporaires. Pour les
 conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 
 ## Architecture en place
 
 - Prototype HTML/CSS/JavaScript sans framework. `index.html` charge des IIFE exposés
-  via `globalThis`; `build.py` embarque scripts, styles et ressources dans le HTML
+  via `globalThis`; `build.py` embarque scripts et styles dans le HTML
   autonome. Garder cet ordre de chargement, sans migration ESM/npm transversale.
 - Direction des responsabilités : `src/data/` déclare les paramètres ;
   `src/simulation/` porte les modèles et règles testables sans DOM/Canvas ;
@@ -15,8 +17,13 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   `src/rendering/` dessine ; `src/app.js` initialise, relie les modules, gère les
   interactions globales et exécute la boucle.
 - La génération est déterministe à partir de la graine. Navigation continue,
-  sauvegardes locales, construction de surface, routes et éditeur industriel sont
+  sauvegardes locales, globe de surface, construction, routes et éditeur industriel sont
   fonctionnels. Voir [`ARCHITECTURE.md`](ARCHITECTURE.md) pour la carte des modules.
+- La vue surface actuelle est une sphère WebGL2 native déformée depuis `elevation` ;
+  routes, gisements, districts et icônes sont projetés en Canvas2D. Les coordonnées
+  logiques bâtiments/routes restent les x/y de terrain. Voir [`PLANET_GLOBE.md`](PLANET_GLOBE.md).
+- La surface 2D précédente, ses textures, masques, worker et renderers dédiés ont été
+  retirés de cette branche. WebGL2 est requis ; aucun fallback surface 2D n'est maintenu.
 
 ## Systèmes en place et frontières
 
@@ -105,11 +112,11 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
 | Moteur de processus ou transfert | `processGraph.js`, `processSimulation.js` et `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
 | Génération / graine | `src/data/worldgen.js`, `src/world.js`, `docs/WORLDGEN.md` | `node --test src/world.test.cjs` |
 | Caméra / navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs`; navigateur si interaction modifiée |
-| Routes / quartiers | `ROAD_SYSTEM.md` puis le module touché | `node --test tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs` |
+| Routes / quartiers | `ROAD_SYSTEM.md` puis le module touché | `node --test tests/settlement-growth.test.cjs`; smoke globe si le rendu change |
 | Interface ou gestes de processus | `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js`, puis modules de graphe concernés | `npm run test:factory-editor` |
 | Sauvegarde | `src/storage/save.js`, `src/state.js`, `tests/architecture.test.cjs` | `node --test tests/architecture.test.cjs` |
 | Export orbital | `src/data/orbitalLogistics.js`, `src/simulation/logisticsNetwork.js`, `src/simulation/orbitalTransit.js`, `src/gameplay/logistics.js` | `node --test tests/orbital-logistics.test.cjs` |
 | Export autonome | `build.py`, `index.html`, références depuis le script concerné | `python3 build.py` lors d'une livraison |
 
-Suite complète : `npm test`. Smoke navigateur : `node tests/browser-smoke.cjs` lorsque
-l'application, la navigation ou l'UI changent.
+Suite complète : `npm test`. Smoke navigateur Chromium desktop + tactile :
+`node tests/browser-smoke.cjs` lorsque l'application, la navigation, le globe ou l'UI changent.

@@ -13,6 +13,9 @@
 </head>
 <body>
   <canvas id="universe" aria-label="Carte spatiale interactive. Glisser pour naviguer, pincer ou utiliser les boutons pour zoomer."></canvas>
+  <canvas id="planet-globe" aria-hidden="true"></canvas>
+  <canvas id="planet-globe-overlay" aria-hidden="true"></canvas>
+  <div class="planet-globe-error" id="planet-globe-error" role="status" hidden>Cette vue nécessite WebGL2.</div>
   <div class="vignette" aria-hidden="true"></div>
   <header class="hud">
     <div class="telemetry panel">
@@ -157,7 +160,7 @@
   <script src="src/data/buildings.js"></script>
   <script src="src/data/roads.js"></script>
   <script src="src/data/settlements.js"></script>
-  <script src="src/data/surfaceStyle.js"></script>
+  <script src="src/data/planetGlobeStyle.js"></script>
   <script src="src/world.js"></script>
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
@@ -183,14 +186,12 @@
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>
   <script src="src/navigation/camera.js"></script>
-  <script src="src/rendering/buildingRenderer.js"></script>
-  <script src="src/rendering/roadRenderer.js"></script>
-  <script src="src/rendering/settlementRenderer.js"></script>
-  <script src="src/rendering/vehicleRenderer.js"></script>
   <script src="src/rendering/orbitalTrafficRenderer.js"></script>
-  <script src="src/rendering/surfaceMaterialRenderer.js"></script>
-  <script src="src/rendering/surfaceMaterialMasks.js"></script>
-  <script src="src/rendering/surfaceRenderer.js"></script>
+  <script src="src/rendering/planetGlobeProjection.js"></script>
+  <script src="src/rendering/planetGlobeMesh.js"></script>
+  <script src="src/rendering/planetGlobeRenderer.js"></script>
+  <script src="src/rendering/planetGlobeOverlayRenderer.js"></script>
+  <script src="src/navigation/planetGlobeCamera.js"></script>
   <script src="src/rendering/renderer.js"></script>
   <script src="src/ui/hud.js"></script>
   <script src="src/ui/factoryViewport.js"></script>
