@@ -356,12 +356,14 @@
         mixInto(temporary, base, palette.wetPlain, smoothstep(.48, .9, humidity) * .62);
         copyInto(base, temporary);
       }
-      else if (h < .50) mixInto(base, palette.plain, palette.upland, smoothstep(.28, .50, h));
-      else if (h < .72) mixInto(base, palette.upland, palette.highland, smoothstep(.50, .72, h));
-      else if (h < .88) mixInto(base, palette.rock, palette.highRock, smoothstep(.72, .88, h));
-      else copyInto(base, palette.highRock);
+      else if (h < .50) mixInto(base, palette.plain, palette.upland,
+        smoothstep(.28, .50, h) * .24);
+      else if (h < .72) mixInto(base, palette.plain, palette.upland,
+        .24 + smoothstep(.50, .72, h) * .18);
+      else mixInto(base, palette.upland, palette.highland,
+        smoothstep(.72, .97, h) * .36);
       const snow = 1 - smoothstep(-4, 5, localTemperature);
-      const summitSnow = smoothstep(.78, .96, h) * .46;
+      const summitSnow = smoothstep(.82, .97, h) * .30;
       // Local temperature still dusts cold highlands, while the actual polar
       // cap outline comes from the irregular spherical coverage field above.
       const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94);
@@ -567,10 +569,12 @@
         const coverage = (smoothstep(coastLow, coastHigh, northWest) +
           smoothstep(coastLow, coastHigh, northEast) + smoothstep(coastLow, coastHigh, southWest) +
           smoothstep(coastLow, coastHigh, southEast)) * .25;
-        const normalizedHeight = clamp((elevation - seaLevel) / Math.max(1, 255 - seaLevel), 0, 1);
+        // Preserve bathymetry and land elevation together. The shader derives
+        // the mesh's shaped land relief and ocean depth from this shared field.
+        const normalizedElevation = clamp(elevation / 255, 0, 1);
         const index = offset + px;
         landMaskPixels[index] = Math.round(clamp(coverage, 0, 1) * 255);
-        const packedHeight = Math.round(normalizedHeight * 65535), heightOffset = index * 2;
+        const packedHeight = Math.round(normalizedElevation * 65535), heightOffset = index * 2;
         heightPixels[heightOffset] = packedHeight >>> 8;
         heightPixels[heightOffset + 1] = packedHeight & 255;
       }
