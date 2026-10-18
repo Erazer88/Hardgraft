@@ -64,29 +64,44 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
 ## Géographie sphérique actuelle
 
-`createTerrain(seed, width, height, planet)` conserve le tableau equirectangulaire
-et `elevation` comme hauteur canonique du gameplay. Il retourne également quatre
-champs structurels (`mountainMask`, `ridgeField`, `valleyField`, `ruggednessField`)
-échantillonnés sur `width * height` cellules. `directionForPixel` canonicalise les
-deux longitudes de couture et les deux pôles ; chaque pôle est donc exactement une
-direction, quel que soit `x`. Les continents restent des centres sphériques avec
-rayons angulaires et lobes secondaires. Les chaînes montagneuses sont des
-backbones courbes sur la sphère qui ne sont plus extrudés directement en dorsales :
-ils définissent de larges ceintures orogéniques, puis un ridged noise sphérique
-domain-warpé produit plusieurs crêtes internes. Des vallées plus larges sont
-rattachées aux massifs. `mountainMask` décrit la ceinture, `ridgeField` ses crêtes
-internes, `valleyField` les sillons, et `ruggednessField` la pente locale.
-L'altitude continentale monte vers un plateau ; `planet.geology` règle le nombre,
-l'amplitude et les branches des ceintures. L'humidité et les faibles ondulations du
-terrain utilisent toujours des champs 3D échantillonnés sur la même direction.
+`createTerrain(seed, width, height, planet)` conserve le raster x/y et l'altitude
+canonique `elevation`. La résolution canonique dans l'application est 960 × 360 ;
+les textures du globe continuent à interpoler ces données. La version terrain est
+8. Les anciennes chaînes/backbones/belts v7 ont été supprimées.
 
-La couverture d'eau est quantifiée avec le poids de surface de chaque latitude.
-La projection et la texture échantillonnent les valeurs produites sans moyenne
-de couture, moyenne de rangée, fondu polaire ou correction colorée. Leurs
-continuités viennent ainsi du terrain lui-même. La version topographique est
-déclarée dans `OrbitWorldgenData.terrain.version` ; elle passe à 7 pour ce
-changement de structure. L'incrémenter conserve la graine du monde mais régénère
-la géographie des planètes.
+Le pipeline statique est : plaques sphériques réparties par Fibonacci + jitter →
+vitesses tangentielles par rotations → frontières et mouvements relatifs → uplift,
+fosses et rifts → base continentale indépendante → faible warp des sources →
+12 passes d'érosion thermique → quantile surfacique de l'eau → elevation finale.
+Les centres des plaques et leurs mouvements sont seedés. Un support continu des
+paires voisines évite les coupures quand les identités changent aux jonctions.
+Les frontières de cisaillement ne deviennent pas automatiquement des montagnes.
+
+`src/world/tectonics.js` porte le modèle et les champs ; `terrainElevation.js`
+compose et normalise la hauteur ; `thermalErosion.js` effectue des échanges
+conservatifs pondérés par les aires ; `terrainStructure.js` décrit ensuite la
+hauteur finale pour le renderer. Le pôle est un seul point physique, y compris
+pour l'érosion. La couture et les pôles restent exacts sans réparation de lignes.
+Les continents proviennent d'un bruit 3D très basse fréquence, avec une faible
+influence lissée des propriétés des plaques ; ils ne sont pas leurs cellules.
+
+Les quatre champs Uint8 sont calculés après elevation : `mountainMask` combine
+uplift, altitude et pente, `ridgeField` la convexité des reliefs, `valleyField` la
+concavité, `ruggednessField` les gradients et variations locales. La texture RGBA
+structurelle existante les transmet au shader sans changement du renderer.
+
+Le quantile utilise le poids cos(latitude) et la couverture `terrainWater`/
+`surfaceWater` déjà utilisée par le jeu. Les hauteurs brutes et érodées sont
+conservées dans `terrain.diagnostics` à la même échelle. Les caches terrain sont
+générés une fois par planète, jamais par frame, et ne sont pas sérialisés dans les
+sauvegardes. Changer la version topographique régénère la géographie en conservant
+les sauvegardes générales et les coordonnées existantes.
+
+Pour examiner les cartes sans albedo ni lumière : ouvrir une planète → menu →
+outils développeur → **Diagnostic du terrain**. Les 11 champs demandés sont
+sélectionnables et exportables en PNG. `node tests/terrain-topography-report.cjs`
+produit aussi les cartes brutes de trois graines, en 960 × 360. Voir
+[`TECTONIC_TERRAIN.md`](TECTONIC_TERRAIN.md) pour les validations A → D.
 
 Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont placés sur les
 cellules terrestres du nouveau relief et gardent leur format x/y. Les champs

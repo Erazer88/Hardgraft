@@ -147,7 +147,17 @@
       </div>
       <p class="developer-description">Les modifications sont appliquées en direct et conservées sur cet appareil.</p>
       <div class="developer-options" id="developer-options"></div>
+      <button id="terrain-diagnostics-open" class="developer-reset" type="button">DIAGNOSTIC DU TERRAIN</button>
       <button id="developer-reset" class="developer-reset" type="button">RÉINITIALISER LES RÉGLAGES</button>
+    </div>
+  </dialog>
+  <dialog id="terrain-diagnostics-dialog" aria-labelledby="terrain-diagnostics-title">
+    <div class="terrain-diagnostics-card">
+      <div class="developer-header"><div><span>OUTILS DÉVELOPPEUR</span><strong id="terrain-diagnostics-title">TOPOGRAPHIE BRUTE</strong></div><button id="terrain-diagnostics-close" class="text-icon" type="button" aria-label="Fermer le diagnostic">×</button></div>
+      <p id="terrain-diagnostics-status" class="developer-description"></p>
+      <div class="terrain-diagnostics-controls"><label for="terrain-diagnostics-field">CHAMP</label><select id="terrain-diagnostics-field"></select><button id="terrain-diagnostics-export" class="text-button" type="button">EXPORT PNG</button></div>
+      <canvas id="terrain-diagnostics-canvas" aria-label="Carte diagnostique du terrain"></canvas>
+      <p id="terrain-diagnostics-legend" class="developer-description"></p>
     </div>
   </dialog>
   <script src="src/data/version.js"></script>
@@ -166,6 +176,7 @@
   <script src="src/world/tectonics.js"></script>
   <script src="src/world/terrainElevation.js"></script>
   <script src="src/world/thermalErosion.js"></script>
+  <script src="src/world/terrainStructure.js"></script>
   <script src="src/simulation/simulation.js"></script>
   <script src="src/simulation/inventory.js"></script>
   <script src="src/simulation/resourceStack.js"></script>
@@ -200,6 +211,7 @@
   <script src="src/ui/hud.js"></script>
   <script src="src/ui/factoryViewport.js"></script>
   <script src="src/ui/factoryEditor.js"></script>
+  <script src="src/ui/terrainDiagnostics.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>
 </body>

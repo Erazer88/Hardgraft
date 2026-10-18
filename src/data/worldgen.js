@@ -29,14 +29,8 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 7,
-      genericWater: [.30, .46], islandWaterThreshold: .56,
-      sphericalMasses: {
-        continentalCount: [3, 6], islandWorldCount: [3, 6],
-        continentalRadius: [.48, .88], islandWorldRadius: [.28, .56],
-        continentalSecondaryCount: [1, 4], islandSecondaryCount: [1, 4],
-        secondaryRadiusRatio: [.22, .48], secondaryDistanceRatio: [.45, 1.35]
-      },
+      version: 8,
+      genericWater: [.30, .46],
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
@@ -49,26 +43,6 @@
         erosion: { passes: 12, rate: .32, talusPerRadian: 155 },
         structure: { sampleAngle: .025, coarseAngle: .055,
           upliftRange: [4, 27], slopeRange: [65, 310], convexityRange: [.12, 2.4] }
-      },
-      relief: {
-        broadAmplitude: 24,
-        mediumAmplitude: 9,
-        fineAmplitude: 1.5,
-        mountainChains: {
-          count: [1, 5], segmentCount: [3, 6], segmentLength: [.10, .22],
-          beltWidth: [.14, .22], coreWidth: [.022, .045], amplitude: [18, 42],
-          domainWarpFrequency: 3.6, domainWarpAmplitude: .038,
-          ridgeFrequency: [13, 19], ridgeDetailFrequency: [25, 34],
-          ridgeThreshold: [.58, .86], ridgePower: 1.25,
-          shoulderHeightRatio: .14, ridgeHeightRatio: .62,
-          bend: [-.35, .35],
-          branchChance: .55, branchAngle: [.61, 1.22],
-          branchLengthRatio: [.35, .60], branchWidthRatio: [.50, .70],
-          branchHeightRatio: [.40, .70], branchCoreRatio: [.55, .75],
-          valleyCount: [2, 4], valleyAngle: [.87, 1.40],
-          valleyLengthRatio: [.35, .65], valleyWidth: [.045, .08],
-          valleyCarve: [2, 7]
-        }
       },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
         startingCandidateCount: 4, spacingRatio: .21, radiusRatio: [.06, .09] },

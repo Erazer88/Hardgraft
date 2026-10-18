@@ -273,3 +273,13 @@ body[data-level="surface"] .corner-note{display:none}
 .hud,.breadcrumb,.view-heading,.corner-note,.controls,.gesture-hint,.game-version,.toast,.inspector{z-index:5}
 .planet-globe-error{position:fixed;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);max-width:calc(100% - 36px);padding:14px 18px;border:1px solid #829eaf40;border-radius:6px;background:#0b1724e8;color:#b8cbd4;font-size:11px;letter-spacing:.5px;text-align:center;pointer-events:none}
 .hud,.breadcrumb,.view-heading,.corner-note,.controls,.gesture-hint,.inspector,.build-menu,.toast,.game-version{z-index:5}
+
+/* CPU worldgen diagnostics: no globe materials, light, or camera dependency. */
+#terrain-diagnostics-dialog{width:min(1060px,96vw);max-width:none;max-height:92dvh;overflow:auto}
+.terrain-diagnostics-card{padding:20px}
+.terrain-diagnostics-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:12px 0;font-size:10px}
+.terrain-diagnostics-controls select{padding:10px;max-width:100%;background:#142536;color:#cddce4;border:1px solid var(--line)}
+.terrain-diagnostics-controls button{padding:12px;border:1px solid var(--line)}
+#terrain-diagnostics-canvas{display:block;width:100%;height:auto;aspect-ratio:8/3;background:#000}
+#terrain-diagnostics-canvas[hidden]{display:none}
+@media(max-width:600px){.terrain-diagnostics-card{padding:12px}.terrain-diagnostics-controls{gap:8px}}

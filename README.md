@@ -70,3 +70,8 @@ npm run test:factory-editor
 ```
 
 Les tests couvrent la génération, la projection et le mesh globe, la navigation, les sauvegardes, la chaîne industrielle et les gestes de l'éditeur. Le smoke test globe utilise Chromium et un serveur sur le port 8000 ; il vérifie les interactions à la souris et au toucher en portrait et paysage.
+
+Diagnostic du terrain : ouvrir une planète, puis **Menu → Outils développeur →
+Diagnostic du terrain**. Plaques, convergence/divergence, uplift, hauteurs avant/après
+érosion et quatre champs structurels sont affichés séparément ; export PNG possible.
+Le rapport CPU reproductible se lance avec `node tests/terrain-topography-report.cjs`.

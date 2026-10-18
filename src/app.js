@@ -26,7 +26,9 @@
     isCameraInteracting: () => pointers.size > 0 && pointerMoved
   });
   const hud = globalThis.OrbitHUD.create(document);
-  globalThis.OrbitDeveloperTools.create(document);
+  globalThis.OrbitDeveloperTools.create(document, {
+    getTerrain: () => state.planet ? { terrain: prepareTerrain(state.planet).data, planet: state.planet } : null
+  });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const formatAmount = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
@@ -1014,6 +1016,7 @@
       return;
     }
     if (e.key === 'Escape') {
+      if ($('terrain-diagnostics-dialog').open) { $('terrain-diagnostics-dialog').close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
@@ -1022,7 +1025,7 @@
       else back();
     }
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement ||
-        $('menu-dialog').open || $('developer-dialog').open) return;
+        $('menu-dialog').open || $('developer-dialog').open || $('terrain-diagnostics-dialog').open) return;
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }

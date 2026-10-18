@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 function load() {
   const context = vm.createContext({});
-  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js'])
+  for (const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js','world/terrainStructure.js','ui/terrainDiagnostics.js'])
     vm.runInContext(fs.readFileSync(`${__dirname}/../src/${file}`,'utf8'),context);
   return context;
 }
@@ -13,7 +13,7 @@ const fields = ['plateId','secondaryPlateId','continentalField','boundaryInfluen
   'shear','tectonicUplift','tectonicSubsidence'];
 function equalArrays(a,b,message) { assert.deepEqual(Array.from(a),Array.from(b),message); }
 
-test('A: tectonic analysis leaves the v7 elevation untouched', () => {
+test('tectonic analysis has no side effects on terrain generation', () => {
   const c = load(), before = c.OrbitWorld.createTerrain('stage-A-unchanged',48,24,{surfaceWater:.42});
   c.OrbitTectonics.create('stage-A-unchanged',48,24,{surfaceWater:.42});
   const after = c.OrbitWorld.createTerrain('stage-A-unchanged',48,24,{surfaceWater:.42});
@@ -142,4 +142,48 @@ test('C: real tectonic terrain changes gently and keeps its long mountain system
   assert.ok(total/raw.length<2,'thermal pass keeps the large-scale relief intact');
   const a=c.OrbitThermalErosion.surfaceIntegral(raw,w,h),b=c.OrbitThermalErosion.surfaceIntegral(eroded,w,h);
   assert.ok(Math.abs(a-b)<Math.abs(a)*1e-6);
+});
+
+test('D: renderer ridge and valley fields describe final topography rather than independent noise', () => {
+  const c=load(),w=128,h=64,uplift=new Float32Array(w*h).fill(45);
+  const ridge=new Uint8Array(w*h),trough=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
+    const dir=c.OrbitWorld.directionForPixel(x,y,w,h);
+    const shape=Math.exp(-Math.pow(dir.z/.16,2))*35;
+    ridge[y*w+x]=Math.round(150+shape);trough[y*w+x]=Math.round(185-shape);
+  }
+  const a=c.OrbitTerrainStructure.derive(ridge,uplift,w,h,102),b=c.OrbitTerrainStructure.derive(trough,uplift,w,h,102);
+  const sum=field=>field.reduce((a,b)=>a+b,0);
+  assert.ok(sum(a.ridgeField)>sum(b.ridgeField)*1.4,'convex crest is recognized as a ridge');
+  assert.ok(sum(b.valleyField)>sum(a.valleyField)*1.4,'inverting the final shape creates a valley');
+  assert.ok(a.ridgeField.every((v,i)=>v<=a.mountainMask[i]));
+  const flat=c.OrbitTerrainStructure.derive(new Uint8Array(w*h).fill(150),uplift,w,h,102);
+  assert.equal(sum(flat.ridgeField),0);assert.equal(sum(flat.valleyField),0);assert.equal(sum(flat.ruggednessField),0);
+});
+
+test('D: canonical terrain exposes complete diagnostics and all structural fields remain spherical', () => {
+  const c=load(),a=c.OrbitWorld.createTerrain('final-tectonic-contract',128,64,{surfaceWater:.42,geology:.65});
+  for(const key of ['plateId','continentalField','convergence','divergence','tectonicUplift','rawElevation','erodedElevation',
+    'mountainMask','ridgeField','valleyField','ruggednessField']) {
+    assert.equal(a.diagnostics[key].length,128*64,key);
+    assert.ok(a.diagnostics[key].every(Number.isFinite),key);
+    for(let y=0;y<64;y++)assert.equal(a.diagnostics[key][y*128],a.diagnostics[key][y*128+127],key);
+    for(const y of [0,63])for(let x=1;x<128;x++)assert.equal(a.diagnostics[key][y*128+x],a.diagnostics[key][y*128],key);
+  }
+  assert.equal(a.diagnostics.erodedElevation.filter((v,i)=>Math.round(v)!==a.elevation[i]).length,0,
+    'the diagnostic final height is exactly the canonical gameplay elevation before integer rounding');
+});
+
+test('diagnostic maps expose all requested fields with direct grayscale heights and categorical plate IDs', () => {
+  const c=load(),D=c.OrbitTerrainDiagnostics;
+  const terrain=c.OrbitWorld.createTerrain('diagnostic-pixels',48,24,{surfaceWater:.4});
+  assert.equal(D.definitions.length,11);
+  for(const definition of D.definitions) {
+    const pixels=D.pixelsFor(terrain,definition.id);
+    assert.equal(pixels.length,terrain.width*terrain.height*4);
+    if(definition.id==='plateId') assert.ok(pixels.some((n,i)=>i%4===0 && n!==pixels[i+1]));
+    else for(let i=0;i<pixels.length;i+=4)assert.ok(pixels[i]===pixels[i+1] && pixels[i]===pixels[i+2]);
+  }
+  const pixels=D.pixelsFor(terrain,'erodedElevation');
+  for(let i=0;i<terrain.elevation.length;i++)assert.equal(pixels[i*4],terrain.elevation[i]);
 });

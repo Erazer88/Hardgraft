@@ -113,13 +113,12 @@
   // Blend only nearby pairs with compact, smooth ownership at junctions. Plate IDs are Voronoi cells,
   // geological source fields remain continuous when the runner-up changes.
   function sample(model, p, out = {}) {
-    let first=0,second=1,third=2,best=-Infinity,runner=-Infinity,thirdScore=-Infinity,weighted=0,weights=0;
+    let first=0,second=1,best=-Infinity,runner=-Infinity,weighted=0,weights=0;
     const scores=model.scores||(model.scores=new Float64Array(model.plates.length));
     for(let i=0;i<model.plates.length;i++) {
       const plate=model.plates[i],score=dot(p,plate.direction);scores[i]=score;
-      if(score>best){third=second;thirdScore=runner;second=first;runner=best;first=i;best=score;}
-      else if(score>runner){third=second;thirdScore=runner;second=i;runner=score;}
-      else if(score>thirdScore){third=i;thirdScore=score;}
+      if(score>best){second=first;runner=best;first=i;best=score;}
+      else if(score>runner){second=i;runner=score;}
       const w=Math.max(0,score+.18)**4;weighted+=w*plate.continentality;weights+=w;
     }
     const source=model.sourceScratch||(model.sourceScratch={});

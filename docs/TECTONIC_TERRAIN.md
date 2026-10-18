@@ -46,3 +46,20 @@ Validation C : 8 tests ciblés, conservation de l'intégrale surfacique, pic iso
 adouci, dépôt dans les voisins, pôles/couture exacts, déterminisme et comparaison
 raw/eroded de trois cartes canoniques. Les grands systèmes tectoniques sont
 conservés ; l'effet reste local aux pentes dépassant le talus.
+
+## D — raccord canonique et diagnostic
+
+La génération v7 a été supprimée de `world.js` et des données. `createTerrain`
+compose A/B/C puis dérive les quatre champs via des stencils angulaires sphériques
+sur elevation : pente, convexité/concavité et variation locale. Le shader conserve
+son interface RGBA et tous ses paramètres existants.
+
+Le menu développeur affiche onze cartes CPU, avec hauteurs avant/après sur la
+même échelle et export PNG. Les IDs utilisent des couleurs catégorielles ; les
+hauteurs ne reçoivent ni albedo ni shading. Ces cartes sont des caches, pas des
+données de sauvegarde. Le coût est payé une fois lors du chargement d'une planète.
+
+Limites : tectonique statique stylisée, sans simulation temporelle ni drainage
+hydraulique. Les vallées sont détectées par concavité après érosion thermique.
+La génération n'est pas une reconstruction géophysique. Les changements v8
+régénèrent la topographie ; les anciennes positions de bâtiments restent conservées.

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { test } = require('node:test');
 const context = vm.createContext({});
-for (const file of ['/data/worldgen.js', '/world.js', '/world/system.js']) {
+for (const file of ['/data/worldgen.js', '/world.js', '/world/system.js', '/world/tectonics.js', '/world/terrainElevation.js', '/world/thermalErosion.js', '/world/terrainStructure.js']) {
   vm.runInContext(fs.readFileSync(__dirname + file, 'utf8'), context);
 }
 const world = context.OrbitWorld;
@@ -23,30 +23,15 @@ const surfaceWaterCoverage = terrain => {
   return wet / Math.max(1, total);
 };
 
-test('terrain v7 declares broad orogenic belts with restrained internal ridges', () => {
-  const settings = context.OrbitWorldgenData.terrain;
-  assert.equal(settings.version, 7);
-  assert.deepEqual(Array.from(settings.relief.mountainChains.count), [1, 5]);
-  assert.deepEqual(Array.from(settings.relief.mountainChains.segmentCount), [3, 6]);
-  assert.ok(settings.relief.mountainChains.branchChance > .4 && settings.relief.mountainChains.branchChance < .7);
-  assert.deepEqual(Array.from(settings.relief.mountainChains.amplitude), [18, 42]);
-  assert.deepEqual(Array.from(settings.relief.mountainChains.beltWidth), [.14, .22]);
-  assert.deepEqual(Array.from(settings.relief.mountainChains.coreWidth), [.022, .045]);
-  assert.ok(settings.relief.mountainChains.valleyCarve[0] >= 2 &&
-    settings.relief.mountainChains.valleyCarve[1] <= 7);
-  assert.equal('ridgePower' in settings.relief, false,
-    'a global isotropic ridged noise no longer controls mountain structure');
-  const source = fs.readFileSync(__dirname + '/world.js', 'utf8');
-  assert.match(source, /function internalRidgeStrength/,
-    'ridge structure is generated inside the orogenic belt');
-  assert.match(source, /function warpMountainDirection/,
-    'ridge detail uses deterministic 3D domain warping');
-  assert.match(source, /function smoothMax/,
-    'neighboring belt segments join with a smooth union');
-  assert.doesNotMatch(source, /spineAmplitude|spineField/,
-    'the backbone is no longer extruded into a dominant central spine');
-  assert.match(source, /const baseTerrain = 82 \+ landPlateau \* 108 \+ continental \* 8/,
-    'continental influence saturates into a plateau rather than a round central mound');
+test('terrain v8 replaces mountain chains with static spherical tectonics', () => {
+  const settings=context.OrbitWorldgenData.terrain;
+  assert.equal(settings.version,8);
+  assert.ok(settings.tectonics.plateCount[0]>=12 && settings.tectonics.plateCount[1]<=24);
+  assert.ok(settings.tectonics.erosion.passes>=8 && settings.tectonics.erosion.passes<=20);
+  assert.equal('relief' in settings,false,'the old mountainChains configuration has been removed');
+  const source=fs.readFileSync(__dirname+'/world.js','utf8');
+  assert.doesNotMatch(source,/createMountainSystems|mountainChains|segmentProfile|ridgeNoise/);
+  assert.match(source,/OrbitTerrainStructure\.derive\(elevation/,'renderer fields are derived after elevation');
 });
 
 test('the galaxy is deterministic, seeded, and dense in four connected arms', () => {

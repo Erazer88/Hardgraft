@@ -260,6 +260,25 @@ async function runViewport(cdp, viewport, errors) {
     process.stdout.write(`CAPTURE ${name}: globe frame saved for visual review\n`);
     return;
   }
+  // Inspect the CPU maps through the real developer menu, independently of GLSL.
+  await cdp.click('#menu-button');
+  await cdp.click('#developer-tools-button');
+  await cdp.click('#terrain-diagnostics-open');
+  assert.equal(await cdp.evaluate('document.querySelector("#terrain-diagnostics-dialog").open'), true,
+    `${name} terrain diagnostics opens through developer tools`);
+  const diagnostic = await cdp.evaluate(`(() => {
+    const canvas=document.querySelector('#terrain-diagnostics-canvas'), select=document.querySelector('#terrain-diagnostics-field');
+    const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+    let gray=true;for(let i=0;i<pixels.length;i+=4)if(pixels[i]!==pixels[i+1] || pixels[i]!==pixels[i+2])gray=false;
+    return {width:canvas.width,height:canvas.height,gray,fields:select.options.length,status:document.querySelector('#terrain-diagnostics-status').textContent};
+  })()`);
+  assert.equal(diagnostic.width,960);assert.equal(diagnostic.height,360);assert.equal(diagnostic.fields,11);
+  assert.equal(diagnostic.gray,true,`${name} elevation diagnostic has no albedo or lighting`);
+  await cdp.screenshot(`${name}-terrain-diagnostics.png`);
+  await cdp.evaluate(`(() => { const input=document.querySelector('#terrain-diagnostics-field');input.value='plateId';input.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+  const platePixels=await cdp.evaluate(`(() => {const c=document.querySelector('#terrain-diagnostics-canvas');const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=0;i<p.length;i+=4)if(p[i]!==p[i+1])return true;return false;})()`);
+  assert.equal(platePixels,true,`${name} plate ID view is categorical rather than shaded terrain`);
+  await cdp.click('#terrain-diagnostics-close');
   const center = { x: width / 2, y: height / 2 };
   const beforeRotate = await cdp.evaluate('window.OrbitalDebug.getPlanetGlobeMetrics().camera');
   await cdp.drag({ x: center.x - 44, y: center.y }, { x: center.x + 50, y: center.y + 26 }, mobile);

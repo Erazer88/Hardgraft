@@ -1,10 +1,11 @@
 (function (root) {
   'use strict';
 
-  function create(document) {
+  function create(document, options = {}) {
     const settings = root.OrbitDeveloperSettings;
     const $ = id => document.getElementById(id);
     const container = $('developer-options');
+    const diagnostics = root.OrbitTerrainDiagnostics.create(document, options);
     const controls = new Map();
     const groups = new Map();
 
@@ -76,6 +77,9 @@
       updateControl(definition.id, settings.get(definition.id));
     }
 
+    $('terrain-diagnostics-open').addEventListener('click', () => {
+      $('developer-dialog').close(); diagnostics.open();
+    });
     $('developer-reset').addEventListener('click', () => settings.reset());
     settings.subscribe(updateControl);
 

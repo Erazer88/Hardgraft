@@ -9,7 +9,7 @@ const { test } = require('node:test');
 function loadGlobeContext() {
   const context = vm.createContext({ console, performance: { now: () => 1000 }, setTimeout, clearTimeout });
   for (const file of [
-    '../src/data/worldgen.js', '../src/world.js', '../src/data/planetGlobeStyle.js',
+    '../src/data/worldgen.js', '../src/world.js', '../src/world/tectonics.js', '../src/world/terrainElevation.js', '../src/world/thermalErosion.js', '../src/world/terrainStructure.js', '../src/data/planetGlobeStyle.js',
     '../src/rendering/planetGlobeProjection.js', '../src/rendering/planetGlobeMesh.js',
     '../src/rendering/planetSurfaceTexture.js',
     '../src/navigation/planetGlobeCamera.js'
@@ -533,7 +533,7 @@ test('globe camera clamps tilt and zoom and evaluates transitions from simulatio
 
 test('projected building markers and graticule follow front-side visibility', () => {
   const context = vm.createContext({ console });
-  for (const file of ['../src/data/worldgen.js', '../src/world.js', '../src/data/planetGlobeStyle.js',
+  for (const file of ['../src/data/worldgen.js', '../src/world.js', '../src/world/tectonics.js', '../src/world/terrainElevation.js', '../src/world/thermalErosion.js', '../src/world/terrainStructure.js', '../src/data/planetGlobeStyle.js',
     '../src/rendering/planetGlobeProjection.js']) {
     vm.runInContext(readFileSync(resolve(__dirname, file), 'utf8'), context, { filename: file });
   }

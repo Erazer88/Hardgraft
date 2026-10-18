@@ -3,7 +3,7 @@
 // CPU-only evidence, deliberately independent of the globe/material/shader pipeline.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),zlib=require('node:zlib');
 const context=vm.createContext({Math});
-for(const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js'])
+for(const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js','world/terrainStructure.js'])
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file),'utf8'),context);
 const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let k=0;k<8;k++)n=(n&1)?0xedb88320^(n>>>1):n>>>1;return n>>>0;});
 function crc(buffer){let n=0xffffffff;for(const b of buffer)n=crcTable[(n^b)&255]^(n>>>8);return (n^0xffffffff)>>>0;}
@@ -17,15 +17,11 @@ const out=path.join(__dirname,'../artifacts/tectonic-terrain');fs.mkdirSync(out,
 for(let n=0;n<3;n++) {
   const seed=`tectonic-check-${n}`,width=960,height=360;
   const started=performance.now();
-  const tectonics=context.OrbitTectonics.create(seed,width,height,{geology:.65});
-  const source=context.OrbitTerrainElevation.create(tectonics,seed);
-  const eroded=context.OrbitThermalErosion.erode(source.rawElevation,width,height);
-  const normalized=context.OrbitTerrainElevation.normalize(eroded,width,height,.42);
-  const rawComparable=context.OrbitTerrainElevation.transform(source.rawElevation,normalized);
-  png(path.join(out,`${seed}-raw.png`),rawComparable,width,height);
-  png(path.join(out,`${seed}-eroded.png`),normalized.finalHeights,width,height);
-  png(path.join(out,`${seed}-uplift.png`),source.tectonicUplift,width,height,0,65);
-  png(path.join(out,`${seed}-continental.png`),tectonics.continentalField,width,height,0,1);
+  const terrain=context.OrbitWorld.createTerrain(seed,width,height,{geology:.65,surfaceWater:.42});
+  const {tectonics,diagnostics}=terrain;
+  for(const [name,max] of [['rawElevation',255],['erodedElevation',255],['tectonicUplift',90],['continentalField',1],
+    ['mountainMask',255],['ridgeField',255],['valleyField',255],['ruggednessField',255]])
+    png(path.join(out,`${seed}-${name}.png`),diagnostics[name],width,height,0,max);
   console.log(`${seed}: ${(performance.now()-started).toFixed(0)} ms, ${tectonics.plates.length} plates`);
 }
 console.log(out);
