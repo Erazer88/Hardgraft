@@ -67,12 +67,13 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 `createTerrain(seed, width, height, planet)` conserve le raster x/y et l'altitude
 canonique `elevation`. La résolution canonique dans l'application est 960 × 360 ;
 les textures du globe continuent à interpoler ces données. La version terrain est
-8. Les anciennes chaînes/backbones/belts v7 ont été supprimées.
+9. Les anciennes chaînes/backbones/belts v7 ont été supprimées.
 
-Le pipeline statique est : plaques sphériques réparties par Fibonacci + jitter →
+Le pipeline statique v9 est : plaques sphériques réparties par Fibonacci + jitter →
 vitesses tangentielles par rotations → frontières et mouvements relatifs → uplift,
-fosses et rifts → base continentale indépendante → faible warp des sources →
-12 passes d'érosion thermique → quantile surfacique de l'eau → elevation finale.
+fosses et rifts → champ continental déformé indépendamment → plateau et relief
+régional/collinaire/fin → zones orogéniques structurées → 12 passes d'érosion
+thermique → quantile surfacique de l'eau → elevation finale.
 Les centres des plaques et leurs mouvements sont seedés. Un support continu des
 paires voisines évite les coupures quand les identités changent aux jonctions.
 Les frontières de cisaillement ne deviennent pas automatiquement des montagnes.
@@ -82,8 +83,14 @@ compose et normalise la hauteur ; `thermalErosion.js` effectue des échanges
 conservatifs pondérés par les aires ; `terrainStructure.js` décrit ensuite la
 hauteur finale pour le renderer. Le pôle est un seul point physique, y compris
 pour l'érosion. La couture et les pôles restent exacts sans réparation de lignes.
-Les continents proviennent d'un bruit 3D très basse fréquence, avec une faible
-influence lissée des propriétés des plaques ; ils ne sont pas leurs cellules.
+Les continents proviennent d'un bruit 3D très basse fréquence, déformé sur la
+sphère avec une petite perturbation de contour et une faible influence lissée des
+propriétés des plaques ; ils ne sont pas leurs cellules. Le champ continental
+sature sur les plateaux intérieurs. Trois bruits indépendants apportent un relief
+régional et des collines aux amplitudes décroissantes. Les frontières convergentes
+génèrent plusieurs crêtes irrégulières dans une large zone orogénique ; le type de
+collision dépend des valeurs continentales locales de chaque côté. L'érosion
+thermique reste inchangée à 12 passes.
 
 Les quatre champs Uint8 sont calculés après elevation : `mountainMask` combine
 uplift, altitude et pente, `ridgeField` la convexité des reliefs, `valleyField` la

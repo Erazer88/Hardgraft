@@ -10,7 +10,7 @@ function load() {
   return context;
 }
 const fields = ['plateId','secondaryPlateId','continentalField','boundaryInfluence','convergence','divergence',
-  'shear','tectonicUplift','tectonicSubsidence'];
+  'shear','tectonicUplift','tectonicSubsidence','broadTerrain','hillTerrain','fineTerrain'];
 function equalArrays(a,b,message) { assert.deepEqual(Array.from(a),Array.from(b),message); }
 
 test('tectonic analysis has no side effects on terrain generation', () => {
@@ -92,6 +92,74 @@ test('B: new elevation is tectonic, deterministic and respects surface-weighted 
   }
   const a=T.create('terrain-a',96,48),b=T.create('terrain-b',96,48);
   assert.notDeepEqual(Array.from(E.create(a,'terrain-a').rawElevation),Array.from(E.create(b,'terrain-b').rawElevation));
+});
+
+test('topography gives continents a plateau and independent regional relief', () => {
+  const c=load(),T=c.OrbitTectonics,E=c.OrbitTerrainElevation,w=192,h=96,seed='continental-plateau-relief';
+  const tectonics=T.create(seed,w,h,{geology:.65}),raw=E.create(tectonics,seed).rawElevation;
+  const inland=[];
+  for(let i=0;i<raw.length;i++)if(tectonics.continentalField[i]>.72&&tectonics.tectonicUplift[i]<2)inland.push(raw[i]);
+  inland.sort((a,b)=>a-b);
+  assert.ok(inland.length>w*h*.04,'the test samples a meaningful interior area outside mountain belts');
+  assert.ok(inland[Math.floor(inland.length*.9)]-inland[Math.floor(inland.length*.1)]>12,
+    'upland interiors retain regional terrain and hills away from tectonic uplift');
+
+  const lower={...tectonics,continentalField:Float32Array.from(tectonics.continentalField,v=>v>.74?.76:v)};
+  const higher={...tectonics,continentalField:Float32Array.from(tectonics.continentalField,v=>v>.74?.98:v)};
+  const lowRaw=E.create(lower,seed).rawElevation,highRaw=E.create(higher,seed).rawElevation;
+  for(let i=0;i<raw.length;i++)if(tectonics.continentalField[i]>.74)
+    assert.ok(Math.abs(lowRaw[i]-highRaw[i])<1e-6,'continental field saturates into a stable interior plateau');
+});
+
+test('local continental field can change crust character inside one tectonic plate', () => {
+  const T=load().OrbitTectonics,w=128,h=64,terrain=T.create('coast-crosses-plate',w,h,{geology:.65});
+  const byPlate=new Map();
+  for(let i=0;i<terrain.plateId.length;i++) {
+    const id=terrain.plateId[i];let range=byPlate.get(id);
+    if(!range)byPlate.set(id,range={min:1,max:0});
+    range.min=Math.min(range.min,terrain.continentalField[i]);
+    range.max=Math.max(range.max,terrain.continentalField[i]);
+  }
+  assert.ok([...byPlate.values()].some(range=>range.min<.40&&range.max>.62),
+    'at least one plate contains both continental and oceanic portions');
+});
+
+test('convergent belts have broad uplift with several structured ridge crests', () => {
+  const c=load(),T=c.OrbitTectonics,model=T.createModel('topography-diagnostic',{geology:.9});
+  let structured=null;
+  for(let y=2;y<46&&!structured;y++)for(let x=0;x<95&&!structured;x++) {
+    const p=c.OrbitWorld.directionForPixel(x,y,96,48),sample=T.sample(model,p,{});
+    if(sample.convergence<.45||sample.tectonicUplift<12)continue;
+    const a=Math.min(sample.plateId,sample.secondaryPlateId),b=Math.max(sample.plateId,sample.secondaryPlateId);
+    const A=model.plates[a].direction,B=model.plates[b].direction;
+    let nx=B.x-A.x,ny=B.y-A.y,nz=B.z-A.z,dot=nx*p.x+ny*p.y+nz*p.z;
+    nx-=dot*p.x;ny-=dot*p.y;nz-=dot*p.z;const length=Math.hypot(nx,ny,nz);nx/=length;ny/=length;nz/=length;
+    const profile=[];
+    for(let step=-35;step<=35;step++) {
+      const angle=step*.004,co=Math.cos(angle),si=Math.sin(angle),q={x:p.x*co+nx*si,y:p.y*co+ny*si,z:p.z*co+nz*si};
+      profile.push(T.sample(model,q,{}).tectonicUplift);
+    }
+    const maximum=Math.max(...profile),peaks=[];
+    for(let i=1;i<profile.length-1;i++)if(profile[i]>profile[i-1]&&profile[i]>=profile[i+1]&&profile[i]>maximum*.4)peaks.push(profile[i]);
+    if(peaks.length>=2)structured={profile,maximum,peaks};
+  }
+  assert.ok(structured,'a convergent belt contains multiple distinct ridge crests');
+  assert.ok(structured.profile.filter(value=>value>structured.maximum*.22).length>9,
+    'orogenic uplift spans a belt rather than a boundary line');
+});
+
+test('boundary collision classification uses local crust values rather than plate labels', () => {
+  const c=load(),T=c.OrbitTectonics,model=T.createModel('local-crust-classification',{geology:.85});
+  let point=null;
+  for(let y=2;y<46&&!point;y+=2)for(let x=0;x<95&&!point;x+=2) {
+    const p=c.OrbitWorld.directionForPixel(x,y,96,48),sample=T.sample(model,p,{});
+    if(sample.convergence>.35&&sample.tectonicUplift>12)point={p,sample};
+  }
+  assert.ok(point,'the seeded world contains an active collision');
+  const original=point.sample.tectonicUplift;
+  for(const plate of model.plates)plate.crustType=plate.crustType==='continental'?'oceanic':'continental';
+  const after=T.sample(model,point.p,{}).tectonicUplift;
+  assert.equal(after,original,'local continental-field samples, not fixed center labels, classify the collision');
 });
 
 test('B: uplift stays continuous where the second-nearest plate changes at a junction', () => {

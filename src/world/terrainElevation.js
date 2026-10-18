@@ -30,9 +30,13 @@
       const length=Math.hypot(warped.x,warped.y,warped.z); warped.x/=length;warped.y/=length;warped.z/=length;
       uplift[i]=sampleSphere(tectonics.tectonicUplift,warped,width,height);
       subsidence[i]=sampleSphere(tectonics.tectonicSubsidence,warped,width,height);
-      const c=tectonics.continentalField[i];
-      const continentalBase=58+smooth(.22,.76,c)*102+c*15;
-      rawElevation[i]=continentalBase+tectonics.broadTerrain[i]+uplift[i]-subsidence[i];
+      const c=tectonics.continentalField[i],base=settings.continentalBase;
+      const coast=smooth(base.coastRange[0],base.coastRange[1],c);
+      const inland=smooth(base.inlandRange[0],base.inlandRange[1],c);
+      // Continentality defines the shelf/plateau transition; interior altitude comes from relief fields.
+      const continentalBase=base.base+coast*base.plateauRise+inland*base.inlandRise;
+      rawElevation[i]=continentalBase+tectonics.broadTerrain[i]+tectonics.hillTerrain[i]+
+        tectonics.fineTerrain[i]+uplift[i]-subsidence[i];
     }
     return {width,height,rawElevation,tectonicUplift:uplift,tectonicSubsidence:subsidence};
   }
@@ -50,9 +54,16 @@
     }
     let sum=0,bin=0;
     for(;bin<4095;bin++) {sum+=histogram[bin];if(sum>=total*waterFraction)break;}
-    const rawSeaLevel=waterFraction===0 ? min-4 : min+bin/4095*span;
+    const quantileLevel=waterFraction===0 ? min-4 : min+bin/4095*span;
     const seaLevel=102;
-    const verticalScale=Math.min(1,146/Math.max(1,max-rawSeaLevel),98/Math.max(1,rawSeaLevel-min));
+    const scaleAt=level=>Math.min(1,146/Math.max(1,max-level),98/Math.max(1,level-min));
+    let rawSeaLevel=quantileLevel;
+    if(waterFraction>0) {
+      // Integer gameplay heights use Math.round; center the quantile half a byte below sea level
+      // so cells rounded onto the sea-level byte do not inflate the requested water coverage.
+      for(let n=0;n<3;n++) rawSeaLevel=quantileLevel-.5/scaleAt(rawSeaLevel);
+    }
+    const verticalScale=scaleAt(rawSeaLevel);
     const parameters={seaLevel,rawSeaLevel,verticalScale};
     const finalHeights=transform(raw,parameters), elevation=new Uint8Array(raw.length);
     for(let i=0;i<raw.length;i++) elevation[i]=Math.round(clamp(finalHeights[i],0,255));

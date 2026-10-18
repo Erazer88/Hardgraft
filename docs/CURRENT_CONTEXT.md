@@ -24,11 +24,12 @@ conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
   logiques bâtiments/routes restent les x/y de terrain. Voir [`PLANET_GLOBE.md`](PLANET_GLOBE.md).
 - La surface 2D précédente, ses textures, masques, worker et renderers dédiés ont été
   retirés de cette branche. WebGL2 est requis ; aucun fallback surface 2D n'est maintenu.
-- La topographie v8 est une tectonique statique sphérique : plaques, mouvements
-  tangents, uplift/rifts, base continentale indépendante et érosion thermique.
-  Les chaînes/backbones/belts v7 ont été retirés. `elevation` reste la hauteur du
-  gameplay, en x/y ; les quatre champs structurels du renderer sont dérivés de la
-  topographie finale. La couture et les pôles sont continus par construction.
+- La topographie v9 conserve la tectonique statique sphérique v8 : plaques,
+  mouvements tangents, uplift/rifts et érosion thermique. La conversion en relief
+  utilise des plateaux continentaux, trois échelles de terrain régional et des
+  zones orogéniques à crêtes/cols calculées depuis la croûte locale. `elevation`
+  reste la hauteur du gameplay en x/y ; les quatre champs structurels du renderer
+  sont dérivés de la topographie finale. La couture et les pôles restent continus.
   Les diagnostics bruts sont disponibles dans les outils développeur.
   Voir [`WORLDGEN.md`](WORLDGEN.md) et [`TECTONIC_TERRAIN.md`](TECTONIC_TERRAIN.md).
 

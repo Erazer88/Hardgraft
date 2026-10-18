@@ -10,9 +10,9 @@ Le globe, les textures et les shaders ne font pas partie de cette refonte.
 et jitter seedés. Chaque plaque porte une rotation angulaire et une croûte.
 `velocity = cross(omega, direction)` reste tangent à la sphère.
 Les deux meilleurs produits scalaires définissent la frontière locale ; la vitesse
-relative y distingue convergence, divergence et cisaillement. Le type de croûte
-commande l'uplift, les fosses et les rifts. Le champ continental reste indépendant
-et ne reçoit qu'une faible influence interpolée des plaques.
+relative y distingue convergence, divergence et cisaillement. Les étiquettes de
+croûte des plaques n'ajoutent qu'un faible biais au champ continental ; la classe
+de collision actuelle est échantillonnée dans ce champ de chaque côté de la frontière.
 
 Validation A : `node --test tests/tectonics.test.cjs` (4 tests). L'ajout de ce modèle
 n'a pas modifié la génération d'elevation v7 à cette étape.
@@ -63,3 +63,30 @@ Limites : tectonique statique stylisée, sans simulation temporelle ni drainage
 hydraulique. Les vallées sont détectées par concavité après érosion thermique.
 La génération n'est pas une reconstruction géophysique. Les changements v8
 régénèrent la topographie ; les anciennes positions de bâtiments restent conservées.
+
+## E — conversion du relief v9
+
+La version 9 conserve le modèle de plaques v8 et le contrat du renderer. Elle
+modifie seulement l'échantillonnage de la géographie continentale et sa conversion
+en altitude :
+
+- `continentalField` reste le champ terre/mer basse fréquence. Un domain warp
+  sphérique et une faible variation de contour le rendent moins rond sans calquer
+  les continents sur les cellules des plaques.
+- La contribution d'altitude du champ continental sature vers le plateau intérieur.
+  Les points profondément continentaux ne tirent donc plus toute leur altitude de
+  la valeur du masque terre/mer.
+- Trois bruits sphériques indépendants produisent du relief régional, des collines
+  et un détail fin de plus faible amplitude. Les terres éloignées des frontières
+  conservent ainsi une variation topographique mesurée.
+- Les frontières convergentes génèrent une large zone orogénique avec plusieurs
+  bandes de crêtes irrégulières, des interruptions et des cols. La classification
+  utilise les valeurs continentales de part et d'autre de la frontière locale,
+  permettant à une plaque de traverser une côte.
+- L'érosion thermique reste à 12 passes. Aucun changement de shader ou de renderer
+  n'est requis : `rawElevation` est inspectée seule avant tout travail visuel.
+
+`node tests/terrain-topography-report.cjs` produit les cartes brutes, d'uplift et
+érodées pour trois graines. `tests/tectonics.test.cjs` couvre la saturation des
+plateaux, le relief intérieur, le changement local de croûte au sein d'une plaque,
+les crêtes multiples et la continuité/déterminisme des champs.

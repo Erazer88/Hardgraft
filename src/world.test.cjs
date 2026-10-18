@@ -23,12 +23,14 @@ const surfaceWaterCoverage = terrain => {
   return wet / Math.max(1, total);
 };
 
-test('terrain v8 replaces mountain chains with static spherical tectonics', () => {
+test('terrain v9 refines topography over static spherical tectonics', () => {
   const settings=context.OrbitWorldgenData.terrain;
-  assert.equal(settings.version,8);
+  assert.equal(settings.version,9);
   assert.ok(settings.tectonics.plateCount[0]>=12 && settings.tectonics.plateCount[1]<=24);
   assert.ok(settings.tectonics.erosion.passes>=8 && settings.tectonics.erosion.passes<=20);
   assert.equal('relief' in settings,false,'the old mountainChains configuration has been removed');
+  assert.ok(settings.tectonics.terrainRelief.regional.amplitude > settings.tectonics.terrainRelief.hills.amplitude);
+  assert.ok(settings.tectonics.orogeny.beltWidth > settings.tectonics.orogeny.coreWidth);
   const source=fs.readFileSync(__dirname+'/world.js','utf8');
   assert.doesNotMatch(source,/createMountainSystems|mountainChains|segmentProfile|ridgeNoise/);
   assert.match(source,/OrbitTerrainStructure\.derive\(elevation/,'renderer fields are derived after elevation');

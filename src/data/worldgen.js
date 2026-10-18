@@ -29,13 +29,32 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 8,
+      version: 9,
       genericWater: [.30, .46],
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
-        continentalFrequency: 1.2, plateContinentalInfluence: .035,
-        motionScale: 1.1, shoulderWidth: .105, coreWidth: .032,
+        continentalFrequency: 1.2, continentalWarpFrequency: .72, continentalWarpAmplitude: .105,
+        continentalEdgeFrequency: 3.2, continentalEdgeAmplitude: .065,
+        plateContinentalInfluence: .035,
+        continentalBase: { base: 65, plateauRise: 44, coastRange: [.28, .50],
+          inlandRange: [.52, .72], inlandRise: 3 },
+        terrainRelief: {
+          regional: { frequency: 1.9, amplitude: 32, octaves: 3 },
+          hills: { frequency: 7.0, amplitude: 15, octaves: 2 },
+          fine: { frequency: 18, amplitude: 3, octaves: 2 }
+        },
+        orogeny: {
+          crustProbe: .045, continentalThreshold: [.40, .62],
+          beltWidth: .18, coreWidth: .052,
+          ridgeSpacing: .062, ridgeExponent: 2.4,
+          ridgeWarpAmplitude: .010, ridgeWarpFrequency: 6.2,
+          ridgeObliqueAmplitude: .018, ridgeAmplitude: .90,
+          alongVariationFrequency: 2.6, interruptionFrequency: 4.1,
+          interruptionThreshold: [-.22, .36],
+          coastalOffset: .038
+        },
+        motionScale: 1.1,
         subductionOffset: .047, trenchWidth: .033, riftWidth: .038,
         continentalCollision: 76, coastalUplift: 62, islandArcUplift: 27,
         trenchDepth: 12, riftDepth: 19, oceanRidgeUplift: 7,
