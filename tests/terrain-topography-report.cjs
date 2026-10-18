@@ -2,9 +2,9 @@
 'use strict';
 // CPU-only evidence, deliberately independent of the globe/material/shader pipeline.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),zlib=require('node:zlib');
-const context=vm.createContext({Math});
+const context=globalThis;
 for(const file of ['data/worldgen.js','world.js','world/system.js','world/tectonics.js','world/terrainElevation.js','world/thermalErosion.js','world/terrainStructure.js'])
-  vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',file),'utf8'),context);
+  vm.runInThisContext(fs.readFileSync(path.join(__dirname,'../src',file),'utf8'),{filename:file});
 const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let k=0;k<8;k++)n=(n&1)?0xedb88320^(n>>>1):n>>>1;return n>>>0;});
 function crc(buffer){let n=0xffffffff;for(const b of buffer)n=crcTable[(n^b)&255]^(n>>>8);return (n^0xffffffff)>>>0;}
 function chunk(type,data){const name=Buffer.from(type),out=Buffer.alloc(12+data.length);out.writeUInt32BE(data.length);name.copy(out,4);data.copy(out,8);out.writeUInt32BE(crc(Buffer.concat([name,data])),8+data.length);return out;}
