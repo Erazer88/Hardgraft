@@ -5,6 +5,7 @@
   root.OrbitPlanetTerrainStylizedShader = `
     uniform sampler2D uTerrainVisualClassTexture;
     uniform sampler2D uStylizedNormalTexture;
+    uniform sampler2D uRealMountainNormalTexture;
     uniform sampler2D uStylizedMaterialTexture;
     uniform int uTerrainView;
     uniform int uVisualClimate;
@@ -25,7 +26,7 @@
 
     float terrainCastShadow(vec3 surfaceDirection, vec3 light, float receiver) {
       float facing = dot(surfaceDirection, light);
-      if (receiver < .06 || facing <= .02 || facing > .92) return 0.0;
+      if (receiver < .10 || facing <= .02 || facing > .92) return 0.0;
       vec3 tangentLight = light - surfaceDirection * facing;
       float horizontal = length(tangentLight);
       tangentLight /= max(.001, horizontal);
@@ -34,13 +35,13 @@
       float obstruction = 0.0;
       // Look toward the light; the resulting shadows fall on its opposite side.
       // Geodesic samples keep the shadow stable at the poles and UV seam.
-      for (int i = 1; i <= 6; i++) {
-        float angle = uTerrainShadowReach * float(i) / 6.0;
+      for (int i = 1; i <= 8; i++) {
+        float angle = uTerrainShadowReach * float(i) / 8.0;
         vec3 neighbor = surfaceDirection * cos(angle) + tangentLight * sin(angle);
         vec2 uv = globeDirectionUv(neighbor);
         float neighborHeight = sampleShapedLandHeight(uv, 3.0) * uReliefScale;
-        float horizon = neighborHeight - ground - sin(angle) * rise * .45;
-        obstruction = max(obstruction, smoothstep(.0008, .0040, horizon));
+        float horizon = neighborHeight - ground - sin(angle) * rise * .20;
+        obstruction = max(obstruction, smoothstep(.0003, .0022, horizon));
       }
       return obstruction * receiver;
     }
@@ -53,18 +54,22 @@
       classes /= max(.001, dot(classes, vec4(1.0)));
       vec4 normalSample = texture(uStylizedNormalTexture, vUv);
       vec3 stylizedNormal = rotateTerrainNormal(normalize(normalSample.rgb * 2.0 - 1.0));
+      vec3 realMountainNormal = rotateTerrainNormal(normalize(texture(uRealMountainNormalTexture, vUv).rgb * 2.0 - 1.0));
       vec4 material = texture(uStylizedMaterialTexture, vUv);
       float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
-      float raisedTerrain = clamp(mountain + classes.g * .65, 0.0, 1.0);
+      float raisedTerrain = clamp(mountain + classes.g * .34, 0.0, 1.0);
       float castShadow = uTerrainView == 0 || uTerrainView == 3
         ? terrainCastShadow(objectDirection, inverseTerrainNormal(lightDirection), raisedTerrain) : 0.0;
+      vec4 structure = texture(uTerrainStructureTexture, vUv);
+      float ridge = structure.g;
+      float valley = structure.b;
 
       float coastDistance = (texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0) * uCoastRange;
       float aa = clamp(fwidth(coastDistance) * .65, .25, 1.2);
       float land = smoothstep(-aa, aa, coastDistance);
       float sandBand = land * (1.0 - smoothstep(.15, uSandBandWidth + aa, max(0.0, coastDistance)));
       sandBand *= 1.0 - material.a;
-      material.rgb = mix(material.rgb, uCoastColor, sandBand * .85);
+      material.rgb = mix(material.rgb, uCoastColor, sandBand * .94);
       float lavaMask = 0.0;
       if (uVisualClimate == 3) {
         // Preserve the existing procedural lava material in volcanic basins.
@@ -76,18 +81,26 @@
       // Suppress part of the globe's broad illumination only in the massifs:
       // the ramp reads their face orientation instead of lighting every slope
       // at once just because the whole hemisphere is facing the sun.
-      float ndl = dot(stylizedNormal, lightDirection) - dot(sphereNormal, lightDirection) * mountain * .45;
-      float shadow = smoothstep(-.20, .12, ndl);
-      float highlight = smoothstep(.32, .70, ndl);
-      float darkTone = mix(.90, .66, mountain);
-      float brightTone = mix(1.06, 1.18, mountain);
+      float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
+      float ndl = dot(stylizedNormal, lightDirection) - dot(sphereNormal, lightDirection) * mountain * .28;
+      float shadow = smoothstep(-.22, .14, ndl);
+      float highlight = smoothstep(.28, .66, ndl);
+      float darkTone = mix(.92, .64, mountainInfluence);
+      float brightTone = mix(1.045, 1.20, mountainInfluence);
       brightTone = mix(brightTone, 1.025, material.a);
       float lighting = mix(darkTone, 1.0, shadow);
       lighting = mix(lighting, brightTone, highlight);
       lighting *= 1.0 - castShadow * uTerrainShadowStrength;
-      lighting *= 1.0 + normalSample.a * mountain * highlight * .06;
-      vec3 landColor = material.rgb * lighting;
+      lighting *= 1.0 + ridge * mountainInfluence * highlight * .045;
+      vec3 shadowTint = uVisualClimate == 0 ? vec3(.88, .91, .82) : vec3(.88, .91, .94);
+      vec3 lightTint = uVisualClimate == 0 ? vec3(1.06, 1.025, .96) : vec3(1.04, 1.035, 1.02);
+      vec3 tint = mix(shadowTint, vec3(1.0), shadow);
+      tint = mix(tint, lightTint, highlight * mountainInfluence);
+      vec3 landColor = material.rgb * lighting * tint;
       landColor = mix(landColor, material.rgb, lavaMask * .25);
+      // Valley metadata only deepens the actual mountain troughs; the mask is
+      // absent from ordinary plains, so it cannot draw global dark stripes.
+      landColor = mix(landColor, landColor * vec3(.88, .86, .82), valley * mountainInfluence * .14);
 
       // Two finite bands: a narrow turquoise shoal and a separate sand strip.
       // The broad ocean gradient never adds light to the edge of the continent.
@@ -115,6 +128,11 @@
         color = mix(vec3(.025, .065, .10), vec3(1.0 - castShadow), land);
       } else if (uTerrainView == 4) {
         color = mix(material.rgb, waterMaterial, ocean);
+      } else if (uTerrainView == 5) {
+        color = realMountainNormal * .5 + .5;
+      } else if (uTerrainView == 6) {
+        float rolling = pow(normalSample.a, .72);
+        color = vec3(rolling, rolling * .76, rolling * .34) * land;
       }
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }

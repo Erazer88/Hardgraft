@@ -367,6 +367,7 @@
       program.uniforms = { yaw: gl.getUniformLocation(program, 'uYaw'), pitch: gl.getUniformLocation(program, 'uPitch'),
         visualClassTexture: gl.getUniformLocation(program, 'uTerrainVisualClassTexture'),
         stylizedNormalTexture: gl.getUniformLocation(program, 'uStylizedNormalTexture'),
+        realMountainNormalTexture: gl.getUniformLocation(program, 'uRealMountainNormalTexture'),
         stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
@@ -482,6 +483,7 @@
         gl.deleteTexture(buffers.landMaskTexture); gl.deleteTexture(buffers.coastSdfTexture);
         gl.deleteTexture(buffers.detailTexture); gl.deleteTexture(buffers.terrainStructureTexture);
         gl.deleteTexture(buffers.visualClassTexture); gl.deleteTexture(buffers.stylizedNormalTexture);
+        gl.deleteTexture(buffers.realMountainNormalTexture);
         gl.deleteTexture(buffers.stylizedMaterialTexture);
         gl.deleteVertexArray(buffers.vao);
       }
@@ -525,11 +527,12 @@
         visualData.classWidth, visualData.classHeight);
       const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
       const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
+      const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
-        visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture,
-        visualMetrics: { proportions: visualData.proportions, facetCount: visualData.facetCount, generationMs: visualData.generationMs },
+        visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture,
+        visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief, generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
@@ -640,12 +643,14 @@
       gl.uniform1i(program.uniforms.stylizedNormalTexture, 7);
       gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, buffers.stylizedMaterialTexture);
       gl.uniform1i(program.uniforms.stylizedMaterialTexture, 8);
+      gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, buffers.realMountainNormalTexture);
+      gl.uniform1i(program.uniforms.realMountainNormalTexture, 9);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
       normalRotation[6] = sy; normalRotation[7] = -sx * cy; normalRotation[8] = cx * cy;
       gl.uniformMatrix3fv(program.uniforms.globeRotation, false, normalRotation);
-      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'normals', 'shadow', 'material'].indexOf(terrainView)));
+      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'facetedNormals', 'shadow', 'material', 'realNormals', 'rolling'].indexOf(terrainView)));
       gl.uniform1i(program.uniforms.visualClimate, ['temperate', 'frozen', 'arid', 'volcanic'].indexOf(buffers.climate));
       gl.uniform1f(program.uniforms.terrainShadowStrength, style.stylizedTerrain.shadowStrength);
       gl.uniform1f(program.uniforms.terrainShadowReach, style.stylizedTerrain.shadowReach);

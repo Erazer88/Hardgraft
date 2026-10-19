@@ -19,9 +19,11 @@
       options: Object.freeze([
         Object.freeze({ value: 'final', label: 'Rendu final' }),
         Object.freeze({ value: 'classes', label: 'Visual classes' }),
-        Object.freeze({ value: 'normals', label: 'Stylized normals' }),
+        Object.freeze({ value: 'facetedNormals', label: 'Faceted normals' }),
         Object.freeze({ value: 'shadow', label: 'Terrain shadow' }),
-        Object.freeze({ value: 'material', label: 'Final material' })
+        Object.freeze({ value: 'material', label: 'Final material' }),
+        Object.freeze({ value: 'realNormals', label: 'Real mountain normals' }),
+        Object.freeze({ value: 'rolling', label: 'Rolling relief' })
       ])
     }),
     Object.freeze({
