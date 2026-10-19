@@ -223,28 +223,26 @@
       float landCoverage = texture(uLandMaskTexture, vUv).r;
       vec4 terrainStructure = texture(uTerrainStructureTexture, vUv);
       vec4 broadStructure = textureLod(uTerrainStructureTexture, vUv, uStructureLod);
-      float tectonicMask = max(terrainStructure.r, broadStructure.r);
+      float mountainMask = max(terrainStructure.r, broadStructure.r) * landCoverage;
       float ridgeStrength = max(terrainStructure.g, broadStructure.g);
       float valleyStrength = mix(terrainStructure.b, broadStructure.b, .45);
       float ruggedness = max(terrainStructure.a, broadStructure.a);
+      float plainMask = 1.0 - smoothstep(uPlainSlopeLow, uPlainSlopeHigh, slope);
       float mountainSlope = smoothstep(uMountainSlopeLow, uMountainSlopeHigh, slope);
-      float mountainEvidence = smoothstep(uMountainMaskLow, uMountainMaskHigh, tectonicMask);
-      float ruggedEvidence = smoothstep(uRuggednessLow, uRuggednessHigh, ruggedness);
-      float altitudeEvidence = smoothstep(uMountainHeightLow, uMountainHeightHigh, height);
-      float mountainByShape = altitudeEvidence * max(mountainSlope, ruggedEvidence * .78);
-      float mountainMaskVisual = clamp(max(mountainEvidence * .86, mountainByShape * .68), 0.0, 1.0) * landCoverage;
-      float summitMask = smoothstep(uSummitHeightLow, uSummitHeightHigh, height) *
-        max(mountainMaskVisual, smoothstep(.18, .62, ridgeStrength));
-      summitMask *= landCoverage;
-      float hillBand = smoothstep(uHillHeightLow, uHillHeightHigh, height) *
-        (1.0 - smoothstep(uMountainHeightLow * .82, uMountainHeightHigh * .78, height));
-      float hillEvidence = max(smoothstep(uPlainSlopeLow, uPlainSlopeHigh, slope), ruggedEvidence * .58);
-      float hillMask = clamp(hillBand * max(.42, hillEvidence) * (1.0 - mountainMaskVisual), 0.0, 1.0) * landCoverage;
-      float plainMask = clamp(1.0 - max(hillMask, mountainMaskVisual), 0.0, 1.0) * landCoverage;
+      float mountainInfluence = max(mountainMask, ruggedness * mountainSlope) * landCoverage;
+      float reliefStrength = mix(.05, .58, mountainInfluence);
+      reliefStrength *= mix(.72, 1.0, 1.0 - plainMask);
+      float facetMask = mountainMask * ruggedness
+        * smoothstep(.14, .34, slope)
+        * smoothstep(.28, .68, height);
+      float rockExposure = mountainInfluence * smoothstep(.14, .30, slope);
+      float mountainMaskVisual = mountainInfluence;
 
+      // Keep the broad height signal almost invisible across the plains. The
+      // visual mask only releases stronger hill normals inside rugged uplifts.
       vec3 plainNormal = normalize(mix(baseNormal, macroTerrainNormal, uPlainNormalStrength));
-      vec3 hillNormal = normalize(mix(plainNormal, hillHeightNormal, hillMask * uHillNormalMix));
-      vec3 finalNormal = normalize(mix(hillNormal, facetNormal, mountainMaskVisual * uFacetMix));
+      vec3 hillNormal = normalize(mix(plainNormal, hillHeightNormal, reliefStrength));
+      vec3 finalNormal = normalize(mix(hillNormal, facetNormal, facetMask * uFacetMix));
 
       float coastSdf = texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0;
       float coastWidth = max(uCoastWidth, fwidth(coastSdf) * 1.15);
@@ -254,20 +252,15 @@
       vec3 base = texture(uAlbedoTexture, vUv).rgb;
       base = mix(base, uCoastColor, shoreBand * uCoastBandStrength);
 
-      vec3 hillColor = base * vec3(.82, .88, .77);
-      float classWeight = plainMask + hillMask + mountainMaskVisual + summitMask;
-      vec3 classColor = (base * plainMask + hillColor * hillMask +
-        uRockColor * mountainMaskVisual * uRockExposure + uRidgeColor * summitMask) /
-        max(.001, classWeight);
-      vec3 landMaterial = mix(base, classColor, clamp(classWeight, 0.0, 1.0));
+      vec3 landMaterial = mix(base, uRockColor, rockExposure * uRockExposure);
       float baseLuma = dot(base, vec3(.2126, .7152, .0722));
       float baseChroma = max(max(base.r, base.g), base.b) - min(min(base.r, base.g), base.b);
       float snowMask = smoothstep(.65, .84, baseLuma) * (1.0 - smoothstep(.08, .24, baseChroma));
       landMaterial = mix(landMaterial, base, snowMask);
       landMaterial = mix(landMaterial, uRidgeColor,
-        ridgeStrength * mountainMaskVisual * uRidgeMaterialMix);
+        ridgeStrength * uRidgeMaterialMix);
       landMaterial = mix(landMaterial, uCreviceColor,
-        valleyStrength * mountainMaskVisual * uValleyMaterialMix);
+        valleyStrength * uValleyMaterialMix);
 
       float ndl = dot(finalNormal, lightDirection);
       float shadow = smoothstep(-.30, .10, ndl);
@@ -280,7 +273,7 @@
       float highlightMix = mix(.12, uHighlightStrength, mountainMaskVisual);
       vec3 landColor = mix(landMaterial, shadowColor, (1.0 - shadow) * shadowMix);
       landColor = mix(landColor, highlightColor, light * highlightMix);
-      float ao = 1.0 - slope * uAoStrength * land * mountainMaskVisual;
+      float ao = 1.0 - slope * uAoStrength * land * mountainInfluence;
       float ridgeLight = ridgeStrength * mountainMaskVisual * max(ndl, 0.0) * uRidgeAccentStrength;
       landColor *= ao * (1.0 + ridgeLight);
 
@@ -642,7 +635,7 @@
       gl.uniform1f(program.uniforms.facetMix, shading.mountainFacetMix);
       gl.uniform1f(program.uniforms.aoStrength, shading.mountainAoStrength);
       gl.uniform1f(program.uniforms.ridgeAccentStrength, shading.ridgeAccentStrength);
-      gl.uniform1f(program.uniforms.coastWidth, 1.5 / buffers.coastRange);
+      gl.uniform1f(program.uniforms.coastWidth, 1.0 / buffers.coastRange);
       gl.uniform1f(program.uniforms.coastRange, buffers.coastRange);
       setHexUniform(program.uniforms.coastColor, buffers.coastColor);
       const water = style.water;

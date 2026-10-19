@@ -15,10 +15,10 @@
   };
 
   const PALETTES = Object.freeze({
-    temperate: Object.freeze({ deepOcean: '#052F54', ocean: '#0A5C83', shallow: '#237F9D',
-      coast: '#DFC67D', wetPlain: '#3F8738', plain: '#69A942', dryPlain: '#A2A04D',
-      upland: '#7F8448', highland: '#AA925D', rock: '#936D4E', highRock: '#C1A179',
-      snow: '#E8F2F4', coldSnow: '#C3DFE9', polarIce: '#A9D7E6',
+    temperate: Object.freeze({ deepOcean: '#0A3E7A', ocean: '#147DB6', shallow: '#4CC9D8',
+      coast: '#DFC67D', lowland: '#95CF61', plain: '#7FBE53', wetPlain: '#5F9B45',
+      dryPlain: '#A7A45F', upland: '#A9B96B', highland: '#B89263', rock: '#936D4E', highRock: '#C1A179',
+      snow: '#F1F4F6', coldSnow: '#DDE7ED', polarIce: '#A9D7E6',
       seaIce: '#7FC2D0', packedSeaIce: '#C0E4E8', iceCrack: '#4E8C9B' }),
     frozen: Object.freeze({ seaIce: '#78B7C9', packedIce: '#B2D4DE', brightIce: '#DDEBF1',
       coldRock: '#617985', darkColdRock: '#435A64', ridgeShadow: '#2D444C',
@@ -362,17 +362,15 @@
           mixInto(temporary, base, land, polarCoverage * .96);
           copyInto(base, temporary);
         }
-      } else if (h < .28) {
-        mixInto(base, palette.dryPlain, palette.plain, .32 + humidity * .36);
-        mixInto(temporary, base, palette.wetPlain, smoothstep(.48, .9, humidity) * .62);
+      } else if (h < .42) {
+        mixInto(base, palette.lowland, palette.plain, smoothstep(.04, .42, h) * .72);
+        mixInto(temporary, base, palette.wetPlain, smoothstep(.62, .94, humidity) * .38);
         copyInto(base, temporary);
-      }
-      else if (h < .50) mixInto(base, palette.plain, palette.upland,
-        smoothstep(.28, .50, h) * .24);
-      else if (h < .72) mixInto(base, palette.plain, palette.upland,
-        .24 + smoothstep(.50, .72, h) * .18);
-      else mixInto(base, palette.upland, palette.highland,
-        smoothstep(.72, .97, h) * .36);
+      } else if (h < .66) {
+        mixInto(base, palette.plain, palette.upland, smoothstep(.42, .66, h) * .48);
+      } else if (h < .82) {
+        mixInto(base, palette.upland, palette.highland, smoothstep(.66, .82, h));
+      } else copyInto(base, palette.highland);
       const snow = 1 - smoothstep(-4, 5, localTemperature);
       const summitSnow = smoothstep(.82, .97, h) * .30;
       // Local temperature still dusts cold highlands, while the actual polar
