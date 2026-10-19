@@ -1174,31 +1174,40 @@
     return time;
   }
 
+  let lastFrameError = '';
   function frame(now) {
-    const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
-    const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
-    Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
-    if (!state.paused && !document.hidden) {
-      Construction.advance(state.surfaceBuildings, simulationDt, building => refreshSettlements(building.planetId));
-      RoadConstruction.advance(state.roadNetworks, simulationDt, planetId => refreshSettlements(planetId));
-      SettlementSimulation.advance(state.surfaceSettlements, simulationDt, refreshSettlements);
-      globalThis.OrbitIndustry.advance(state, simulationDt);
+    try {
+      const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
+      const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
+      Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
+      if (!state.paused && !document.hidden) {
+        Construction.advance(state.surfaceBuildings, simulationDt, building => refreshSettlements(building.planetId));
+        RoadConstruction.advance(state.roadNetworks, simulationDt, planetId => refreshSettlements(planetId));
+        SettlementSimulation.advance(state.surfaceSettlements, simulationDt, refreshSettlements);
+        globalThis.OrbitIndustry.advance(state, simulationDt);
+      }
+      Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
+      if (state.tracking) {
+        const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
+        const dx = position.x - follow.position.x, dy = position.y - follow.position.y;
+        state.camera.x += dx; state.camera.y += dy; state.target.x += dx; state.target.y += dy;
+        follow.position = position;
+      }
+      completeMissions(now);
+      state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
+      updateSceneContext();
+      renderUniverse(now);
+      lastFrameError = '';
+      if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
+      factoryEditor.refreshProgress();
+      if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); lastHUD = now; }
+    } catch (error) {
+      const message = error?.stack || String(error);
+      if (message !== lastFrameError) console.error('Frame loop recovered from an error:', error);
+      lastFrameError = message;
+    } finally {
+      requestAnimationFrame(frame);
     }
-    Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
-    if (state.tracking) {
-      const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
-      const dx = position.x - follow.position.x, dy = position.y - follow.position.y;
-      state.camera.x += dx; state.camera.y += dy; state.target.x += dx; state.target.y += dy;
-      follow.position = position;
-    }
-    completeMissions(now);
-    state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
-    updateSceneContext();
-    renderUniverse(now);
-    if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
-    factoryEditor.refreshProgress();
-    if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); lastHUD = now; }
-    requestAnimationFrame(frame);
   }
 
   // A small inspection API supports browser checks without bypassing production paths.

@@ -39,7 +39,6 @@
       const cached = graticuleCache.get(terrain);
       if (cached?.key === cacheKey) return cached.curves;
       const curves = [];
-      curves = [];
       function addCurve(points) {
         const values = new Float32Array(points.length * 3);
         for (let i = 0; i < points.length; i += 1) {
