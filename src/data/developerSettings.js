@@ -4,6 +4,27 @@
   const storageKey = 'nereide-atlas-dev-settings-v1';
   const definitions = Object.freeze([
     Object.freeze({
+      id: 'terrainRenderer', type: 'select', group: 'Rendu de la planète',
+      label: 'Renderer terrestre', help: 'Compare les deux rendus sur la même planète et avec la même caméra.',
+      defaultValue: 'stylized',
+      options: Object.freeze([
+        Object.freeze({ value: 'stylized', label: 'Renderer stylisé' }),
+        Object.freeze({ value: 'current', label: 'Renderer v0.35.12' })
+      ])
+    }),
+    Object.freeze({
+      id: 'terrainRenderView', type: 'select', group: 'Rendu de la planète',
+      label: 'Diagnostic visuel', help: 'Isole les cartes du nouveau renderer, sans éclairage ni atmosphère dans les diagnostics.',
+      defaultValue: 'final',
+      options: Object.freeze([
+        Object.freeze({ value: 'final', label: 'Rendu final' }),
+        Object.freeze({ value: 'classes', label: 'Visual classes' }),
+        Object.freeze({ value: 'normals', label: 'Stylized normals' }),
+        Object.freeze({ value: 'shadow', label: 'Terrain shadow' }),
+        Object.freeze({ value: 'material', label: 'Final material' })
+      ])
+    }),
+    Object.freeze({
       id: 'simulationSpeed', type: 'select', group: 'Simulation',
       label: 'Vitesse du temps', help: 'Accélère les cycles industriels, la construction et les mouvements orbitaux.',
       defaultValue: 1,

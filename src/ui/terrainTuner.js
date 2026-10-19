@@ -189,7 +189,32 @@
     { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.contourInterval', label: 'Intervalle des courbes', min: 2, max: 30, step: .1 },
     { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.majorInterval', label: 'Intervalle des courbes majeures', min: 5, max: 120, step: .1 },
     { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.contourOpacity', label: 'Opacité des courbes', min: 0, max: .8, step: .001 },
-    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.majorOpacity', label: 'Opacité des courbes majeures', min: 0, max: .8, step: .001 }
+    { group: '8 · RENDU DU RELIEF', kind: 'render', path: 'topography.majorOpacity', label: 'Opacité des courbes majeures', min: 0, max: .8, step: .001 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.hillQuantile', label: 'Part de plaines calmes', min: .35, max: .8, step: .01, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.mountainQuantile', label: 'Seuil visuel des massifs (quantile)', min: .70, max: .95, step: .01, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.summitQuantile', label: 'Seuil visuel des sommets (quantile)', min: .90, max: .995, step: .005, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.normalReliefScale', label: 'Sculpture des faces (shading seul)', min: .04, max: .40, step: .005, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.facetResolution', label: 'Subdivision des faces sphériques', min: 16, max: 64, step: 1, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.plainNormalStrength', label: 'Modelé des plaines', min: 0, max: .15, step: .005, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.hillNormalStrength', label: 'Modelé large des collines', min: 0, max: .6, step: .01, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.mountainNormalStrength', label: 'Faces des montagnes', min: .3, max: 1, step: .01, live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.shadowStrength', label: 'Ombres projetées du terrain', min: 0, max: .5, step: .01 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.shadowReach', label: 'Portée angulaire des ombres', min: .02, max: .15, step: .005 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.lightDirection.x', label: 'Lumière stylisée · X', min: -1, max: 1, step: .01 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.lightDirection.y', label: 'Lumière stylisée · Y', min: -1, max: 1, step: .01 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.lightDirection.z', label: 'Lumière stylisée · Z', min: -1, max: 1, step: .01 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.shallowBandWidth', label: 'Largeur de la bande turquoise', min: .25, max: 4, step: .05 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.sandBandWidth', label: 'Largeur du liseré sable', min: .25, max: 3, step: .05 },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.plain', label: 'Matériau · plaine', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.wet', label: 'Matériau · plaine humide', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.hill', label: 'Matériau · colline', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.mountain', label: 'Matériau · montagne', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.ridge', label: 'Matériau · crête', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.crevice', label: 'Matériau · creux', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.materials.temperate.snow', label: 'Matériau · neige', type: 'color', live: false },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.water.shallow', label: 'Eau stylisée · hauts-fonds', type: 'color' },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.water.mid', label: 'Eau stylisée · océan', type: 'color' },
+    { group: '9 · RENDU STYLISÉ', kind: 'render', path: 'stylizedTerrain.water.deep', label: 'Eau stylisée · large', type: 'color' }
   ]);
 
   function pathValue(object, path) {
@@ -371,7 +396,10 @@
       color.setAttribute('aria-label', definition.label);
       row.append(label, color); parent.append(row);
       rows.set(definition.path, { color });
-      color.addEventListener('input', () => { setValue(definition, color.value); apply(false, 'render-color'); });
+      color.addEventListener('input', () => {
+        setValue(definition, color.value);
+        if (definition.live !== false) apply(false, 'render-color');
+      });
       color.addEventListener('change', () => { setValue(definition, color.value); apply(false, 'render-color'); });
       syncRow(definition);
     }
@@ -395,7 +423,7 @@
       }
       const note = document.createElement('p');
       note.className = 'terrain-tuner-note';
-      note.textContent = 'Le générateur n’a pas de paramètre de terracing ou de lissage séparé de l’érosion thermique. Le shader n’a pas de roughness terrain : la netteté spéculaire de l’eau se règle par sa puissance de reflet.';
+      note.textContent = 'Les anciens réglages de normale et de facettes du groupe 8 concernent le renderer v0.35.12. Le groupe 9 pilote le renderer stylisé. La géométrie est commune aux deux modes ; ces réglages visuels ne modifient pas la topographie.';
       groupsContainer.append(note);
     }
 

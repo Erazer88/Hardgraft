@@ -200,6 +200,12 @@
   }
 
   root.OrbitPlanetGlobeProjection = Object.freeze({ terrainToSphere, sphereToTerrain,
+    // The shader uses the same inverse projection for spherical shadow samples.
+    shaderSphereUv: `vec2 globeDirectionUv(vec3 d) {
+      d = normalize(d);
+      return vec2(atan(d.z, d.x) / 6.28318530718 + 0.5,
+        0.5 - asin(clamp(d.y, -1.0, 1.0)) / 3.14159265359);
+    }`,
     sampleField, sampleElevation, visualReliefRange, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);

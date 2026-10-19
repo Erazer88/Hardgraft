@@ -6,10 +6,10 @@
   const Style = root.OrbitPlanetGlobeStyle;
   const VERTEX_SHADER = `#version 300 es
     precision highp float;
-    in vec3 aPosition;
-    in vec3 aNormal;
-    in vec2 aUv;
-    in float aElevation;
+    layout(location = 0) in vec3 aPosition;
+    layout(location = 1) in vec3 aNormal;
+    layout(location = 2) in vec2 aUv;
+    layout(location = 3) in float aElevation;
     uniform float uYaw;
     uniform float uPitch;
     uniform vec2 uScale;
@@ -315,6 +315,22 @@
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }`;
 
+  // Two independent fragment programs prevent mobile drivers from compiling a
+  // giant branch containing both the legacy height derivatives and the new pass.
+  const LEGACY_FRAGMENT_SHADER = FRAGMENT_SHADER;
+  const STYLIZED_FRAGMENT_SHADER = FRAGMENT_SHADER.slice(0, FRAGMENT_SHADER.indexOf('    void main() {')) + root.OrbitPlanetTerrainStylizedShader + `
+    void main() {
+      if (uAtmospherePass > 0.5) {
+        if (uTerrainView > 0) { outColor = vec4(0.0); return; }
+        float facing = dot(normalize(vNormal), vec3(0.0, 0.0, 1.0));
+        if (facing <= 0.0) discard;
+        float fresnel = pow(clamp(1.0 - facing, 0.0, 1.0), uAtmospherePower);
+        outColor = vec4(uAtmosphereColor, fresnel * uAtmosphereAlpha * uOpacity);
+        return;
+      }
+      drawStylizedTerrain();
+    }`;
+
   function compile(gl, type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source); gl.compileShader(shader);
@@ -326,8 +342,11 @@
   }
 
   function create(canvas, errorElement = null) {
-    let gl = null, program = null, buffers = null, currentMesh = null, lastDrawn = null;
+    let gl = null, program = null, legacyProgram = null, stylizedProgram = null;
+    let buffers = null, currentMesh = null, lastDrawn = null;
     let currentTextureWidth = SurfaceTexture.defaults.width;
+    let maxTextureSize = 2048;
+    const normalRotation = new Float32Array(9);
     let currentStyle = Style;
     let width = 1, height = 1, dpr = 1, lost = false, failure = '';
     const meshCache = new WeakMap();
@@ -338,17 +357,24 @@
       else initialize();
     } catch (error) { failure = error?.message || 'WebGL2 unavailable'; }
 
-    function initialize() {
-      lastDrawn = null;
+    function makeProgram(fragmentSource) {
       const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
-      const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+      const fragment = compile(gl, gl.FRAGMENT_SHADER, fragmentSource);
       program = gl.createProgram(); gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
       gl.deleteShader(vertex); gl.deleteShader(fragment);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) || 'WebGL program link failed');
-      program.attributes = { position: gl.getAttribLocation(program, 'aPosition'),
-        normal: gl.getAttribLocation(program, 'aNormal'), uv: gl.getAttribLocation(program, 'aUv'),
-        elevation: gl.getAttribLocation(program, 'aElevation') };
+      program.attributes = { position: 0, normal: 1, uv: 2, elevation: 3 };
       program.uniforms = { yaw: gl.getUniformLocation(program, 'uYaw'), pitch: gl.getUniformLocation(program, 'uPitch'),
+        visualClassTexture: gl.getUniformLocation(program, 'uTerrainVisualClassTexture'),
+        stylizedNormalTexture: gl.getUniformLocation(program, 'uStylizedNormalTexture'),
+        stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
+        globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
+        terrainView: gl.getUniformLocation(program, 'uTerrainView'),
+        visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
+        terrainShadowStrength: gl.getUniformLocation(program, 'uTerrainShadowStrength'),
+        terrainShadowReach: gl.getUniformLocation(program, 'uTerrainShadowReach'),
+        shallowBandWidth: gl.getUniformLocation(program, 'uShallowBandWidth'),
+        sandBandWidth: gl.getUniformLocation(program, 'uSandBandWidth'),
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
         opacity: gl.getUniformLocation(program, 'uOpacity'), seaLevel: gl.getUniformLocation(program, 'uSeaLevel'),
         reliefLow: gl.getUniformLocation(program, 'uReliefLow'), reliefHigh: gl.getUniformLocation(program, 'uReliefHigh'),
@@ -431,6 +457,15 @@
         ridgeColor: gl.getUniformLocation(program, 'uRidgeColor'),
         creviceColor: gl.getUniformLocation(program, 'uCreviceColor'),
         hasLiquidOcean: gl.getUniformLocation(program, 'uHasLiquidOcean') };
+      return program;
+    }
+
+    function initialize() {
+      lastDrawn = null;
+      maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
+      legacyProgram = null;
+      stylizedProgram = makeProgram(STYLIZED_FRAGMENT_SHADER);
+      program = stylizedProgram;
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       buffers = null;
@@ -446,6 +481,8 @@
         gl.deleteTexture(buffers.albedoTexture); gl.deleteTexture(buffers.heightTexture);
         gl.deleteTexture(buffers.landMaskTexture); gl.deleteTexture(buffers.coastSdfTexture);
         gl.deleteTexture(buffers.detailTexture); gl.deleteTexture(buffers.terrainStructureTexture);
+        gl.deleteTexture(buffers.visualClassTexture); gl.deleteTexture(buffers.stylizedNormalTexture);
+        gl.deleteTexture(buffers.stylizedMaterialTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -464,15 +501,16 @@
       const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
         { width: textureWidth, height: textureWidth / 2, polarCaps: style.polarCaps,
           cache: !mesh.terrain.debugTuning });
+      const visualData = root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      function uploadTexture(unit, internalFormat, format, pixels) {
+      function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height) {
         const texture = gl.createTexture();
         gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, surfaceData.width, surfaceData.height, 0,
+        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, mapWidth, mapHeight, 0,
           format, gl.UNSIGNED_BYTE, pixels);
         gl.generateMipmap(gl.TEXTURE_2D);
         return texture;
@@ -483,9 +521,16 @@
       const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
       const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
       const terrainStructureTexture = uploadTexture(5, gl.RGBA8, gl.RGBA, surfaceData.terrainStructurePixels);
+      const visualClassTexture = uploadTexture(6, gl.RGBA8, gl.RGBA, visualData.terrainVisualClassPixels,
+        visualData.classWidth, visualData.classHeight);
+      const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
+      const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
-        landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture, coastRange: surfaceData.coastRange,
+        landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
+        visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture,
+        visualMetrics: { proportions: visualData.proportions, facetCount: visualData.facetCount, generationMs: visualData.generationMs },
+        visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
@@ -522,7 +567,7 @@
       }
       const polarStyleKey = JSON.stringify(style.polarCaps);
       if (currentMesh !== mesh || buffers?.textureWidth !== textureWidth ||
-          buffers?.polarStyleKey !== polarStyleKey) {
+          buffers?.polarStyleKey !== polarStyleKey || buffers?.visualStyleKey !== root.OrbitPlanetTerrainVisuals.styleKey(style)) {
         currentMesh = mesh; currentTextureWidth = textureWidth; currentStyle = style;
         upload(mesh, textureWidth, style);
       }
@@ -531,7 +576,7 @@
 
     function textureWidthFor(radiusPx) {
       const requested = SurfaceTexture.defaults.width;
-      return Math.min(requested, gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048);
+      return Math.min(requested, maxTextureSize);
     }
 
     function atmosphereRgb(planet, style = Style) {
@@ -564,10 +609,15 @@
       const radiusPx = Number.isFinite(transform.radiusPx) ? transform.radiusPx : Math.min(width, height) * style.camera.radiusRatio * view.zoom;
       const mesh = meshFor(terrain, planet, textureWidthFor(radiusPx), style);
       const opacity = Number.isFinite(transition?.globeOpacity) ? transition.globeOpacity : 1;
+      const terrainView = root.OrbitDeveloperSettings?.get('terrainRenderView') || 'final';
+      const terrainRenderer = root.OrbitDeveloperSettings?.get('terrainRenderer') || 'stylized';
+      const stylized = terrainRenderer === 'stylized' || terrainView !== 'final';
+      if (!stylized && !legacyProgram) legacyProgram = makeProgram(LEGACY_FRAGMENT_SHADER);
+      program = stylized ? stylizedProgram : legacyProgram;
       if (lastDrawn && lastDrawn.mesh === mesh && lastDrawn.yaw === view.yaw && lastDrawn.pitch === view.pitch &&
         lastDrawn.centerX === centerX && lastDrawn.centerY === centerY && lastDrawn.radiusPx === radiusPx &&
         lastDrawn.opacity === opacity && lastDrawn.width === width && lastDrawn.height === height &&
-        lastDrawn.style === style) {
+        lastDrawn.style === style && lastDrawn.terrainView === terrainView && lastDrawn.terrainRenderer === terrainRenderer) {
         return { available: true, failure: '', mesh, cached: true };
       }
       gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -584,6 +634,23 @@
       gl.uniform1i(program.uniforms.detailTexture, 4);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainStructureTexture);
       gl.uniform1i(program.uniforms.terrainStructureTexture, 5);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, buffers.visualClassTexture);
+      gl.uniform1i(program.uniforms.visualClassTexture, 6);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, buffers.stylizedNormalTexture);
+      gl.uniform1i(program.uniforms.stylizedNormalTexture, 7);
+      gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, buffers.stylizedMaterialTexture);
+      gl.uniform1i(program.uniforms.stylizedMaterialTexture, 8);
+      const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
+      normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
+      normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
+      normalRotation[6] = sy; normalRotation[7] = -sx * cy; normalRotation[8] = cx * cy;
+      gl.uniformMatrix3fv(program.uniforms.globeRotation, false, normalRotation);
+      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'normals', 'shadow', 'material'].indexOf(terrainView)));
+      gl.uniform1i(program.uniforms.visualClimate, ['temperate', 'frozen', 'arid', 'volcanic'].indexOf(buffers.climate));
+      gl.uniform1f(program.uniforms.terrainShadowStrength, style.stylizedTerrain.shadowStrength);
+      gl.uniform1f(program.uniforms.terrainShadowReach, style.stylizedTerrain.shadowReach);
+      gl.uniform1f(program.uniforms.shallowBandWidth, style.stylizedTerrain.shallowBandWidth);
+      gl.uniform1f(program.uniforms.sandBandWidth, style.stylizedTerrain.sandBandWidth);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
       const shading = style.terrainShading, controls = shading.controls;
       gl.uniform2f(program.uniforms.facetGrid, shading.facetGrid.x, shading.facetGrid.y);
@@ -591,8 +658,8 @@
       gl.uniform1f(program.uniforms.polarNormalBlendStart, controls.polarNormalBlendStartDegrees * radians);
       gl.uniform1f(program.uniforms.polarNormalBlendEnd, controls.polarNormalBlendEndDegrees * radians);
       gl.uniform1f(program.uniforms.polarNormalBlendStrength, controls.polarNormalBlendStrength);
-      gl.uniform3f(program.uniforms.lightDirection, controls.lightDirection.x,
-        controls.lightDirection.y, controls.lightDirection.z);
+      const lightDirection = stylized ? style.stylizedTerrain.lightDirection : controls.lightDirection;
+      gl.uniform3f(program.uniforms.lightDirection, lightDirection.x, lightDirection.y, lightDirection.z);
       gl.uniform1f(program.uniforms.macroLod, controls.macroLod);
       gl.uniform1f(program.uniforms.macroStepTexels, controls.macroStepTexels);
       gl.uniform1f(program.uniforms.hillLod, controls.hillLod);
@@ -637,11 +704,11 @@
       gl.uniform1f(program.uniforms.ridgeAccentStrength, shading.ridgeAccentStrength);
       gl.uniform1f(program.uniforms.coastWidth, .72 / buffers.coastRange);
       gl.uniform1f(program.uniforms.coastRange, buffers.coastRange);
-      setHexUniform(program.uniforms.coastColor, buffers.coastColor);
-      const water = style.water;
-      setHexUniform(program.uniforms.waterShallowColor, water.shallow);
-      setHexUniform(program.uniforms.waterMidColor, water.mid);
-      setHexUniform(program.uniforms.waterDeepColor, water.deep);
+      setHexUniform(program.uniforms.coastColor, stylized ? buffers.visualSand : buffers.coastColor);
+      const water = style.water, waterColors = stylized ? style.stylizedTerrain.water : water;
+      setHexUniform(program.uniforms.waterShallowColor, waterColors.shallow);
+      setHexUniform(program.uniforms.waterMidColor, waterColors.mid);
+      setHexUniform(program.uniforms.waterDeepColor, waterColors.deep);
       gl.uniform1f(program.uniforms.waterNoiseAmplitude, water.noiseAmplitude);
       gl.uniform1f(program.uniforms.waterNormalStrength, water.normalStrength);
       gl.uniform1f(program.uniforms.waterSpecularStrength, water.specularStrength);
@@ -683,7 +750,7 @@
       gl.drawElements(gl.TRIANGLES, buffers.count, buffers.indexType, 0);
       gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
       gl.bindVertexArray(null);
-      lastDrawn = { mesh, yaw: view.yaw, pitch: view.pitch, centerX, centerY, radiusPx, opacity, width, height, style };
+      lastDrawn = { mesh, yaw: view.yaw, pitch: view.pitch, centerX, centerY, radiusPx, opacity, width, height, style, terrainView, terrainRenderer };
       return { available: true, failure: '', mesh };
     }
 
@@ -695,6 +762,9 @@
         midReliefStrength: buffers ? currentStyle.terrainShading.midReliefStrength : 0,
         facetMix: buffers ? currentStyle.terrainShading.mountainFacetMix : 0,
         detailNormalStrength: 0,
+        terrainRenderer: root.OrbitDeveloperSettings?.get('terrainRenderer') || 'stylized',
+        terrainView: root.OrbitDeveloperSettings?.get('terrainRenderView') || 'final',
+        visual: buffers?.visualMetrics || null,
         coastRange: buffers?.coastRange || 0, contextLost: lost, failure }) });
   }
 
