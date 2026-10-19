@@ -269,8 +269,8 @@
       vec3 highlightFactor = mix(vec3(1.025), vec3(1.18, 1.12, 1.02), mountainMaskVisual);
       vec3 shadowColor = landMaterial * shadowFactor;
       vec3 highlightColor = landMaterial * highlightFactor;
-      float shadowMix = mix(.16, uShadowStrength, mountainMaskVisual);
-      float highlightMix = mix(.12, uHighlightStrength, mountainMaskVisual);
+      float shadowMix = mix(.10, uShadowStrength, mountainMaskVisual);
+      float highlightMix = mix(.06, uHighlightStrength, mountainMaskVisual);
       vec3 landColor = mix(landMaterial, shadowColor, (1.0 - shadow) * shadowMix);
       landColor = mix(landColor, highlightColor, light * highlightMix);
       float ao = 1.0 - slope * uAoStrength * land * mountainInfluence;
@@ -635,7 +635,7 @@
       gl.uniform1f(program.uniforms.facetMix, shading.mountainFacetMix);
       gl.uniform1f(program.uniforms.aoStrength, shading.mountainAoStrength);
       gl.uniform1f(program.uniforms.ridgeAccentStrength, shading.ridgeAccentStrength);
-      gl.uniform1f(program.uniforms.coastWidth, 1.0 / buffers.coastRange);
+      gl.uniform1f(program.uniforms.coastWidth, .72 / buffers.coastRange);
       gl.uniform1f(program.uniforms.coastRange, buffers.coastRange);
       setHexUniform(program.uniforms.coastColor, buffers.coastColor);
       const water = style.water;

@@ -15,11 +15,11 @@
   };
 
   const PALETTES = Object.freeze({
-    temperate: Object.freeze({ deepOcean: '#0A3E7A', ocean: '#147DB6', shallow: '#4CC9D8',
-      coast: '#DFC67D', lowland: '#95CF61', plain: '#7FBE53', wetPlain: '#5F9B45',
-      dryPlain: '#A7A45F', upland: '#A9B96B', highland: '#B89263', rock: '#936D4E', highRock: '#C1A179',
-      snow: '#F1F4F6', coldSnow: '#DDE7ED', polarIce: '#A9D7E6',
-      seaIce: '#7FC2D0', packedSeaIce: '#C0E4E8', iceCrack: '#4E8C9B' }),
+    temperate: Object.freeze({ deepOcean: '#073666', ocean: '#12699C', shallow: '#38A8C4',
+      coast: '#DFC67D', lowland: '#8FC85B', plain: '#69A94B', wetPlain: '#4F8D43',
+      dryPlain: '#A5A05D', upland: '#879A57', highland: '#B38A5F', rock: '#936D4E', highRock: '#C1A179',
+      snow: '#E7EEF0', coldSnow: '#CBDCE2', polarIce: '#B8D9E1',
+      seaIce: '#B8D9E1', packedSeaIce: '#CBDCE2', iceCrack: '#4E8C9B' }),
     frozen: Object.freeze({ seaIce: '#78B7C9', packedIce: '#B2D4DE', brightIce: '#DDEBF1',
       coldRock: '#617985', darkColdRock: '#435A64', ridgeShadow: '#2D444C',
       snow: '#E3EFF3', blueSnow: '#BADCE8', crackTint: '#477D8D', polarCore: '#699CAB' }),
@@ -355,7 +355,7 @@
         else if (depth > .14) mixInto(base, palette.shallow, palette.ocean, smoothstep(.14, .62, depth));
         else copyInto(base, palette.shallow);
         if (polarCoverage > 0) {
-          mixInto(temporary, palette.seaIce, palette.packedSeaIce,
+          mixInto(temporary, palette.polarIce, palette.coldSnow,
             clamp(.50 + detail.medium * .12 + detail.fine * .04, 0, 1));
           const seaCrack = smoothstep(.982, .998, 1 - Math.abs(detail.crack));
           mixInto(land, temporary, palette.iceCrack, seaCrack * .08);
@@ -372,14 +372,14 @@
         mixInto(base, palette.upland, palette.highland, smoothstep(.66, .82, h));
       } else copyInto(base, palette.highland);
       const snow = 1 - smoothstep(-4, 5, localTemperature);
-      const summitSnow = smoothstep(.82, .97, h) * .30;
+      const summitSnow = smoothstep(.82, .97, h) * .24;
       // Local temperature still dusts cold highlands, while the actual polar
       // cap outline comes from the irregular spherical coverage field above.
       const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94);
       if (elevation > seaLevel) {
         mixInto(temporary, palette.snow, palette.coldSnow,
           clamp(smoothstep(.42, .96, absoluteLatitude) * .52 + polarCoverage * .42, 0, .92));
-        mixInto(land, base, temporary, clamp(snowCoverage, 0, .88));
+        mixInto(land, base, temporary, clamp(snowCoverage, 0, .80));
         copyInto(base, land);
       }
     } else if (climate === 'frozen') {
