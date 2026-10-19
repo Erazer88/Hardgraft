@@ -13,7 +13,6 @@
     carbon: Object.freeze({ fill: '#b9eb3230', hatch: '#c6f34ae8', outline: '#edff9e', glow: '#a7d92c' }),
     oil: Object.freeze({ fill: '#ffad3030', hatch: '#ffbd43e8', outline: '#ffe0a1', glow: '#ff9f22' })
   });
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   function create(canvas) {
     const ctx = canvas.getContext('2d', { alpha: true });
@@ -163,10 +162,12 @@
       for (const resource of terrain.resources) {
         const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, currentStyle.relief);
         if (!point.visible) continue;
-        const edge = Projection.projectSurfacePoint(Math.min(terrain.width - 1, resource.x + resource.radius),
+        const edge = Projection.projectSurfacePoint(resource.x + resource.radius,
           resource.y, terrain, view, currentStyle.relief);
         const sampledRadius = edge.visible ? Math.hypot(edge.x - point.x, edge.y - point.y) : 0;
-        const radius = clamp(sampledRadius * 2.1, 20, 42);
+        // The patch follows the projected deposit radius, so it grows with the
+        // globe instead of staying at a fixed screen-space size when zooming.
+        const radius = sampledRadius * .58;
         const style = RESOURCE_DEPOSIT_STYLE[resource.id] || {
           fill: '#a5b0af30', hatch: '#d2dcdae8', outline: '#d2dcda', glow: '#a5b0af' };
         ctx.save();
@@ -183,7 +184,7 @@
         ctx.strokeStyle = style.outline; ctx.globalAlpha = alpha * .85; ctx.lineWidth = 1.2;
         ctx.setLineDash([4, 3]); ctx.shadowColor = style.glow; ctx.shadowBlur = 3; ctx.stroke();
         ctx.shadowBlur = 0; ctx.setLineDash([]);
-        if (radius >= 16) {
+        if (radius >= 12) {
           ctx.font = '9px ui-monospace, SFMono-Regular, Consolas, monospace';
           ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = style.outline;
           ctx.globalAlpha = alpha * .95;

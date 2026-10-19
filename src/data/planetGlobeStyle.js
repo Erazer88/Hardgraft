@@ -51,7 +51,7 @@
       colors: Object.freeze({ tellurique: '#64C9E8', océanique: '#35D2F2',
         glacée: '#C4E9F5', aride: '#F0B76C', volcanique: '#FF6336',
         gazeuse: '#B5A991', default: '#73C8E0' }) }),
-    camera: Object.freeze({ minZoom: .8, maxZoom: 1.56, initialZoom: 1,
+    camera: Object.freeze({ minZoom: .8, maxZoom: 2.03, initialZoom: 1,
       radiusRatio: .4, rotationSensitivity: .006, maxPitch: .72, transitionMs: 320 }),
     resources: Object.freeze({ iron: '#d4a76d', copper: '#c88462', silicon: '#91b5b9',
       carbon: '#a6ad83', oil: '#8f877a' }),
