@@ -19,7 +19,10 @@
       directionChange: .14,
       switchbackGradePerHeightCell: 2.5,
       switchbackTurnMultiplier: .28,
-      shallowWaterMultiplier: 22,
+      // Shallow crossings are represented as short, straight bridge spans.
+      // Keep a modest premium over land so A* prefers a bridge to a large
+      // coastline detour, while deeper water remains blocked by maxWaterDepth.
+      shallowWaterMultiplier: 1.4,
       marineWaterMultiplier: 64,
       roadReuse: .02,
       nearRoad: .055,
@@ -32,7 +35,7 @@
       maxWaterDepth: 16,
       buildingClearance: 2
     }),
-    search: Object.freeze({ maxExpandedStates: 500000 }),
+    search: Object.freeze({ maxExpandedStates: 500000, maxDetourRatio: 3.5 }),
     marine: Object.freeze({
       waterCost: .65,
       docking: Object.freeze({

@@ -67,7 +67,23 @@
         !Number.isFinite(to.x) || !Number.isFinite(to.y)) return null;
     const start = Field.cellIndex(field, from), goal = Field.cellIndex(field, to);
     if (field.blocked[start.index] || field.blocked[goal.index]) return null;
-    if (start.index === goal.index) return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
+    const wrapColumns = field.wrapX ? field.wrapColumns : field.width;
+    const wrapWorldWidth = field.wrapX ? field.wrapWorldWidth : 0;
+    const shortestCellDelta = value => {
+      if (!field.wrapX) return value;
+      const half = wrapColumns / 2;
+      if (value > half) return value - wrapColumns;
+      if (value < -half) return value + wrapColumns;
+      return value;
+    };
+    const nearestWorldX = (x, reference) => {
+      if (!field.wrapX || !(wrapWorldWidth > 0)) return x;
+      return x + Math.round((reference - x) / wrapWorldWidth) * wrapWorldWidth;
+    };
+    if (start.index === goal.index) return [
+      { x: from.x, y: from.y },
+      { x: nearestWorldX(to.x, from.x), y: to.y }
+    ];
 
     const stateCount = field.count * 9, best = new Float64Array(stateCount), parent = new Int32Array(stateCount);
     const closed = new Uint8Array(stateCount);
@@ -78,7 +94,9 @@
     const minCost = Number.isFinite(field.minimumCost) ? field.minimumCost : Config.weights.roadReuse;
     const heuristic = index => {
       const x = index % field.width, y = Math.floor(index / field.width);
-      return Math.hypot(goal.x - x, goal.y - y) * minCost;
+      const dx = Math.abs(goal.x - x);
+      const wrappedDx = field.wrapX ? Math.min(dx, wrapColumns - dx) : dx;
+      return Math.hypot(wrappedDx, goal.y - y) * minCost;
     };
     heap.push(startState, 0, heuristic(start.index));
 
@@ -93,12 +111,14 @@
       if (current === goal.index) { found = currentState; break; }
       const x = current % field.width, y = Math.floor(current / field.width), currentElevation = elevationAt(current);
       for (let direction = 0; direction < directions.length; direction++) {
-        const delta = directions[direction], nx = x + delta.x, ny = y + delta.y;
-        if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
+        const delta = directions[direction], rawX = x + delta.x, ny = y + delta.y;
+        if (ny < 0 || ny >= field.height || !field.wrapX && (rawX < 0 || rawX >= field.width)) continue;
+        const nx = field.wrapX ? ((rawX % wrapColumns) + wrapColumns) % wrapColumns : rawX;
         const next = ny * field.width + nx;
         if (field.blocked[next]) continue;
+        const sideX = field.wrapX ? ((rawX % wrapColumns) + wrapColumns) % wrapColumns : rawX;
         if (delta.x && delta.y && current !== start.index && next !== goal.index &&
-            (field.blocked[y * field.width + nx] || field.blocked[ny * field.width + x])) continue;
+            (field.blocked[y * field.width + sideX] || field.blocked[ny * field.width + x])) continue;
         const elevationDelta = elevationAt(next) - currentElevation;
         const travel = delta.x && delta.y ? Math.SQRT2 : 1;
         const grade = Math.abs(elevationDelta) / (field.step * travel);
@@ -113,8 +133,10 @@
         if (incoming !== NONE) {
           const turn = Math.abs(direction - incoming);
           const previousDirection = directions[incoming];
-          const previousX = x - previousDirection.x, previousY = y - previousDirection.y;
-          const previous = previousX >= 0 && previousY >= 0 && previousX < field.width && previousY < field.height
+          const rawPreviousX = x - previousDirection.x, previousY = y - previousDirection.y;
+          const previousX = field.wrapX ? ((rawPreviousX % wrapColumns) + wrapColumns) % wrapColumns : rawPreviousX;
+          const previous = previousY >= 0 && previousY < field.height &&
+            (field.wrapX || previousX >= 0 && previousX < field.width)
             ? previousY * field.width + previousX : -1;
           const previousTravel = Math.hypot(previousDirection.x, previousDirection.y);
           const previousRise = previous >= 0 && !field.water[previous] && !field.water[current]
@@ -140,11 +162,20 @@
     }
     cells.reverse();
     const points = [{ x: from.x, y: from.y }];
+    let previousCellX = start.x, previousWorldX = from.x;
     for (let i = 1; i < cells.length - 1; i++) {
       const cell = cells[i], x = cell % field.width, y = Math.floor(cell / field.width);
-      points.push({ x: x * field.cellWorld, y: y * field.cellWorld });
+      const delta = shortestCellDelta(x - previousCellX);
+      previousWorldX += delta * field.cellWorld;
+      points.push({ x: previousWorldX, y: y * field.cellWorld });
+      previousCellX = x;
     }
-    points.push({ x: to.x, y: to.y });
+    const goalCellX = goal.x;
+    const canonicalToX = field.wrapX && wrapWorldWidth > 0
+      ? ((to.x % wrapWorldWidth) + wrapWorldWidth) % wrapWorldWidth : to.x;
+    const goalWorldX = goalCellX * field.cellWorld;
+    const finalX = nearestWorldX(goalWorldX, previousWorldX) + (canonicalToX - goalWorldX);
+    points.push({ x: finalX, y: to.y });
     return points;
   }
 

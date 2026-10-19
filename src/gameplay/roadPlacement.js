@@ -6,6 +6,23 @@
   const CostField = root.OrbitRoadCostField, Pathfinder = root.OrbitRoadPathfinder, Geometry = root.OrbitRoadGeometry;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
+  function routeLength(points) {
+    return points.slice(1).reduce((length, point, index) => length + distance(points[index], point), 0);
+  }
+
+  function directSurfaceDistance(a, b, field) {
+    let dx = Math.abs(a.x - b.x);
+    if (field.wrapX && field.wrapWorldWidth > 0) {
+      dx %= field.wrapWorldWidth;
+      dx = Math.min(dx, field.wrapWorldWidth - dx);
+    }
+    return Math.hypot(dx, b.y - a.y);
+  }
+
+  function detourLimit(a, b, field) {
+    return directSurfaceDistance(a, b, field) * Config.search.maxDetourRatio + field.cellWorld * 2;
+  }
+
   function buildingFor(endpoint, buildings) {
     return endpoint?.kind === 'building' ? buildings.find(building => building.id === endpoint.buildingId) || null : null;
   }
@@ -89,14 +106,14 @@
     return Infinity;
   }
 
-  function validateEndpoints({ network, from, to }) {
+  function validateEndpoints({ network, from, to, baseField }) {
     if (!from?.point || !to?.point || ![from.point.x, from.point.y, to.point.x, to.point.y].every(Number.isFinite)) {
       return 'Choisissez deux extrémités valides.';
     }
     if (from.kind === 'building' && to.kind === 'building' && from.buildingId === to.buildingId) {
       return 'Choisissez deux bâtiments différents.';
     }
-    if (distance(from.point, to.point) < 1) return 'Les deux extrémités sont trop proches.';
+    if (directSurfaceDistance(from.point, to.point, baseField) < 1) return 'Les deux extrémités sont trop proches.';
     const gap = sameSegmentGap(network, from, to);
     if (gap < Config.network.minimumSameRouteSeparation) {
       return `Écartez les deux points d’au moins ${Config.network.minimumSameRouteSeparation} km sur cette route.`;
@@ -124,7 +141,7 @@
       ? marineEndpoint(to, buildings, network, terrain, baseField.textureScale, baseField)
       : landEndpoint(to, buildings);
     if (!routeFrom || !routeTo) return { connected: false, reason: 'Point de raccordement maritime indisponible.' };
-    const problem = validateEndpoints({ network, from: routeFrom, to: routeTo });
+    const problem = validateEndpoints({ network, from: routeFrom, to: routeTo, baseField });
     if (problem) return { connected: false, reason: problem };
     const allowDeepWater = isMarine;
     // Maritime routes use a water-only field, so their A* path is the shortest
@@ -141,7 +158,7 @@
       const pathEnd = portIsFrom ? routeTo.point : portEndpoint.approachPoint;
       const rawPath = Pathfinder.findPath(field, terrain, pathStart, pathEnd);
       const seaRoute = Geometry.create(rawPath, terrain, baseField.textureScale, buildings,
-        { allowDeepWater: true, waterOnly: true });
+        { allowDeepWater: true, waterOnly: true, wrapX: true });
       if (seaRoute) {
         const lead = Geometry.resample([portEndpoint.point, portEndpoint.approachPoint],
           Config.geometry.validationSpacing);
@@ -149,16 +166,24 @@
           ? [...lead, ...seaRoute.points.slice(1)]
           : [...seaRoute.points.slice(0, -1), ...lead.slice().reverse().slice(1)];
         if (Geometry.valid(points, terrain, baseField.textureScale, buildings,
-            { allowDeepWater: true, waterOnly: true })) {
+            { allowDeepWater: true, waterOnly: true, wrapX: true })) {
           route = { ...seaRoute, points,
             surfaceTypes: Geometry.surfaceTypes(points, terrain, baseField.textureScale) };
         }
       }
     } else {
       const rawPath = Pathfinder.findPath(field, terrain, routeFrom.point, routeTo.point);
-      route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
+      if (rawPath && routeLength(rawPath) > detourLimit(routeFrom.point, routeTo.point, baseField)) {
+        return { connected: false, reason: 'Le tracé ferait un détour trop long. Rapprochez les points ou choisissez une traversée moins profonde.' };
+      }
+      route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater, wrapX: true });
     }
     if (!route) return { connected: false, reason: 'Aucun tracé valide ne relie ces deux points.' };
+    if (!isMarine) {
+      if (routeLength(route.points) > detourLimit(routeFrom.point, routeTo.point, baseField)) {
+        return { connected: false, reason: 'Le tracé ferait un détour trop long. Rapprochez les points ou choisissez une traversée moins profonde.' };
+      }
+    }
     return { connected: true, from: routeFrom, to: routeTo, routeType: isMarine ? 'marine' : 'land', ...route };
   }
 
@@ -198,13 +223,26 @@
     const fromNode = attachEndpoint(draft, route.from || from), toNode = attachEndpoint(draft, route.to || to);
     if (!fromNode || !toNode) return { connected: false, reason: 'Une extrémité ne rejoint plus le réseau.' };
     if (fromNode.id === toNode.id) return { connected: false, reason: 'Les deux extrémités rejoignent déjà le même nœud.' };
-    const crossings = Network.connectRouteCrossings(draft, route.points, route.routeType || 'land');
-    const pieces = Network.splitPolylineAtNodes(route.points, route.surfaceTypes, crossings, fromNode.id, toNode.id);
-    const routeId = `${draft.planetId}:route:${draft.nextRouteId++}`, segments = [];
-    for (const piece of pieces) {
-      segments.push(Network.addSegment(draft, { ...piece, routeId, routeType: route.routeType || 'land',
-        constructionPrerequisiteSegmentId: segments.length ? segments[segments.length - 1].id : null }));
+    const routeId = `${draft.planetId}:route:${draft.nextRouteId++}`, segments = [], crossings = [];
+    const routeType = route.routeType || 'land';
+    const routeParts = Geometry.splitAtLongitudeSeam(route.points, route.surfaceTypes,
+      (terrain.width - 1) * baseField.textureScale);
+    let startNodeId = fromNode.id;
+    for (let partIndex = 0; partIndex < routeParts.length; partIndex++) {
+      const part = routeParts[partIndex];
+      const endNodeId = partIndex === routeParts.length - 1 ? toNode.id :
+        Network.addNode(draft, { ...part.points[part.points.length - 1], type: 'longitude-seam',
+          connectionMode: routeType === 'marine' ? 'marine' : 'land' }).id;
+      const partCrossings = Network.connectRouteCrossings(draft, part.points, routeType);
+      crossings.push(...partCrossings);
+      const pieces = Network.splitPolylineAtNodes(part.points, part.surfaceTypes, partCrossings, startNodeId, endNodeId);
+      for (const piece of pieces) {
+        segments.push(Network.addSegment(draft, { ...piece, routeId, routeType,
+          constructionPrerequisiteSegmentId: segments.length ? segments[segments.length - 1].id : null }));
+      }
+      startNodeId = endNodeId;
     }
+    if (!segments.length) return { connected: false, reason: 'Le tracé ne contient aucun segment constructible.' };
     const segment = segments[0];
     network.nextNodeId = draft.nextNodeId; network.nextSegmentId = draft.nextSegmentId;
     network.nextRouteId = draft.nextRouteId; network.nodes = draft.nodes; network.segments = draft.segments;

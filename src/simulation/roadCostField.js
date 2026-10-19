@@ -8,9 +8,14 @@
     const step = Config.gridStep;
     const width = Math.floor((terrain.width - 1) / step) + 1;
     const height = Math.floor((terrain.height - 1) / step) + 1;
+    // Longitude is periodic. When the last grid column lands exactly on the
+    // duplicated equirectangular seam, omit it from pathfinding.
+    const wrapColumns = (terrain.width - 1) % step === 0 ? Math.max(1, width - 1) : width;
+    const wrapWorldWidth = (terrain.width - 1) * textureScale;
     const count = width * height, costs = new Float32Array(count), blocked = new Uint8Array(count);
     const elevations = new Uint8Array(count), water = new Uint8Array(count), seaLevel = terrain.seaLevel;
-    const valueAt = (x, y) => elevations[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
+    const wrapCellX = x => ((x % wrapColumns) + wrapColumns) % wrapColumns;
+    const valueAt = (x, y) => elevations[clamp(y, 0, height - 1) * width + wrapCellX(x)];
     const weights = Config.weights, radius = weights.valleyRadiusCells;
 
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -32,11 +37,17 @@
       const valley = clamp((localAverage - elevation) / weights.valleyScale, 0, 1);
       let cost = weights.landBase + Math.max(0, elevation - seaLevel) * weights.highlandPerElevation +
         roughness * weights.terrainRoughness - valley * weights.valleyDiscount;
-      if (depth > 0) cost *= weights.shallowWaterMultiplier;
+      // A shallow-water cell is the deck of a bridge, not rough terrain. Do
+      // not multiply its shoreline gradient/noise into the crossing cost.
+      if (depth >= 0) cost = weights.landBase * weights.shallowWaterMultiplier +
+        clamp(depth / Math.max(1, Config.obstacles.maxWaterDepth), 0, 1) * .25;
       costs[index] = Math.max(weights.roadReuse, cost);
     }
+    let minimumCost = Infinity;
+    for (let index = 0; index < count; index++) if (!blocked[index]) minimumCost = Math.min(minimumCost, costs[index]);
     return { width, height, count, step, textureScale, cellWorld: step * textureScale,
       terrainWidth: terrain.width, terrainHeight: terrain.height, seaLevel,
+      wrapX: true, wrapColumns, wrapWorldWidth, minimumCost,
       costs, blocked, elevations, water };
   }
 
@@ -46,12 +57,18 @@
       blocked[index] = base.water[index] ? 0 : 1;
       costs[index] = base.water[index] ? Config.marine.waterCost : Infinity;
     }
-    return { ...base, costs, blocked, minimumCost: Config.marine.waterCost };
+    return { ...base, costs, blocked, minimumCost: Config.marine.waterCost, marine: true };
   }
 
   function pointToCell(field, point) {
+    let worldX = point.x;
+    if (field.wrapX && field.wrapWorldWidth > 0) {
+      worldX = ((worldX % field.wrapWorldWidth) + field.wrapWorldWidth) % field.wrapWorldWidth;
+    }
+    let x = Math.round(worldX / field.cellWorld);
+    if (field.wrapX) x = Math.min(field.wrapColumns - 1, x);
     return {
-      x: clamp(Math.round(point.x / field.cellWorld), 0, field.width - 1),
+      x: field.wrapX ? x : clamp(x, 0, field.width - 1),
       y: clamp(Math.round(point.y / field.cellWorld), 0, field.height - 1)
     };
   }
@@ -72,8 +89,9 @@
     function markRoad(point) {
       const cell = pointToCell(base, point);
       for (let oy = -influence; oy <= influence; oy++) for (let ox = -influence; ox <= influence; ox++) {
-        const x = cell.x + ox, y = cell.y + oy;
-        if (x < 0 || y < 0 || x >= base.width || y >= base.height) continue;
+        const rawX = cell.x + ox, y = cell.y + oy;
+        if (y < 0 || y >= base.height || !base.wrapX && (rawX < 0 || rawX >= base.width)) continue;
+        const x = base.wrapX ? ((rawX % base.wrapColumns) + base.wrapColumns) % base.wrapColumns : rawX;
         const index = y * base.width + x;
         if (blocked[index]) continue;
         const distance = Math.hypot(ox, oy);
@@ -106,17 +124,21 @@
       const definition = Buildings.get(building.type);
       if (!definition?.footprint) continue;
       const radius = Math.hypot(definition.footprint.width, definition.footprint.height) / 2 + clearance;
-      const left = clamp(Math.floor((building.x - radius) / base.cellWorld), 0, base.width - 1);
-      const right = clamp(Math.ceil((building.x + radius) / base.cellWorld), 0, base.width - 1);
+      const left = Math.floor((building.x - radius) / base.cellWorld);
+      const right = Math.ceil((building.x + radius) / base.cellWorld);
       const top = clamp(Math.floor((building.y - radius) / base.cellWorld), 0, base.height - 1);
       const bottom = clamp(Math.ceil((building.y + radius) / base.cellWorld), 0, base.height - 1);
       const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
       for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
-        const worldX = x * base.cellWorld, worldY = y * base.cellWorld;
-        const dx = worldX - building.x, dy = worldY - building.y;
+        if (y < 0 || y >= base.height || !base.wrapX && (x < 0 || x >= base.width)) continue;
+        const cellX = base.wrapX ? ((x % base.wrapColumns) + base.wrapColumns) % base.wrapColumns : x;
+        const worldX = cellX * base.cellWorld, worldY = y * base.cellWorld;
+        let dx = worldX - building.x;
+        if (base.wrapX) dx -= Math.round(dx / base.wrapWorldWidth) * base.wrapWorldWidth;
+        const dy = worldY - building.y;
         const localX = dx * cos + dy * sin, localY = -dx * sin + dy * cos;
         if (Math.abs(localX) <= definition.footprint.width / 2 + clearance &&
-            Math.abs(localY) <= definition.footprint.height / 2 + clearance) blocked[y * base.width + x] = 1;
+            Math.abs(localY) <= definition.footprint.height / 2 + clearance) blocked[y * base.width + cellX] = 1;
       }
     }
     for (const endpoint of endpoints) {

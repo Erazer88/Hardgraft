@@ -93,8 +93,11 @@
   }
 
   function elevationAt(terrain, textureScale, xWorld, yWorld) {
-    const x = xWorld / textureScale, y = yWorld / textureScale;
-    const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(terrain.width - 1, x0 + 1), y1 = Math.min(terrain.height - 1, y0 + 1);
+    const period = Math.max(1, terrain.width - 1);
+    const x = ((xWorld / textureScale) % period + period) % period;
+    const y = yWorld / textureScale;
+    const x0 = Math.floor(x), y0 = Math.floor(y), x1 = (x0 + 1) % period,
+      y1 = Math.min(terrain.height - 1, y0 + 1);
     const fx = x - x0, fy = y - y0;
     const a = terrain.elevation[y0 * terrain.width + x0], b = terrain.elevation[y0 * terrain.width + x1];
     const c = terrain.elevation[y1 * terrain.width + x0], d = terrain.elevation[y1 * terrain.width + x1];
@@ -112,7 +115,7 @@
     const rules = Config.obstacles, maxX = (terrain.width - 1) * textureScale, maxY = (terrain.height - 1) * textureScale;
     let previous = null, previousHeight = 0, previousWater = false;
     for (const point of points) {
-      if (point.x < 0 || point.y < 0 || point.x > maxX || point.y > maxY) return false;
+      if ((!options.wrapX && (point.x < 0 || point.x > maxX)) || point.y < 0 || point.y > maxY) return false;
       const height = elevationAt(terrain, textureScale, point.x, point.y);
       const water = height <= terrain.seaLevel;
       if (options.waterOnly && !water) return false;
@@ -121,13 +124,16 @@
         const footprint = Buildings.get(building.type)?.footprint;
         if (!footprint) continue;
         const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
-        const dx = point.x - building.x, dy = point.y - building.y;
+        let dx = point.x - building.x;
+        if (options.wrapX) dx -= Math.round(dx / maxX) * maxX;
+        const dy = point.y - building.y;
         const localX = dx * cos + dy * sin, localY = -dx * sin + dy * cos;
         if (Math.abs(localX) < footprint.width / 2 - .1 && Math.abs(localY) < footprint.height / 2 - .1) return false;
       }
-      if (previous) {
+      if (previous && !options.skipSlopeValidation) {
         const horizontalCells = Math.max(EPSILON, distance(previous, point) / textureScale);
-        if (!(water && previousWater) && Math.abs(height - previousHeight) / horizontalCells > Config.weights.maxSlopePerHeightCell) return false;
+        if (!water && !previousWater &&
+            Math.abs(height - previousHeight) / horizontalCells > Config.weights.maxSlopePerHeightCell) return false;
       }
       previous = point; previousHeight = height; previousWater = water;
     }
@@ -137,18 +143,60 @@
   function create(rawPath, terrain, textureScale, buildings = [], options = {}) {
     if (!Array.isArray(rawPath) || rawPath.length < 2) return null;
     const geometry = Config.geometry;
+    const preserveBridgeDeck = !options.waterOnly && surfaceTypes(rawPath, terrain, textureScale).some(Boolean);
     for (let attempt = 0; attempt <= geometry.validationRetries; attempt++) {
       const tolerance = geometry.rdpTolerance / (2 ** attempt);
-      const strength = geometry.splineStrength * Math.max(.25, 1 - attempt * .23);
+      // Keep shallow-water spans straight: smoothing a bridge can push its
+      // deck into deep water or create an artificial curved causeway.
+      const strength = preserveBridgeDeck ? 0 : geometry.splineStrength * Math.max(.25, 1 - attempt * .23);
       const simplified = simplify(rawPath, tolerance);
       const curve = catmullRom(simplified, geometry.splineSamplesPerSpan, geometry.centripetalAlpha, strength);
       const points = resample(curve, geometry.validationSpacing);
-      if (followsPath(points, rawPath, geometry.maxSplineDeviation) && valid(points, terrain, textureScale, buildings, options)) {
+      const validationOptions = preserveBridgeDeck ? { ...options, skipSlopeValidation: true } : options;
+      if (followsPath(points, rawPath, geometry.maxSplineDeviation) &&
+          valid(points, terrain, textureScale, buildings, validationOptions)) {
         return { points, surfaceTypes: surfaceTypes(points, terrain, textureScale), simplifiedPointCount: simplified.length };
       }
     }
     return null;
   }
 
-  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, surfaceTypes, valid, create });
+  function splitAtLongitudeSeam(points, surfaceTypes, period) {
+    if (!Array.isArray(points) || points.length < 2 || !(period > 0)) return [];
+    const pieces = [];
+    let current = [{ ...points[0] }], currentTypes = [];
+    const pushPiece = () => {
+      if (current.length > 1) pieces.push({ points: current, surfaceTypes: currentTypes });
+    };
+    for (let index = 1; index < points.length; index++) {
+      const a = points[index - 1], b = points[index], type = Boolean(surfaceTypes?.[index - 1]);
+      const movingRight = b.x >= a.x, epsilon = 1e-9;
+      const bandA = Math.floor((a.x + (movingRight ? epsilon : -epsilon)) / period);
+      const bandB = Math.floor((b.x + (movingRight ? epsilon : -epsilon)) / period);
+      if (index === 1) current[0].x = a.x - bandA * period;
+      if (bandA === bandB) {
+        current.push({ x: b.x - bandB * period, y: b.y });
+        currentTypes.push(type);
+        continue;
+      }
+      const boundary = movingRight ? (bandA + 1) * period : bandA * period;
+      const ratio = (boundary - a.x) / (b.x - a.x);
+      const y = a.y + (b.y - a.y) * ratio;
+      const endX = movingRight ? period : 0, nextX = movingRight ? 0 : period;
+      current.push({ x: endX, y });
+      currentTypes.push(type);
+      pushPiece();
+      current = [{ x: nextX, y }]; currentTypes = [];
+      const mappedB = { x: b.x - bandB * period, y: b.y };
+      if (distance(current[0], mappedB) > EPSILON) {
+        current.push(mappedB);
+        currentTypes.push(type);
+      }
+    }
+    pushPiece();
+    return pieces;
+  }
+
+  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt,
+    surfaceTypes, valid, create, splitAtLongitudeSeam });
 })(globalThis);

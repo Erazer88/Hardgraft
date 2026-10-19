@@ -6,6 +6,13 @@
   const Buildings = root.OrbitBuildingData;
   const TAU = Math.PI * 2;
   const RESOURCE_ABBREVIATION = Object.freeze({ iron: 'Fe', copper: 'Cu', silicon: 'Si', carbon: 'C', oil: 'Hu' });
+  const RESOURCE_DEPOSIT_STYLE = Object.freeze({
+    iron: Object.freeze({ fill: '#ffd72c30', hatch: '#ffdb45e8', outline: '#fff0a0', glow: '#f1c623' }),
+    copper: Object.freeze({ fill: '#ff943330', hatch: '#ff9d3de8', outline: '#ffd1a0', glow: '#ff832f' }),
+    silicon: Object.freeze({ fill: '#45dff130', hatch: '#58efffe8', outline: '#b5faff', glow: '#32dcea' }),
+    carbon: Object.freeze({ fill: '#b9eb3230', hatch: '#c6f34ae8', outline: '#edff9e', glow: '#a7d92c' }),
+    oil: Object.freeze({ fill: '#ffad3030', hatch: '#ffbd43e8', outline: '#ffe0a1', glow: '#ff9f22' })
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   function create(canvas) {
@@ -128,30 +135,63 @@
       ctx.restore();
     }
 
+    function traceResourceBoundary(center, radius, resource) {
+      const seed = root.OrbitWorld?.hashSeed?.(`${resource.id}:${resource.x}:${resource.y}`) || 0;
+      const phase = seed / 4294967296 * TAU, rotation = -.45, points = [];
+      for (let i = 0; i < 28; i += 1) {
+        const angle = phase + i / 28 * TAU;
+        const variation = 1 + Math.sin(angle * 3 + phase) * .1 +
+          Math.cos(angle * 5 - phase) * .045 + Math.sin(angle * 7 + phase * .7) * .025;
+        const x = Math.cos(angle) * radius * 1.28 * variation;
+        const y = Math.sin(angle) * radius * .78 * variation;
+        points.push({ x: center.x + x * Math.cos(rotation) - y * Math.sin(rotation),
+          y: center.y + x * Math.sin(rotation) + y * Math.cos(rotation) });
+      }
+      const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+      const start = midpoint(points[points.length - 1], points[0]);
+      ctx.beginPath(); ctx.moveTo(start.x, start.y);
+      for (let i = 0; i < points.length; i += 1) {
+        const next = midpoint(points[i], points[(i + 1) % points.length]);
+        ctx.quadraticCurveTo(points[i].x, points[i].y, next.x, next.y);
+      }
+      ctx.closePath();
+    }
+
     function drawResources(terrain, view, alpha) {
       if (!terrain.resources?.length) return;
-      ctx.save(); ctx.globalAlpha = alpha * .8;
+      ctx.save();
       for (const resource of terrain.resources) {
         const point = Projection.projectSurfacePoint(resource.x, resource.y, terrain, view, currentStyle.relief);
         if (!point.visible) continue;
         const edge = Projection.projectSurfacePoint(Math.min(terrain.width - 1, resource.x + resource.radius),
           resource.y, terrain, view, currentStyle.relief);
         const sampledRadius = edge.visible ? Math.hypot(edge.x - point.x, edge.y - point.y) : 0;
-        const radius = clamp(sampledRadius * 1.65, 12, 30);
-        const color = Style.resources[resource.id] || '#a5b0af';
-        ctx.fillStyle = color; ctx.globalAlpha = alpha * .12;
-        ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = color; ctx.globalAlpha = alpha * .62; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = alpha * .9; ctx.fillStyle = color;
-        ctx.beginPath(); ctx.arc(point.x, point.y, 3.6, 0, Math.PI * 2); ctx.fill();
-        if (radius >= 7) {
-          ctx.font = '9px ui-monospace, SFMono-Regular, Consolas, monospace';
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#d6dfd8';
-          ctx.fillText(RESOURCE_ABBREVIATION[resource.id] || resource.id.slice(0, 2).toUpperCase(), point.x, point.y - radius - 5);
+        const radius = clamp(sampledRadius * 2.1, 20, 42);
+        const style = RESOURCE_DEPOSIT_STYLE[resource.id] || {
+          fill: '#a5b0af30', hatch: '#d2dcdae8', outline: '#d2dcda', glow: '#a5b0af' };
+        ctx.save();
+        traceResourceBoundary(point, radius, resource);
+        ctx.fillStyle = style.fill; ctx.globalAlpha = alpha; ctx.fill();
+        ctx.clip(); ctx.strokeStyle = style.hatch; ctx.globalAlpha = alpha * .72;
+        ctx.lineWidth = 1.15; ctx.setLineDash([]); ctx.beginPath();
+        for (let offset = -radius * 2; offset < radius * 2; offset += 5) {
+          ctx.moveTo(point.x + offset - radius, point.y + radius);
+          ctx.lineTo(point.x + offset + radius, point.y - radius);
         }
+        ctx.stroke(); ctx.restore();
+        traceResourceBoundary(point, radius, resource);
+        ctx.strokeStyle = style.outline; ctx.globalAlpha = alpha * .85; ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 3]); ctx.shadowColor = style.glow; ctx.shadowBlur = 3; ctx.stroke();
+        ctx.shadowBlur = 0; ctx.setLineDash([]);
+        if (radius >= 16) {
+          ctx.font = '9px ui-monospace, SFMono-Regular, Consolas, monospace';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = style.outline;
+          ctx.globalAlpha = alpha * .95;
+          ctx.fillText(RESOURCE_ABBREVIATION[resource.id] || resource.id.slice(0, 2).toUpperCase(),
+            point.x + radius * .92, point.y - 2);
+        }
+        ctx.restore();
       }
-      ctx.restore();
     }
 
     function drawWorldPath(points, terrain, view, style = {}) {
@@ -193,8 +233,12 @@
           remaining -= used;
           if (ratio < 1) break;
         }
-        drawWorldPath(points, terrain, view, { color: segment.routeType === 'marine' ? '#9aadb3' : '#bac5c3',
-          opacity: alpha * .74, width: 1.15, dash: segment.routeType === 'marine' ? [2, 4] : [] });
+        const marine = segment.routeType === 'marine';
+        const dash = marine ? [2, 4] : [];
+        drawWorldPath(points, terrain, view, { color: '#10212b',
+          opacity: alpha * .72, width: marine ? 3 : 3.1, dash });
+        drawWorldPath(points, terrain, view, { color: marine ? '#c0d1d5' : '#d5ded9',
+          opacity: alpha * .93, width: marine ? 1.55 : 1.65, dash });
       }
       const preview = state.roadPreview;
       if (preview?.points?.length > 1) drawWorldPath(preview.points, terrain, view, {
@@ -202,15 +246,35 @@
         width: preview.lineWidth || 1.8, dash: preview.dash || [4, 4] });
     }
 
-    function drawSettlements(state, terrain, view, alpha) {
-      const settlement = state.surfaceSettlements?.[state.planet?.id];
-      if (!settlement) return;
-      ctx.save(); ctx.globalAlpha = alpha * .64; ctx.fillStyle = '#c5d0c7';
-      ctx.strokeStyle = '#112633'; ctx.lineWidth = .8;
-      for (const district of settlement.districts || []) {
-        const point = mapProject(district.x, district.y, terrain, view);
+    function drawRoadJunctions(state, terrain, view, alpha) {
+      const network = state.roadNetworks?.[state.planet?.id];
+      if (!network?.nodes?.length || !network.segments?.length) return;
+      const incident = new Map();
+      for (const segment of network.segments) {
+        if (segment.routeType === 'marine') continue;
+        const length = Number.isFinite(segment.length) ? segment.length : 0;
+        const built = Number.isFinite(segment.builtLength) ? segment.builtLength : length;
+        if (!(length > 0) || !(built > 0)) continue;
+        const fromReady = built > .01;
+        const toReady = built >= length - .01;
+        if (fromReady) {
+          const edges = incident.get(segment.from) || [];
+          edges.push(segment); incident.set(segment.from, edges);
+        }
+        if (toReady) {
+          const edges = incident.get(segment.to) || [];
+          edges.push(segment); incident.set(segment.to, edges);
+        }
+      }
+      ctx.save();
+      for (const node of network.nodes) {
+        const edges = incident.get(node.id) || [];
+        if (!node.isIntersection || edges.length < 3) continue;
+        const point = mapProject(node.x, node.y, terrain, view);
         if (!point.visible) continue;
-        ctx.beginPath(); ctx.arc(point.x, point.y, 3.1, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.globalAlpha = alpha * .92; ctx.fillStyle = '#e0e7e2';
+        ctx.strokeStyle = '#10212b'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(point.x, point.y, 2.3, 0, TAU); ctx.fill(); ctx.stroke();
       }
       ctx.restore();
     }
@@ -255,7 +319,7 @@
       drawGraticule(terrain, globeView, alpha);
       drawResources(terrain, globeView, alpha);
       drawRoads(state, terrain, globeView, alpha);
-      drawSettlements(state, terrain, globeView, alpha);
+      drawRoadJunctions(state, terrain, globeView, alpha);
       for (const building of state.surfaceBuildings || []) {
         if (building.planetId === state.planet.id) drawBuilding(building, terrain, globeView, state, alpha);
       }
