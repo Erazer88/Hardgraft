@@ -6,7 +6,7 @@
     relief: Object.freeze({ scale: .038, exponent: 1.00, linearFraction: .16,
       compressionStart: .42, peakTailStart: .70, landQuantile: .985, minLandRange: 24, maxLandRange: 58 }),
     stylizedTerrain: Object.freeze({
-      fieldWidth: 384, textureWidth: 1024,
+      fieldWidth: 256, textureWidth: 512,
       heightLowPass: .018, macroLowPass: .075, localLowPass: .010, classLowPass: .05,
       hillQuantile: .54, mountainQuantile: .87, summitQuantile: .978,
       normalReliefScale: .18, residualNormalStrength: 1.05, localNormalStrength: .16,
