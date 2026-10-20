@@ -524,11 +524,19 @@
       const elevations = attribute('elevation', mesh.elevations, 1);
       const indices = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
-      const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
+      const prepared = mesh.terrain.globeRenderAssets;
+      const preparedSurface = prepared?.surface;
+      const matchingSurface = preparedSurface?.width === textureWidth &&
+        preparedSurface?.coastSmoothing === style.stylizedTerrain.coastSmoothing &&
+        preparedSurface?.coastFieldBlur === style.stylizedTerrain.coastFieldBlur &&
+        JSON.stringify(style.polarCaps) === JSON.stringify(Style.polarCaps);
+      const surfaceData = matchingSurface ? preparedSurface : SurfaceTexture.create(mesh.terrain, mesh.planet,
         { width: textureWidth, height: textureWidth / 2, polarCaps: style.polarCaps,
           coastSmoothing: style.stylizedTerrain.coastSmoothing, coastFieldBlur: style.stylizedTerrain.coastFieldBlur,
           cache: !mesh.terrain.debugTuning });
-      const visualData = root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
+      const visualStyleKey = root.OrbitPlanetTerrainVisuals.styleKey(style);
+      const visualData = prepared?.visualStyleKey === visualStyleKey
+        ? prepared.visual : root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height) {
         const texture = gl.createTexture();
@@ -553,7 +561,7 @@
       const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
       const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
       const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
-      const smallMassifTexture = uploadTexture(10, gl.R8, gl.RED, visualData.smallMassifPixels,
+      const smallMassifTexture = uploadTexture(10, gl.RG8, gl.RG, visualData.smallMassifPixels,
         visualData.classWidth, visualData.classHeight);
       const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.plainFacetNormalPixels,
         visualData.plainFacetWidth, visualData.plainFacetHeight);
@@ -614,7 +622,10 @@
     }
 
     function textureWidthFor(radiusPx) {
-      const requested = SurfaceTexture.defaults.width;
+      // Mobile fill-rate and initial CPU texture generation are the bottleneck;
+      // 768x384 is still sharp at the standard globe zoom and avoids oversized
+      // maps on high-DPR phone screens. Desktop keeps the full 1024x512 map.
+      const requested = dpr >= 2.5 || Math.min(width, height) < 640 ? 768 : 1024;
       return Math.min(requested, maxTextureSize);
     }
 

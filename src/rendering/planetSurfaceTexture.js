@@ -3,9 +3,11 @@
 
   const World = root.OrbitWorld;
   const Style = root.OrbitPlanetGlobeStyle;
-  const DEFAULT_WIDTH = 2048;
-  const DEFAULT_HEIGHT = 1024;
-  const MAX_CACHE_ENTRIES = 2;
+  // 1024x512 keeps the globe crisp on a phone while avoiding a 4x CPU/memory
+  // hit over the previous 2048 map during synchronous first upload.
+  const DEFAULT_WIDTH = 1024;
+  const DEFAULT_HEIGHT = 512;
+  const MAX_CACHE_ENTRIES = 3;
   const textureCache = new Map();
   const coastMapCache = new WeakMap();
   const noiseKernels = new Map();
@@ -21,9 +23,9 @@
       dryPlain: '#A5A05D', upland: '#879A57', highland: '#B38A5F', rock: '#936D4E', highRock: '#C1A179',
       snow: '#E7EEF0', coldSnow: '#CBDCE2', polarIce: '#B8D9E1',
       seaIce: '#B8D9E1', packedSeaIce: '#CBDCE2', iceCrack: '#4E8C9B' }),
-    frozen: Object.freeze({ seaIce: '#78B7C9', packedIce: '#B2D4DE', brightIce: '#DDEBF1',
-      coldRock: '#617985', darkColdRock: '#435A64', ridgeShadow: '#2D444C',
-      snow: '#E3EFF3', blueSnow: '#BADCE8', crackTint: '#477D8D', polarCore: '#699CAB' }),
+    frozen: Object.freeze({ seaIce: '#BFDDE6', packedIce: '#D5E7ED', brightIce: '#EAF2F5',
+      coldRock: '#8BAAB5', darkColdRock: '#7896A1', ridgeShadow: '#6C8791',
+      snow: '#EDF3F5', blueSnow: '#D6E7ED', crackTint: '#87ACB8', polarCore: '#E7F1F4' }),
     arid: Object.freeze({ basin: '#733D28', lowland: '#AA542F', plain: '#D1793E', sand: '#E5A55B',
       plateau: '#985038', upland: '#8C4730', rock: '#63372D', darkRock: '#432820',
       dust: '#F0C28B', polarFrost: '#E4DBCD', coldFrost: '#CFC5B6' }),
@@ -470,8 +472,8 @@
       if (elevation <= seaLevel) {
         // Ice thickness varies in broad spherical plates; the polar core is
         // colder and denser, with fractures kept visible over both regions.
-        const iceThickness = clamp(.52 + depth * .12 + detail.macro * .62 +
-          detail.medium * .16 + detail.fine * .05, 0, 1);
+        const iceThickness = clamp(.70 + depth * .08 + detail.macro * .20 +
+          detail.medium * .05 + detail.fine * .015, 0, 1);
         mixInto(base, palette.seaIce, palette.packedIce, iceThickness);
         mixInto(temporary, base, palette.polarCore, polarCoverage * .78);
         copyInto(base, temporary);
@@ -479,13 +481,13 @@
         if (h < .24) mixInto(base, palette.seaIce, palette.packedIce, .28 + smoothstep(0, .24, h) * .40);
         else if (h < .58) mixInto(base, palette.packedIce, palette.coldRock, smoothstep(.24, .58, h) * .48);
         else mixInto(base, palette.coldRock, palette.brightIce, smoothstep(.58, .9, h) * .24);
-        const broadRockExposure = smoothstep(.10, .42, h) * clamp(.44 + detail.ridge * .45, .30, .82);
-        mixInto(temporary, base, palette.coldRock, broadRockExposure * .58);
+        const broadRockExposure = smoothstep(.18, .52, h) * clamp(.24 + detail.ridge * .22, .18, .48);
+        mixInto(temporary, base, palette.coldRock, broadRockExposure * .42);
         copyInto(base, temporary);
-        const exposedRidge = smoothstep(.20, .55, h) * smoothstep(.58, .86, detail.ridge);
-        mixInto(temporary, base, palette.darkColdRock, exposedRidge * .68);
+        const exposedRidge = smoothstep(.28, .62, h) * smoothstep(.72, .92, detail.ridge);
+        mixInto(temporary, base, palette.darkColdRock, exposedRidge * .30);
         copyInto(base, temporary);
-        const ridgeShadow = smoothstep(.82, .96, detail.ridge) * smoothstep(.18, .48, h) * .28;
+        const ridgeShadow = smoothstep(.86, .98, detail.ridge) * smoothstep(.22, .52, h) * .12;
         mixInto(temporary, base, palette.ridgeShadow, ridgeShadow);
         copyInto(base, temporary);
         const compactLowlandIce = polarCoverage * (1 - smoothstep(.16, .52, h)) * .42;

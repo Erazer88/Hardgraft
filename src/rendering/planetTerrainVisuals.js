@@ -261,6 +261,22 @@
     };
   }
 
+  function createCoastStyleNoise(seed) {
+    const random = seededRandom(seed), waves = [];
+    for (let i = 0; i < 4; i += 1) {
+      waves.push({ direction: randomDirection(random), frequency: 5.5 + i * 4.6 + random() * 2.0,
+        phase: random() * Math.PI * 2, weight: [.32, .28, .23, .17][i] });
+    }
+    return direction => {
+      let value = .5;
+      for (const wave of waves) {
+        value += Math.sin((direction.x * wave.direction.x + direction.y * wave.direction.y +
+          direction.z * wave.direction.z) * wave.frequency + wave.phase) * wave.weight * .5;
+      }
+      return clamp(value);
+    };
+  }
+
   function randomDirection(random) {
     const y = random() * 2 - 1, angle = random() * Math.PI * 2;
     const horizontal = Math.sqrt(Math.max(0, 1 - y * y));
@@ -457,7 +473,7 @@
       slopes[i] = clamp(localSlope / .42);
     }
     const plainFacets = plainFacetMap(midNormals, width, height, settings.plainFacetScale,
-      facetSeed, settings.facetAngleDegrees, settings.facetJitter, textureWidth / width);
+      facetSeed, settings.facetAngleDegrees, settings.facetJitter, Math.min(1.25, textureWidth / width));
 
     const quantile = (field, q, upper = 1) => scalarQuantile(field, elevation, width, height, sea, q, upper);
     const residual15 = quantile(positiveResidual, .15, .5), residual30 = quantile(positiveResidual, .30, .5);
@@ -480,6 +496,7 @@
     const classPixels = new Uint8Array(count * 4), classWeights = new Float32Array(count * 4);
     const climate = planet.kind === 'glacée' ? 'frozen' : planet.kind === 'aride' ? 'arid' : planet.kind === 'volcanique' ? 'volcanic' : 'temperate';
     const materials = Object.fromEntries(Object.entries(settings.materials[climate]).map(([k, v]) => [k, rgb(v)]));
+    const climateWash = climate === 'frozen' ? .12 : 1;
     const temperature = Number.isFinite(planet.temperature) ? planet.temperature : 16;
     const polarSeed = surfaceSeed ^ 0x5b1ce8a3;
     const polarThreshold = Surface.polarIceThreshold(temperature, style.polarCaps);
@@ -538,7 +555,10 @@
     const smallMassifField = lowPass(smallMassifRaw, width, height, .040);
     const rollingReference = Math.max(.08, scalarQuantile(rollingField, elevation, width, height, sea, .78, 1));
     const smallMassifReference = Math.max(.08, quantile(smallMassifField, .82));
-    const smallMassifPixels = new Uint8Array(count);
+    // R remains the small-massif diagnostic; G provides smooth, seeded
+    // spherical regions for absent, fine, and broad sandy shore sections.
+    const smallMassifPixels = new Uint8Array(count * 2);
+    const beachStyleNoise = createCoastStyleNoise(root.OrbitWorld.hashSeed(`${planet.seed}:beach-layout-v1`));
     let rollingMean = 0, smallMassifMean = 0;
     for (let i = 0; i < count; i += 1) {
       rollingField[i] = clamp(rollingField[i] / rollingReference);
@@ -546,7 +566,7 @@
       // Preserve a soft shoulder around each secondary massif. Normalizing
       // the existing relief never adds new geometry or independent noise.
       smallMassifField[i] = clamp(smoothstep(.12, 1, smallMassifField[i] / smallMassifReference) * settings.smallMassifStrength);
-      smallMassifPixels[i] = Math.round(smallMassifField[i] * 255);
+      smallMassifPixels[i * 2] = Math.round(smallMassifField[i] * 255);
       smallMassifMean += smallMassifField[i];
     }
     rollingMean /= count;
@@ -565,6 +585,7 @@
       const i = y * width + x, u = x / width, v = y / (height - 1), o = i * 4;
       for (let c = 0; c < 4; c += 1) classes[c] = classPixels[i * 4 + c] / 255;
       const d = direction(u, v), frame = tangentFrame(d);
+      smallMassifPixels[i * 2 + 1] = Math.round(beachStyleNoise(d) * 255);
       for (let c = 0; c < 3; c += 1) {
         macroNormal[c] = macroNormals[i * 3 + c];
         midNormal[c] = midNormals[i * 3 + c];
@@ -637,7 +658,7 @@
       const residualWash = smoothstep(residual15, Math.max(residual15 + .002, residual82), Math.max(0, residualAtPixel));
       const pigmentWash = clamp(residualWash * .38 + smoothstep(.30, .72, localWet) * .38 +
         rollingAtPixel * .14 + hillockAtPixel * .10);
-      const watercolorMix = clamp(settings.plainWashStrength) * plainCoverage * (.62 + pigmentWash * .38);
+      const watercolorMix = clamp(settings.plainWashStrength) * climateWash * plainCoverage * (.62 + pigmentWash * .38);
       const facetTone = sample(plainFacets.pixels, plainFacets.width, plainFacets.height, u, v, 4, 3) / 127.5 - 1;
       const elevatedHighland = mountainWeight * smoothstep(.58, .82, heightValue);
       const rockExposure = mountainWeight * smoothstep(.42, .78, heightValue) * smoothstep(.14, .42, localSlope);
@@ -652,21 +673,36 @@
         (.36 + .28 * smoothstep(.08, .30, localSlope)) + classes[1] * smoothstep(.28, .68, heightValue) * .12);
       const ridgeMask = mountainWeight * crest * smoothstep(.38, .78, heightValue);
       const valleyExposure = hollow * (classes[1] * .24 + mountainWeight) *
-        smoothstep(.15, .50, crest + mountainWeight) * .12;
-      const regionalVariation = clamp((wet - .5) * .07 +
-        (macro[i] - .35) * .025 - rollingAtPixel * .012, -.05, .05);
+        smoothstep(.15, .50, crest + mountainWeight) * (climate === 'frozen' ? .055 : .12);
+      const regionalVariation = clamp(((wet - .5) * .07 +
+        (macro[i] - .35) * .025 - rollingAtPixel * .012) * (climate === 'frozen' ? .35 : 1), -.05, .05);
       for (let channel = 0; channel < 3; channel += 1) {
         let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .80);
         plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .34);
         const washColor = mix(materials.dry[channel], materials.wet[channel], smoothstep(.24, .78, localWet));
-        let color = mix(plain, washColor, watercolorMix);
-        color = mix(color, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
-        color = mix(color, materials.hill[channel], clamp(classes[1] * .72 + mountainWeight * .62));
-        color = mix(color, materials.foothill[channel], clamp(foothillWeight * .45 + smallMassif * .22));
-        color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);
-        color = mix(color, materials.mountain[channel], rockExposure * .60);
-        color = mix(color, materials.ridge[channel], clamp(summitExposure * .58 + ridgeMask * .24));
-        color = mix(color, materials.crevice[channel], clamp(valleyExposure));
+        let color;
+        if (climate === 'frozen') {
+          // Keep ice worlds in a compact blue-white family. Height classes
+          // still reveal cold rock and bright summits, while broad terrain
+          // stays even and procedural pigment cannot introduce warm patches.
+          color = mix(materials.plain[channel], materials.wet[channel], smoothstep(.38, .74, wet) * .22);
+          color = mix(color, materials.rolling[channel], rollingAtPixel * .08 + hillockAtPixel * .10);
+          color = mix(color, materials.hill[channel], classes[1] * .28);
+          color = mix(color, materials.foothill[channel], foothillWeight * .20 + smallMassif * .10);
+          color = mix(color, materials.highland[channel], elevatedHighland * .32);
+          color = mix(color, materials.mountain[channel], rockExposure * .38);
+          color = mix(color, materials.ridge[channel], clamp(summitExposure * .48 + ridgeMask * .16));
+          color = mix(color, materials.crevice[channel], clamp(valleyExposure));
+        } else {
+          color = mix(plain, washColor, watercolorMix);
+          color = mix(color, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
+          color = mix(color, materials.hill[channel], clamp(classes[1] * .72 + mountainWeight * .62));
+          color = mix(color, materials.foothill[channel], clamp(foothillWeight * .45 + smallMassif * .22));
+          color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);
+          color = mix(color, materials.mountain[channel], rockExposure * .60);
+          color = mix(color, materials.ridge[channel], clamp(summitExposure * .58 + ridgeMask * .24));
+          color = mix(color, materials.crevice[channel], clamp(valleyExposure));
+        }
         // Seeded, soft-edged cell pigment gives each broad plain a small
         // watercolor variation. The cell normal itself remains tied to the
         // filtered height at that cell's spherical center.

@@ -6,7 +6,9 @@
     relief: Object.freeze({ scale: .038, exponent: 1.00, linearFraction: .16,
       compressionStart: .42, peakTailStart: .70, landQuantile: .985, minLandRange: 24, maxLandRange: 58 }),
     stylizedTerrain: Object.freeze({
-      fieldWidth: 256, textureWidth: 512,
+      // Keep the expensive CPU classification field compact; the final
+      // material/normal maps are still uploaded at 512px for smooth sampling.
+      fieldWidth: 192, textureWidth: 512,
       heightLowPass: .018, macroLowPass: .075, localLowPass: .010, classLowPass: .05,
       hillQuantile: .54, mountainQuantile: .87, summitQuantile: .978,
       normalReliefScale: .18, residualNormalStrength: 1.05, localNormalStrength: .16,
@@ -16,9 +18,9 @@
       plainFacetScale: 13.5, plainFacetStrength: .88, plainWashStrength: .88,
       facetMapScale: 2,
       visualChains: Object.freeze({
-        baseCount: 4, minimumMultiplier: 3, maximumMultiplier: 4,
+        baseCount: 6, minimumMultiplier: 3, maximumMultiplier: 4,
         segmentCount: Object.freeze([5, 8]), segmentLength: Object.freeze([.065, .12]),
-        width: Object.freeze([.026, .046]), uplift: .050, ridgeUplift: .028
+        width: Object.freeze([.040, .066]), uplift: .082, ridgeUplift: .044
       }),
       rollingNormalStrength: .22, hillockNormalStrength: .36, smallMassifNormalStrength: .20, hillNormalStrength: .28,
       smallMassifStrength: 1, highlandMaterialMix: .55,
@@ -26,16 +28,16 @@
       rollingLightingContrast: 1.25, sphereLightCancellation: .17, mountainShadowFloor: .74,
       shadowStrength: .30, shadowReach: .085,
       lightDirection: Object.freeze({ x: -.55, y: .70, z: .42 }),
-      shallowBandWidth: .62, sandBandWidth: .48, coastAaMinimum: .10,
+      shallowBandWidth: .62, sandBandWidth: .82, coastAaMinimum: .10,
       coastSmoothing: 1.4, coastFieldBlur: .90,
       water: Object.freeze({ deep: '#06375F', mid: '#0A6090', shallow: '#258EA8' }),
       materials: Object.freeze({
         temperate: Object.freeze({ plain: '#6FA84B', wet: '#477F3D', dry: '#9B9A54',
           rolling: '#78944D', hill: '#648345', foothill: '#827D4E', highland: '#A59A73', mountain: '#A9774F',
           ridge: '#D6B083', crevice: '#56483A', snow: '#E7ECEE', ice: '#BCD5DF', sand: '#D9BF76' }),
-        frozen: Object.freeze({ plain: '#B9D2DA', wet: '#A7C8D3', dry: '#C4D7DA',
-          rolling: '#A8C5CE', hill: '#94AFBA', foothill: '#829BA5', highland: '#A4B8BF', mountain: '#7B8D96',
-          ridge: '#D5E4E8', crevice: '#526A76', snow: '#E7EEF0', ice: '#9DBFCE', sand: '#BDD3DA' }),
+        frozen: Object.freeze({ plain: '#C4DDE6', wet: '#BED9E3', dry: '#C9E0E7',
+          rolling: '#B9D4DE', hill: '#B0CCD6', foothill: '#AEC9D2', highland: '#B4CED7', mountain: '#A3C0CB',
+          ridge: '#E3EEF2', crevice: '#819AA4', snow: '#EDF4F6', ice: '#D0E5EC', sand: '#D9E8EC' }),
         arid: Object.freeze({ plain: '#BE7747', wet: '#A76844', dry: '#CB935C',
           rolling: '#C1814D', hill: '#A96743', foothill: '#A26443', highland: '#BD8A5B', mountain: '#8D5037',
           ridge: '#DBA46A', crevice: '#61392C', snow: '#DDD9D0', ice: '#C5CED0', sand: '#CE9B66' }),

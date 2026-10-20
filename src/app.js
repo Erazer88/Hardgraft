@@ -204,40 +204,62 @@
     return terrainPreviewRecord?.tuned && terrainPreviewRecord.planet?.id === state.planet?.id
       ? terrainPreviewRecord.planet : state.planet;
   }
+  function finishTerrainRecord(planet, record) {
+    if (!record.data || record.marineDockAnchorsResolved) return record;
+    record.marineDockAnchorsResolved = true;
+    const network = state.roadNetworks[planet.id];
+    let changed = false;
+    for (const building of state.surfaceBuildings) {
+      if (building.planetId !== planet.id ||
+          (building.type !== 'surface_port' && building.type !== 'oil_platform')) continue;
+      const marineNodeIds = new Set((network?.nodes || []).filter(node =>
+        node.buildingId === building.id && node.connectionMode === 'marine').map(node => node.id));
+      const hasMarineRoute = (network?.segments || []).some(segment => segment.routeType === 'marine' &&
+        (marineNodeIds.has(segment.from) || marineNodeIds.has(segment.to)));
+      if (hasMarineRoute) continue;
+      const dock = BuildingPlacement.resolveMarineDock(record.data, Config.terrain.textureScale,
+        building, BuildingData.get(building.type));
+      if (dock && (!building.waterPort || distance(building.waterPort, dock.point) > .01)) {
+        building.waterPort = dock.point;
+        changed = true;
+      }
+    }
+    if (changed && state.level === 'surface' && state.planet?.id === planet.id) persist();
+    return record;
+  }
   function prepareTerrain(planet, context = state.context) {
     if (terrainPreviewRecord?.tuned && terrainPreviewRecord.data &&
         terrainPreviewRecord.planetId === planet.id) {
       terrainData = terrainPreviewRecord.data;
       return terrainPreviewRecord;
     }
-    if (!context.terrains.has(planet.id)) {
-      terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
-      context.terrains.set(planet.id, { data: terrainData, roadCostField: null });
-    }
-    const record = context.terrains.get(planet.id);
-    terrainData = record.data;
-    if (!record.marineDockAnchorsResolved) {
-      record.marineDockAnchorsResolved = true;
-      const network = state.roadNetworks[planet.id];
-      let changed = false;
-      for (const building of state.surfaceBuildings) {
-        if (building.planetId !== planet.id ||
-            (building.type !== 'surface_port' && building.type !== 'oil_platform')) continue;
-        const marineNodeIds = new Set((network?.nodes || []).filter(node =>
-          node.buildingId === building.id && node.connectionMode === 'marine').map(node => node.id));
-        const hasMarineRoute = (network?.segments || []).some(segment => segment.routeType === 'marine' &&
-          (marineNodeIds.has(segment.from) || marineNodeIds.has(segment.to)));
-        if (hasMarineRoute) continue;
-        const dock = BuildingPlacement.resolveMarineDock(record.data, Config.terrain.textureScale,
-          building, BuildingData.get(building.type));
-        if (dock && (!building.waterPort || distance(building.waterPort, dock.point) > .01)) {
-          building.waterPort = dock.point;
-          changed = true;
-        }
+    let record = context.terrains.get(planet.id);
+    if (!record) {
+      record = { data: null, roadCostField: null, loading: true };
+      context.terrains.set(planet.id, record);
+      const preparation = globalThis.OrbitTerrainPreparation;
+      if (!preparation) {
+        record.data = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
+        record.loading = false;
+      } else {
+        preparation.generate(planet, Config.terrain.width, Config.terrain.height).then(({ terrain, assets }) => {
+          terrain.globeRenderAssets = assets;
+          record.data = terrain;
+          record.loading = false;
+          if (state.planet?.id === planet.id && state.context === context) terrainData = terrain;
+          finishTerrainRecord(planet, record);
+        }).catch(error => {
+          record.loading = false;
+          record.error = error?.message || String(error);
+          console.error('Planet preparation worker failed:', error);
+          if (state.planet?.id === planet.id || state.focusPlanet?.id === planet.id)
+            toast('La préparation de la planète a échoué. Réessayez en la quittant puis en y revenant.');
+        });
       }
-      if (changed && state.level === 'surface' && state.planet?.id === planet.id) persist();
     }
-    return record;
+    record = context.terrains.get(planet.id);
+    if (record.data) terrainData = record.data;
+    return finishTerrainRecord(planet, record);
   }
   function refreshSettlements(planetId) {
     const network = state.roadNetworks[planetId];
@@ -394,7 +416,7 @@
           if (visible && r > 18) {
             state.focusPlanet = planet; prepareTerrain(planet, context);
             if (r > 45) followPlanet(planet, context);
-            if (r >= 80) {
+            if (r >= 80 && context.terrains.get(planet.id)?.data) {
               state.level = 'surface'; state.planet = planet;
               terrainData = prepareTerrain(planet, context).data;
             }
@@ -743,7 +765,7 @@
     const planet = selectedPlanet || state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    prepareTerrain(planet); state.focusPlanet = planet; followPlanet(planet);
     refreshSettlements(planet.id);
     clearSelection();
     const position = planetWorldPosition(planet), radius = planet.radius * state.context.frame.scale;
@@ -1196,6 +1218,10 @@
       completeMissions(now);
       state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
       updateSceneContext();
+      const planetLoading = $('planet-loading');
+      const loadingPlanet = state.planet || state.focusPlanet;
+      const pendingTerrain = loadingPlanet && state.context?.terrains.get(loadingPlanet.id);
+      planetLoading.hidden = !(pendingTerrain?.loading && state.level !== 'surface');
       renderUniverse(now);
       lastFrameError = '';
       if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }

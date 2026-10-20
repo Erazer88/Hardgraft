@@ -25,6 +25,17 @@ def embed_script(match):
     return '<script>\n' + js + '\n</script>'
 
 html = re.sub(r'<script src="([^"]+)"></script>', embed_script, html)
+worker_sources = [
+    'src/data/worldgen.js', 'src/world.js', 'src/world/tectonics.js',
+    'src/world/terrainElevation.js', 'src/world/thermalErosion.js', 'src/world/terrainStructure.js',
+    'src/data/planetGlobeStyle.js', 'src/rendering/planetGlobeProjection.js',
+    'src/rendering/planetSurfaceTexture.js', 'src/rendering/planetTerrainVisuals.js',
+    'src/workers/planetPreparationWorker.js'
+]
+worker_bundle = '\n'.join((ROOT / relative).read_text() for relative in worker_sources)
+worker_bundle = worker_bundle.replace('</script', '<\\/script')
+html = html.replace('</body>', '<script type="text/plain" id="planet-preparation-worker-bundle">'
+                    + worker_bundle + '</script>\n</body>')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)

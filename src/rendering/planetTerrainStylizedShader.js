@@ -84,8 +84,25 @@
       float coastDistance = (texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0) * uCoastRange;
       float aa = clamp(fwidth(coastDistance) * .60, uCoastAaMinimum, max(.45, uCoastAaMinimum));
       float land = smoothstep(-aa, aa, coastDistance);
-      float sandBand = land * (1.0 - smoothstep(uSandBandWidth, uSandBandWidth + aa, max(0.0, coastDistance)));
-      sandBand *= 1.0 - material.a;
+      float beachStyle = texture(uSmallMassifTexture, vUv).g;
+      // Seeded, spherical low-frequency coast classes: some shores stay rocky,
+      // some get a hairline of sand, and a smaller number open into beaches.
+      float fineBeach = smoothstep(.31, .43, beachStyle) * (1.0 - smoothstep(.68, .81, beachStyle));
+      float broadBeach = smoothstep(.68, .82, beachStyle);
+      float beachPresence = clamp(fineBeach + broadBeach, 0.0, 1.0);
+      float beachWidth = uSandBandWidth * mix(.34, 2.25, broadBeach);
+      float sandBand = land * (1.0 - smoothstep(beachWidth, beachWidth + aa,
+        max(0.0, coastDistance))) * beachPresence;
+      if (uVisualClimate == 0) {
+        // On temperate coasts, avoid isolated snow-mask flecks interrupting
+        // otherwise continuous sand; high-altitude snow remains unaffected.
+        float nearShore = 1.0 - smoothstep(.25, 2.0, max(0.0, coastDistance));
+        material.a *= 1.0 - nearShore * .78;
+      } else if (uVisualClimate == 1 || uVisualClimate == 3) {
+        sandBand = 0.0;
+      } else {
+        sandBand *= 1.0 - material.a;
+      }
       material.rgb = mix(material.rgb, uCoastColor, sandBand * .94);
       float lavaMask = 0.0;
       if (uVisualClimate == 3) {
