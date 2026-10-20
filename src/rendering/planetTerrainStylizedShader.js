@@ -8,6 +8,7 @@
     uniform sampler2D uRealMountainNormalTexture;
     uniform sampler2D uStylizedMaterialTexture;
     uniform sampler2D uSmallMassifTexture;
+    uniform sampler2D uPlainFacetNormalTexture;
     uniform int uTerrainView;
     uniform int uVisualClimate;
     uniform mat3 uGlobeRotation;
@@ -19,6 +20,7 @@
     uniform float uCoastAaMinimum;
     uniform float uShallowBandWidth;
     uniform float uSandBandWidth;
+    uniform float uPlainFacetStrength;
     uniform vec3 uInnerRimColor;
     uniform float uInnerRimEdgeStrength;
     uniform float uInnerRimInwardStrength;
@@ -97,18 +99,29 @@
       // the ramp reads their face orientation instead of lighting every slope
       // at once just because the whole hemisphere is facing the sun.
       float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
+      vec4 plainFacetSample = texture(uPlainFacetNormalTexture, vUv);
+      vec3 plainFacetNormal = rotateTerrainNormal(normalize(plainFacetSample.rgb * 2.0 - 1.0));
+      float plainRegion = clamp(classes.r + classes.g * .92 + smallMassif * .30, 0.0, 1.0);
+      float plainFacetCoverage = land * (1.0 - mountainInfluence) * plainRegion;
+      float plainFacetMix = clamp(plainFacetCoverage * uPlainFacetStrength, 0.0, .78);
+      stylizedNormal = normalize(mix(stylizedNormal, plainFacetNormal, plainFacetMix));
       float rollingActivity = normalSample.a;
       float plainFacetActivity = (1.0 - mountainInfluence) *
         smoothstep(.004, .11, length(stylizedNormal - sphereNormal));
       float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 +
         plainFacetActivity * .52 + mountain, 0.0, 1.0);
-      float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast, 0.0, 1.0);
+      // Cell normals are intentionally visible across the lowlands. Their
+      // broad lighting range creates watercolor-like planes even where the
+      // source terrain is nearly level; relief-derived normals still shape
+      // each face instead of a UV grid.
+      float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast +
+        plainFacetCoverage * .72, 0.0, 1.0);
       float ndl = dot(stylizedNormal, lightDirection) -
         dot(sphereNormal, lightDirection) * mountain * uSphereLightCancellation;
       float shadow = smoothstep(-.22, .14, ndl);
       float highlight = smoothstep(.28, .66, ndl);
-      float darkTone = mix(mix(.95, .88, secondaryActivity), .72, mountainInfluence);
-      float brightTone = mix(mix(1.04, 1.09, secondaryActivity), 1.17, mountainInfluence);
+      float darkTone = mix(mix(.95, .84, secondaryActivity), .72, mountainInfluence);
+      float brightTone = mix(mix(1.04, 1.13, secondaryActivity), 1.17, mountainInfluence);
       brightTone = mix(brightTone, min(brightTone, 1.04), material.a);
       float lighting = mix(darkTone, 1.0, shadow);
       lighting = mix(lighting, brightTone, highlight);

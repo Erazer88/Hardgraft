@@ -11,7 +11,9 @@
       hillQuantile: .54, mountainQuantile: .87, summitQuantile: .978,
       normalReliefScale: .18, residualNormalStrength: 1.05, localNormalStrength: .16,
       macroNormalStrength: .14, plainNormalStrength: .04,
-      plainFacetStrength: .48, plainWashStrength: .24,
+      // Low-frequency spherical cells are deliberately large enough to read
+      // at the normal mobile globe zoom, not just in close-up diagnostics.
+      plainFacetScale: 13.5, plainFacetStrength: .88, plainWashStrength: .88,
       rollingNormalStrength: .22, hillockNormalStrength: .36, smallMassifNormalStrength: .20, hillNormalStrength: .28,
       smallMassifStrength: 1, highlandMaterialMix: .55,
       mountainNormalStrength: .60, facetAngleDegrees: 5.5, facetJitter: .24, facetStrength: .42,

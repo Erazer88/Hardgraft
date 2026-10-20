@@ -56,6 +56,15 @@ l'identique depuis le terrain.
   conserve les petites arêtes de la vraie topographie. Son diagnostic signé est
   stocké dans l'alpha de cette carte existante, sans nouvelle texture GPU.
   Cela ne change ni le mesh ni le raycast.
+- **Facettes aquarellées RGBA, 384 × 192** : une carte séparée forme des cellules
+  irrégulières en coordonnées 3D sphériques, puis répète pour chaque cellule la
+  normale du relief filtré à son centre. Sur les terres basses, cette normale
+  forme des faces lisibles même lorsque la topographie est presque plane ; un
+  pigment déterministe, dérivé de la même cellule et de la seed, empêche les
+  grands aplats verts uniformes. Les cellules n'utilisent pas de coordonnées UV
+  pour leur forme, restent propres à chaque planète et convergent sur les pôles.
+  La taille, la force des normales et celle du lavis sont réglables dans les
+  DevTools. Aucun bruit fin ni changement de géométrie n'est ajouté.
 - **Petits massifs R8, 384 × 192** : le résidu positif et la rugosité réelle
   produisent une couche intermédiaire dans les plaines/collines intérieures.
   Elle est lissée à .040 rad, normalisée sur un quantile terrestre puis ajoutée

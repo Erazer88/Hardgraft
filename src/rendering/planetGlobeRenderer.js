@@ -379,6 +379,7 @@
         realMountainNormalTexture: gl.getUniformLocation(program, 'uRealMountainNormalTexture'),
         stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
         smallMassifTexture: gl.getUniformLocation(program, 'uSmallMassifTexture'),
+        plainFacetNormalTexture: gl.getUniformLocation(program, 'uPlainFacetNormalTexture'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
@@ -390,6 +391,7 @@
         coastAaMinimum: gl.getUniformLocation(program, 'uCoastAaMinimum'),
         shallowBandWidth: gl.getUniformLocation(program, 'uShallowBandWidth'),
         sandBandWidth: gl.getUniformLocation(program, 'uSandBandWidth'),
+        plainFacetStrength: gl.getUniformLocation(program, 'uPlainFacetStrength'),
         innerRimColor: gl.getUniformLocation(program, 'uInnerRimColor'),
         innerRimEdgeStrength: gl.getUniformLocation(program, 'uInnerRimEdgeStrength'),
         innerRimInwardStrength: gl.getUniformLocation(program, 'uInnerRimInwardStrength'),
@@ -505,6 +507,7 @@
         gl.deleteTexture(buffers.visualClassTexture); gl.deleteTexture(buffers.stylizedNormalTexture);
         gl.deleteTexture(buffers.realMountainNormalTexture);
         gl.deleteTexture(buffers.smallMassifTexture);
+        gl.deleteTexture(buffers.plainFacetNormalTexture);
         gl.deleteTexture(buffers.stylizedMaterialTexture);
         gl.deleteVertexArray(buffers.vao);
       }
@@ -552,10 +555,13 @@
       const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
       const smallMassifTexture = uploadTexture(10, gl.R8, gl.RED, visualData.smallMassifPixels,
         visualData.classWidth, visualData.classHeight);
+      const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.plainFacetNormalPixels,
+        visualData.classWidth, visualData.classHeight);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
         visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture, smallMassifTexture,
+        plainFacetNormalTexture,
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
           localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs, generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
@@ -675,6 +681,8 @@
       gl.uniform1i(program.uniforms.realMountainNormalTexture, 9);
       gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D, buffers.smallMassifTexture);
       gl.uniform1i(program.uniforms.smallMassifTexture, 10);
+      gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, buffers.plainFacetNormalTexture);
+      gl.uniform1i(program.uniforms.plainFacetNormalTexture, 11);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
@@ -690,6 +698,7 @@
       gl.uniform1f(program.uniforms.coastAaMinimum, style.stylizedTerrain.coastAaMinimum);
       gl.uniform1f(program.uniforms.shallowBandWidth, style.stylizedTerrain.shallowBandWidth);
       gl.uniform1f(program.uniforms.sandBandWidth, style.stylizedTerrain.sandBandWidth);
+      gl.uniform1f(program.uniforms.plainFacetStrength, style.stylizedTerrain.plainFacetStrength);
       const innerRim = style.atmosphere.innerRim;
       setHexUniform(program.uniforms.innerRimColor, innerRim.color);
       gl.uniform1f(program.uniforms.innerRimEdgeStrength, innerRim.edgeStrength);

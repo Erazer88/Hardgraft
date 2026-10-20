@@ -15,9 +15,11 @@ function loadSettings(initialValue = null) {
   return { settings: context.OrbitDeveloperSettings, readStored: () => JSON.parse(stored) };
 }
 
-test('developer settings expose only active gameplay prototype controls', () => {
+test('developer settings expose renderer diagnostics and active gameplay controls', () => {
   const { settings } = loadSettings();
-  assert.deepEqual(Array.from(settings.definitions, item => item.id).sort(), ['infiniteMinerals', 'simulationSpeed'].sort());
+  assert.deepEqual(Array.from(settings.definitions, item => item.id).sort(),
+    ['infiniteMinerals', 'simulationSpeed', 'terrainRenderer', 'terrainRenderView'].sort());
+  assert.ok(settings.definitions.find(item => item.id === 'terrainRenderView').options.some(option => option.value === 'facetedNormals'));
 });
 
 test('simulation speed offers deterministic x1, x2, x5 and x10 values and resets', () => {
