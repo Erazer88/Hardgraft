@@ -70,6 +70,28 @@ test('elevation sampling is bilinear and stylized relief stays within its declar
   assert.ok(style.camera.maxZoom >= 1.56, 'the globe allows the requested 20% zoom increase');
 });
 
+test('seeded mountain lift adds display geometry without changing gameplay elevation', () => {
+  const { OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeMesh: meshBuilder,
+    OrbitPlanetGlobeStyle: style } = loadGlobeContext();
+  const terrain = { width: 16, height: 8, elevation: new Uint8Array(16 * 8).fill(170),
+    moisture: new Uint8Array(16 * 8), seaLevel: 100, resources: [] };
+  const untouched = { ...terrain };
+  const before = Array.from(terrain.elevation);
+  terrain.globeRenderAssets = { visual: { classWidth: 2, classHeight: 2,
+    visualMountainLiftPixels: new Float32Array(4).fill(.18), visualMountainLiftMax: .18 } };
+  const point = { x: 7, y: 3 };
+  assert.ok(projection.surfaceRadius(point.x, point.y, terrain, style.relief) >
+    projection.surfaceRadius(point.x, point.y, untouched, style.relief));
+  const baseMesh = meshBuilder.create(untouched, { id: 'base', seed: 'base' },
+    { longitudeSegments: 32, latitudeSegments: 16 }, style.relief);
+  const liftedMesh = meshBuilder.create(terrain, { id: 'lifted', seed: 'lifted' },
+    { longitudeSegments: 32, latitudeSegments: 16 }, style.relief);
+  const largestRadius = mesh => Math.max(...Array.from({ length: mesh.vertexCount }, (_, i) =>
+    Math.hypot(mesh.positions[i * 3], mesh.positions[i * 3 + 1], mesh.positions[i * 3 + 2])));
+  assert.ok(largestRadius(liftedMesh) > largestRadius(baseMesh), 'the globe mesh receives the visual chain lift');
+  assert.deepEqual(Array.from(terrain.elevation), before, 'canonical elevation is not mutated');
+});
+
 test('globe projection consumes naturally consistent spherical pole samples', () => {
   const { OrbitWorld: world, OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
   const width = 128, height = 64;
@@ -120,7 +142,8 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.equal(style.relief.scale, .038);
+  assert.equal(style.relief.scale, .050);
+  assert.equal(style.relief.visualChainScale, 1.35);
   assert.equal(style.relief.exponent, 1.00);
   assert.equal(style.relief.linearFraction, .16);
   assert.equal(style.relief.compressionStart, .42);
@@ -382,8 +405,8 @@ test('surface palettes keep climate materials separated and HSL tints bounded', 
   assert.equal(textures.palettes.temperate.deepOcean, '#073666');
   assert.equal(textures.palettes.temperate.wetPlain, '#4F8D43');
   assert.equal(textures.palettes.temperate.coast, '#DFC67D');
-  assert.equal(textures.palettes.frozen.seaIce, '#78B7C9');
-  assert.equal(textures.palettes.frozen.polarCore, '#699CAB');
+  assert.equal(textures.palettes.frozen.seaIce, '#BFDDE6');
+  assert.equal(textures.palettes.frozen.polarCore, '#E7F1F4');
   assert.equal(textures.palettes.arid.darkRock, '#432820');
   assert.equal(textures.palettes.volcanic.basaltDark, '#211817');
   assert.equal(textures.palettes.volcanic.coreLava, '#FFD06A');
@@ -429,7 +452,7 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
         first.materialPixels[i + 2] !== unwashed.materialPixels[i + 2]) washedMaterialPixels += 1;
   }
   assert.ok(washedMaterialPixels > 100, 'seeded pigment changes the actual surface albedo, not only a diagnostic map');
-  assert.equal(first.plainFacetWidth, first.classWidth * 2,
+  assert.equal(first.plainFacetWidth, Math.round(first.classWidth * 1.25),
     'the facet map is supersampled to keep polygon boundaries crisp');
   for (const y of [0, first.plainFacetHeight - 1]) {
     const pole = Array.from(first.plainFacetNormalPixels.slice(y * first.plainFacetWidth * 4, y * first.plainFacetWidth * 4 + 4));

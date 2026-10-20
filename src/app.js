@@ -67,6 +67,9 @@
   const viewport = { width: W, height: H };
   const contexts = new Map();
   let roadDrag = null;
+  let lastTerrainInputAt = 0, lastNearbyPreloadScan = 0, slowPreloadFrames = 0;
+  const prefetchedTerrainRecords = [];
+  const MAX_CACHED_PREFETCHED_TERRAINS = 3;
 
   function cancelRoadDrag() {
     roadDrag = null;
@@ -227,6 +230,73 @@
     if (changed && state.level === 'surface' && state.planet?.id === planet.id) persist();
     return record;
   }
+  function trimPrefetchedTerrainCache() {
+    for (let i = prefetchedTerrainRecords.length - 1; i >= 0; i -= 1) {
+      const item = prefetchedTerrainRecords[i];
+      if (!item.record.prefetched || item.context.terrains.get(item.planetId) !== item.record)
+        prefetchedTerrainRecords.splice(i, 1);
+    }
+    while (prefetchedTerrainRecords.length > MAX_CACHED_PREFETCHED_TERRAINS) {
+      const item = prefetchedTerrainRecords.shift();
+      if (!item.record.prefetched || item.context.terrains.get(item.planetId) !== item.record ||
+          state.planet?.id === item.planetId) continue;
+      item.record.prefetched = false;
+      item.context.terrains.delete(item.planetId);
+    }
+  }
+  function startTerrainPreparation(planet, context, record, prefetch = false) {
+    const preparation = globalThis.OrbitTerrainPreparation;
+    if (!preparation) {
+      if (prefetch) { record.loading = false; context.terrains.delete(planet.id); return record; }
+      record.data = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
+      record.loading = false;
+      return record;
+    }
+    const requestToken = {};
+    record.loading = true; record.prefetchRequest = prefetch; record.requestToken = requestToken;
+    const generate = prefetch ? preparation.prefetch : preparation.generate;
+    generate.call(preparation, planet, Config.terrain.width, Config.terrain.height).then(result => {
+      if (record.requestToken !== requestToken) return;
+      if (!result) {
+        record.loading = false; record.prefetchRequest = false;
+        if (context.terrains.get(planet.id) === record) context.terrains.delete(planet.id);
+        return;
+      }
+      const { terrain, assets } = result;
+      terrain.globeRenderAssets = assets;
+      record.data = terrain; record.loading = false; record.prefetchRequest = false;
+      record.prefetched = prefetch;
+      if (prefetch) {
+        prefetchedTerrainRecords.push({ context, planetId: planet.id, record });
+        trimPrefetchedTerrainCache();
+      } else {
+        prefetchedTerrainRecords.splice(0, prefetchedTerrainRecords.length,
+          ...prefetchedTerrainRecords.filter(item => item.record !== record));
+      }
+      if (state.planet?.id === planet.id && state.context === context) terrainData = terrain;
+      finishTerrainRecord(planet, record);
+    }).catch(error => {
+      if (record.requestToken !== requestToken) return;
+      record.loading = false; record.prefetchRequest = false; record.prefetched = false;
+      if (error?.name === 'AbortError') {
+        if (context.terrains.get(planet.id) === record && !record.data) context.terrains.delete(planet.id);
+        return;
+      }
+      record.error = error?.message || String(error);
+      console.error('Planet preparation worker failed:', error);
+      if (state.planet?.id === planet.id || state.focusPlanet?.id === planet.id)
+        toast('La préparation de la planète a échoué. Réessayez en la quittant puis en y revenant.');
+    });
+    return record;
+  }
+  function prefetchTerrain(planet, context) {
+    if (!planet || planet.kind === 'gazeuse' || !context || context.terrains.has(planet.id)) return;
+    const preparation = globalThis.OrbitTerrainPreparation;
+    if (!preparation?.prefetch || preparation.pendingPrefetchCount() >= 4) return;
+    const record = { data: null, roadCostField: null, loading: true, prefetchRequest: true, prefetched: false };
+    context.terrains.set(planet.id, record);
+    startTerrainPreparation(planet, context, record, true);
+  }
   function prepareTerrain(planet, context = state.context) {
     if (terrainPreviewRecord?.tuned && terrainPreviewRecord.data &&
         terrainPreviewRecord.planetId === planet.id) {
@@ -235,30 +305,24 @@
     }
     let record = context.terrains.get(planet.id);
     if (!record) {
-      record = { data: null, roadCostField: null, loading: true };
+      record = { data: null, roadCostField: null, loading: true, prefetched: false };
       context.terrains.set(planet.id, record);
-      const preparation = globalThis.OrbitTerrainPreparation;
-      if (!preparation) {
-        record.data = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
-        record.loading = false;
-      } else {
-        preparation.generate(planet, Config.terrain.width, Config.terrain.height).then(({ terrain, assets }) => {
-          terrain.globeRenderAssets = assets;
-          record.data = terrain;
-          record.loading = false;
-          if (state.planet?.id === planet.id && state.context === context) terrainData = terrain;
-          finishTerrainRecord(planet, record);
-        }).catch(error => {
-          record.loading = false;
-          record.error = error?.message || String(error);
-          console.error('Planet preparation worker failed:', error);
-          if (state.planet?.id === planet.id || state.focusPlanet?.id === planet.id)
-            toast('La préparation de la planète a échoué. Réessayez en la quittant puis en y revenant.');
-        });
-      }
+      startTerrainPreparation(planet, context, record, false);
+    } else if (record.prefetchRequest) {
+      // Promote a low-priority queued job as soon as it becomes the planet the
+      // player is approaching. The worker service cancels all background work.
+      record.prefetched = false;
+      startTerrainPreparation(planet, context, record, false);
     }
     record = context.terrains.get(planet.id);
-    if (record.data) terrainData = record.data;
+    if (record.data) {
+      if (record.prefetched) {
+        record.prefetched = false;
+        prefetchedTerrainRecords.splice(0, prefetchedTerrainRecords.length,
+          ...prefetchedTerrainRecords.filter(item => item.record !== record));
+      }
+      terrainData = record.data;
+    }
     return finishTerrainRecord(planet, record);
   }
   function refreshSettlements(planetId) {
@@ -458,10 +522,46 @@
     const activeTerrain = globeActive && state.planet ? prepareTerrain(state.planet).data : null;
     terrainData = activeTerrain || terrainData;
     const globeTransition = globeActive ? globeTransitionForFrame(now) : null;
+    preloadNearbyPlanets(now, visibleContexts.length ? visibleContexts : (state.context ? [state.context] : []));
     renderer.render({ state, galaxy, home, contexts, visibleContexts, now,
       terrainData: activeTerrain, globeView: globeView(), globeTransition,
       globeStyle: activeGlobeStyle(), globePlanet: activeGlobePlanet() });
     if (state.level !== 'surface' && globeTransition?.mode === 'exit' && !globeTransition.active) globeCamera.clearTransition();
+  }
+
+  function interruptTerrainPrefetch() {
+    lastTerrainInputAt = performance.now();
+    globalThis.OrbitTerrainPreparation?.cancelPrefetch();
+  }
+  function preloadNearbyPlanets(now, nearbyContexts = []) {
+    const preparation = globalThis.OrbitTerrainPreparation;
+    if (!preparation?.prefetch || preparation.foregroundCount() > 0 || !galaxy ||
+        now - lastNearbyPreloadScan < 1800) return;
+    lastNearbyPreloadScan = now;
+    if (document.hidden || state.level === 'surface' || pointers.size || cameraMoving() ||
+        globeCamera.transitionMode() || now - lastTerrainInputAt < 2600 || state.camera.zoom < .10) return;
+
+    const center = { x: W / 2, y: H / 2 }, reach = Math.max(W, H) * 1.35;
+    const nearbySystems = nearbyContexts
+      .filter(context => context.star.discovered || state.reveal)
+      .map(context => ({ context, point: project(context.star.x, context.star.y) }))
+      .map(item => ({ ...item, screenDistance: distance(item.point, center) }))
+      .filter(item => item.screenDistance < reach)
+      .sort((a, b) => a.screenDistance - b.screenDistance)
+      .slice(0, 3);
+
+    for (const { context } of nearbySystems) {
+      if (preparation.pendingPrefetchCount() >= 4) break;
+      const candidate = context.model.planets
+        .filter(planet => planet.kind !== 'gazeuse' && !context.terrains.has(planet.id))
+        .map(planet => {
+          const position = planetWorldPosition(planet, context), point = project(position.x, position.y);
+          return { planet, screenDistance: distance(point, center) };
+        })
+        .filter(item => item.screenDistance < reach * 1.35)
+        .sort((a, b) => a.screenDistance - b.screenDistance)[0];
+      if (candidate) prefetchTerrain(candidate.planet, context);
+    }
   }
 
   function findBuildableScreenPosition(type, minSpacingPx = 0, nearBuildingId = null, maxTerrainDistance = Infinity) {
@@ -898,6 +998,12 @@
       midpoint: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } };
     pointerMoved = true;
   }
+  document.addEventListener('pointerdown', interruptTerrainPrefetch, true);
+  document.addEventListener('wheel', interruptTerrainPrefetch, { capture: true, passive: true });
+  document.addEventListener('keydown', interruptTerrainPrefetch, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) interruptTerrainPrefetch();
+  });
   canvas.addEventListener('pointerdown', e => {
     if ($('menu-dialog').open) return;
     canvas.setPointerCapture(e.pointerId);
@@ -1218,6 +1324,17 @@
       completeMissions(now);
       state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
       updateSceneContext();
+      const terrainPreparation = globalThis.OrbitTerrainPreparation;
+      if (cameraMoving() || pointers.size || document.hidden || state.level === 'surface') {
+        if (terrainPreparation?.pendingPrefetchCount()) terrainPreparation.cancelPrefetch();
+        if (cameraMoving() || pointers.size) lastTerrainInputAt = now;
+        slowPreloadFrames = 0;
+      } else if (terrainPreparation?.pendingPrefetchCount()) {
+        slowPreloadFrames = dt > .034 ? slowPreloadFrames + 1 : 0;
+        if (slowPreloadFrames >= 2) {
+          terrainPreparation.cancelPrefetch(); lastTerrainInputAt = now; slowPreloadFrames = 0;
+        }
+      }
       const planetLoading = $('planet-loading');
       const loadingPlanet = state.planet || state.focusPlanet;
       const pendingTerrain = loadingPlanet && state.context?.terrains.get(loadingPlanet.id);
@@ -1247,6 +1364,9 @@
       buildingCount: state.surfaceBuildings.length, missions: state.exploration.missions.length }),
     getPlanetGlobeMetrics: () => ({ camera: globeCamera.snapshot(), renderer: renderer.globeMetrics(),
       transition: globeCamera.transitionMode(), available: renderer.globeAvailable() }),
+    getTerrainPrefetchMetrics: () => ({ queued: globalThis.OrbitTerrainPreparation?.pendingPrefetchCount() || 0,
+      cached: [...contexts.values()].reduce((count, context) => count +
+        [...context.terrains.values()].filter(record => record.prefetched && record.data).length, 0) }),
     findBuildableScreenPosition,
     getSurfaceResourceMetrics: () => {
       const record = state.planet && state.context?.terrains.get(state.planet.id);

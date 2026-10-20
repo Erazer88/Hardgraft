@@ -3,14 +3,14 @@
 
   root.OrbitPlanetGlobeStyle = Object.freeze({
     mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
-    relief: Object.freeze({ scale: .038, exponent: 1.00, linearFraction: .16,
+    relief: Object.freeze({ scale: .050, visualChainScale: 1.35, exponent: 1.00, linearFraction: .16,
       compressionStart: .42, peakTailStart: .70, landQuantile: .985, minLandRange: 24, maxLandRange: 58 }),
     stylizedTerrain: Object.freeze({
       // Keep the expensive CPU classification field compact; the final
       // material/normal maps are still uploaded at 512px for smooth sampling.
       fieldWidth: 192, textureWidth: 512,
       heightLowPass: .018, macroLowPass: .075, localLowPass: .010, classLowPass: .05,
-      hillQuantile: .54, mountainQuantile: .87, summitQuantile: .978,
+      hillQuantile: .50, mountainQuantile: .83, summitQuantile: .975,
       normalReliefScale: .18, residualNormalStrength: 1.05, localNormalStrength: .16,
       macroNormalStrength: .14, plainNormalStrength: .04,
       // Low-frequency spherical cells are deliberately large enough to read
@@ -18,9 +18,9 @@
       plainFacetScale: 13.5, plainFacetStrength: .88, plainWashStrength: .88,
       facetMapScale: 2,
       visualChains: Object.freeze({
-        baseCount: 6, minimumMultiplier: 3, maximumMultiplier: 4,
+        baseCount: 10, minimumMultiplier: 3, maximumMultiplier: 4, islandChainRatio: .22,
         segmentCount: Object.freeze([5, 8]), segmentLength: Object.freeze([.065, .12]),
-        width: Object.freeze([.040, .066]), uplift: .082, ridgeUplift: .044
+        width: Object.freeze([.045, .074]), uplift: .13, ridgeUplift: .080
       }),
       rollingNormalStrength: .22, hillockNormalStrength: .36, smallMassifNormalStrength: .20, hillNormalStrength: .28,
       smallMassifStrength: 1, highlandMaterialMix: .55,

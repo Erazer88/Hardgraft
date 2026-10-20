@@ -296,18 +296,35 @@
       (chainSettings.maximumMultiplier - chainSettings.minimumMultiplier + 1));
     const chainCount = chainSettings.baseCount * multiplier, segments = [], origins = [];
     const separation = Math.cos(.20);
+    const islandChainCount = Math.round(chainCount * clamp(chainSettings.islandChainRatio ?? .18));
+    let islandChains = 0;
     for (let chain = 0; chain < chainCount; chain += 1) {
-      let start = null;
+      let start = null, bestIslandStart = null, bestIslandScore = -1;
       for (let attempt = 0; attempt < 128; attempt += 1) {
         const candidate = randomDirection(random);
         if (sampleDirection(elevation, width, height, candidate) <= sea + 2) continue;
         if (origins.some(origin => dot(origin, candidate) > separation)) continue;
-        start = candidate;
-        break;
+        if (chain >= islandChainCount) { start = candidate; break; }
+        const frame = tangentFrame(candidate);
+        let waterNeighbors = 0;
+        for (let k = 0; k < 8; k += 1) {
+          const angle = k * Math.PI / 4;
+          const tangent = { x: frame.u.x * Math.cos(angle) + frame.v.x * Math.sin(angle),
+            y: frame.u.y * Math.cos(angle) + frame.v.y * Math.sin(angle),
+            z: frame.u.z * Math.cos(angle) + frame.v.z * Math.sin(angle) };
+          if (sampleDirection(elevation, width, height, offset(candidate, tangent, .045)) <= sea + 1)
+            waterNeighbors += 1;
+        }
+        if (waterNeighbors > bestIslandScore) {
+          bestIslandScore = waterNeighbors; bestIslandStart = candidate;
+        }
+        if (waterNeighbors >= 6) { start = candidate; break; }
       }
+      if (!start && chain < islandChainCount) start = bestIslandStart;
       // Extremely ocean-heavy planets still get the requested deterministic
       // count; land masking below clips any section that crosses the sea.
       if (!start) start = randomDirection(random);
+      else if (chain < islandChainCount && bestIslandScore >= 0) islandChains += 1;
       origins.push(start);
 
       const segmentCount = Math.round(mix(chainSettings.segmentCount[0], chainSettings.segmentCount[1], random()));
@@ -341,12 +358,14 @@
         tangent = rotateAround(nextTangent, point, (random() * 2 - 1) * .13);
       }
     }
-    return { segments, count: chainCount, multiplier };
+    return { segments, count: chainCount, multiplier, islandChains };
   }
 
   function addVisualMountainChains(heights, mountain, ridge, elevation, width, height, sea, seed, settings) {
     const generated = createVisualChainSegments(seed, width, height, elevation, sea, settings);
     const { segments } = generated;
+    const liftField = new Float32Array(heights.length);
+    let maxLift = 0;
     for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
       const i = y * width + x, land = smoothstep(1.5, 9, elevation[i] - sea);
       if (land <= .001) continue;
@@ -379,11 +398,14 @@
       crest *= land;
       // These visual ridges are a seeded illustration layer over the existing
       // height field. Canonical elevation and all gameplay queries stay intact.
-      heights[i] = clamp(heights[i] + belt * settings.visualChains.uplift + crest * settings.visualChains.ridgeUplift);
+      const lift = belt * settings.visualChains.uplift + crest * settings.visualChains.ridgeUplift;
+      liftField[i] = lift; maxLift = Math.max(maxLift, lift);
+      heights[i] = clamp(heights[i] + lift);
       mountain[i] = Math.max(mountain[i], clamp(belt * .72 + crest * .30));
       ridge[i] = Math.max(ridge[i], crest);
     }
-    return { count: generated.count, multiplier: generated.multiplier };
+    return { diagnostics: { count: generated.count, multiplier: generated.multiplier,
+      islandChains: generated.islandChains }, liftField, maxLift };
   }
 
   function styleKey(style) {
@@ -424,8 +446,9 @@
       valley[i] = field(terrain.valleyField) / 255;
     }
 
-    const visualChains = addVisualMountainChains(heights, mountain, ridge, elevation,
+    const visualChainData = addVisualMountainChains(heights, mountain, ridge, elevation,
       width, height, sea, root.OrbitWorld.hashSeed(`${planet.seed}:visual-mountain-chains-v1`), settings);
+    const visualChains = visualChainData.diagnostics;
 
     const mid = lowPass(heights, width, height, settings.heightLowPass);
     const macro = lowPass(mid, width, height, settings.macroLowPass);
@@ -727,6 +750,7 @@
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
       plainFacetWidth: plainFacets.width, plainFacetHeight: plainFacets.height,
       terrainVisualClassPixels: classPixels, smallMassifPixels,
+      visualMountainLiftPixels: visualChainData.liftField, visualMountainLiftMax: visualChainData.maxLift,
       plainFacetNormalPixels: plainFacets.pixels,
       stylizedNormalPixels: finalNormalPixels, realMountainNormalPixels: finalRealNormalPixels,
       materialPixels: finalMaterialPixels, climate, sand: settings.materials[climate].sand, thresholds,

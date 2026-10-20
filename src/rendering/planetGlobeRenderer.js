@@ -603,7 +603,7 @@
     }
 
     function meshFor(terrain, planet, textureWidth, style = Style) {
-      const reliefKey = JSON.stringify([style.mesh, style.relief]);
+      const reliefKey = JSON.stringify([style.mesh, style.relief, style.stylizedTerrain.visualChains]);
       const cached = meshCache.get(terrain);
       let mesh = cached?.mesh;
       if (!mesh || cached.planetId !== (planet?.id || null) || cached.reliefKey !== reliefKey) {

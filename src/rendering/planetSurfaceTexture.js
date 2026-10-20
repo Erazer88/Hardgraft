@@ -417,7 +417,10 @@
     const floor = climateSaturationFloor(climate);
     const luma = base[0] * .2126 + base[1] * .7152 + base[2] * .0722;
     const saturation = 1.04 + floor * .08;
-    const contrast = 1.07;
+    // Frozen worlds use their pale blue-white palette directly. The general
+    // contrast lift pushes polar ice into clipped white and exaggerates the
+    // very color patches these planets should avoid.
+    const contrast = climate === 'frozen' ? 1.0 : 1.07;
     const brightness = 1 + detail.macro * .014 + detail.geology * .006;
     for (let channel = 0; channel < 3; channel += 1) {
       const chromatic = luma + (base[channel] - luma) * saturation;
