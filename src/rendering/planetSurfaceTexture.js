@@ -7,6 +7,7 @@
   const DEFAULT_HEIGHT = 1024;
   const MAX_CACHE_ENTRIES = 2;
   const textureCache = new Map();
+  const coastMapCache = new WeakMap();
   const noiseKernels = new Map();
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const smoothstep = (a, b, value) => {
@@ -99,14 +100,78 @@
     return a * (1 - y.t) + b * y.t;
   }
 
+  // Filtering only the renderer's coastline leaves elevation and the gameplay
+  // mask untouched. Longitude wraps; crossing a pole reflects the row onto
+  // the opposite meridian rather than clamping an artificial map edge.
+  function blurCoastField(field, width, height, sigma) {
+    if (sigma <= .01) return new Float32Array(field);
+    const radius = Math.min(16, Math.ceil(sigma * 2.5));
+    const weights = new Float32Array(radius * 2 + 1);
+    let weightTotal = 0;
+    for (let k = -radius; k <= radius; k += 1) {
+      const weight = Math.exp(-.5 * k * k / (sigma * sigma));
+      weights[k + radius] = weight; weightTotal += weight;
+    }
+    for (let k = 0; k < weights.length; k += 1) weights[k] /= weightTotal;
+    const horizontal = new Float32Array(field.length), output = new Float32Array(field.length);
+    const wrap = width * radius, halfWidth = Math.floor(width / 2), lastRow = height - 1;
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k += 1) {
+        sum += field[y * width + (x + k + wrap) % width] * weights[k + radius];
+      }
+      horizontal[y * width + x] = sum;
+    }
+    // Row addressing is shared by every texel of a row, including pole folds.
+    const rowOffsets = new Int32Array(weights.length), rowShifts = new Int32Array(weights.length);
+    for (let y = 0; y < height; y += 1) {
+      for (let k = -radius; k <= radius; k += 1) {
+        let sampleY = y + k, shift = 0;
+        if (!lastRow) sampleY = 0;
+        else if (sampleY < 0 || sampleY > lastRow) {
+          const period = lastRow * 2;
+          sampleY = ((sampleY % period) + period) % period;
+          if (sampleY > lastRow) { sampleY = period - sampleY; shift = halfWidth; }
+        }
+        rowOffsets[k + radius] = sampleY * width; rowShifts[k + radius] = shift;
+      }
+      for (let x = 0; x < width; x += 1) {
+        let sum = 0;
+        for (let k = 0; k < weights.length; k += 1) {
+          sum += horizontal[rowOffsets[k] + (x + rowShifts[k]) % width] * weights[k];
+        }
+        output[y * width + x] = sum;
+      }
+    }
+    return output;
+  }
+
   function createCoastDistance(landMask, width, height, range) {
     const count = width * height, distance = new Float32Array(count);
     const infinity = width + height + 1, diagonal = Math.SQRT2;
+    const threshold = 127.5;
+    function crossing(value, neighbor, targetLand) {
+      if ((neighbor >= threshold) !== targetLand) return infinity;
+      return Math.abs((threshold - value) / (neighbor - value));
+    }
     function transform(targetLand) {
-      for (let i = 0; i < count; i += 1) {
-        const isLand = landMask[i] >= 128;
-        distance[i] = isLand === targetLand ? 0 : infinity;
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const i = y * width + x, value = landMask[i];
+        if ((value >= threshold) === targetLand) { distance[i] = 0; continue; }
+        // Keep the subpixel location of the coverage=0.5 contour. A binary
+        // chamfer seed otherwise discards all of the mask supersampling.
+        distance[i] = Math.min(
+          crossing(value, landMask[y * width + (x + width - 1) % width], targetLand),
+          crossing(value, landMask[y * width + (x + 1) % width], targetLand),
+          crossing(value, landMask[Math.max(0, y - 1) * width + x], targetLand),
+          crossing(value, landMask[Math.min(height - 1, y + 1) * width + x], targetLand));
       }
+      relaxDistance();
+      // Settle paths that cross the periodic longitude edge after the first
+      // pair of sweeps, so a coast near that edge cannot leave a distance seam.
+      relaxDistance();
+    }
+    function relaxDistance() {
       for (let y = 0; y < height; y += 1) {
         const row = y * width, north = Math.max(0, y - 1) * width;
         for (let x = 0; x < width; x += 1) {
@@ -135,22 +200,41 @@
       }
     }
 
-    const sdf = new Uint8Array(count);
+    const sdf = new Float32Array(count);
     transform(true);
     for (let i = 0; i < count; i += 1) {
-      if (landMask[i] < 128) {
-        const signed = -Math.min(range, distance[i]);
-        sdf[i] = Math.round(clamp(.5 + signed / (2 * range), 0, 1) * 255);
+      if (landMask[i] < threshold) {
+        sdf[i] = -Math.min(range, distance[i]);
       }
     }
     transform(false);
     for (let i = 0; i < count; i += 1) {
-      if (landMask[i] >= 128) {
-        const signed = Math.min(range, distance[i]);
-        sdf[i] = Math.round(clamp(.5 + signed / (2 * range), 0, 1) * 255);
+      if (landMask[i] >= threshold) {
+        sdf[i] = Math.min(range, distance[i]);
       }
     }
     return sdf;
+  }
+
+  function withCoast(texture, options) {
+    const defaults = Style.stylizedTerrain;
+    const smoothing = clamp(Number.isFinite(options.coastSmoothing) ? options.coastSmoothing : defaults.coastSmoothing, 0, 4);
+    const fieldBlur = clamp(Number.isFinite(options.coastFieldBlur) ? options.coastFieldBlur : defaults.coastFieldBlur, 0, 4);
+    const coastKey = `coast-v2:${smoothing}:${fieldBlur}`;
+    const cached = coastMapCache.get(texture.landMaskPixels);
+    if (cached?.key === coastKey) return cached.texture;
+    const { width, height, coastRange } = texture, scale = width / DEFAULT_WIDTH;
+    const coverage = blurCoastField(texture.landMaskPixels, width, height, smoothing * scale);
+    const distance = createCoastDistance(coverage, width, height, coastRange);
+    const smoothDistance = blurCoastField(distance, width, height, fieldBlur * scale);
+    const coastSdfPixels = new Uint8Array(width * height);
+    for (let i = 0; i < coastSdfPixels.length; i += 1) {
+      coastSdfPixels[i] = Math.round(clamp(.5 + smoothDistance[i] / (2 * coastRange), 0, 1) * 255);
+    }
+    const result = Object.freeze({ ...texture, coastSdfPixels,
+      coastSmoothing: smoothing, coastFieldBlur: fieldBlur, key: `${texture.key}:${coastKey}` });
+    coastMapCache.set(texture.landMaskPixels, { key: coastKey, texture: result });
+    return result;
   }
 
   function createSphericalFieldSampler(width, height, evaluate) {
@@ -469,7 +553,7 @@
     const cached = options.cache === false ? null : textureCache.get(cacheKey);
     if (cached) {
       textureCache.delete(cacheKey); textureCache.set(cacheKey, cached);
-      return cached;
+      return withCoast(cached, options);
     }
 
     const surfaceSeed = World.hashSeed(`${planetSeed}:surface-v2`);
@@ -686,9 +770,8 @@
     }
 
     const coastRange = 24;
-    const coastSdfPixels = createCoastDistance(landMaskPixels, width, height, coastRange);
     const texture = Object.freeze({ width, height, pixels: albedoPixels, albedoPixels, heightPixels,
-      landMaskPixels, coastSdfPixels, detailPixels, terrainStructurePixels, coastRange,
+      landMaskPixels, detailPixels, terrainStructurePixels, coastRange,
       coastColor: climate === 'temperate' ? PALETTES.temperate.coast :
         climate === 'frozen' ? PALETTES.frozen.packedIce :
           climate === 'arid' ? PALETTES.arid.sand : PALETTES.volcanic.basalt,
@@ -697,7 +780,7 @@
       textureCache.set(cacheKey, texture);
       while (textureCache.size > MAX_CACHE_ENTRIES) textureCache.delete(textureCache.keys().next().value);
     }
-    return texture;
+    return withCoast(texture, options);
   }
 
   root.OrbitPlanetSurfaceTexture = Object.freeze({ create, tintHsl, rgbToHsl, hslToRgb,

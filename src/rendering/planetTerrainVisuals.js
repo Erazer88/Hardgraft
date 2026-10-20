@@ -127,7 +127,7 @@
     const s = style.stylizedTerrain;
     return JSON.stringify([s.fieldWidth, s.textureWidth, s.heightLowPass, s.macroLowPass, s.localLowPass, s.classLowPass,
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
-      s.localNormalStrength,
+      s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
       s.hillNormalStrength, s.mountainNormalStrength, s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials]);
   }
@@ -147,7 +147,7 @@
       const i = y * width + x, tx = x / width * (terrain.width - 1), ty = y / (height - 1) * (terrain.height - 1);
       const field = values => Projection.sampleField(values, tx, ty, terrain);
       elevation[i] = field(terrain.elevation);
-      heights[i] = clamp((elevation[i] - sea) / Math.max(1, range.high - range.low));
+      heights[i] = Projection.normalizeVisualHeight(elevation[i], range);
       moisture[i] = field(terrain.moisture) / 255;
       mountain[i] = field(terrain.mountainMask) / 255;
       ridge[i] = field(terrain.ridgeField) / 255;
@@ -209,7 +209,7 @@
     for (let i = 0; i < count; i += 1) {
       const normalizedResidual = smoothstep(0, Math.max(.005, residual94), positiveResidual[i]);
       hillScore[i] = macro[i] * .35 + normalizedResidual * .35 + broadRuggedness[i] * .30;
-      mountainScore[i] = broadMountain[i] * .55 + broadRuggedness[i] * .20 + slopes[i] * .15 + macro[i] * .10;
+      mountainScore[i] = broadMountain[i] * .60 + broadRuggedness[i] * .22 + slopes[i] * .12 + normalizedResidual * .06;
     }
     const broadHillScore = lowPass(hillScore, width, height, settings.classLowPass);
     const broadMountainScore = lowPass(mountainScore, width, height, settings.classLowPass);
@@ -258,6 +258,7 @@
 
     const rugged25 = quantile(broadRuggedness, .25), rugged92 = quantile(broadRuggedness, .92);
     const rollingRaw = new Float32Array(count), hillockRaw = new Float32Array(count);
+    const smallMassifRaw = new Float32Array(count);
     for (let i = 0; i < count; i += 1) {
       if (elevation[i] <= sea) continue;
       const plainOrHill = classWeights[i * 4] + classWeights[i * 4 + 1] * .58;
@@ -268,16 +269,29 @@
       rollingRaw[i] = clamp(plainOrHill * raised * inland * (.20 + .48 * residualAmount + .32 * ruggedAmount) * .72);
       hillockRaw[i] = smoothstep(residual82, Math.max(residual82 + .002, residual94), positiveResidual[i]) *
         (classWeights[i * 4] + classWeights[i * 4 + 1]) * raised * inland;
+      smallMassifRaw[i] = (classWeights[i * 4] + classWeights[i * 4 + 1] * .85) *
+        (1 - classWeights[i * 4 + 2] * .75) * inland *
+        (smoothstep(residual30, Math.max(residual30 + .002, residual90), positiveResidual[i]) * .55 +
+          ruggedAmount * .45);
     }
     const rollingField = lowPass(rollingRaw, width, height, .018);
     const hillockField = lowPass(hillockRaw, width, height, .030);
+    const smallMassifField = lowPass(smallMassifRaw, width, height, .040);
     const rollingReference = Math.max(.08, scalarQuantile(rollingField, elevation, width, height, sea, .78, 1));
-    let rollingMean = 0;
+    const smallMassifReference = Math.max(.08, quantile(smallMassifField, .82));
+    const smallMassifPixels = new Uint8Array(count);
+    let rollingMean = 0, smallMassifMean = 0;
     for (let i = 0; i < count; i += 1) {
       rollingField[i] = clamp(rollingField[i] / rollingReference);
       rollingMean += rollingField[i];
+      // Preserve a soft shoulder around each secondary massif. Normalizing
+      // the existing relief never adds new geometry or independent noise.
+      smallMassifField[i] = clamp(smoothstep(.12, 1, smallMassifField[i] / smallMassifReference) * settings.smallMassifStrength);
+      smallMassifPixels[i] = Math.round(smallMassifField[i] * 255);
+      smallMassifMean += smallMassifField[i];
     }
     rollingMean /= count;
+    smallMassifMean /= count;
 
     const textureWidth = settings.textureWidth, textureHeight = Math.round(textureWidth / 2);
     const normalPixels = new Uint8Array(textureWidth * textureHeight * 4);
@@ -310,12 +324,13 @@
       const faceted = quantizeTerrainNormal(mountainReal, d, frame, jitter, settings.facetAngleDegrees, settings.facetJitter);
       const rolling = sample(rollingField, width, height, u, v);
       const hillocks = sample(hillockField, width, height, u, v);
+      const smallMassif = sample(smallMassifField, width, height, u, v);
       const mountainWeight = clamp(classes[2] + classes[3]);
       const macroMix = mix(settings.plainNormalStrength, settings.macroNormalStrength, 1 - classes[0]);
       const smoothBase = normalize({ x: mix(d.x, macroNormal[0], macroMix),
         y: mix(d.y, macroNormal[1], macroMix), z: mix(d.z, macroNormal[2], macroMix) });
       const secondaryStrength = clamp(rolling * settings.rollingNormalStrength + hillocks * settings.hillockNormalStrength +
-        classes[1] * settings.hillNormalStrength, 0, .55);
+        smallMassif * settings.smallMassifNormalStrength + classes[1] * settings.hillNormalStrength, 0, .55);
       let styled = normalize({ x: mix(smoothBase.x, real.x, secondaryStrength),
         y: mix(smoothBase.y, real.y, secondaryStrength), z: mix(smoothBase.z, real.z, secondaryStrength) });
       const mountainStyled = normalize({ x: mix(mountainReal.x, faceted.x, settings.facetStrength),
@@ -343,17 +358,18 @@
       const rollingAtPixel = rolling, hillockAtPixel = hillocks;
       const surfaceElevation = sample(elevation, width, height, u, v);
       const isSea = surfaceElevation <= sea;
+      const elevatedHighland = mountainWeight * smoothstep(.58, .82, heightValue);
+      const rockExposure = mountainWeight * smoothstep(.42, .78, heightValue) * smoothstep(.14, .42, localSlope);
+      const summitExposure = classes[3] * smoothstep(.72, .90, heightValue);
       const snowBase = smoothstep(.12, .84, sample(snowField, width, height, u, v));
       // Break up only the continental snow edge, after mask remapping, so
-      // the final coverage shift stays strictly below 7.5 percentage points.
-      const snowBreakup = clamp(residualAtPixel / Math.max(.005, residual94), -1, 1) * .05 +
-        clamp(localResidualAtPixel / localReference, -1, 1) * .025;
+      // its shift stays bounded, with more articulation in the highlands.
+      const snowBreakup = clamp((residualAtPixel * 1.9 + localResidualAtPixel * 1.2) *
+        (.75 + .35 * clamp(elevatedHighland + summitExposure)), -.085, .085);
       const snowValue = clamp(snowBase + (isSea ? 0 : snowBreakup * 4 * snowBase * (1 - snowBase)));
-      const rockExposure = mountainWeight * smoothstep(.38, .72, heightValue) * smoothstep(.18, .48, localSlope);
       const foothillWeight = clamp(mountainWeight * smoothstep(.20, .62, heightValue) *
         (.36 + .28 * smoothstep(.08, .30, localSlope)) + classes[1] * smoothstep(.28, .68, heightValue) * .12);
-      const ridgeExposure = mountainWeight * crest * smoothstep(.38, .78, heightValue) *
-        (.16 + .22 * smoothstep(.12, .42, localSlope)) + classes[3] * rockExposure * .08;
+      const ridgeMask = mountainWeight * crest * smoothstep(.38, .78, heightValue);
       const valleyExposure = hollow * (classes[1] * .24 + mountainWeight) *
         smoothstep(.15, .50, crest + mountainWeight) * .12;
       const regionalVariation = clamp((wet - .5) * .07 +
@@ -361,11 +377,12 @@
       for (let channel = 0; channel < 3; channel += 1) {
         let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .80);
         plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .34);
-        let color = mix(plain, materials.rolling[channel], rollingAtPixel * .22 + hillockAtPixel * .26);
+        let color = mix(plain, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
         color = mix(color, materials.hill[channel], clamp(classes[1] * .72 + mountainWeight * .62));
-        color = mix(color, materials.foothill[channel], foothillWeight);
-        color = mix(color, materials.mountain[channel], rockExposure * .90);
-        color = mix(color, materials.ridge[channel], clamp(ridgeExposure));
+        color = mix(color, materials.foothill[channel], clamp(foothillWeight * .45 + smallMassif * .22));
+        color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);
+        color = mix(color, materials.mountain[channel], rockExposure * .60);
+        color = mix(color, materials.ridge[channel], clamp(summitExposure * .58 + ridgeMask * .24));
         color = mix(color, materials.crevice[channel], clamp(valleyExposure));
         // Broad humidity and altitude make small regional color shifts; there
         // is deliberately no fine noise in the albedo.
@@ -380,11 +397,13 @@
     }
 
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
-      terrainVisualClassPixels: classPixels, stylizedNormalPixels: normalPixels, realMountainNormalPixels: realNormalPixels,
+      terrainVisualClassPixels: classPixels, smallMassifPixels,
+      stylizedNormalPixels: normalPixels, realMountainNormalPixels: realNormalPixels,
       materialPixels, climate, sand: settings.materials[climate].sand, thresholds,
       proportions: Object.fromEntries(['plain', 'hill', 'mountain', 'summit'].map((name, i) => [name, totals[i] / Math.max(1, landArea)])),
       rollingRelief: { residual82, residual94, mean: rollingMean, reference: rollingReference },
       localRelief: { reference: localReference, strength: settings.localNormalStrength },
+      smallMassifs: { reference: smallMassifReference, mean: smallMassifMean, strength: settings.smallMassifStrength },
       generationMs: performance.now() - start });
     cache.set(terrain, result); return result;
   }

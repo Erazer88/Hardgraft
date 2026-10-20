@@ -7,6 +7,7 @@
     uniform sampler2D uStylizedNormalTexture;
     uniform sampler2D uRealMountainNormalTexture;
     uniform sampler2D uStylizedMaterialTexture;
+    uniform sampler2D uSmallMassifTexture;
     uniform int uTerrainView;
     uniform int uVisualClimate;
     uniform mat3 uGlobeRotation;
@@ -65,7 +66,8 @@
       vec3 realMountainNormal = rotateTerrainNormal(normalize(realNormalSample.rgb * 2.0 - 1.0));
       vec4 material = texture(uStylizedMaterialTexture, vUv);
       float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
-      float raisedTerrain = clamp(mountain + classes.g * .34, 0.0, 1.0);
+      float smallMassif = texture(uSmallMassifTexture, vUv).r;
+      float raisedTerrain = clamp(mountain + classes.g * .34 + smallMassif * .24, 0.0, 1.0);
       float castShadow = uTerrainView == 0 || uTerrainView == 3
         ? terrainCastShadow(objectDirection, inverseTerrainNormal(lightDirection), raisedTerrain) : 0.0;
       vec4 structure = texture(uTerrainStructureTexture, vUv);
@@ -73,7 +75,7 @@
       float valley = structure.b;
 
       float coastDistance = (texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0) * uCoastRange;
-      float aa = clamp(fwidth(coastDistance) * .55, uCoastAaMinimum, max(.55, uCoastAaMinimum));
+      float aa = clamp(fwidth(coastDistance) * .60, uCoastAaMinimum, max(.45, uCoastAaMinimum));
       float land = smoothstep(-aa, aa, coastDistance);
       float sandBand = land * (1.0 - smoothstep(uSandBandWidth, uSandBandWidth + aa, max(0.0, coastDistance)));
       sandBand *= 1.0 - material.a;
@@ -91,7 +93,7 @@
       // at once just because the whole hemisphere is facing the sun.
       float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
       float rollingActivity = normalSample.a;
-      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + mountain, 0.0, 1.0);
+      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 + mountain, 0.0, 1.0);
       float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast, 0.0, 1.0);
       float ndl = dot(stylizedNormal, lightDirection) -
         dot(sphereNormal, lightDirection) * mountain * uSphereLightCancellation;
@@ -157,6 +159,8 @@
         float localRelief = clamp((realNormalSample.a * 255.0 - 128.0) / 127.0, -1.0, 1.0);
         vec3 localTint = localRelief >= 0.0 ? vec3(1.0, .73, .29) : vec3(.29, .65, 1.0);
         color = localTint * abs(localRelief) * land;
+      } else if (uTerrainView == 8) {
+        color = vec3(.48, .79, .32) * pow(smallMassif, .8) * land;
       }
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }

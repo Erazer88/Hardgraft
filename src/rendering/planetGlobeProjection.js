@@ -43,7 +43,8 @@
     const maxRange = Number.isFinite(relief.maxLandRange) ? Math.max(minRange, relief.maxLandRange) : 70;
     const values = terrain?.elevation;
     if (!terrain || typeof terrain !== 'object' || !values?.length) {
-      return { low: seaLevel, high: seaLevel + minRange };
+      return { low: seaLevel, high: seaLevel + minRange, peak: seaLevel + minRange,
+        peakTailStart: Number.isFinite(relief.peakTailStart) ? clamp(relief.peakTailStart, .05, .95) : .70 };
     }
 
     let cached = reliefRangeCache.get(terrain);
@@ -51,7 +52,7 @@
       // Equirectangular rows have unequal surface area. Weight each latitude
       // by cos(latitude), matching the spherical area convention in worldgen.
       const histogram = new Float64Array(256);
-      let landArea = 0;
+      let landArea = 0, landPeak = seaLevel;
       const width = Math.max(1, Math.floor(terrain.width || values.length));
       const height = Math.max(1, Math.floor(terrain.height || Math.ceil(values.length / width)));
       for (let y = 0; y < height; y += 1) {
@@ -62,15 +63,17 @@
         for (let i = rowStart; i < rowEnd; i += 1) {
           const elevation = finite(values[i]);
           if (elevation <= seaLevel) continue;
+          landPeak = Math.max(landPeak, elevation);
           histogram[clamp(Math.floor(elevation), 0, 255)] += areaWeight;
           landArea += areaWeight;
         }
       }
-      cached = { values, seaLevel, histogram, landArea, ranges: new Map() };
+      cached = { values, seaLevel, histogram, landArea, landPeak, ranges: new Map() };
       reliefRangeCache.set(terrain, cached);
     }
 
-    const cacheKey = `${quantile}:${minRange}:${maxRange}`;
+    const peakTailStart = Number.isFinite(relief.peakTailStart) ? clamp(relief.peakTailStart, .05, .95) : .70;
+    const cacheKey = `${quantile}:${minRange}:${maxRange}:${peakTailStart}`;
     if (cached.ranges.has(cacheKey)) return cached.ranges.get(cacheKey);
     const target = Math.max(Number.EPSILON, cached.landArea * quantile);
     let count = 0, landHigh = seaLevel;
@@ -79,14 +82,27 @@
       if (count >= target) { landHigh = elevation; break; }
     }
     const high = clamp(landHigh, seaLevel + minRange, seaLevel + maxRange);
-    const range = Object.freeze({ low: seaLevel, high });
+    const range = Object.freeze({ low: seaLevel, high, peak: Math.max(high, cached.landPeak), peakTailStart });
     cached.ranges.set(cacheKey, range);
     return range;
   }
 
+  function normalizeVisualHeight(elevation, range) {
+    const span = Math.max(1, range.high - range.low);
+    const raw = Math.max(0, (finite(elevation) - range.low) / span);
+    const start = Number.isFinite(range.peakTailStart) ? clamp(range.peakTailStart, .05, .95) : .70;
+    const peak = Number.isFinite(range.peak) ? range.peak : range.high;
+    const budget = 1 - start;
+    const peakSpan = Math.max(1, (peak - range.low) / span) - start;
+    const compression = Math.max(0, (peakSpan - budget) / (peakSpan * budget));
+    const tail = Math.max(0, raw - start);
+    // The quantile is a calibration point, never a flat summit ceiling.
+    // This C1 tail has positive slope all the way to the actual highest peak.
+    return clamp(raw <= start ? raw : start + tail / (1 + compression * tail), 0, 1);
+  }
+
   function visualHeight(elevation, terrain, relief = {}) {
-    const range = visualReliefRange(terrain, relief);
-    return clamp((finite(elevation) - range.low) / Math.max(1, range.high - range.low), 0, 1);
+    return normalizeVisualHeight(elevation, visualReliefRange(terrain, relief));
   }
 
   function shapeReliefHeight(height, relief = {}) {
@@ -96,8 +112,10 @@
     const compressionStart = Number.isFinite(relief.compressionStart) ?
       clamp(relief.compressionStart, 0, .99) : .24;
     const mountainCurve = clamp((normalized - compressionStart) / (1 - compressionStart), 0, 1);
-    const smoothMountainCurve = mountainCurve * mountainCurve * (3 - 2 * mountainCurve);
-    return linearFraction * normalized + (1 - linearFraction) * Math.pow(smoothMountainCurve, exponent);
+    // Rounded shoulders, but a non-zero slope at the tip. Smoothstep flattens
+    // the very relief differences that should form pointed crests.
+    const pointedMountainCurve = mountainCurve * mountainCurve * (2 - mountainCurve);
+    return linearFraction * normalized + (1 - linearFraction) * Math.pow(pointedMountainCurve, exponent);
   }
 
   function surfaceRadius(x, y, terrain, relief = {}) {
@@ -200,12 +218,22 @@
   }
 
   root.OrbitPlanetGlobeProjection = Object.freeze({ terrainToSphere, sphereToTerrain,
+    shaderVisualHeight: `float normalizeVisualHeight(float elevation, float low, float high,
+      float peak, float start) {
+      float span = max(1.0, high - low);
+      float raw = max(0.0, (elevation - low) / span);
+      float budget = 1.0 - start;
+      float peakSpan = max(1.0, (peak - low) / span) - start;
+      float compression = max(0.0, (peakSpan - budget) / (peakSpan * budget));
+      float tail = max(0.0, raw - start);
+      return clamp(raw <= start ? raw : start + tail / (1.0 + compression * tail), 0.0, 1.0);
+    }`,
     // The shader uses the same inverse projection for spherical shadow samples.
     shaderSphereUv: `vec2 globeDirectionUv(vec3 d) {
       d = normalize(d);
       return vec2(atan(d.z, d.x) / 6.28318530718 + 0.5,
         0.5 - asin(clamp(d.y, -1.0, 1.0)) / 3.14159265359);
     }`,
-    sampleField, sampleElevation, visualReliefRange, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
+    sampleField, sampleElevation, visualReliefRange, normalizeVisualHeight, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);

@@ -24,7 +24,8 @@
         Object.freeze({ value: 'material', label: 'Final material' }),
         Object.freeze({ value: 'realNormals', label: 'Real mountain normals' }),
         Object.freeze({ value: 'rolling', label: 'Rolling relief' }),
-        Object.freeze({ value: 'local', label: 'Local relief' })
+        Object.freeze({ value: 'local', label: 'Local relief' }),
+        Object.freeze({ value: 'smallMassifs', label: 'Small massifs' })
       ])
     }),
     Object.freeze({

@@ -3,6 +3,7 @@
 
   const Mesh = root.OrbitPlanetGlobeMesh;
   const SurfaceTexture = root.OrbitPlanetSurfaceTexture;
+  const Projection = root.OrbitPlanetGlobeProjection;
   const Style = root.OrbitPlanetGlobeStyle;
   const VERTEX_SHADER = `#version 300 es
     precision highp float;
@@ -18,6 +19,8 @@
     uniform float uShellScale;
     uniform float uReliefLow;
     uniform float uReliefHigh;
+    uniform float uReliefPeak;
+    uniform float uReliefPeakStart;
     uniform float uPolarNormalBlendStart;
     uniform float uPolarNormalBlendEnd;
     uniform float uPolarNormalBlendStrength;
@@ -28,6 +31,7 @@
     out vec2 vUv;
     out float vElevation;
     out float vVisualHeight;
+    ${Projection.shaderVisualHeight}
     void main() {
       float cy = cos(uYaw), sy = sin(uYaw), cx = cos(uPitch), sx = sin(uPitch);
       float longitude = (aUv.x - 0.5) * 6.28318530718;
@@ -64,7 +68,7 @@
       vTangentV = normalize(tangentV);
       vUv = aUv;
       vElevation = aElevation;
-      vVisualHeight = clamp((aElevation - uReliefLow) / max(1.0, uReliefHigh - uReliefLow), 0.0, 1.0);
+      vVisualHeight = normalizeVisualHeight(aElevation, uReliefLow, uReliefHigh, uReliefPeak, uReliefPeakStart);
     }`;
   const FRAGMENT_SHADER = `#version 300 es
     precision highp float;
@@ -147,6 +151,8 @@
     uniform float uSeaLevel;
     uniform float uReliefLow;
     uniform float uReliefHigh;
+    uniform float uReliefPeak;
+    uniform float uReliefPeakStart;
     uniform float uContourInterval;
     uniform float uMajorInterval;
     uniform float uContourOpacity;
@@ -156,17 +162,18 @@
     uniform float uAtmosphereAlpha;
     uniform float uAtmospherePower;
     out vec4 outColor;
+    ${Projection.shaderVisualHeight}
     float decodeHeight(vec2 rg) {
       return dot(rg, vec2(65280.0, 255.0)) / 65535.0;
     }
     float sampleLandHeight(vec2 uv, float lod) {
       float elevation = decodeHeight(textureLod(uHeightTexture, uv, lod).rg) * 255.0;
-      return clamp((elevation - uReliefLow) / max(1.0, uReliefHigh - uReliefLow), 0.0, 1.0);
+      return normalizeVisualHeight(elevation, uReliefLow, uReliefHigh, uReliefPeak, uReliefPeakStart);
     }
     float shapeReliefHeight(float h) {
       h = clamp(h, 0.0, 1.0);
       float mountainCurve = clamp((h - uReliefCompressionStart) / max(0.001, 1.0 - uReliefCompressionStart), 0.0, 1.0);
-      mountainCurve = mountainCurve * mountainCurve * (3.0 - 2.0 * mountainCurve);
+      mountainCurve = mountainCurve * mountainCurve * (2.0 - mountainCurve);
       return uReliefShapeLinear * h + (1.0 - uReliefShapeLinear) * pow(mountainCurve, uReliefShapeExponent);
     }
     float sampleShapedLandHeight(vec2 uv, float lod) {
@@ -371,6 +378,7 @@
         stylizedNormalTexture: gl.getUniformLocation(program, 'uStylizedNormalTexture'),
         realMountainNormalTexture: gl.getUniformLocation(program, 'uRealMountainNormalTexture'),
         stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
+        smallMassifTexture: gl.getUniformLocation(program, 'uSmallMassifTexture'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
@@ -385,6 +393,7 @@
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
         opacity: gl.getUniformLocation(program, 'uOpacity'), seaLevel: gl.getUniformLocation(program, 'uSeaLevel'),
         reliefLow: gl.getUniformLocation(program, 'uReliefLow'), reliefHigh: gl.getUniformLocation(program, 'uReliefHigh'),
+        reliefPeak: gl.getUniformLocation(program, 'uReliefPeak'), reliefPeakStart: gl.getUniformLocation(program, 'uReliefPeakStart'),
         polarNormalBlendStart: gl.getUniformLocation(program, 'uPolarNormalBlendStart'),
         polarNormalBlendEnd: gl.getUniformLocation(program, 'uPolarNormalBlendEnd'),
         polarNormalBlendStrength: gl.getUniformLocation(program, 'uPolarNormalBlendStrength'),
@@ -490,6 +499,7 @@
         gl.deleteTexture(buffers.detailTexture); gl.deleteTexture(buffers.terrainStructureTexture);
         gl.deleteTexture(buffers.visualClassTexture); gl.deleteTexture(buffers.stylizedNormalTexture);
         gl.deleteTexture(buffers.realMountainNormalTexture);
+        gl.deleteTexture(buffers.smallMassifTexture);
         gl.deleteTexture(buffers.stylizedMaterialTexture);
         gl.deleteVertexArray(buffers.vao);
       }
@@ -508,6 +518,7 @@
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
       const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
         { width: textureWidth, height: textureWidth / 2, polarCaps: style.polarCaps,
+          coastSmoothing: style.stylizedTerrain.coastSmoothing, coastFieldBlur: style.stylizedTerrain.coastFieldBlur,
           cache: !mesh.terrain.debugTuning });
       const visualData = root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
@@ -534,17 +545,20 @@
       const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
       const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
       const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
+      const smallMassifTexture = uploadTexture(10, gl.R8, gl.RED, visualData.smallMassifPixels,
+        visualData.classWidth, visualData.classHeight);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
-        visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture,
+        visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture, smallMassifTexture,
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
-          localRelief: visualData.localRelief, generationMs: visualData.generationMs },
+          localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs, generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
         textureWidth: surfaceData.width, textureHeight: surfaceData.height, count: mesh.indices.length,
         polarStyleKey: JSON.stringify(style.polarCaps),
+        coastStyleKey: JSON.stringify([style.stylizedTerrain.coastSmoothing, style.stylizedTerrain.coastFieldBlur]),
         indexType: mesh.indices instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
     }
 
@@ -576,8 +590,10 @@
         meshCache.set(terrain, { mesh, planetId: planet?.id || null, reliefKey });
       }
       const polarStyleKey = JSON.stringify(style.polarCaps);
+      const coastStyleKey = JSON.stringify([style.stylizedTerrain.coastSmoothing, style.stylizedTerrain.coastFieldBlur]);
       if (currentMesh !== mesh || buffers?.textureWidth !== textureWidth ||
-          buffers?.polarStyleKey !== polarStyleKey || buffers?.visualStyleKey !== root.OrbitPlanetTerrainVisuals.styleKey(style)) {
+          buffers?.polarStyleKey !== polarStyleKey || buffers?.coastStyleKey !== coastStyleKey ||
+          buffers?.visualStyleKey !== root.OrbitPlanetTerrainVisuals.styleKey(style)) {
         currentMesh = mesh; currentTextureWidth = textureWidth; currentStyle = style;
         upload(mesh, textureWidth, style);
       }
@@ -652,12 +668,14 @@
       gl.uniform1i(program.uniforms.stylizedMaterialTexture, 8);
       gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, buffers.realMountainNormalTexture);
       gl.uniform1i(program.uniforms.realMountainNormalTexture, 9);
+      gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D, buffers.smallMassifTexture);
+      gl.uniform1i(program.uniforms.smallMassifTexture, 10);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
       normalRotation[6] = sy; normalRotation[7] = -sx * cy; normalRotation[8] = cx * cy;
       gl.uniformMatrix3fv(program.uniforms.globeRotation, false, normalRotation);
-      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'facetedNormals', 'shadow', 'material', 'realNormals', 'rolling', 'local'].indexOf(terrainView)));
+      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'facetedNormals', 'shadow', 'material', 'realNormals', 'rolling', 'local', 'smallMassifs'].indexOf(terrainView)));
       gl.uniform1i(program.uniforms.visualClimate, ['temperate', 'frozen', 'arid', 'volcanic'].indexOf(buffers.climate));
       gl.uniform1f(program.uniforms.terrainShadowStrength, style.stylizedTerrain.shadowStrength);
       gl.uniform1f(program.uniforms.terrainShadowReach, style.stylizedTerrain.shadowReach);
@@ -747,6 +765,8 @@
       gl.uniform1f(program.uniforms.seaLevel, terrain.seaLevel);
       gl.uniform1f(program.uniforms.reliefLow, buffers.reliefRange.low);
       gl.uniform1f(program.uniforms.reliefHigh, buffers.reliefRange.high);
+      gl.uniform1f(program.uniforms.reliefPeak, buffers.reliefRange.peak);
+      gl.uniform1f(program.uniforms.reliefPeakStart, buffers.reliefRange.peakTailStart);
       gl.uniform1f(program.uniforms.contourInterval, style.topography.contourInterval);
       gl.uniform1f(program.uniforms.majorInterval, style.topography.majorInterval);
       gl.uniform1f(program.uniforms.contourOpacity, style.topography.contourOpacity);
