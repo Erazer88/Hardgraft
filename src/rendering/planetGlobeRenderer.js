@@ -390,6 +390,11 @@
         coastAaMinimum: gl.getUniformLocation(program, 'uCoastAaMinimum'),
         shallowBandWidth: gl.getUniformLocation(program, 'uShallowBandWidth'),
         sandBandWidth: gl.getUniformLocation(program, 'uSandBandWidth'),
+        innerRimColor: gl.getUniformLocation(program, 'uInnerRimColor'),
+        innerRimEdgeStrength: gl.getUniformLocation(program, 'uInnerRimEdgeStrength'),
+        innerRimInwardStrength: gl.getUniformLocation(program, 'uInnerRimInwardStrength'),
+        innerRimEdgeFalloff: gl.getUniformLocation(program, 'uInnerRimEdgeFalloff'),
+        innerRimInwardFalloff: gl.getUniformLocation(program, 'uInnerRimInwardFalloff'),
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
         opacity: gl.getUniformLocation(program, 'uOpacity'), seaLevel: gl.getUniformLocation(program, 'uSeaLevel'),
         reliefLow: gl.getUniformLocation(program, 'uReliefLow'), reliefHigh: gl.getUniformLocation(program, 'uReliefHigh'),
@@ -685,6 +690,12 @@
       gl.uniform1f(program.uniforms.coastAaMinimum, style.stylizedTerrain.coastAaMinimum);
       gl.uniform1f(program.uniforms.shallowBandWidth, style.stylizedTerrain.shallowBandWidth);
       gl.uniform1f(program.uniforms.sandBandWidth, style.stylizedTerrain.sandBandWidth);
+      const innerRim = style.atmosphere.innerRim;
+      setHexUniform(program.uniforms.innerRimColor, innerRim.color);
+      gl.uniform1f(program.uniforms.innerRimEdgeStrength, innerRim.edgeStrength);
+      gl.uniform1f(program.uniforms.innerRimInwardStrength, innerRim.inwardStrength);
+      gl.uniform1f(program.uniforms.innerRimEdgeFalloff, innerRim.edgeFalloff);
+      gl.uniform1f(program.uniforms.innerRimInwardFalloff, innerRim.inwardFalloff);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
       const shading = style.terrainShading, controls = shading.controls;
       gl.uniform2f(program.uniforms.facetGrid, shading.facetGrid.x, shading.facetGrid.y);

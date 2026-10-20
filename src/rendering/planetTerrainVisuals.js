@@ -106,10 +106,10 @@
     pixels[offset + 2] = Math.round((n.z * .5 + .5) * 255);
   }
 
-  function quantizeTerrainNormal(normal, d, frame, jitter, stepDegrees, jitterStrength) {
+  function quantizeTerrainNormal(normal, d, frame, jitter, stepDegrees, jitterStrength, minTilt = .012) {
     const radial = clamp(dot(normal, d), -1, 1);
     const tilt = Math.acos(radial);
-    if (tilt < .012) return normal;
+    if (tilt < minTilt) return normal;
     const tangentU = dot(normal, frame.u), tangentV = dot(normal, frame.v);
     const azimuth = Math.atan2(tangentV, tangentU);
     const step = stepDegrees * Math.PI / 180;
@@ -129,7 +129,8 @@
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
       s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
-      s.hillNormalStrength, s.mountainNormalStrength, s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials]);
+      s.hillNormalStrength, s.plainFacetStrength, s.plainWashStrength, s.mountainNormalStrength,
+      s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials]);
   }
 
   function create(terrain, planet, style = root.OrbitPlanetGlobeStyle) {
@@ -159,6 +160,9 @@
     const macro = lowPass(mid, width, height, settings.macroLowPass);
     const local = lowPass(heights, width, height, settings.localLowPass);
     const humidity = lowPass(moisture, width, height, settings.macroLowPass);
+    // A second, terrain-scale moisture wash breaks broad biome color blocks
+    // without adding independent noise or changing the generated climate.
+    const localHumidity = lowPass(moisture, width, height, .022);
     const broadMountain = lowPass(mountain, width, height, settings.macroLowPass);
     const broadRuggedness = lowPass(ruggedness, width, height, settings.classLowPass);
     const visualRidge = lowPass(ridge, width, height, settings.heightLowPass);
@@ -333,6 +337,17 @@
         smallMassif * settings.smallMassifNormalStrength + classes[1] * settings.hillNormalStrength, 0, .55);
       let styled = normalize({ x: mix(smoothBase.x, real.x, secondaryStrength),
         y: mix(smoothBase.y, real.y, secondaryStrength), z: mix(smoothBase.z, real.z, secondaryStrength) });
+      // Plains also receive broad watercolor-like faces. Their normals come
+      // from the real, low-passed terrain and are only gently quantized; no
+      // regular globe mesh or added noise is involved.
+      const plainActivity = clamp(rolling * .48 + hillocks * .70 + smallMassif * .78 + classes[1] * .52);
+      const plainFacetNormal = quantizeTerrainNormal(real, d, frame, jitter,
+        Math.max(3.2, settings.facetAngleDegrees * .72), settings.facetJitter, .0025);
+      const isLandPixel = sample(elevation, width, height, u, v) > sea;
+      const plainFacetMix = (isLandPixel ? 1 : 0) * (1 - mountainWeight) * clamp(settings.plainFacetStrength) *
+        (.20 + plainActivity * .72);
+      styled = normalize({ x: mix(styled.x, plainFacetNormal.x, plainFacetMix),
+        y: mix(styled.y, plainFacetNormal.y, plainFacetMix), z: mix(styled.z, plainFacetNormal.z, plainFacetMix) });
       const mountainStyled = normalize({ x: mix(mountainReal.x, faceted.x, settings.facetStrength),
         y: mix(mountainReal.y, faceted.y, settings.facetStrength), z: mix(mountainReal.z, faceted.z, settings.facetStrength) });
       const mountainMix = clamp(mountainWeight * settings.mountainNormalStrength);
@@ -352,12 +367,19 @@
       // diagnostic; the normal RGB channels retain their original format.
       realNormalPixels[o + 3] = Math.round(128 + 127 * clamp(localResidualAtPixel / localReference, -1, 1) * mountainWeight);
 
-      const wet = sample(humidity, width, height, u, v), heightValue = sample(mid, width, height, u, v);
+      const broadWet = sample(humidity, width, height, u, v);
+      const localWet = sample(localHumidity, width, height, u, v);
+      const wet = mix(broadWet, localWet, .58), heightValue = sample(mid, width, height, u, v);
       const localSlope = sample(slopes, width, height, u, v);
       const crest = sample(visualRidge, width, height, u, v), hollow = sample(visualValley, width, height, u, v);
       const rollingAtPixel = rolling, hillockAtPixel = hillocks;
       const surfaceElevation = sample(elevation, width, height, u, v);
       const isSea = surfaceElevation <= sea;
+      const plainCoverage = clamp(classes[0] + classes[1] * .72);
+      const residualWash = smoothstep(residual15, Math.max(residual15 + .002, residual82), Math.max(0, residualAtPixel));
+      const pigmentWash = clamp(residualWash * .38 + smoothstep(.30, .72, localWet) * .38 +
+        rollingAtPixel * .14 + hillockAtPixel * .10);
+      const watercolorMix = clamp(settings.plainWashStrength) * plainCoverage * (.30 + pigmentWash * .70);
       const elevatedHighland = mountainWeight * smoothstep(.58, .82, heightValue);
       const rockExposure = mountainWeight * smoothstep(.42, .78, heightValue) * smoothstep(.14, .42, localSlope);
       const summitExposure = classes[3] * smoothstep(.72, .90, heightValue);
@@ -377,7 +399,9 @@
       for (let channel = 0; channel < 3; channel += 1) {
         let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .80);
         plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .34);
-        let color = mix(plain, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
+        const washColor = mix(materials.dry[channel], materials.wet[channel], smoothstep(.24, .78, localWet));
+        let color = mix(plain, washColor, watercolorMix);
+        color = mix(color, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
         color = mix(color, materials.hill[channel], clamp(classes[1] * .72 + mountainWeight * .62));
         color = mix(color, materials.foothill[channel], clamp(foothillWeight * .45 + smallMassif * .22));
         color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);

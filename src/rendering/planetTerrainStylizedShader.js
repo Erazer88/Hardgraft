@@ -19,6 +19,11 @@
     uniform float uCoastAaMinimum;
     uniform float uShallowBandWidth;
     uniform float uSandBandWidth;
+    uniform vec3 uInnerRimColor;
+    uniform float uInnerRimEdgeStrength;
+    uniform float uInnerRimInwardStrength;
+    uniform float uInnerRimEdgeFalloff;
+    uniform float uInnerRimInwardFalloff;
 
     ${root.OrbitPlanetGlobeProjection.shaderSphereUv}
 
@@ -93,7 +98,10 @@
       // at once just because the whole hemisphere is facing the sun.
       float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
       float rollingActivity = normalSample.a;
-      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 + mountain, 0.0, 1.0);
+      float plainFacetActivity = (1.0 - mountainInfluence) *
+        smoothstep(.004, .11, length(stylizedNormal - sphereNormal));
+      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 +
+        plainFacetActivity * .52 + mountain, 0.0, 1.0);
       float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast, 0.0, 1.0);
       float ndl = dot(stylizedNormal, lightDirection) -
         dot(sphereNormal, lightDirection) * mountain * uSphereLightCancellation;
@@ -161,6 +169,16 @@
         color = localTint * abs(localRelief) * land;
       } else if (uTerrainView == 8) {
         color = vec3(.48, .79, .32) * pow(smallMassif, .8) * land;
+      }
+      if (uTerrainView == 0) {
+        // A narrow cyan edge sits inside the silhouette, then fades softly
+        // across the outer terrain and ocean without adding a broad veil.
+        float limbFacing = max(0.0, sphereNormal.z);
+        float crispEdge = exp(-limbFacing * uInnerRimEdgeFalloff);
+        float inwardFade = exp(-limbFacing * uInnerRimInwardFalloff);
+        float innerRim = clamp(crispEdge * uInnerRimEdgeStrength +
+          inwardFade * uInnerRimInwardStrength, 0.0, .42);
+        color = mix(color, uInnerRimColor, innerRim);
       }
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }

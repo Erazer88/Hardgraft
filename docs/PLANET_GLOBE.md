@@ -43,12 +43,14 @@ l'identique depuis le terrain.
   géologique `mountainMask`, puis la rugosité et la pente. Les quantiles surfaciques
   .54/.87/.978 calibrent leurs étendues ; une altitude élevée ne suffit pas à
   transformer un plateau en montagne.
-- **Normales et matériau, 1024 × 512** : les plaines côtières restent presque
-  sphériques. Un champ `mid - macro` et la rugosité large produisent un vallonnement
-  discret et des buttes plus rares dans les basses terres. Les normales de massif
-  viennent des pentes du relief intermédiaire, puis leur orientation est quantifiée
-  doucement avec une variation tirée des mêmes champs. Les faces suivent les
-  versants et les crêtes au lieu d'un pavage sphérique. Une carte séparée conserve
+- **Normales et matériau, 1024 × 512** : les plaines gardent un modelé faible,
+  facetté à partir des normales du relief filtré. Les faces douces tirent leur
+  variation du relief réel et d'un décalage de quantification issu des mêmes
+  champs ; elles ne suivent pas un pavage régulier du globe. Un champ `mid - macro`
+  et la rugosité large produisent aussi un vallonnement discret et des buttes plus
+  rares dans les basses terres. Les normales de massif viennent des pentes du relief
+  intermédiaire, puis leur orientation est quantifiée plus fortement. Les faces
+  suivent les versants et les crêtes au lieu d'un maillage abstrait. Une carte séparée conserve
   la même normale avant quantification pour comparaison. Un troisième signal
   `local - mid`, faiblement filtré puis mélangé à 16 % uniquement dans les massifs,
   conserve les petites arêtes de la vraie topographie. Son diagnostic signé est
@@ -66,8 +68,9 @@ l'identique depuis le terrain.
   restent verts/olive, les parties élevées ont une transition minérale même si
   la pente locale est faible, et les pics/crêtes vont vers l'ocre et le beige
   clair. Cette transition de matériau ne crée pas de plateaux géométriques.
-  L'humidité et l'altitude apportent une faible
-  variation régionale ; aucune microtexture ne pilote la couleur. L'alpha porte
+  Un lavis doux, limité aux plaines et calculé depuis l'humidité locale, le résidu
+  topographique et le vallonnement, casse les grands aplats sans grain ni bruit
+  indépendant. L'alpha porte
   neige et banquise. Seul le bord de neige terrestre est perturbé par les résidus
   topographiques, à moins de 8,5 points de couverture ; le climat et les normales
   sous-jacentes restent communs au terrain enneigé.
@@ -75,12 +78,13 @@ l'identique depuis le terrain.
 `planetTerrainStylizedShader.js` applique une rampe douce à trois tons, fortement
 contrastée dans les massifs, modérée dans le vallonnement et limitée sur les vraies
 plaines. Les ombres par défaut sont renforcées (.30, contraste du vallonnement
-1.25) ; leur atténuation possède un plancher de .74 pour éviter
+  1.25) ; leur atténuation possède un plancher de .74 pour éviter
 le cumul de versants presque noirs. Huit échantillons
 géodésiques vers la lumière produisent des ombres douces sur les collines et les
 montagnes. Les côtes utilisent deux bandes SDF finies : hauts-fonds turquoise
 étroits puis sable. Les océans, calottes et bassins de lave gardent leur matériau
-propre. L'atmosphère reste un pass séparé.
+propre. Un fin liseré cyan interne suit le limbe : il est net au bord et décroît
+rapidement vers le centre. L'atmosphère externe reste un pass séparé.
 
 La SDF conserve une source 2048 × 1024 : le masque de couverture est d'abord
 filtré en flottant, la position sous-pixel de son contour 50 % initialise la
@@ -104,6 +108,10 @@ supplémentaires exposent la force locale, le contraste du vallonnement,
 l'annulation de lumière sphérique, le plancher des ombres et le minimum d'AA côtier.
 Les réglages de petits massifs, de matériau highland et des deux lissages de côte
 s'appliquent au relâchement, sans régénérer la topographie.
+Les curseurs « Facettes aquarellées des plaines » et « Nuances aquarelle des
+plaines » règlent le facettage topographique léger et les lavis issus du relief
+et de l'humidité. Le liseré cyan interne suit le bord du globe sans couvrir son
+centre.
 
 ## Responsabilités
 
