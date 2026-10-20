@@ -277,6 +277,34 @@
     };
   }
 
+  function createForestPatches(seed, terrain, seaLevel, settings) {
+    const random = seededRandom(seed), patches = [];
+    const targetCount = settings.patchCount;
+    for (let attempt = 0; attempt < targetCount * 24 && patches.length < targetCount; attempt += 1) {
+      const direction = randomDirection(random);
+      if (Math.abs(direction.y) > settings.maximumLatitude) continue;
+      const point = Projection.sphereToTerrain(direction, terrain);
+      const elevation = Projection.sampleElevation(point.x, point.y, terrain);
+      const moisture = Projection.sampleField(terrain.moisture, point.x, point.y, terrain) / 255;
+      // Place seeded forest nuclei only on suitably moist, temperate land.
+      // Their soft influence is clipped by local climate again below.
+      if (elevation < seaLevel + 5 || moisture < settings.minimumMoisture) continue;
+      const radius = settings.patchRadius[0] + random() * (settings.patchRadius[1] - settings.patchRadius[0]);
+      patches.push({ ...direction, outerCos: Math.cos(radius * 1.18), innerCos: Math.cos(radius * .62) });
+    }
+    return patches;
+  }
+
+  function forestPatchCoverage(direction, patches) {
+    let coverage = 0;
+    for (const patch of patches) {
+      const alignment = dot(direction, patch);
+      const influence = smoothstep(patch.outerCos, patch.innerCos, alignment);
+      coverage = Math.max(coverage, influence);
+    }
+    return coverage;
+  }
+
   function randomDirection(random) {
     const y = random() * 2 - 1, angle = random() * Math.PI * 2;
     const horizontal = Math.sqrt(Math.max(0, 1 - y * y));
@@ -416,7 +444,7 @@
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
       s.hillNormalStrength, s.plainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.facetMapScale,
       s.visualChains, s.mountainNormalStrength,
-      s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials]);
+      s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials, s.forests]);
   }
 
   function create(terrain, planet, style = root.OrbitPlanetGlobeStyle) {
@@ -595,6 +623,36 @@
     rollingMean /= count;
     smallMassifMean /= count;
 
+    // Forests are a deterministic material overlay, placed only on moist
+    // temperate lowlands and hills. Their spherical patch shapes follow the
+    // seed and never alter the canonical elevation or gameplay terrain.
+    const forestPatches = climate === 'temperate'
+      ? createForestPatches(root.OrbitWorld.hashSeed(`${planet.seed}:forest-patches-v1`), terrain, sea, settings.forests) : [];
+    const forestField = new Float32Array(count), forestPixels = new Uint8Array(count);
+    let forestArea = 0, forestLandArea = 0;
+    if (forestPatches.length) {
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        if (elevation[i] <= sea) continue;
+        const area = Math.max(0, Math.sin(y / (height - 1) * Math.PI));
+        forestLandArea += area;
+        const d = direction(x / width, y / (height - 1));
+        const patch = forestPatchCoverage(d, forestPatches);
+        if (patch <= .001) continue;
+        const localTemperature = temperature - Math.pow(Math.abs(d.y), 1.55) * 38 - mid[i] * 20;
+        const humid = smoothstep(.34, .66, humidity[i]);
+        const temperate = smoothstep(-8, 7, localTemperature);
+        const lowlandOrHill = clamp(classWeights[i * 4] + classWeights[i * 4 + 1] * .82 + smallMassifField[i] * .20);
+        const highlandFade = 1 - smoothstep(.62, .86, mid[i]);
+        const mountainFade = 1 - smoothstep(.10, .58, classWeights[i * 4 + 2] + classWeights[i * 4 + 3]);
+        const coverage = clamp(patch * humid * temperate * lowlandOrHill * highlandFade * mountainFade);
+        forestField[i] = coverage;
+        forestPixels[i] = Math.round(coverage * 255);
+        forestArea += coverage * area;
+      }
+    }
+    const forestProportion = forestArea / Math.max(1, forestLandArea);
+
     // Build visual materials at the field resolution, then upsample once.
     // Evaluating every biome mix and sphere projection at 1024x512 synchronously
     // was stalling the game loop for tens of seconds on mobile CPUs.
@@ -740,6 +798,11 @@
         // Broad humidity and altitude make small regional color shifts; there
         // is deliberately no fine noise in the albedo.
         color *= 1 + regionalVariation;
+        if (climate === 'temperate' && !isSea && forestField[i] > .001) {
+          const canopyTone = clamp(.50 + facetTone * .24 + (wet - .5) * .32, .18, .84);
+          const forestColor = mix(materials.forest[channel], materials.canopy[channel], canopyTone);
+          color = mix(color, forestColor, forestField[i] * settings.forests.colorMix);
+        }
         if (isSea && (climate === 'temperate' || climate === 'frozen')) color = materials.ice[channel];
         if (isSea && climate === 'arid') color *= .73;
         color = mix(color, isSea ? materials.ice[channel] : materials.snow[channel], snowValue);
@@ -755,7 +818,7 @@
 
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
       plainFacetWidth: plainFacets.width, plainFacetHeight: plainFacets.height,
-      terrainVisualClassPixels: classPixels, smallMassifPixels,
+      terrainVisualClassPixels: classPixels, smallMassifPixels, forestPixels,
       visualMountainLiftPixels: visualChainData.liftField, visualMountainLiftMax: visualChainData.maxLift,
       plainFacetNormalPixels: plainFacets.pixels,
       stylizedNormalPixels: finalNormalPixels, realMountainNormalPixels: finalRealNormalPixels,
@@ -764,6 +827,7 @@
       rollingRelief: { residual82, residual94, mean: rollingMean, reference: rollingReference },
       localRelief: { reference: localReference, strength: settings.localNormalStrength },
       smallMassifs: { reference: smallMassifReference, mean: smallMassifMean, strength: settings.smallMassifStrength },
+      forests: { patches: forestPatches.length, landCoverage: forestProportion },
       plainFacets: { cells: plainFacets.cells, scale: settings.plainFacetScale, strength: settings.plainFacetStrength,
         resolution: [plainFacets.width, plainFacets.height] },
       visualMountainChains: visualChains,

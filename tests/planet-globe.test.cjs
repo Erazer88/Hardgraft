@@ -432,6 +432,12 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
   const secondTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
   const first = visuals.create(firstTerrain, planet, style);
   const second = visuals.create(secondTerrain, planet, style);
+  assert.deepEqual(Array.from(first.forestPixels), Array.from(second.forestPixels),
+    'forest patches are stable for the same seed and terrain');
+  assert.ok(first.forests.patches > 0 && first.forests.landCoverage > 0,
+    'moist temperate terrain receives localized forest material patches');
+  assert.ok(first.forests.landCoverage < .30,
+    'forest material remains localized instead of tinting all land');
   assert.deepEqual(Array.from(first.plainFacetNormalPixels), Array.from(second.plainFacetNormalPixels),
     'the same seed and terrain produce the exact same face map');
   assert.ok(first.plainFacets.cells > 20, 'the spherical face field contains many broad, coherent cells');
