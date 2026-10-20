@@ -32,25 +32,37 @@ par objet terrain, seed, climat et paramètres visuels. Les cartes ne sont pas
 recalculées par frame et ne sont pas sauvegardées : elles se reconstruisent à
 l'identique depuis le terrain.
 
-- **Classes RGBA, 384 × 192** : plaine, colline, montagne, sommet. Le score combine
-  altitude visuelle, pente macro et champs géologiques. Il est lissé sur la sphère.
-  Les quantiles surfaciques de départ sont .54/.85/.97 ; les transitions restent
-  continues.
+- **Classes RGBA, 384 × 192** : plaine, colline, montagne, sommet. Deux scores
+  sphériques distincts séparent vallonnement/collines et vrais massifs. Le premier
+  combine macro relief, résidu positif et rugosité ; le second privilégie le champ
+  géologique `mountainMask`, puis la rugosité et la pente. Les quantiles surfaciques
+  .54/.86/.975 calibrent leurs étendues ; une altitude élevée ne suffit pas à
+  transformer un plateau en montagne.
 - **Normales et matériau, 1024 × 512** : les plaines côtières restent presque
   sphériques. Un champ `mid - macro` et la rugosité large produisent un vallonnement
   discret et des buttes plus rares dans les basses terres. Les normales de massif
   viennent des pentes du relief intermédiaire, puis leur orientation est quantifiée
   doucement avec une variation tirée des mêmes champs. Les faces suivent les
   versants et les crêtes au lieu d'un pavage sphérique. Une carte séparée conserve
-  la normale réelle pour comparaison. Cela ne change ni le mesh ni le raycast.
+  la même normale avant quantification pour comparaison. Un troisième signal
+  `local - mid`, faiblement filtré puis mélangé à 16 % uniquement dans les massifs,
+  conserve les petites arêtes de la vraie topographie. Son diagnostic signé est
+  stocké dans l'alpha de cette carte existante, sans nouvelle texture GPU.
+  Cela ne change ni le mesh ni le raycast.
 - **Matériau RGBA, 1024 × 512** : les classes gardent le vert aux pieds des massifs,
   puis font évoluer le matériau vers l'ocre, la roche et les crêtes. Les vallées
-  assombrissent seulement les reliefs. L'humidité et l'altitude apportent une faible
+  assombrissent seulement les reliefs. Roche et crêtes dépendent conjointement de
+  la pente, de la hauteur et de l'appartenance au massif ; les plateaux et pieds
+  de versant restent verts/olive. L'humidité et l'altitude apportent une faible
   variation régionale ; aucune microtexture ne pilote la couleur. L'alpha porte
-  neige et banquise, dont la couverture suit aussi le relief intermédiaire.
+  neige et banquise. Seul le bord de neige terrestre est perturbé par les résidus
+  topographiques, à moins de 7,5 points de couverture ; le climat et les normales
+  sous-jacentes restent communs au terrain enneigé.
 
 `planetTerrainStylizedShader.js` applique une rampe douce à trois tons, fortement
-contrastée dans les massifs et limitée sur les plaines. Huit échantillons
+contrastée dans les massifs, modérée dans le vallonnement et limitée sur les vraies
+plaines. L'atténuation des ombres projetées possède un plancher de .78 pour éviter
+le cumul de versants presque noirs. Huit échantillons
 géodésiques vers la lumière produisent des ombres douces sur les collines et les
 montagnes. Les côtes utilisent deux bandes SDF finies : hauts-fonds turquoise
 étroits puis sable. Les océans, calottes et bassins de lave gardent leur matériau
@@ -59,11 +71,13 @@ propre. L'atmosphère reste un pass séparé.
 Dans **Outils développeur → Rendu de la planète**, le choix « Renderer v0.35.12 »
 permet de comparer l'ancien renderer au nouveau sans changer planète, caméra ou
 géométrie. Les diagnostics « Visual classes », « Faceted normals », « Real
-mountain normals », « Rolling relief », « Terrain shadow » et « Final material »
+mountain normals », « Rolling relief », « Local relief », « Terrain shadow » et « Final material »
 affichent les différents étages sans atmosphère.
 Le groupe **9 · RENDU STYLISÉ** du panneau de réglage expose les paramètres du
 nouveau pipeline. Les paramètres CPU s'appliquent au relâchement ; lumière et
-ombres se règlent en direct sans régénérer les cartes ou le worldgen.
+ombres se règlent en direct sans régénérer les cartes ou le worldgen. Les contrôles
+supplémentaires exposent la force locale, le contraste du vallonnement,
+l'annulation de lumière sphérique, le plancher des ombres et le minimum d'AA côtier.
 
 ## Responsabilités
 

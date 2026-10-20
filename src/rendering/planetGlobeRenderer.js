@@ -325,7 +325,9 @@
         float facing = dot(normalize(vNormal), vec3(0.0, 0.0, 1.0));
         if (facing <= 0.0) discard;
         float fresnel = pow(clamp(1.0 - facing, 0.0, 1.0), uAtmospherePower);
-        outColor = vec4(uAtmosphereColor, fresnel * uAtmosphereAlpha * uOpacity);
+        // Fade the shell's outer silhouette to avoid a hard transparent sleeve.
+        float outerFade = smoothstep(0.0, .18, facing);
+        outColor = vec4(uAtmosphereColor, fresnel * outerFade * uAtmosphereAlpha * uOpacity);
         return;
       }
       drawStylizedTerrain();
@@ -374,6 +376,10 @@
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
         terrainShadowStrength: gl.getUniformLocation(program, 'uTerrainShadowStrength'),
         terrainShadowReach: gl.getUniformLocation(program, 'uTerrainShadowReach'),
+        rollingLightingContrast: gl.getUniformLocation(program, 'uRollingLightingContrast'),
+        sphereLightCancellation: gl.getUniformLocation(program, 'uSphereLightCancellation'),
+        mountainShadowFloor: gl.getUniformLocation(program, 'uMountainShadowFloor'),
+        coastAaMinimum: gl.getUniformLocation(program, 'uCoastAaMinimum'),
         shallowBandWidth: gl.getUniformLocation(program, 'uShallowBandWidth'),
         sandBandWidth: gl.getUniformLocation(program, 'uSandBandWidth'),
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
@@ -532,7 +538,8 @@
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
         visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture,
-        visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief, generationMs: visualData.generationMs },
+        visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
+          localRelief: visualData.localRelief, generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
@@ -650,10 +657,14 @@
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
       normalRotation[6] = sy; normalRotation[7] = -sx * cy; normalRotation[8] = cx * cy;
       gl.uniformMatrix3fv(program.uniforms.globeRotation, false, normalRotation);
-      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'facetedNormals', 'shadow', 'material', 'realNormals', 'rolling'].indexOf(terrainView)));
+      gl.uniform1i(program.uniforms.terrainView, Math.max(0, ['final', 'classes', 'facetedNormals', 'shadow', 'material', 'realNormals', 'rolling', 'local'].indexOf(terrainView)));
       gl.uniform1i(program.uniforms.visualClimate, ['temperate', 'frozen', 'arid', 'volcanic'].indexOf(buffers.climate));
       gl.uniform1f(program.uniforms.terrainShadowStrength, style.stylizedTerrain.shadowStrength);
       gl.uniform1f(program.uniforms.terrainShadowReach, style.stylizedTerrain.shadowReach);
+      gl.uniform1f(program.uniforms.rollingLightingContrast, style.stylizedTerrain.rollingLightingContrast);
+      gl.uniform1f(program.uniforms.sphereLightCancellation, style.stylizedTerrain.sphereLightCancellation);
+      gl.uniform1f(program.uniforms.mountainShadowFloor, style.stylizedTerrain.mountainShadowFloor);
+      gl.uniform1f(program.uniforms.coastAaMinimum, style.stylizedTerrain.coastAaMinimum);
       gl.uniform1f(program.uniforms.shallowBandWidth, style.stylizedTerrain.shallowBandWidth);
       gl.uniform1f(program.uniforms.sandBandWidth, style.stylizedTerrain.sandBandWidth);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
