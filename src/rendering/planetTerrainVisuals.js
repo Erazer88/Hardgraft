@@ -181,10 +181,12 @@
     return nearest;
   }
 
-  function plainFacetMap(midNormals, width, height, scale, seed, facetAngle, facetJitter) {
-    const pixels = new Uint8Array(width * height * 4), cells = new Map();
-    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-      const d = y === 0 ? { x: 0, y: 1, z: 0 } : y === height - 1 ? { x: 0, y: -1, z: 0 } : direction(x / width, y / (height - 1));
+  function plainFacetMap(midNormals, width, height, scale, seed, facetAngle, facetJitter, outputScale = 1) {
+    const outputWidth = Math.max(width, Math.round(width * outputScale));
+    const outputHeight = Math.max(height, Math.round(height * outputScale));
+    const pixels = new Uint8Array(outputWidth * outputHeight * 4), cells = new Map();
+    for (let y = 0; y < outputHeight; y += 1) for (let x = 0; x < outputWidth; x += 1) {
+      const d = y === 0 ? { x: 0, y: 1, z: 0 } : y === outputHeight - 1 ? { x: 0, y: -1, z: 0 } : direction(x / outputWidth, y / (outputHeight - 1));
       const site = nearestFacetSite(d, scale, seed);
       let cell = cells.get(site.key);
       if (!cell) {
@@ -201,11 +203,130 @@
           facetAngle * .82, facetJitter, .0015), tone: site.tone };
         cells.set(site.key, cell);
       }
-      const o = (y * width + x) * 4;
+      const o = (y * outputWidth + x) * 4;
       encodeNormal(pixels, o, cell.normal);
       pixels[o + 3] = Math.round((cell.tone * .5 + .5) * 255);
     }
-    return { pixels, cells: cells.size };
+    return { pixels, cells: cells.size, width: outputWidth, height: outputHeight };
+  }
+
+  function seededRandom(seed) {
+    let state = seed >>> 0;
+    return () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let value = state;
+      value = Math.imul(value ^ (value >>> 15), value | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function randomDirection(random) {
+    const y = random() * 2 - 1, angle = random() * Math.PI * 2;
+    const horizontal = Math.sqrt(Math.max(0, 1 - y * y));
+    return { x: horizontal * Math.cos(angle), y, z: horizontal * Math.sin(angle) };
+  }
+
+  function rotateAround(vector, axis, angle) {
+    const c = Math.cos(angle), s = Math.sin(angle), axisCross = cross(axis, vector), axisDot = dot(axis, vector);
+    return normalize({ x: vector.x * c + axisCross.x * s + axis.x * axisDot * (1 - c),
+      y: vector.y * c + axisCross.y * s + axis.y * axisDot * (1 - c),
+      z: vector.z * c + axisCross.z * s + axis.z * axisDot * (1 - c) });
+  }
+
+  function createVisualChainSegments(seed, width, height, elevation, sea, settings) {
+    const random = seededRandom(seed), chainSettings = settings.visualChains;
+    const multiplier = chainSettings.minimumMultiplier + Math.floor(random() *
+      (chainSettings.maximumMultiplier - chainSettings.minimumMultiplier + 1));
+    const chainCount = chainSettings.baseCount * multiplier, segments = [], origins = [];
+    const separation = Math.cos(.20);
+    for (let chain = 0; chain < chainCount; chain += 1) {
+      let start = null;
+      for (let attempt = 0; attempt < 128; attempt += 1) {
+        const candidate = randomDirection(random);
+        if (sampleDirection(elevation, width, height, candidate) <= sea + 2) continue;
+        if (origins.some(origin => dot(origin, candidate) > separation)) continue;
+        start = candidate;
+        break;
+      }
+      // Extremely ocean-heavy planets still get the requested deterministic
+      // count; land masking below clips any section that crosses the sea.
+      if (!start) start = randomDirection(random);
+      origins.push(start);
+
+      const segmentCount = Math.round(mix(chainSettings.segmentCount[0], chainSettings.segmentCount[1], random()));
+      const segmentLength = mix(chainSettings.segmentLength[0], chainSettings.segmentLength[1], random());
+      const widthBase = mix(chainSettings.width[0], chainSettings.width[1], random());
+      const randomTangent = randomDirection(random);
+      let point = start;
+      let tangent = normalize({ x: randomTangent.x - point.x * dot(randomTangent, point),
+        y: randomTangent.y - point.y * dot(randomTangent, point),
+        z: randomTangent.z - point.z * dot(randomTangent, point) });
+      if (Math.hypot(tangent.x, tangent.y, tangent.z) < .01) {
+        tangent = normalize(cross(point, Math.abs(point.z) < .9 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 }));
+      }
+      const step = segmentLength;
+      for (let part = 0; part < segmentCount; part += 1) {
+        tangent = rotateAround(tangent, point, (random() * 2 - 1) * .20);
+        const next = normalize({ x: point.x * Math.cos(step) + tangent.x * Math.sin(step),
+          y: point.y * Math.cos(step) + tangent.y * Math.sin(step),
+          z: point.z * Math.cos(step) + tangent.z * Math.sin(step) });
+        const nextTangent = normalize({ x: tangent.x * Math.cos(step) - point.x * Math.sin(step),
+          y: tangent.y * Math.cos(step) - point.y * Math.sin(step),
+          z: tangent.z * Math.cos(step) - point.z * Math.sin(step) });
+        const middle = normalize({ x: point.x + next.x, y: point.y + next.y, z: point.z + next.z });
+        const axis = normalize({ x: next.x - point.x, y: next.y - point.y, z: next.z - point.z });
+        const side = normalize(cross(middle, axis));
+        const segmentWidth = widthBase * mix(.88, 1.12, random());
+        segments.push({ middle, axis, side, halfLength: Math.tan(step * .5), width: segmentWidth,
+          ridgeOffsets: [(-.34 + random() * .08) * segmentWidth, (-.04 + random() * .08) * segmentWidth,
+            (.27 + random() * .10) * segmentWidth] });
+        point = next;
+        tangent = rotateAround(nextTangent, point, (random() * 2 - 1) * .13);
+      }
+    }
+    return { segments, count: chainCount, multiplier };
+  }
+
+  function addVisualMountainChains(heights, mountain, ridge, elevation, width, height, sea, seed, settings) {
+    const generated = createVisualChainSegments(seed, width, height, elevation, sea, settings);
+    const { segments } = generated;
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const i = y * width + x, land = smoothstep(1.5, 9, elevation[i] - sea);
+      if (land <= .001) continue;
+      const d = direction(x / width, y / (height - 1));
+      let belt = 0, crest = 0;
+      for (const segment of segments) {
+        const hemisphere = dot(d, segment.middle);
+        if (hemisphere < .45) continue;
+        const denominator = Math.max(.45, hemisphere);
+        const along = dot(d, segment.axis) / denominator;
+        const across = dot(d, segment.side) / denominator;
+        const alongClamped = Math.max(-segment.halfLength, Math.min(segment.halfLength, along));
+        const alongDelta = along - alongClamped;
+        const influenceRadius = segment.width * 2.7;
+        if (Math.abs(across) > influenceRadius || Math.abs(alongDelta) > influenceRadius) continue;
+        const width2 = segment.width * segment.width;
+        const beltDistance = (across * across + alongDelta * alongDelta) / width2;
+        belt = Math.max(belt, Math.exp(-beltDistance * 1.05));
+
+        const ridgeWidth = segment.width * .17;
+        for (const ridgeOffset of segment.ridgeOffsets) {
+          const ridgeDistance = ((across - ridgeOffset) ** 2 + alongDelta * alongDelta) /
+            (ridgeWidth * ridgeWidth);
+          crest = Math.max(crest, Math.exp(-ridgeDistance * 1.15));
+        }
+      }
+      if (belt <= .002) continue;
+      belt *= land;
+      crest *= land;
+      // These visual ridges are a seeded illustration layer over the existing
+      // height field. Canonical elevation and all gameplay queries stay intact.
+      heights[i] = clamp(heights[i] + belt * settings.visualChains.uplift + crest * settings.visualChains.ridgeUplift);
+      mountain[i] = Math.max(mountain[i], clamp(belt * .72 + crest * .30));
+      ridge[i] = Math.max(ridge[i], crest);
+    }
+    return { count: generated.count, multiplier: generated.multiplier };
   }
 
   function styleKey(style) {
@@ -214,7 +335,8 @@
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
       s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
-      s.hillNormalStrength, s.plainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.mountainNormalStrength,
+      s.hillNormalStrength, s.plainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.facetMapScale,
+      s.visualChains, s.mountainNormalStrength,
       s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials]);
   }
 
@@ -242,6 +364,9 @@
       ruggedness[i] = field(terrain.ruggednessField) / 255;
       valley[i] = field(terrain.valleyField) / 255;
     }
+
+    const visualChains = addVisualMountainChains(heights, mountain, ridge, elevation,
+      width, height, sea, root.OrbitWorld.hashSeed(`${planet.seed}:visual-mountain-chains-v1`), settings);
 
     const mid = lowPass(heights, width, height, settings.heightLowPass);
     const macro = lowPass(mid, width, height, settings.macroLowPass);
@@ -291,7 +416,7 @@
       slopes[i] = clamp(localSlope / .42);
     }
     const plainFacets = plainFacetMap(midNormals, width, height, settings.plainFacetScale,
-      facetSeed, settings.facetAngleDegrees, settings.facetJitter);
+      facetSeed, settings.facetAngleDegrees, settings.facetJitter, settings.facetMapScale);
 
     const quantile = (field, q, upper = 1) => scalarQuantile(field, elevation, width, height, sea, q, upper);
     const residual15 = quantile(positiveResidual, .15, .5), residual30 = quantile(positiveResidual, .30, .5);
@@ -469,7 +594,7 @@
       const pigmentWash = clamp(residualWash * .38 + smoothstep(.30, .72, localWet) * .38 +
         rollingAtPixel * .14 + hillockAtPixel * .10);
       const watercolorMix = clamp(settings.plainWashStrength) * plainCoverage * (.62 + pigmentWash * .38);
-      const facetTone = sample(plainFacets.pixels, width, height, u, v, 4, 3) / 127.5 - 1;
+      const facetTone = sample(plainFacets.pixels, plainFacets.width, plainFacets.height, u, v, 4, 3) / 127.5 - 1;
       const elevatedHighland = mountainWeight * smoothstep(.58, .82, heightValue);
       const rockExposure = mountainWeight * smoothstep(.42, .78, heightValue) * smoothstep(.14, .42, localSlope);
       const summitExposure = classes[3] * smoothstep(.72, .90, heightValue);
@@ -516,6 +641,7 @@
     }
 
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
+      plainFacetWidth: plainFacets.width, plainFacetHeight: plainFacets.height,
       terrainVisualClassPixels: classPixels, smallMassifPixels,
       plainFacetNormalPixels: plainFacets.pixels,
       stylizedNormalPixels: normalPixels, realMountainNormalPixels: realNormalPixels,
@@ -524,7 +650,9 @@
       rollingRelief: { residual82, residual94, mean: rollingMean, reference: rollingReference },
       localRelief: { reference: localReference, strength: settings.localNormalStrength },
       smallMassifs: { reference: smallMassifReference, mean: smallMassifMean, strength: settings.smallMassifStrength },
-      plainFacets: { cells: plainFacets.cells, scale: settings.plainFacetScale, strength: settings.plainFacetStrength },
+      plainFacets: { cells: plainFacets.cells, scale: settings.plainFacetScale, strength: settings.plainFacetStrength,
+        resolution: [plainFacets.width, plainFacets.height] },
+      visualMountainChains,
       generationMs: performance.now() - start });
     cache.set(terrain, result); return result;
   }

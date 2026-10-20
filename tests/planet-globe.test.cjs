@@ -429,10 +429,12 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
         first.materialPixels[i + 2] !== unwashed.materialPixels[i + 2]) washedMaterialPixels += 1;
   }
   assert.ok(washedMaterialPixels > 100, 'seeded pigment changes the actual surface albedo, not only a diagnostic map');
-  for (const y of [0, first.classHeight - 1]) {
-    const pole = Array.from(first.plainFacetNormalPixels.slice(y * first.classWidth * 4, y * first.classWidth * 4 + 4));
-    for (let x = 1; x < first.classWidth; x += 1) {
-      const offset = (y * first.classWidth + x) * 4;
+  assert.equal(first.plainFacetWidth, first.classWidth * 2,
+    'the facet map is supersampled to keep polygon boundaries crisp');
+  for (const y of [0, first.plainFacetHeight - 1]) {
+    const pole = Array.from(first.plainFacetNormalPixels.slice(y * first.plainFacetWidth * 4, y * first.plainFacetWidth * 4 + 4));
+    for (let x = 1; x < first.plainFacetWidth; x += 1) {
+      const offset = (y * first.plainFacetWidth + x) * 4;
       assert.deepEqual(Array.from(first.plainFacetNormalPixels.slice(offset, offset + 4)), pole,
         'all longitude samples at a pole resolve to the same spherical face');
     }

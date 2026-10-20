@@ -556,14 +556,16 @@
       const smallMassifTexture = uploadTexture(10, gl.R8, gl.RED, visualData.smallMassifPixels,
         visualData.classWidth, visualData.classHeight);
       const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.plainFacetNormalPixels,
-        visualData.classWidth, visualData.classHeight);
+        visualData.plainFacetWidth, visualData.plainFacetHeight);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
         visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture, smallMassifTexture,
         plainFacetNormalTexture,
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
-          localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs, generationMs: visualData.generationMs },
+          localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs,
+          visualMountainChains: visualData.visualMountainChains, plainFacets: visualData.plainFacets,
+          generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,

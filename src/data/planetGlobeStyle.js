@@ -14,6 +14,12 @@
       // Low-frequency spherical cells are deliberately large enough to read
       // at the normal mobile globe zoom, not just in close-up diagnostics.
       plainFacetScale: 13.5, plainFacetStrength: .88, plainWashStrength: .88,
+      facetMapScale: 2,
+      visualChains: Object.freeze({
+        baseCount: 4, minimumMultiplier: 3, maximumMultiplier: 4,
+        segmentCount: Object.freeze([5, 8]), segmentLength: Object.freeze([.065, .12]),
+        width: Object.freeze([.026, .046]), uplift: .050, ridgeUplift: .028
+      }),
       rollingNormalStrength: .22, hillockNormalStrength: .36, smallMassifNormalStrength: .20, hillNormalStrength: .28,
       smallMassifStrength: 1, highlandMaterialMix: .55,
       mountainNormalStrength: .60, facetAngleDegrees: 5.5, facetJitter: .24, facetStrength: .42,
