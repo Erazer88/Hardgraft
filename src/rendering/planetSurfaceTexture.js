@@ -464,7 +464,9 @@
       const summitSnow = smoothstep(.82, .97, h) * .24;
       // Local temperature still dusts cold highlands, while the actual polar
       // cap outline comes from the irregular spherical coverage field above.
-      const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94);
+      const coastalSnowFactor = climate === 'temperate'
+        ? smoothstep(seaLevel + 1.5, seaLevel + 7, elevation) : 1;
+      const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94) * coastalSnowFactor;
       if (elevation > seaLevel) {
         mixInto(temporary, palette.snow, palette.coldSnow,
           clamp(smoothstep(.42, .96, absoluteLatitude) * .52 + polarCoverage * .42, 0, .92));

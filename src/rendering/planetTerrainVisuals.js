@@ -691,7 +691,13 @@
       // its shift stays bounded, with more articulation in the highlands.
       const snowBreakup = clamp((residualAtPixel * 1.9 + localResidualAtPixel * 1.2) *
         (.75 + .35 * clamp(elevatedHighland + summitExposure)), -.085, .085);
-      const snowValue = clamp(snowBase + (isSea ? 0 : snowBreakup * 4 * snowBase * (1 - snowBase)));
+      // Keep polar snow and summit snow off the first shallow land cells. They
+      // otherwise read as stray white beach patches beside the deliberately
+      // randomized sand/rock shoreline. The sea-ice material remains intact.
+      const coastalSnowFactor = climate === 'temperate'
+        ? smoothstep(1.5, 7, surfaceElevation - sea) : 1;
+      const snowValue = clamp(snowBase + (isSea ? 0 : snowBreakup * 4 * snowBase * (1 - snowBase))) *
+        (isSea ? 1 : coastalSnowFactor);
       const foothillWeight = clamp(mountainWeight * smoothstep(.20, .62, heightValue) *
         (.36 + .28 * smoothstep(.08, .30, localSlope)) + classes[1] * smoothstep(.28, .68, heightValue) * .12);
       const ridgeMask = mountainWeight * crest * smoothstep(.38, .78, heightValue);
