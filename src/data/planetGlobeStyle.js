@@ -17,7 +17,9 @@
       // at the normal mobile globe zoom, not just in close-up diagnostics.
       // Plain cells are broad and restrained; mountain cells are about ten
       // times denser in area and are only selected by the mountain class.
-      plainFacetScale: 8.5, mountainFacetScale: 27, plainFacetStrength: .88, plainWashStrength: .88,
+      plainFacetScale: 8.5, mountainFacetScale: 27, plainFacetStrength: .88,
+      // Plainland pigment is a broad regional wash, not a per-facet color roll.
+      plainPatternLowPass: .18, plainWashStrength: .03,
       facetMapScale: 2,
       visualChains: Object.freeze({
         baseCount: 10, minimumMultiplier: 3, maximumMultiplier: 4, islandChainRatio: .22,

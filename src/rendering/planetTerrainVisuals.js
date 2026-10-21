@@ -481,7 +481,8 @@
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
       s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
-      s.hillNormalStrength, s.plainFacetScale, s.mountainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.facetMapScale,
+      s.hillNormalStrength, s.plainFacetScale, s.mountainFacetScale, s.plainFacetStrength,
+      s.plainPatternLowPass, s.plainWashStrength, s.facetMapScale,
       s.visualChains, s.mountainNormalStrength,
       s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials, s.forests]);
   }
@@ -521,6 +522,10 @@
     const macro = lowPass(mid, width, height, settings.macroLowPass);
     const local = lowPass(heights, width, height, settings.localLowPass);
     const humidity = lowPass(moisture, width, height, settings.macroLowPass);
+    // Color variation on plains uses a much broader spherical moisture field
+    // than the terrain classes. Neighboring facets therefore share nearly the
+    // same pigment and transitions form regional patches instead of checkerboard greens.
+    const plainPigment = lowPass(moisture, width, height, settings.plainPatternLowPass);
     const broadMountain = lowPass(mountain, width, height, settings.macroLowPass);
     const broadRuggedness = lowPass(ruggedness, width, height, settings.classLowPass);
     // These structural fields are already resampled from the canonical terrain;
@@ -772,9 +777,8 @@
       // diagnostic; the normal RGB channels retain their original format.
       realNormalPixels[o + 3] = Math.round(128 + 127 * clamp(localResidualAtPixel / localReference, -1, 1) * mountainWeight);
 
-      const broadWet = humidity[i];
-      const localWet = broadWet;
-      const wet = broadWet, heightValue = mid[i];
+      const localWet = humidity[i];
+      const wet = plainPigment[i], heightValue = mid[i];
       const localSlope = slopes[i];
       const crest = visualRidge[i], hollow = visualValley[i];
       const rollingAtPixel = rolling, hillockAtPixel = hillocks;
@@ -806,11 +810,13 @@
       const ridgeMask = mountainWeight * crest * smoothstep(.38, .78, heightValue);
       const valleyExposure = hollow * (classes[1] * .24 + mountainWeight) *
         smoothstep(.15, .50, crest + mountainWeight) * (climate === 'frozen' ? .055 : .12);
-      const regionalVariation = clamp(((wet - .5) * .07 +
-        (macro[i] - .35) * .025 - rollingAtPixel * .012) * (climate === 'frozen' ? .35 : 1), -.05, .05);
+      const regionalVariation = clamp(((wet - .5) * .045 +
+        (macro[i] - .35) * .014 - rollingAtPixel * .006) * (climate === 'frozen' ? .35 : 1), -.025, .025);
       for (let channel = 0; channel < 3; channel += 1) {
-        let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .80);
-        plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .34);
+        // Keep each plain facet within a couple of percent of its base hue;
+        // the broad pigment field carries the wet/dry pattern across many cells.
+        let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .035);
+        plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .03);
         const washColor = mix(materials.dry[channel], materials.wet[channel], smoothstep(.24, .78, localWet));
         let color;
         if (climate === 'frozen') {
@@ -842,13 +848,15 @@
         // Seeded, soft-edged cell pigment gives each broad plain a small
         // watercolor variation. The cell normal itself remains tied to the
         // filtered height at that cell's spherical center.
-        const channelTint = channel === 0 ? .075 : channel === 1 ? .055 : -.055;
+        const channelTint = channel === 0 ? .018 : channel === 1 ? .014 : -.012;
         color *= 1 + facetTone * watercolorMix * channelTint;
         // Broad humidity and altitude make small regional color shifts; there
         // is deliberately no fine noise in the albedo.
         color *= 1 + regionalVariation;
         if (climate === 'temperate' && !isSea && forestField[i] > .001) {
-          const canopyTone = clamp(.50 + facetTone * .48 + (wet - .5) * .36, .12, .90);
+          // Forest tone follows the same broad humidity regions; avoid a random
+          // light/dark canopy change at every polygon boundary.
+          const canopyTone = clamp(.50 + (wet - .5) * .30, .28, .72);
           const forestColor = mix(materials.forest[channel], materials.canopy[channel], canopyTone);
           color = mix(color, forestColor, forestField[i] * settings.forests.colorMix);
         }
