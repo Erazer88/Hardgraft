@@ -11,7 +11,7 @@ function loadGlobeContext() {
   for (const file of [
     '../src/data/worldgen.js', '../src/world.js', '../src/world/tectonics.js', '../src/world/terrainElevation.js', '../src/world/thermalErosion.js', '../src/world/terrainStructure.js', '../src/data/planetGlobeStyle.js',
     '../src/rendering/planetGlobeProjection.js', '../src/rendering/planetGlobeMesh.js',
-    '../src/rendering/planetSurfaceTexture.js', '../src/rendering/planetTerrainVisuals.js',
+    '../src/rendering/planetSurfaceTexture.js',
     '../src/navigation/planetGlobeCamera.js'
   ]) vm.runInContext(readFileSync(resolve(__dirname, file), 'utf8'), context, { filename: file });
   return context;
@@ -70,28 +70,6 @@ test('elevation sampling is bilinear and stylized relief stays within its declar
   assert.ok(style.camera.maxZoom >= 1.56, 'the globe allows the requested 20% zoom increase');
 });
 
-test('seeded mountain lift adds display geometry without changing gameplay elevation', () => {
-  const { OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeMesh: meshBuilder,
-    OrbitPlanetGlobeStyle: style } = loadGlobeContext();
-  const terrain = { width: 16, height: 8, elevation: new Uint8Array(16 * 8).fill(170),
-    moisture: new Uint8Array(16 * 8), seaLevel: 100, resources: [] };
-  const untouched = { ...terrain };
-  const before = Array.from(terrain.elevation);
-  terrain.globeRenderAssets = { visual: { classWidth: 2, classHeight: 2,
-    visualMountainLiftPixels: new Float32Array(4).fill(.18), visualMountainLiftMax: .18 } };
-  const point = { x: 7, y: 3 };
-  assert.ok(projection.surfaceRadius(point.x, point.y, terrain, style.relief) >
-    projection.surfaceRadius(point.x, point.y, untouched, style.relief));
-  const baseMesh = meshBuilder.create(untouched, { id: 'base', seed: 'base' },
-    { longitudeSegments: 32, latitudeSegments: 16 }, style.relief);
-  const liftedMesh = meshBuilder.create(terrain, { id: 'lifted', seed: 'lifted' },
-    { longitudeSegments: 32, latitudeSegments: 16 }, style.relief);
-  const largestRadius = mesh => Math.max(...Array.from({ length: mesh.vertexCount }, (_, i) =>
-    Math.hypot(mesh.positions[i * 3], mesh.positions[i * 3 + 1], mesh.positions[i * 3 + 2])));
-  assert.ok(largestRadius(liftedMesh) > largestRadius(baseMesh), 'the globe mesh receives the visual chain lift');
-  assert.deepEqual(Array.from(terrain.elevation), before, 'canonical elevation is not mutated');
-});
-
 test('globe projection consumes naturally consistent spherical pole samples', () => {
   const { OrbitWorld: world, OrbitPlanetGlobeProjection: projection, OrbitPlanetGlobeStyle: style } = loadGlobeContext();
   const width = 128, height = 64;
@@ -142,14 +120,13 @@ test('same seed produces identical terrain globe mesh, UVs, and unit normals', (
     assert.ok(Number.isFinite(length) && Math.abs(length - 1) < 1e-5);
   }
   assert.ok(first.uvs.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-  assert.equal(style.relief.scale, .050);
-  assert.equal(style.relief.visualChainScale, 1.35);
-  assert.equal(style.relief.exponent, 1.00);
-  assert.equal(style.relief.linearFraction, .16);
-  assert.equal(style.relief.compressionStart, .42);
-  assert.equal(style.relief.landQuantile, .985);
-  assert.equal(style.relief.minLandRange, 24);
-  assert.equal(style.relief.maxLandRange, 58);
+  assert.equal(style.relief.scale, .045);
+  assert.equal(style.relief.exponent, 1.10);
+  assert.equal(style.relief.linearFraction, .34);
+  assert.equal(style.relief.compressionStart, .24);
+  assert.equal(style.relief.landQuantile, .98);
+  assert.equal(style.relief.minLandRange, 28);
+  assert.equal(style.relief.maxLandRange, 70);
   assert.equal(style.graticule.opacity, .05);
   assert.equal(style.graticule.widthPx, .55);
 });
@@ -177,8 +154,7 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
     'height uses two channels to retain 16-bit precision');
   assert.equal(first.landMaskPixels.length, width * height);
   assert.equal(first.coastSdfPixels.length, width * height);
-  assert.equal(first.detailPixels.length, width * height * 2,
-    'water variation and terrain grain share a compact two-channel texture');
+  assert.equal(first.detailPixels.length, width * height, 'micro detail stays a single low-amplitude channel');
   const differentSeed = textures.create(terrain, { ...basePlanet, seed: 'another-world-seed' }, { width, height, cache: false });
   assert.notDeepEqual(Array.from(first.pixels), Array.from(differentSeed.pixels));
   assert.notDeepEqual(Array.from(first.detailPixels), Array.from(differentSeed.detailPixels));
@@ -384,12 +360,8 @@ test('height texture preserves terrain gradients while the micro-detail map stay
   const sampledElevation = 72 + 2 * (36 / width * (width - 1));
   assert.ok(Math.abs(heightAt(36, 16) - sampledElevation / 255) < 1 / 65535,
     'the packed height retains bilinear elevation and bathymetry precision beyond 8 bits');
-  const oceanDetail = texture.detailPixels.filter((_, index) => index % 2 === 0);
-  const soilDetail = texture.detailPixels.filter((_, index) => index % 2 === 1);
-  assert.ok(oceanDetail.every(value => value >= 117 && value <= 139),
-    'the original ocean variation remains restrained');
-  assert.ok(Math.max(...soilDetail) - Math.min(...soilDetail) > 24,
-    'the second channel carries visible seeded spherical surface grain');
+  assert.ok(texture.detailPixels.every(value => value >= 117 && value <= 139),
+    'fine noise remains a restrained shader-only micro detail');
   const descending = new Uint8Array(elevation.length);
   for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
     descending[y * width + x] = Math.max(20, 230 - x * 2);
@@ -407,11 +379,11 @@ test('height texture preserves terrain gradients while the micro-detail map stay
 
 test('surface palettes keep climate materials separated and HSL tints bounded', () => {
   const { OrbitPlanetSurfaceTexture: textures } = loadGlobeContext();
-  assert.equal(textures.palettes.temperate.deepOcean, '#073666');
-  assert.equal(textures.palettes.temperate.wetPlain, '#4F8D43');
+  assert.equal(textures.palettes.temperate.deepOcean, '#052F54');
+  assert.equal(textures.palettes.temperate.wetPlain, '#3F8738');
   assert.equal(textures.palettes.temperate.coast, '#DFC67D');
-  assert.equal(textures.palettes.frozen.seaIce, '#BFDDE6');
-  assert.equal(textures.palettes.frozen.polarCore, '#E7F1F4');
+  assert.equal(textures.palettes.frozen.seaIce, '#78B7C9');
+  assert.equal(textures.palettes.frozen.polarCore, '#699CAB');
   assert.equal(textures.palettes.arid.darkRock, '#432820');
   assert.equal(textures.palettes.volcanic.basaltDark, '#211817');
   assert.equal(textures.palettes.volcanic.coreLava, '#FFD06A');
@@ -427,112 +399,113 @@ test('surface palettes keep climate materials separated and HSL tints bounded', 
   assert.ok(tintedHsl[2] <= hsl[2] * 1.041);
 });
 
-test('seeded spherical watercolor facets are visible and converge cleanly at both poles', () => {
-  const { OrbitWorld: world, OrbitPlanetGlobeStyle: baseStyle,
-    OrbitPlanetTerrainVisuals: visuals } = loadGlobeContext();
-  const style = { ...baseStyle, stylizedTerrain: { ...baseStyle.stylizedTerrain,
-    fieldWidth: 48, textureWidth: 96, plainFacetScale: 13.5 } };
-  const temperateMaterials = style.stylizedTerrain.materials.temperate;
-  const luminance = hex => {
-    const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
-    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
-  };
-  assert.ok(luminance(temperateMaterials.highland) > luminance(temperateMaterials.mountain) &&
-    luminance(temperateMaterials.mountain) > luminance(temperateMaterials.ridge) &&
-    luminance(temperateMaterials.ridge) > luminance(temperateMaterials.summit),
-  'temperate highlands darken through the mountain face to dark brown summits');
-  const planet = { id: 'facet-world', seed: 'watercolor-facet-seed', kind: 'tellurique', temperature: 18 };
-  const firstTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
-  const secondTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
-  const first = visuals.create(firstTerrain, planet, style);
-  const second = visuals.create(secondTerrain, planet, style);
-  assert.deepEqual(Array.from(first.forestPixels), Array.from(second.forestPixels),
-    'forest patches are stable for the same seed and terrain');
-  assert.ok(first.forests.patches >= 100 && first.forests.landCoverage > .08,
-    'moist temperate terrain receives clearly visible seeded forest regions');
-  assert.ok(first.forests.landCoverage < .55,
-    'forest material remains regional instead of tinting every land pixel');
-  assert.deepEqual(Array.from(first.plainFacetNormalPixels), Array.from(second.plainFacetNormalPixels),
-    'the same seed and terrain produce the exact same face map');
-  assert.ok(first.plainFacets.cells > 20, 'the spherical face field contains many broad, coherent cells');
-  assert.ok(first.mountainFacets.cells > first.plainFacets.cells * 1.5,
-    'mountain regions get a distinctly denser polygon field than the plains');
-  assert.ok(first.mountainFacets.scale > first.plainFacets.scale,
-    'the mountain cell scale is larger, yielding more faces per area');
-  const normals = new Set(), pigmentTones = new Set();
-  for (let i = 0; i < first.plainFacetNormalPixels.length; i += 4) {
-    normals.add(`${first.plainFacetNormalPixels[i]},${first.plainFacetNormalPixels[i + 1]},${first.plainFacetNormalPixels[i + 2]}`);
-    pigmentTones.add(first.plainFacetNormalPixels[i + 3]);
-  }
-  assert.ok(normals.size > 20, 'the renderer receives distinct face normals instead of one smooth wash');
-  assert.ok(pigmentTones.size > 20, 'each face receives a deterministic watercolor pigment variation');
-  const bareTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
-  const unwashed = visuals.create(bareTerrain, planet, { ...style,
-    stylizedTerrain: { ...style.stylizedTerrain, plainWashStrength: 0 } });
-  let washedMaterialPixels = 0;
-  for (let i = 0; i < first.materialPixels.length; i += 4) {
-    if (first.materialPixels[i] !== unwashed.materialPixels[i] ||
-        first.materialPixels[i + 1] !== unwashed.materialPixels[i + 1] ||
-        first.materialPixels[i + 2] !== unwashed.materialPixels[i + 2]) washedMaterialPixels += 1;
-  }
-  assert.ok(washedMaterialPixels > 100, 'seeded pigment changes the actual surface albedo, not only a diagnostic map');
-  assert.equal(first.facetCandidatesPixels.length, first.facetCandidateTextureWidth * first.facetCandidateTextureHeight * 4);
-  assert.equal(first.facetSitePixels.length, first.facetAtlasWidth * first.facetAtlasHeight * 4);
-  assert.equal(first.facetMaterialPixels.length, first.facetSitePixels.length);
-  assert.equal(first.facetNormalPixels.length, first.facetSitePixels.length);
-  assert.deepEqual(Array.from(first.facetCandidatesPixels), Array.from(second.facetCandidatesPixels),
-    'both facet-density layers repeat with the same seed');
-  assert.deepEqual(Array.from(first.facetMaterialPixels), Array.from(second.facetMaterialPixels),
-    'each spherical face keeps its deterministic palette material');
-  for (let i = 0; i < first.facetMaterialPixels.length; i += 4) {
-    if (first.facetMaterialPixels[i + 3] !== 0) continue;
-    assert.ok(!(first.facetMaterialPixels[i] > 170 && first.facetMaterialPixels[i + 1] > 190 &&
-      first.facetMaterialPixels[i + 2] > 170),
-    'a snow-free coastal face must not inherit the white ocean placeholder');
-  }
-  for (const y of [0, first.plainFacetHeight - 1]) {
-    const pole = Array.from(first.plainFacetNormalPixels.slice(y * first.plainFacetWidth * 4, y * first.plainFacetWidth * 4 + 4));
-    for (let x = 1; x < first.plainFacetWidth; x += 1) {
-      const offset = (y * first.plainFacetWidth + x) * 4;
-      assert.deepEqual(Array.from(first.plainFacetNormalPixels.slice(offset, offset + 4)), pole,
-        'all longitude samples at a pole resolve to the same spherical face');
-    }
-  }
-  // Compare the compact four-candidate lookup with a full nearest-site search
-  // at arbitrary subtexel positions. IDs only accelerate the query: they must
-  // not impose square UV boundaries or change the true spherical partition.
-  const nearest = (u, v, accelerated, layerIndex = 0) => {
-    const direction = { x: Math.cos((.5 - v) * Math.PI) * Math.cos((u - .5) * Math.PI * 2),
-      y: Math.sin((.5 - v) * Math.PI),
-      z: Math.cos((.5 - v) * Math.PI) * Math.sin((u - .5) * Math.PI * 2) };
-    const layer = layerIndex === 0 ? first.plainFacets : first.mountainFacets;
-    const scale = layer.scale;
-    const px = direction.x * scale, py = direction.y * scale, pz = direction.z * scale;
-    let best = -1, distance = Infinity;
-    const x = Math.round(((u % 1) + 1) % 1 * first.facetCandidateWidth) % first.facetCandidateWidth;
-    const layerHeight = layerIndex === 0 ? first.facetCandidateHeight : first.mountainFacetCandidateHeight;
-    const rowOffset = layerIndex * layerHeight;
-    const y = Math.round(v * (layerHeight - 1)) + rowOffset;
-    const offset = (y * first.facetCandidateWidth + x) * 4;
-    const firstId = layerIndex === 0 ? 0 : first.plainFacets.cells;
-    const count = accelerated ? 4 : layer.cells;
-    for (let i = 0; i < count; i += 1) {
-      const id = accelerated ? first.facetCandidatesPixels[offset + i] : firstId + i, o = id * 4;
-      const dx = first.facetSitePixels[o] - px, dy = first.facetSitePixels[o + 1] - py,
-        dz = first.facetSitePixels[o + 2] - pz;
-      const d = dx * dx + dy * dy + dz * dz;
-      if (d < distance) { distance = d; best = id; }
-    }
-    return best;
-  };
-  const random = world.rng(world.hashSeed('subtexel-facet-check'));
-  for (let layer = 0; layer < 2; layer += 1) for (let i = 0; i < 400; i += 1) {
-    const u = random(), v = Math.acos(random() * 2 - 1) / Math.PI;
-    assert.equal(nearest(u, v, true, layer), nearest(u, v, false, layer),
-      'both facet scales recover the actual geometric face at arbitrary subtexel positions');
-  }
-  for (const v of [.08, .25, .5, .73, .94]) assert.equal(nearest(0, v, true), nearest(1, v, true));
-  for (const v of [0, 1]) for (const u of [.1, .3, .6, .9]) assert.equal(nearest(u, v, true), nearest(0, v, true));
+test('globe shader smooths high-precision terrain and limits detail to mountains', () => {
+  const source = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
+  assert.match(source, /float lightTerm = 0\.58 \+ diffuse \* 0\.60;/);
+  assert.doesNotMatch(source, /color \+= vec3\(1\.0, 0\.14, 0\.025\)/,
+    'the fragment shader does not add white/orange emission to terrain');
+  assert.match(source, /uniform sampler2D uAlbedoTexture;/);
+  assert.match(source, /uniform sampler2D uHeightTexture;/);
+  assert.match(source, /uniform sampler2D uLandMaskTexture;/);
+  assert.match(source, /uniform sampler2D uCoastSdfTexture;/);
+  assert.match(source, /uniform sampler2D uTerrainStructureTexture;/);
+  assert.match(source, /float decodeHeight\(vec2 rg\)/);
+  assert.match(source, /float sampleLandHeight\(vec2 uv, float lod\)/,
+    'the shader samples full-precision elevation before applying the visual land range');
+  assert.match(source, /\(elevation - uReliefLow\) \/ max\(1\.0, uReliefHigh - uReliefLow\)/,
+    'fragment normals use the same quantile-derived visual height interval as the mesh');
+  assert.match(source, /vVisualHeight = clamp\(\(aElevation - uReliefLow\) \/ max\(1\.0, uReliefHigh - uReliefLow\)/,
+    'the vertex shader uses the same visual elevation normalization');
+  assert.match(source, /float shapeReliefHeight\(float h\)/,
+    'shader slope and mesh displacement use the same monotone relief shape');
+  assert.match(source, /float midLeft = sampleShapedLandHeight\([^;]+, 0\.0\)/,
+    'mid-relief normals follow the mesh shaped from the unsaturated terrain');
+  assert.match(source, /float facetLeft = sampleShapedLandHeight\([^;]+, 1\.0\)/,
+    'mountain facets use a broader low-pass height signal');
+  assert.match(source, /vec3 midReliefNormal = normalize/);
+  assert.match(source, /vec2 facetStep = max\(uHeightTexelSize \* 2\.0, 1\.0 \/ uFacetGrid\)/);
+  assert.doesNotMatch(source, /floor\(vUv \* uFacetGrid\)/,
+    'mountain facet sampling stays continuous instead of creating square grid patches');
+  assert.match(source, /vec4 terrainStructure = texture\(uTerrainStructureTexture, vUv\)/);
+  assert.match(source, /float mountainMask = terrainStructure\.r \* landCoverage/);
+  assert.match(source, /float ridgeStrength = terrainStructure\.g/);
+  assert.match(source, /float valleyStrength = terrainStructure\.b/);
+  assert.match(source, /float ruggedness = terrainStructure\.a/);
+  assert.match(source, /mix\(baseNormal, midReliefNormal, landCoverage \* reliefStrength\)/,
+    'heightmap normals are applied across land, including outside tectonic mountain masks');
+  assert.match(source, /float reliefStrength = mix\(0\.14, 0\.82, mountainInfluence\)/,
+    'heightmap shading stays faint on plains and strengthens with mountain influence');
+  assert.match(source, /float facetMask = mountainMask \* ruggedness \* mountainSlope \* smoothstep\(0\.12, 0\.42, height\)/);
+  assert.doesNotMatch(source, /ridgeSignal|float ridgeStrength = smoothstep/,
+    'worldgen fields, not a height Laplacian, define geological ridges and valleys');
+  assert.match(source, /mix\(terrainNormal, facetNormal, facetMask \* uFacetMix\)/);
+  assert.match(source, /float detailMask = smoothstep\(0\.12, 0\.30, slope\) \* mountainMask \* ruggedness/);
+  assert.match(source, /detailMask \* uDetailNormalStrength/);
+  assert.doesNotMatch(source, /floor\(diffuse \* 4\.0\)/,
+    'terrain lighting is continuous rather than posterized to disguise topography');
+  assert.match(source, /texture\(uCoastSdfTexture, vUv\)\.r \* 2\.0 - 1\.0/);
+  assert.match(source, /float bathymetry = decodeHeight\(textureLod\(uHeightTexture, vUv, 2\.0\)\.rg\) \* 255\.0/,
+    'ocean depth samples a smoothed bathymetry field');
+  assert.match(source, /float waterDepth = clamp\(\(uSeaLevel - bathymetry\)/);
+  assert.match(source, /float coastDistance = max\(0\.0, -coastSdf\) \* uCoastRange/);
+  assert.match(source, /uWaterShallowColor, uWaterMidColor, smoothstep/);
+  assert.match(source, /mix\(waterColor, uWaterDeepColor, smoothstep/);
+  assert.match(source, /float depth01 = mix\(coastalDepth, waterDepth, uWaterBathymetryInfluence\)/,
+    'coast distance defines the broad water gradient and bathymetry is only a subtle correction');
+  assert.match(source, /float oceanSpecular = pow\(max\(dot\(waterNormal, halfVector\), 0\.0\), 48\.0\)/);
+  assert.match(source, /float oceanFresnel = pow\(1\.0 - max\(dot\(viewDirection, waterNormal\), 0\.0\), 3\.0\)/);
+  assert.match(source, /mix\(landColor, waterColor, oceanCoverage\)/,
+    'liquid water skips the land relief shading path');
+  assert.match(source, /rockExposure = mountainInfluence \* smoothstep\(0\.06, 0\.20, slope\)/);
+  assert.match(source, /mix\(base, uRockColor, rockExposure \* 0\.66\)/);
+  assert.match(source, /mix\(landMaterial, uRidgeColor, ridgeStrength \* 0\.12\)/);
+  assert.match(source, /mix\(landMaterial, uCreviceColor, valleyStrength \* 0\.08\)/);
+  assert.match(source, /uniform float uAoStrength;/);
+  assert.match(source, /float ao = 1\.0 - slope \* uAoStrength \* land \* mountainMask/);
+  assert.match(source, /uniform sampler2D uDetailTexture;/);
+  assert.match(source, /oceanSpecular/);
+  assert.match(source, /uAtmospherePass/);
+  assert.match(source, /fresnel \* uAtmosphereAlpha \* uOpacity/);
+  assert.match(source, /smoothstep\(1\.53589, 1\.5707963, abs\(latitude\)\)/,
+    'geometric normal smoothing is limited to the final two degrees');
+  assert.match(source, /smoothstep\(1\.55334, 1\.5707963, abs\(latitude\)\)/,
+    'normal detail is faded only in the final degree at the singularity');
+  assert.match(source, /smoothstep\(uSeaLevel \+ 1\.0, uSeaLevel \+ 3\.0, vElevation\)/);
+  assert.match(source, /gl\.RG8, gl\.RG, surfaceData\.heightPixels/);
+  assert.match(source, /gl\.RGBA8, gl\.RGBA, surfaceData\.terrainStructurePixels/);
+  assert.match(source, /gl\.R8, gl\.RED, surfaceData\.coastSdfPixels/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.midReliefStrength, Style\.terrainShading\.midReliefStrength\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.facetMix, Style\.terrainShading\.mountainFacetMix\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.detailNormalStrength, Style\.terrainShading\.microDetailStrength\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.reliefCompressionStart, Style\.relief\.compressionStart\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterNoiseAmplitude, water\.noiseAmplitude\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterSpecularStrength, water\.specularStrength\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterFresnelStrength, water\.fresnelStrength\)/);
+  assert.match(source, /gl\.uniform1f\(program\.uniforms\.waterBathymetryInfluence, water\.bathymetryInfluence\)/);
+  assert.match(source, /const requested = SurfaceTexture\.defaults\.width/);
+  assert.match(source, /dpr = Math\.min\(3, ratio \|\| 1\)/);
+  assert.equal(loadGlobeContext().OrbitPlanetSurfaceTexture.defaults.width, 2048);
+  assert.equal(loadGlobeContext().OrbitPlanetSurfaceTexture.defaults.height, 1024);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.topography.contourOpacity, 0,
+    'regular elevation contour bands are disabled to prevent false shadow waves');
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.topography.majorOpacity, 0);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.noiseAmplitude, .03);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.normalStrength, .02);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.specularStrength, .10);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.fresnelStrength, .05);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.shallow, '#42A4AE');
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.mid, '#176F91');
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.deep, '#073B5C');
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.water.bathymetryInfluence, .16);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.midReliefStrength, 1.25);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainFacetMix, .24);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.microDetailStrength, 0);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainAoStrength, .055);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.ridgeAccentStrength, .10);
+  assert.equal(loadGlobeContext().OrbitPlanetGlobeStyle.terrainShading.mountainMaterials.temperate.ridge, '#DCC59D');
+  assert.match(readFileSync(resolve(__dirname, '../src/rendering/planetSurfaceTexture.js'), 'utf8'),
+    /const albedoWidth = Math\.min\(width, 1024\)/,
+  'color albedo generation stays bounded for mobile while height and coast maps keep full resolution');
 });
 
 test('globe atmosphere has climate materials and the vignette stays behind the globe', () => {

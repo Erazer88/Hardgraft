@@ -3,17 +3,11 @@
 
   // Separate terrestrial pass; the v0.35.12 path stays available for comparison.
   root.OrbitPlanetTerrainStylizedShader = `
-    precision highp int;
     uniform sampler2D uTerrainVisualClassTexture;
     uniform sampler2D uStylizedNormalTexture;
     uniform sampler2D uRealMountainNormalTexture;
     uniform sampler2D uStylizedMaterialTexture;
     uniform sampler2D uSmallMassifTexture;
-    uniform sampler2D uPlainFacetNormalTexture;
-    uniform highp usampler2D uTerrainFacetCandidatesTexture;
-    uniform highp sampler2D uTerrainFacetSitesTexture;
-    uniform float uTerrainFacetScale;
-    uniform float uMountainFacetScale;
     uniform int uTerrainView;
     uniform int uVisualClimate;
     uniform mat3 uGlobeRotation;
@@ -25,12 +19,6 @@
     uniform float uCoastAaMinimum;
     uniform float uShallowBandWidth;
     uniform float uSandBandWidth;
-    uniform float uPlainFacetStrength;
-    uniform vec3 uInnerRimColor;
-    uniform float uInnerRimEdgeStrength;
-    uniform float uInnerRimInwardStrength;
-    uniform float uInnerRimEdgeFalloff;
-    uniform float uInnerRimInwardFalloff;
 
     ${root.OrbitPlanetGlobeProjection.shaderSphereUv}
 
@@ -39,105 +27,6 @@
     }
     vec3 inverseTerrainNormal(vec3 n) {
       return normalize(transpose(uGlobeRotation) * n);
-    }
-
-    ivec2 terrainFacetCoordinate(uint id) {
-      uint width = uint(textureSize(uTerrainFacetSitesTexture, 0).x);
-      return ivec2(int(id % width), int(id / width));
-    }
-
-    void sampleTerrainFacetLayer(vec3 direction, float facetScale, int layer, out vec4 material,
-      out vec4 normalSample, out vec3 normal) {
-      ivec2 candidateSize = textureSize(uTerrainFacetCandidatesTexture, 0);
-      int layerHeight = candidateSize.y / 2;
-      ivec2 candidateUv = ivec2(
-        int(floor(fract(vUv.x) * float(candidateSize.x) + .5)) % candidateSize.x,
-        int(floor(clamp(vUv.y, 0.0, 1.0) * float(layerHeight - 1) + .5)) + layer * layerHeight);
-      uvec4 candidates = texelFetch(uTerrainFacetCandidatesTexture, candidateUv, 0);
-      vec3 point = direction * facetScale;
-      uint nearestId = candidates.x;
-      uint secondId = nearestId;
-      vec3 nearestSite = texelFetch(uTerrainFacetSitesTexture, terrainFacetCoordinate(nearestId), 0).xyz;
-      vec3 secondSite = nearestSite;
-      vec3 delta = point - nearestSite;
-      float nearestDistance = dot(delta, delta);
-      float secondDistance = 1e20;
-      // The compact CPU map provides candidates, not a rasterized boundary.
-      // True 3D distances reconstruct each polygon at the display resolution.
-      for (int i = 1; i < 4; i++) {
-        uint candidateId = candidates[i];
-        if (candidateId == nearestId) continue;
-        vec3 site = texelFetch(uTerrainFacetSitesTexture, terrainFacetCoordinate(candidateId), 0).xyz;
-        vec3 offset = point - site;
-        float distance = dot(offset, offset);
-        if (distance < nearestDistance) {
-          secondDistance = nearestDistance;
-          secondId = nearestId;
-          secondSite = nearestSite;
-          nearestDistance = distance;
-          nearestId = candidateId;
-          nearestSite = site;
-        } else if (distance < secondDistance) {
-          secondDistance = distance;
-          secondId = candidateId;
-          secondSite = site;
-        }
-      }
-      if (secondDistance > 1e19) secondDistance = nearestDistance + 1.0;
-      float signedBorderDistance = nearestId < secondId
-        ? secondDistance - nearestDistance : nearestDistance - secondDistance;
-      float borderDistance = abs(signedBorderDistance);
-      float borderAa = max(1e-6, fwidth(signedBorderDistance) * .65);
-      float secondWeight = .5 * (1.0 - smoothstep(0.0, borderAa, borderDistance));
-      ivec2 nearestUv = terrainFacetCoordinate(nearestId);
-      material = texelFetch(uStylizedMaterialTexture, nearestUv, 0);
-      vec4 firstNormal = texelFetch(uPlainFacetNormalTexture, nearestUv, 0);
-      normalSample = firstNormal;
-      // Transfer the site's terrain tilt onto the local sphere. The terrain
-      // forms a face; the globe itself retains its smooth spherical curvature.
-      vec3 cellNormal = normalize(direction + normalize(firstNormal.rgb * 2.0 - 1.0) - normalize(nearestSite));
-      // Only edge pixels need the second material/normal. Interior pixels keep
-      // a constant palette color and avoid those additional texture reads.
-      if (secondWeight > 0.0) {
-        ivec2 secondUv = terrainFacetCoordinate(secondId);
-        material = mix(material, texelFetch(uStylizedMaterialTexture, secondUv, 0), secondWeight);
-        vec4 secondNormal = texelFetch(uPlainFacetNormalTexture, secondUv, 0);
-        normalSample = mix(firstNormal, secondNormal, secondWeight);
-        vec3 secondDirection = normalize(direction + normalize(secondNormal.rgb * 2.0 - 1.0) - normalize(secondSite));
-        cellNormal = normalize(mix(cellNormal, secondDirection, secondWeight));
-      }
-      normal = rotateTerrainNormal(cellNormal);
-    }
-
-    void sampleTerrainFacet(vec3 direction, float mountainWeight, out vec4 material,
-      out vec4 normalSample, out vec3 normal) {
-      float mountainFacetMix = smoothstep(.16, .70, mountainWeight);
-      vec4 plainMaterial;
-      vec4 plainNormalSample;
-      vec3 plainNormal;
-      if (mountainFacetMix < .999) {
-        sampleTerrainFacetLayer(direction, uTerrainFacetScale, 0, plainMaterial, plainNormalSample, plainNormal);
-      }
-      if (mountainFacetMix > .001) {
-        vec4 mountainMaterial;
-        vec4 mountainNormalSample;
-        vec3 mountainNormal;
-        sampleTerrainFacetLayer(direction, uMountainFacetScale, 1,
-          mountainMaterial, mountainNormalSample, mountainNormal);
-        if (mountainFacetMix > .998) {
-          material = mountainMaterial;
-          normalSample = mountainNormalSample;
-          normal = mountainNormal;
-        } else {
-          material = mix(plainMaterial, mountainMaterial, mountainFacetMix);
-          normalSample = mix(plainNormalSample, mountainNormalSample, mountainFacetMix);
-          normal = normalize(mix(plainNormal, mountainNormal, mountainFacetMix));
-        }
-      } else {
-        material = plainMaterial;
-        normalSample = plainNormalSample;
-        normal = plainNormal;
-      }
     }
 
     float terrainCastShadow(vec3 surfaceDirection, vec3 light, float receiver) {
@@ -171,14 +60,12 @@
       vec3 lightDirection = normalize(uLightDirection);
       vec4 classes = texture(uTerrainVisualClassTexture, vUv);
       classes /= max(.001, dot(classes, vec4(1.0)));
-      float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
-      vec4 normalSample;
-      vec4 material;
-      vec3 stylizedNormal;
-      sampleTerrainFacet(objectDirection, mountain, material, normalSample, stylizedNormal);
+      vec4 normalSample = texture(uStylizedNormalTexture, vUv);
+      vec3 stylizedNormal = rotateTerrainNormal(normalize(normalSample.rgb * 2.0 - 1.0));
       vec4 realNormalSample = texture(uRealMountainNormalTexture, vUv);
       vec3 realMountainNormal = rotateTerrainNormal(normalize(realNormalSample.rgb * 2.0 - 1.0));
-      vec2 surfaceDetail = texture(uDetailTexture, vUv).rg;
+      vec4 material = texture(uStylizedMaterialTexture, vUv);
+      float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
       float smallMassif = texture(uSmallMassifTexture, vUv).r;
       float raisedTerrain = clamp(mountain + classes.g * .34 + smallMassif * .24, 0.0, 1.0);
       float castShadow = uTerrainView == 0 || uTerrainView == 3
@@ -190,25 +77,8 @@
       float coastDistance = (texture(uCoastSdfTexture, vUv).r * 2.0 - 1.0) * uCoastRange;
       float aa = clamp(fwidth(coastDistance) * .60, uCoastAaMinimum, max(.45, uCoastAaMinimum));
       float land = smoothstep(-aa, aa, coastDistance);
-      float beachStyle = texture(uSmallMassifTexture, vUv).g;
-      // Seeded, spherical low-frequency coast classes: some shores stay rocky,
-      // some get a hairline of sand, and a smaller number open into beaches.
-      float fineBeach = smoothstep(.31, .43, beachStyle) * (1.0 - smoothstep(.68, .81, beachStyle));
-      float broadBeach = smoothstep(.68, .82, beachStyle);
-      float beachPresence = clamp(fineBeach + broadBeach, 0.0, 1.0);
-      float beachWidth = uSandBandWidth * mix(.34, 2.25, broadBeach);
-      float sandBand = land * (1.0 - smoothstep(beachWidth, beachWidth + aa,
-        max(0.0, coastDistance))) * beachPresence;
-      if (uVisualClimate == 0) {
-        // On temperate coasts, avoid isolated snow-mask flecks interrupting
-        // otherwise continuous sand; high-altitude snow remains unaffected.
-        float nearShore = 1.0 - smoothstep(.25, 2.0, max(0.0, coastDistance));
-        material.a *= 1.0 - nearShore * .78;
-      } else if (uVisualClimate == 1 || uVisualClimate == 3) {
-        sandBand = 0.0;
-      } else {
-        sandBand *= 1.0 - material.a;
-      }
+      float sandBand = land * (1.0 - smoothstep(uSandBandWidth, uSandBandWidth + aa, max(0.0, coastDistance)));
+      sandBand *= 1.0 - material.a;
       material.rgb = mix(material.rgb, uCoastColor, sandBand * .94);
       float lavaMask = 0.0;
       if (uVisualClimate == 3) {
@@ -222,28 +92,15 @@
       // the ramp reads their face orientation instead of lighting every slope
       // at once just because the whole hemisphere is facing the sun.
       float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
-      float plainRegion = clamp(classes.r + classes.g * .92 + smallMassif * .30, 0.0, 1.0);
-      float plainFacetCoverage = land * (1.0 - mountainInfluence) * plainRegion *
-        clamp(uPlainFacetStrength, 0.0, 1.0);
       float rollingActivity = normalSample.a;
-      float plainFacetActivity = (1.0 - mountainInfluence) *
-        smoothstep(.004, .11, length(stylizedNormal - sphereNormal));
-      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 +
-        plainFacetActivity * .52 + mountain, 0.0, 1.0);
-      // Cell normals are intentionally visible across the lowlands. Their
-      // broad lighting range creates watercolor-like planes even where the
-      // source terrain is nearly level; relief-derived normals still shape
-      // each face instead of a UV grid.
-      float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast +
-        plainFacetCoverage * .72, 0.0, 1.0);
+      float terrainActivity = clamp(rollingActivity * .55 + classes.g * .35 + smallMassif * .28 + mountain, 0.0, 1.0);
+      float secondaryActivity = clamp((terrainActivity - mountain) * uRollingLightingContrast, 0.0, 1.0);
       float ndl = dot(stylizedNormal, lightDirection) -
         dot(sphereNormal, lightDirection) * mountain * uSphereLightCancellation;
       float shadow = smoothstep(-.22, .14, ndl);
       float highlight = smoothstep(.28, .66, ndl);
-      // Keep lowland facet-to-facet color shifts very fine. The broad ramp is
-      // reserved for real mountain massifs, not the plain watercolor cells.
-      float darkTone = mix(mix(.985, .965, secondaryActivity), .72, mountainInfluence);
-      float brightTone = mix(mix(1.015, 1.04, secondaryActivity), 1.17, mountainInfluence);
+      float darkTone = mix(mix(.95, .88, secondaryActivity), .72, mountainInfluence);
+      float brightTone = mix(mix(1.04, 1.09, secondaryActivity), 1.17, mountainInfluence);
       brightTone = mix(brightTone, min(brightTone, 1.04), material.a);
       float lighting = mix(darkTone, 1.0, shadow);
       lighting = mix(lighting, brightTone, highlight);
@@ -268,15 +125,11 @@
       // Two finite bands: a narrow turquoise shoal and a separate sand strip.
       // The broad ocean gradient never adds light to the edge of the continent.
       float distanceToLand = max(0.0, -coastDistance);
-      float shallowWaterBand = (1.0 - land) * (1.0 - smoothstep(
-        max(0.0, uShallowBandWidth - aa), uShallowBandWidth + aa, distanceToLand));
-      // Give the water palette the same graphic hierarchy as the land: clean
-      // depth bands with screen-space edge AA instead of a wide airbrush mix.
-      float depthEdge = max(uShallowBandWidth + aa * 2.0, uWaterCoastDepthDistance * .65);
-      float depth = smoothstep(depthEdge - aa, depthEdge + aa, distanceToLand);
+      float shallowWaterBand = (1.0 - land) * (1.0 - smoothstep(.10, uShallowBandWidth + aa, distanceToLand));
+      float depth = smoothstep(1.5, 14.0, distanceToLand);
       vec3 waterMaterial = mix(uWaterMidColor, uWaterDeepColor, depth);
       waterMaterial = mix(waterMaterial, uWaterShallowColor, shallowWaterBand * .85);
-      float oceanNoise = clamp((surfaceDetail.r - .5) * 20.0, -1.0, 1.0);
+      float oceanNoise = clamp((texture(uDetailTexture, vUv).r - .5) * 20.0, -1.0, 1.0);
       vec3 waterColor = waterMaterial * (1.0 + oceanNoise * uWaterNoiseAmplitude);
       float oceanLight = .93 + max(dot(sphereNormal, lightDirection), 0.0) * .07;
       waterColor *= oceanLight;
@@ -300,7 +153,7 @@
       } else if (uTerrainView == 5) {
         color = realMountainNormal * .5 + .5;
       } else if (uTerrainView == 6) {
-        float rolling = pow(texture(uStylizedNormalTexture, vUv).a, .72);
+        float rolling = pow(normalSample.a, .72);
         color = vec3(rolling, rolling * .76, rolling * .34) * land;
       } else if (uTerrainView == 7) {
         float localRelief = clamp((realNormalSample.a * 255.0 - 128.0) / 127.0, -1.0, 1.0);
@@ -308,16 +161,6 @@
         color = localTint * abs(localRelief) * land;
       } else if (uTerrainView == 8) {
         color = vec3(.48, .79, .32) * pow(smallMassif, .8) * land;
-      }
-      if (uTerrainView == 0) {
-        // A narrow cyan edge sits inside the silhouette, then fades softly
-        // across the outer terrain and ocean without adding a broad veil.
-        float limbFacing = max(0.0, sphereNormal.z);
-        float crispEdge = exp(-limbFacing * uInnerRimEdgeFalloff);
-        float inwardFade = exp(-limbFacing * uInnerRimInwardFalloff);
-        float innerRim = clamp(crispEdge * uInnerRimEdgeStrength +
-          inwardFade * uInnerRimInwardStrength, 0.0, .42);
-        color = mix(color, uInnerRimColor, innerRim);
       }
       outColor = vec4(clamp(color, 0.0, 1.0), uOpacity);
     }

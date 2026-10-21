@@ -46,48 +46,6 @@
     const y = random() * 2 - 1, a = random() * TAU, r = Math.sqrt(1 - y * y);
     return { x: Math.cos(a) * r, y, z: Math.sin(a) * r };
   }
-  function createContinentalSources(seed, frequency) {
-    const random = root.OrbitWorld.rng(seed ^ 0x61f2a9d3);
-    const amount = clamp((frequency - .35) / 3.15, 0, 1);
-    const majorCount = 4 + Math.round(amount * 2);
-    const islandCount = 18 + Math.round(amount * 8);
-    const sources = [];
-    const majorSources = [];
-    const minimumSeparation = Math.cos(1.12);
-    for (let index = 0; index < majorCount; index += 1) {
-      let selected = randomDirection(random), bestNearestScore = Infinity;
-      for (let attempt = 0; attempt < 192; attempt += 1) {
-        const candidate = randomDirection(random);
-        // The maximum dot product identifies the nearest existing center.
-        // Minimize it to spread continents apart; using the minimum instead
-        // picked candidates opposite one source while allowing overlap with
-        // another, which recreated one dominant supercontinent on some seeds.
-        let nearestScore = -1;
-        for (const source of sources) nearestScore = Math.max(nearestScore,
-          candidate.x * source.x + candidate.y * source.y + candidate.z * source.z);
-        if (nearestScore < minimumSeparation) { selected = candidate; break; }
-        if (nearestScore < bestNearestScore) {
-          selected = candidate; bestNearestScore = nearestScore;
-        }
-      }
-      const lower = .56 - amount * .16, upper = .76 - amount * .20;
-      const radius = lower + random() * (upper - lower);
-      const source = { ...selected, radius, strength: 1, major: true };
-      sources.push(source); majorSources.push(source);
-    }
-    for (let index = 0; index < islandCount; index += 1) {
-      let direction = randomDirection(random), radius = .06 + random() * (.15 - .06);
-      for (let attempt = 0; attempt < 32; attempt += 1) {
-        const candidate = randomDirection(random), candidateRadius = .06 + random() * (.15 - .06);
-        const clearOfContinents = majorSources.every(source =>
-          candidate.x * source.x + candidate.y * source.y + candidate.z * source.z <
-          Math.cos(source.radius + candidateRadius + .09));
-        if (clearOfContinents) { direction = candidate; radius = candidateRadius; break; }
-      }
-      sources.push({ ...direction, radius, strength: .92, major: false });
-    }
-    return sources;
-  }
   function rotate(p, axis, angle) {
     const c = Math.cos(angle), s = Math.sin(angle), d = dot(axis, p), v = cross(axis, p);
     return normalize({ x: p.x*c + v.x*s + axis.x*d*(1-c),
@@ -102,7 +60,6 @@
     const fineNoise = noise3(modelSeed ^ 0x28e53f91);
     const count = settings.plateCount[0] + Math.floor(random() * (settings.plateCount[1] - settings.plateCount[0] + 1));
     const geology = clamp(Number.isFinite(planet.geology) ? planet.geology : .5, 0, 1);
-    const continents = createContinentalSources(modelSeed, settings.continentalFrequency);
     const rotationAxis = randomDirection(random), rotationAngle = random() * TAU;
     const plates = [], jitter = settings.seedJitter / Math.sqrt(count);
     const continentalAt = p => {
@@ -116,19 +73,7 @@
       const edge=detailNoise(warped.x*settings.continentalEdgeFrequency+7.2,
         warped.y*settings.continentalEdgeFrequency-11.4,warped.z*settings.continentalEdgeFrequency+5.9)*
         settings.continentalEdgeAmplitude;
-      let continentalCap = 0;
-      for (const source of continents) {
-        const alignment = p.x * source.x + p.y * source.y + p.z * source.z;
-        const radius = source.radius + edge * 2.4;
-        const influence = smooth(Math.cos(radius + .12), Math.cos(radius - .12), alignment);
-        continentalCap = Math.max(continentalCap, influence * source.strength);
-      }
-      // Separate major landmasses and satellites first; broad spherical noise
-      // only bends their borders and adds small coves rather than deciding the
-      // entire planet as one low-frequency blob.
-      const broadBoundary = clamp(.5 + broad * .65, 0, 1);
-      const edgeBoundary = clamp(.5 + edge * 4, 0, 1);
-      return clamp(.08 + continentalCap * (.82 + broadBoundary * .07 + edgeBoundary * .03), 0, 1);
+      return clamp(.5+broad+edge,0,1);
     };
     for (let i = 0; i < count; i++) {
       const y = 1 - 2 * (i + .5) / count, a = i * Math.PI * (3 - Math.sqrt(5)), r = Math.sqrt(1-y*y);
@@ -150,33 +95,10 @@
       pairs[i*count+j]={bx,by,bz,spacing:Math.max(.1,Math.hypot(bx,by,bz)),axis,midpoint,phase:random()*TAU,
         ox:B.omega.x-A.omega.x,oy:B.omega.y-A.omega.y,oz:B.omega.z-A.omega.z};
     }
-    return { seed: modelSeed, plates, pairs, continents, geology, settings, noise, detailNoise,
+    return { seed: modelSeed, plates, pairs, geology, settings, noise, detailNoise,
       regionalNoise,hillsNoise,fineNoise,continentalAt };
   }
   function velocityAt(plate, p) { return cross(plate.omega, p); }
-
-  function cacheContinentalSampler(model, width, height) {
-    const fieldWidth = Math.min(width, 320);
-    const fieldHeight = Math.min(height, Math.max(2, Math.round(fieldWidth * height / width)));
-    const values = new Float32Array(fieldWidth * fieldHeight), direction = {};
-    const evaluate = model.continentalAt;
-    for (let y = 0; y < fieldHeight; y += 1) for (let x = 0; x < fieldWidth; x += 1) {
-      root.OrbitWorld.directionForPixel(x, y, fieldWidth, fieldHeight, direction);
-      values[y * fieldWidth + x] = evaluate(direction);
-    }
-    const uniqueWidth = Math.max(1, fieldWidth - 1), lastRow = fieldHeight - 1;
-    model.continentalAt = p => {
-      const longitude = Math.atan2(p.z, p.x) / TAU + .5;
-      const px = ((longitude * uniqueWidth) % uniqueWidth + uniqueWidth) % uniqueWidth;
-      const py = clamp((.5 - Math.asin(clamp(p.y, -1, 1)) / Math.PI) * lastRow, 0, lastRow);
-      const x0 = Math.floor(px), x1 = (x0 + 1) % uniqueWidth;
-      const y0 = Math.floor(py), y1 = Math.min(lastRow, y0 + 1);
-      const tx = px - x0, ty = py - y0;
-      const north = values[y0 * fieldWidth + x0] * (1 - tx) + values[y0 * fieldWidth + x1] * tx;
-      const south = values[y1 * fieldWidth + x0] * (1 - tx) + values[y1 * fieldWidth + x1] * tx;
-      return north * (1 - ty) + south * ty;
-    };
-  }
 
   function boundarySource(model, p, i, j, best, scores, out) {
     const s=model.settings,o=s.orogeny,plates=model.plates;
@@ -290,9 +212,7 @@
     return out;
   }
   function create(seed, width, height, planet = {}, settings) {
-    const model = createModel(seed, planet, settings);
-    cacheContinentalSampler(model, width, height);
-    const size = width*height;
+    const model = createModel(seed, planet, settings), size = width*height;
     const result = { width, height, plates: model.plates, modelSeed: model.seed,
       plateId: new Uint8Array(size), secondaryPlateId: new Uint8Array(size) };
     for (const key of ['continentalField','boundaryDistanceProxy','boundaryInfluence','convergence','divergence',

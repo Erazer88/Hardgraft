@@ -43,36 +43,17 @@ l'identique depuis le terrain.
   géologique `mountainMask`, puis la rugosité et la pente. Les quantiles surfaciques
   .54/.87/.978 calibrent leurs étendues ; une altitude élevée ne suffit pas à
   transformer un plateau en montagne.
-- **Normales et matériau, 1024 × 512** : les plaines gardent un modelé faible,
-  facetté à partir des normales du relief filtré. Les faces douces tirent leur
-  variation du relief réel et d'un décalage de quantification issu des mêmes
-  champs ; elles ne suivent pas un pavage régulier du globe. Un champ `mid - macro`
-  et la rugosité large produisent aussi un vallonnement discret et des buttes plus
-  rares dans les basses terres. Les normales de massif viennent des pentes du relief
-  intermédiaire, puis leur orientation est quantifiée plus fortement. Les faces
-  suivent les versants et les crêtes au lieu d'un maillage abstrait. Une carte séparée conserve
+- **Normales et matériau, 1024 × 512** : les plaines côtières restent presque
+  sphériques. Un champ `mid - macro` et la rugosité large produisent un vallonnement
+  discret et des buttes plus rares dans les basses terres. Les normales de massif
+  viennent des pentes du relief intermédiaire, puis leur orientation est quantifiée
+  doucement avec une variation tirée des mêmes champs. Les faces suivent les
+  versants et les crêtes au lieu d'un pavage sphérique. Une carte séparée conserve
   la même normale avant quantification pour comparaison. Un troisième signal
   `local - mid`, faiblement filtré puis mélangé à 16 % uniquement dans les massifs,
   conserve les petites arêtes de la vraie topographie. Son diagnostic signé est
   stocké dans l'alpha de cette carte existante, sans nouvelle texture GPU.
   Cela ne change ni le mesh ni le raycast.
-- **Facettes aquarellées à frontières analytiques** : deux pavages irréguliers
-  en coordonnées 3D sphériques définissent les cellules : grande maille dans les
-  plaines, maille 3,2 fois plus dense en montagne (environ dix fois plus de
-  polygones par surface). Une carte `RGBA16UI` empile les deux recherches et
-  conserve quatre sites candidats par couche ; le fragment shader choisit le
-  plus proche par distance 3D réelle. La carte accélère la recherche sans
-  imposer ses texels aux frontières. Un atlas contient une couleur et une
-  normale de relief par cellule, lus sans interpolation ; seul le bord reçoit un
-  antialiasing d'environ un pixel écran. Les verts, forêts, ocres, roches et
-  neiges ont ainsi des contours nets même en zoomant, sans agrandissement
-  bilinéaire du matériau. Les verts des plaines varient moins entre cellules ;
-  la matière évolue vers des bruns de plus en plus foncés jusqu'aux sommets.
-  L'inclinaison du relief est transférée sur la normale
-  sphérique locale pour éviter de facetter la sphère elle-même. Les cellules
-  restent déterministes, continues à la couture et uniques aux pôles. La taille,
-  la force des normales et celle du lavis restent réglables dans les DevTools.
-  Aucun changement de géométrie ni passe de dessin supplémentaire n'est ajouté.
 - **Petits massifs R8, 384 × 192** : le résidu positif et la rugosité réelle
   produisent une couche intermédiaire dans les plaines/collines intérieures.
   Elle est lissée à .040 rad, normalisée sur un quantile terrestre puis ajoutée
@@ -85,9 +66,8 @@ l'identique depuis le terrain.
   restent verts/olive, les parties élevées ont une transition minérale même si
   la pente locale est faible, et les pics/crêtes vont vers l'ocre et le beige
   clair. Cette transition de matériau ne crée pas de plateaux géométriques.
-  Un lavis doux, limité aux plaines et calculé depuis l'humidité locale, le résidu
-  topographique et le vallonnement, casse les grands aplats sans grain ni bruit
-  indépendant. L'alpha porte
+  L'humidité et l'altitude apportent une faible
+  variation régionale ; aucune microtexture ne pilote la couleur. L'alpha porte
   neige et banquise. Seul le bord de neige terrestre est perturbé par les résidus
   topographiques, à moins de 8,5 points de couverture ; le climat et les normales
   sous-jacentes restent communs au terrain enneigé.
@@ -95,13 +75,12 @@ l'identique depuis le terrain.
 `planetTerrainStylizedShader.js` applique une rampe douce à trois tons, fortement
 contrastée dans les massifs, modérée dans le vallonnement et limitée sur les vraies
 plaines. Les ombres par défaut sont renforcées (.30, contraste du vallonnement
-  1.25) ; leur atténuation possède un plancher de .74 pour éviter
+1.25) ; leur atténuation possède un plancher de .74 pour éviter
 le cumul de versants presque noirs. Huit échantillons
 géodésiques vers la lumière produisent des ombres douces sur les collines et les
 montagnes. Les côtes utilisent deux bandes SDF finies : hauts-fonds turquoise
 étroits puis sable. Les océans, calottes et bassins de lave gardent leur matériau
-propre. Un fin liseré cyan interne suit le limbe : il est net au bord et décroît
-rapidement vers le centre. L'atmosphère externe reste un pass séparé.
+propre. L'atmosphère reste un pass séparé.
 
 La SDF conserve une source 2048 × 1024 : le masque de couverture est d'abord
 filtré en flottant, la position sous-pixel de son contour 50 % initialise la
@@ -125,10 +104,6 @@ supplémentaires exposent la force locale, le contraste du vallonnement,
 l'annulation de lumière sphérique, le plancher des ombres et le minimum d'AA côtier.
 Les réglages de petits massifs, de matériau highland et des deux lissages de côte
 s'appliquent au relâchement, sans régénérer la topographie.
-Les curseurs « Densité des facettes de plaine » et « Densité des facettes de
-montagne » règlent séparément le nombre de polygones ; les « Nuances aquarelle
-des plaines » règlent les lavis issus du relief et de l'humidité. Le liseré cyan
-interne suit le bord du globe sans couvrir son centre.
 
 ## Responsabilités
 

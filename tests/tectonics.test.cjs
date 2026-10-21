@@ -51,37 +51,6 @@ test('tectonic fields are deterministic, finite, seamless and canonical at both 
   assert.ok(a.plateId.every(id=>id<a.plates.length));
 });
 
-test('high continental frequency breaks the land field into multiple seeded regions', () => {
-  const c=load(),W=c.OrbitWorld,w=96,h=48;
-  const settings={...c.OrbitWorldgenData.terrain.tectonics,continentalFrequency:3.5};
-  let meanLargestShare=0;
-  for(const seed of ['arch-a','arch-b','arch-c','arch-d','arch-e']) {
-    const terrain=W.createTerrain(seed,w,h,{surfaceWater:.5,geology:.55},
-      {...c.OrbitWorldgenData.terrain,tectonics:settings});
-    const land=new Uint8Array(w*h),seen=new Uint8Array(w*h),sizes=[];
-    for(let i=0;i<land.length;i++)land[i]=terrain.elevation[i]>terrain.seaLevel?1:0;
-    for(let y=0;y<h;y++)for(let x=0;x<w-1;x++) {
-      const start=y*w+x;if(!land[start]||seen[start])continue;
-      const queue=[start];seen[start]=1;let size=0;
-      for(let head=0;head<queue.length;head++) {
-        const index=queue[head],cx=index%w,cy=Math.floor(index/w);size++;
-        const neighbors=[cy*w+(cx+w-2)%(w-1),cy*w+(cx+1)%(w-1)];
-        if(cy>0)neighbors.push(index-w);if(cy+1<h)neighbors.push(index+w);
-        for(const next of neighbors)if(land[next]&&!seen[next]){seen[next]=1;queue.push(next);}
-      }
-      sizes.push(size);
-    }
-    sizes.sort((a,b)=>b-a);
-    const total=sizes.reduce((sum,size)=>sum+size,0);
-    assert.ok(sizes.length>=6,`${seed} has several distinct continental regions and islands`);
-    const largestShare=sizes[0]/total;
-    assert.ok(largestShare<.82,`${seed} does not collapse into one dominant supercontinent`);
-    meanLargestShare+=largestShare;
-  }
-  assert.ok(meanLargestShare/5<.70,
-    'generated coastlines keep the largest landmass from swallowing most land across seeds');
-});
-
 test('relative angular motions classify convergent, divergent and shear boundaries', () => {
   const T=load().OrbitTectonics; let convergent=0,neutral=0,divergent=0,cn=0,nn=0,dn=0;
   let quiet=0,active=0,rift=0;
@@ -238,8 +207,7 @@ test('C: real tectonic terrain changes gently and keeps its long mountain system
   let total=0,maximum=0;
   for(let i=0;i<raw.length;i++){const d=Math.abs(eroded[i]-raw[i]);total+=d;maximum=Math.max(maximum,d);}
   assert.ok(maximum>.1,'erosion has a measurable effect on steep slopes');
-  assert.ok(total/raw.length<4.5,
-    'the broader seeded continent margins allow coast shaping while preserving the large-scale relief');
+  assert.ok(total/raw.length<2,'thermal pass keeps the large-scale relief intact');
   const a=c.OrbitThermalErosion.surfaceIntegral(raw,w,h),b=c.OrbitThermalErosion.surfaceIntegral(eroded,w,h);
   assert.ok(Math.abs(a-b)<Math.abs(a)*1e-6);
 });

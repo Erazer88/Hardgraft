@@ -3,55 +3,36 @@
 
   root.OrbitPlanetGlobeStyle = Object.freeze({
     mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
-    relief: Object.freeze({ scale: .050, visualChainScale: 1.35, exponent: 1.00, linearFraction: .16,
+    relief: Object.freeze({ scale: .038, exponent: 1.00, linearFraction: .16,
       compressionStart: .42, peakTailStart: .70, landQuantile: .985, minLandRange: 24, maxLandRange: 58 }),
     stylizedTerrain: Object.freeze({
-      // Keep the expensive CPU classification field compact; the final
-      // material/normal maps are still uploaded at 512px for smooth sampling.
-      fieldWidth: 192, textureWidth: 512,
+      fieldWidth: 384, textureWidth: 1024,
       heightLowPass: .018, macroLowPass: .075, localLowPass: .010, classLowPass: .05,
-      hillQuantile: .50, mountainQuantile: .83, summitQuantile: .975,
+      hillQuantile: .54, mountainQuantile: .87, summitQuantile: .978,
       normalReliefScale: .18, residualNormalStrength: 1.05, localNormalStrength: .16,
       macroNormalStrength: .14, plainNormalStrength: .04,
-      // Low-frequency spherical cells are deliberately large enough to read
-      // at the normal mobile globe zoom, not just in close-up diagnostics.
-      // Plain cells are broad and restrained; mountain cells are about ten
-      // times denser in area and are only selected by the mountain class.
-      plainFacetScale: 8.5, mountainFacetScale: 27, plainFacetStrength: .88,
-      // Plainland pigment is a broad regional wash, not a per-facet color roll.
-      plainPatternLowPass: .18, plainWashStrength: .012,
-      facetMapScale: 2,
-      visualChains: Object.freeze({
-        baseCount: 10, minimumMultiplier: 3, maximumMultiplier: 4, islandChainRatio: .22,
-        segmentCount: Object.freeze([5, 8]), segmentLength: Object.freeze([.065, .12]),
-        width: Object.freeze([.045, .074]), uplift: .13, ridgeUplift: .080
-      }),
       rollingNormalStrength: .22, hillockNormalStrength: .36, smallMassifNormalStrength: .20, hillNormalStrength: .28,
       smallMassifStrength: 1, highlandMaterialMix: .55,
       mountainNormalStrength: .60, facetAngleDegrees: 5.5, facetJitter: .24, facetStrength: .42,
       rollingLightingContrast: 1.25, sphereLightCancellation: .17, mountainShadowFloor: .74,
       shadowStrength: .30, shadowReach: .085,
       lightDirection: Object.freeze({ x: -.55, y: .70, z: .42 }),
-      shallowBandWidth: .62, sandBandWidth: .82, coastAaMinimum: .10,
+      shallowBandWidth: .62, sandBandWidth: .48, coastAaMinimum: .10,
       coastSmoothing: 1.4, coastFieldBlur: .90,
-      // Forest overlays are disabled while calibrating the lowland palette.
-      forests: Object.freeze({ patchCount: 0, minimumMoisture: .28, maximumLatitude: .95,
-        patchRadius: Object.freeze([.055, .13]), colorMix: 0 }),
       water: Object.freeze({ deep: '#06375F', mid: '#0A6090', shallow: '#258EA8' }),
       materials: Object.freeze({
-        temperate: Object.freeze({ plain: '#6FA84B', wet: '#659747', dry: '#79A852',
-          rolling: '#71954B', hill: '#6D9049', foothill: '#7D804E', highland: '#A08B67', mountain: '#986A49',
-          ridge: '#79513A', summit: '#4A3328', crevice: '#514033', snow: '#E7ECEE', ice: '#BCD5DF', sand: '#D9BF76',
-          forest: '#24502E', canopy: '#4A7B3C' }),
-        frozen: Object.freeze({ plain: '#C4DDE6', wet: '#BED9E3', dry: '#C9E0E7',
-          rolling: '#B9D4DE', hill: '#B0CCD6', foothill: '#AEC9D2', highland: '#B4CED7', mountain: '#A3C0CB',
-          ridge: '#91AEB9', summit: '#718C97', crevice: '#819AA4', snow: '#EDF4F6', ice: '#D0E5EC', sand: '#D9E8EC' }),
+        temperate: Object.freeze({ plain: '#6FA84B', wet: '#477F3D', dry: '#9B9A54',
+          rolling: '#78944D', hill: '#648345', foothill: '#827D4E', highland: '#A59A73', mountain: '#A9774F',
+          ridge: '#D6B083', crevice: '#56483A', snow: '#E7ECEE', ice: '#BCD5DF', sand: '#D9BF76' }),
+        frozen: Object.freeze({ plain: '#B9D2DA', wet: '#A7C8D3', dry: '#C4D7DA',
+          rolling: '#A8C5CE', hill: '#94AFBA', foothill: '#829BA5', highland: '#A4B8BF', mountain: '#7B8D96',
+          ridge: '#D5E4E8', crevice: '#526A76', snow: '#E7EEF0', ice: '#9DBFCE', sand: '#BDD3DA' }),
         arid: Object.freeze({ plain: '#BE7747', wet: '#A76844', dry: '#CB935C',
-          rolling: '#C1814D', hill: '#A96743', foothill: '#A26443', highland: '#B48961', mountain: '#89573B',
-          ridge: '#70462F', summit: '#4D3329', crevice: '#55372C', snow: '#DDD9D0', ice: '#C5CED0', sand: '#CE9B66' }),
+          rolling: '#C1814D', hill: '#A96743', foothill: '#A26443', highland: '#BD8A5B', mountain: '#8D5037',
+          ridge: '#DBA46A', crevice: '#61392C', snow: '#DDD9D0', ice: '#C5CED0', sand: '#CE9B66' }),
         volcanic: Object.freeze({ plain: '#4B3630', wet: '#44312D', dry: '#60453A',
-          rolling: '#594039', hill: '#5D4035', foothill: '#68483B', highland: '#765849', mountain: '#583D35',
-          ridge: '#3F2D28', summit: '#241A19', crevice: '#291E1B', snow: '#B59B87', ice: '#79503D', sand: '#654536' })
+          rolling: '#594039', hill: '#5D4035', foothill: '#68483B', highland: '#866957', mountain: '#79503D',
+          ridge: '#A87550', crevice: '#291E1B', snow: '#B59B87', ice: '#79503D', sand: '#654536' })
       })
     }),
     water: Object.freeze({ shallow: '#38A8C4', mid: '#12699C', deep: '#073666',
@@ -97,8 +78,6 @@
       }) }),
     atmosphere: Object.freeze({ shellScale: 1.018, haloScale: 1.055,
       haloAlpha: .14, rimAlpha: .84, haloPower: 2.0, rimPower: 3.0,
-      innerRim: Object.freeze({ color: '#39D3EC', edgeStrength: .28, inwardStrength: .12,
-        edgeFalloff: 78, inwardFalloff: 18 }),
       colors: Object.freeze({ tellurique: '#64C9E8', océanique: '#35D2F2',
         glacée: '#C4E9F5', aride: '#F0B76C', volcanique: '#FF6336',
         gazeuse: '#B5A991', default: '#73C8E0' }) }),

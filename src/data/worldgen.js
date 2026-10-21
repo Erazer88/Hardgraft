@@ -41,7 +41,7 @@
       tectonics: {
         plateCount: [12, 24], seedJitter: .16, angularSpeed: [.45, 1.0],
         fbm: { persistence: .48, lacunarity: 2.03 },
-        continentalFrequency: 1.2, continentalWarpFrequency: .72, continentalWarpAmplitude: .045,
+        continentalFrequency: 1.2, continentalWarpFrequency: .72, continentalWarpAmplitude: .105,
         continentalEdgeFrequency: 3.2, continentalEdgeAmplitude: .065,
         plateContinentalInfluence: .035,
         continentalBase: { base: 65, plateauRise: 44, coastRange: [.28, .50],

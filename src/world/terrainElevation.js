@@ -31,21 +31,12 @@
       uplift[i]=sampleSphere(tectonics.tectonicUplift,warped,width,height);
       subsidence[i]=sampleSphere(tectonics.tectonicSubsidence,warped,width,height);
       const c=tectonics.continentalField[i],base=settings.continentalBase;
-      const coast=smooth(Math.max(0,base.coastRange[0]-.08),Math.min(1,base.coastRange[1]+.18),c);
+      const coast=smooth(base.coastRange[0],base.coastRange[1],c);
       const inland=smooth(base.inlandRange[0],base.inlandRange[1],c);
-      // Preserve submerged gaps between nearby continental regions. Broad
-      // topography and oceanic arcs still make islands, but they no longer
-      // raise every shallow basin into a bridge that joins the continents.
-      const landSupport=smooth(.34,.58,c);
-      const upliftSupport=.06+.94*smooth(.45,.66,c);
-      const oceanBasin=(1-landSupport)*12;
       // Continentality defines the shelf/plateau transition; interior altitude comes from relief fields.
       const continentalBase=base.base+coast*base.plateauRise+inland*base.inlandRise;
-      uplift[i]*=upliftSupport;
-      rawElevation[i]=continentalBase-oceanBasin+
-        tectonics.broadTerrain[i]*(.25+.75*landSupport)+
-        tectonics.hillTerrain[i]*(.20+.80*landSupport)+
-        tectonics.fineTerrain[i]*(.35+.65*landSupport)+uplift[i]-subsidence[i];
+      rawElevation[i]=continentalBase+tectonics.broadTerrain[i]+tectonics.hillTerrain[i]+
+        tectonics.fineTerrain[i]+uplift[i]-subsidence[i];
     }
     return {width,height,rawElevation,tectonicUplift:uplift,tectonicSubsidence:subsidence};
   }

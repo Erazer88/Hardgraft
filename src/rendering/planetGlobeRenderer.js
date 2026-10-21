@@ -379,11 +379,6 @@
         realMountainNormalTexture: gl.getUniformLocation(program, 'uRealMountainNormalTexture'),
         stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
         smallMassifTexture: gl.getUniformLocation(program, 'uSmallMassifTexture'),
-        plainFacetNormalTexture: gl.getUniformLocation(program, 'uPlainFacetNormalTexture'),
-        terrainFacetCandidatesTexture: gl.getUniformLocation(program, 'uTerrainFacetCandidatesTexture'),
-        terrainFacetSitesTexture: gl.getUniformLocation(program, 'uTerrainFacetSitesTexture'),
-        terrainFacetScale: gl.getUniformLocation(program, 'uTerrainFacetScale'),
-        mountainFacetScale: gl.getUniformLocation(program, 'uMountainFacetScale'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
@@ -395,12 +390,6 @@
         coastAaMinimum: gl.getUniformLocation(program, 'uCoastAaMinimum'),
         shallowBandWidth: gl.getUniformLocation(program, 'uShallowBandWidth'),
         sandBandWidth: gl.getUniformLocation(program, 'uSandBandWidth'),
-        plainFacetStrength: gl.getUniformLocation(program, 'uPlainFacetStrength'),
-        innerRimColor: gl.getUniformLocation(program, 'uInnerRimColor'),
-        innerRimEdgeStrength: gl.getUniformLocation(program, 'uInnerRimEdgeStrength'),
-        innerRimInwardStrength: gl.getUniformLocation(program, 'uInnerRimInwardStrength'),
-        innerRimEdgeFalloff: gl.getUniformLocation(program, 'uInnerRimEdgeFalloff'),
-        innerRimInwardFalloff: gl.getUniformLocation(program, 'uInnerRimInwardFalloff'),
         scale: gl.getUniformLocation(program, 'uScale'), offset: gl.getUniformLocation(program, 'uOffset'),
         opacity: gl.getUniformLocation(program, 'uOpacity'), seaLevel: gl.getUniformLocation(program, 'uSeaLevel'),
         reliefLow: gl.getUniformLocation(program, 'uReliefLow'), reliefHigh: gl.getUniformLocation(program, 'uReliefHigh'),
@@ -511,10 +500,7 @@
         gl.deleteTexture(buffers.visualClassTexture); gl.deleteTexture(buffers.stylizedNormalTexture);
         gl.deleteTexture(buffers.realMountainNormalTexture);
         gl.deleteTexture(buffers.smallMassifTexture);
-        gl.deleteTexture(buffers.plainFacetNormalTexture);
         gl.deleteTexture(buffers.stylizedMaterialTexture);
-        gl.deleteTexture(buffers.terrainFacetCandidatesTexture);
-        gl.deleteTexture(buffers.terrainFacetSitesTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -530,65 +516,43 @@
       const elevations = attribute('elevation', mesh.elevations, 1);
       const indices = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.indices, gl.STATIC_DRAW);
-      const prepared = mesh.terrain.globeRenderAssets;
-      const preparedSurface = prepared?.surface;
-      const matchingSurface = preparedSurface?.width === textureWidth &&
-        preparedSurface?.coastSmoothing === style.stylizedTerrain.coastSmoothing &&
-        preparedSurface?.coastFieldBlur === style.stylizedTerrain.coastFieldBlur &&
-        JSON.stringify(style.polarCaps) === JSON.stringify(Style.polarCaps);
-      const surfaceData = matchingSurface ? preparedSurface : SurfaceTexture.create(mesh.terrain, mesh.planet,
+      const surfaceData = SurfaceTexture.create(mesh.terrain, mesh.planet,
         { width: textureWidth, height: textureWidth / 2, polarCaps: style.polarCaps,
           coastSmoothing: style.stylizedTerrain.coastSmoothing, coastFieldBlur: style.stylizedTerrain.coastFieldBlur,
           cache: !mesh.terrain.debugTuning });
-      const visualStyleKey = root.OrbitPlanetTerrainVisuals.styleKey(style);
-      const visualData = prepared?.visualStyleKey === visualStyleKey
-        ? prepared.visual : root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
+      const visualData = root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height,
-        type = gl.UNSIGNED_BYTE, nearest = false) {
+      function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height) {
         const texture = gl.createTexture();
         gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, nearest ? gl.NEAREST : gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, nearest ? gl.NEAREST : gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, mapWidth, mapHeight, 0,
-          format, type, pixels);
-        if (!nearest) gl.generateMipmap(gl.TEXTURE_2D);
+          format, gl.UNSIGNED_BYTE, pixels);
+        gl.generateMipmap(gl.TEXTURE_2D);
         return texture;
       }
       const albedoTexture = uploadTexture(0, gl.RGBA8, gl.RGBA, surfaceData.albedoPixels);
       const heightTexture = uploadTexture(1, gl.RG8, gl.RG, surfaceData.heightPixels);
       const landMaskTexture = uploadTexture(2, gl.R8, gl.RED, surfaceData.landMaskPixels);
       const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
-      const detailTexture = uploadTexture(4, gl.RG8, gl.RG, surfaceData.detailPixels);
+      const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
       const terrainStructureTexture = uploadTexture(5, gl.RGBA8, gl.RGBA, surfaceData.terrainStructurePixels);
       const visualClassTexture = uploadTexture(6, gl.RGBA8, gl.RGBA, visualData.terrainVisualClassPixels,
         visualData.classWidth, visualData.classHeight);
       const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
-      const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.facetMaterialPixels,
-        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.UNSIGNED_BYTE, true);
+      const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
       const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
-      const smallMassifTexture = uploadTexture(10, gl.RG8, gl.RG, visualData.smallMassifPixels,
+      const smallMassifTexture = uploadTexture(10, gl.R8, gl.RED, visualData.smallMassifPixels,
         visualData.classWidth, visualData.classHeight);
-      const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.facetNormalPixels,
-        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.UNSIGNED_BYTE, true);
-      // Candidate IDs are a coarse acceleration map only. The shader computes
-      // the actual spherical cell boundary, so its edges never follow texels.
-      const terrainFacetCandidatesTexture = uploadTexture(12, gl.RGBA16UI, gl.RGBA_INTEGER, visualData.facetCandidatesPixels,
-        visualData.facetCandidateTextureWidth, visualData.facetCandidateTextureHeight, gl.UNSIGNED_SHORT, true);
-      const terrainFacetSitesTexture = uploadTexture(13, gl.RGBA32F, gl.RGBA, visualData.facetSitePixels,
-        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.FLOAT, true);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
         visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture, smallMassifTexture,
-        plainFacetNormalTexture, terrainFacetCandidatesTexture, terrainFacetSitesTexture,
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
-          localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs,
-          visualMountainChains: visualData.visualMountainChains, plainFacets: visualData.plainFacets,
-          mountainFacets: visualData.mountainFacets,
-          generationMs: visualData.generationMs },
+          localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs, generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
         climate: surfaceData.climate, reliefRange: mesh.reliefRange,
@@ -618,7 +582,7 @@
     }
 
     function meshFor(terrain, planet, textureWidth, style = Style) {
-      const reliefKey = JSON.stringify([style.mesh, style.relief, style.stylizedTerrain.visualChains]);
+      const reliefKey = JSON.stringify([style.mesh, style.relief]);
       const cached = meshCache.get(terrain);
       let mesh = cached?.mesh;
       if (!mesh || cached.planetId !== (planet?.id || null) || cached.reliefKey !== reliefKey) {
@@ -637,10 +601,7 @@
     }
 
     function textureWidthFor(radiusPx) {
-      // Mobile fill-rate and initial CPU texture generation are the bottleneck;
-      // 768x384 is still sharp at the standard globe zoom and avoids oversized
-      // maps on high-DPR phone screens. Desktop keeps the full 1024x512 map.
-      const requested = dpr >= 2.5 || Math.min(width, height) < 640 ? 768 : 1024;
+      const requested = SurfaceTexture.defaults.width;
       return Math.min(requested, maxTextureSize);
     }
 
@@ -709,14 +670,6 @@
       gl.uniform1i(program.uniforms.realMountainNormalTexture, 9);
       gl.activeTexture(gl.TEXTURE10); gl.bindTexture(gl.TEXTURE_2D, buffers.smallMassifTexture);
       gl.uniform1i(program.uniforms.smallMassifTexture, 10);
-      gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, buffers.plainFacetNormalTexture);
-      gl.uniform1i(program.uniforms.plainFacetNormalTexture, 11);
-      gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainFacetCandidatesTexture);
-      gl.uniform1i(program.uniforms.terrainFacetCandidatesTexture, 12);
-      gl.activeTexture(gl.TEXTURE13); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainFacetSitesTexture);
-      gl.uniform1i(program.uniforms.terrainFacetSitesTexture, 13);
-      gl.uniform1f(program.uniforms.terrainFacetScale, style.stylizedTerrain.plainFacetScale);
-      gl.uniform1f(program.uniforms.mountainFacetScale, style.stylizedTerrain.mountainFacetScale);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;
@@ -732,13 +685,6 @@
       gl.uniform1f(program.uniforms.coastAaMinimum, style.stylizedTerrain.coastAaMinimum);
       gl.uniform1f(program.uniforms.shallowBandWidth, style.stylizedTerrain.shallowBandWidth);
       gl.uniform1f(program.uniforms.sandBandWidth, style.stylizedTerrain.sandBandWidth);
-      gl.uniform1f(program.uniforms.plainFacetStrength, style.stylizedTerrain.plainFacetStrength);
-      const innerRim = style.atmosphere.innerRim;
-      setHexUniform(program.uniforms.innerRimColor, innerRim.color);
-      gl.uniform1f(program.uniforms.innerRimEdgeStrength, innerRim.edgeStrength);
-      gl.uniform1f(program.uniforms.innerRimInwardStrength, innerRim.inwardStrength);
-      gl.uniform1f(program.uniforms.innerRimEdgeFalloff, innerRim.edgeFalloff);
-      gl.uniform1f(program.uniforms.innerRimInwardFalloff, innerRim.inwardFalloff);
       gl.uniform2f(program.uniforms.heightTexelSize, 1 / buffers.textureWidth, 1 / buffers.textureHeight);
       const shading = style.terrainShading, controls = shading.controls;
       gl.uniform2f(program.uniforms.facetGrid, shading.facetGrid.x, shading.facetGrid.y);

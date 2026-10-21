@@ -4,7 +4,6 @@
   const TAU = Math.PI * 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const finite = value => Number.isFinite(value) ? value : 0;
-  const smoothstep = (a, b, value) => { const t = clamp((value - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
   const reliefRangeCache = new WeakMap();
 
   function terrainToSphere(x, y, terrain) {
@@ -35,23 +34,6 @@
 
   function sampleElevation(x, y, terrain) {
     return sampleField(terrain?.elevation, x, y, terrain);
-  }
-
-  function sampleVisualMountainLift(x, y, terrain) {
-    const visual = terrain?.globeRenderAssets?.visual;
-    const field = visual?.visualMountainLiftPixels, width = visual?.classWidth, height = visual?.classHeight;
-    if (!field?.length || !width || !height) return 0;
-    const px = clamp(finite(x) / Math.max(1, terrain.width - 1) * (width - 1), 0, width - 1);
-    const py = clamp(finite(y) / Math.max(1, terrain.height - 1) * (height - 1), 0, height - 1);
-    const x0 = Math.floor(px), y0 = Math.floor(py), x1 = Math.min(width - 1, x0 + 1), y1 = Math.min(height - 1, y0 + 1);
-    const tx = px - x0, ty = py - y0;
-    const a = field[y0 * width + x0] * (1 - tx) + field[y0 * width + x1] * tx;
-    const b = field[y1 * width + x0] * (1 - tx) + field[y1 * width + x1] * tx;
-    return a * (1 - ty) + b * ty;
-  }
-
-  function visualMountainLiftMaximum(terrain) {
-    return Math.max(0, finite(terrain?.globeRenderAssets?.visual?.visualMountainLiftMax));
   }
 
   function visualReliefRange(terrain, relief = {}) {
@@ -140,10 +122,7 @@
     const elevation = sampleElevation(x, y, terrain);
     const landHeight = visualHeight(elevation, terrain, relief);
     const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
-    const land = smoothstep(0, 3, elevation - (terrain?.seaLevel || 0));
-    const chainScale = Number.isFinite(relief.visualChainScale) ? Math.max(0, relief.visualChainScale) : 1.35;
-    const visualChainLift = sampleVisualMountainLift(x, y, terrain) * land * chainScale;
-    return 1 + scale * (shapeReliefHeight(landHeight, relief) + visualChainLift);
+    return 1 + scale * shapeReliefHeight(landHeight, relief);
   }
 
   function surfacePosition(x, y, terrain, relief) {
@@ -154,8 +133,10 @@
   function poleSurfacePosition(terrain, north, relief = {}) {
     const row = north ? 0 : terrain.height - 1;
     const elevation = sampleElevation((terrain.width - 1) / 2, row, terrain);
+    const landHeight = visualHeight(elevation, terrain, relief);
+    const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
+    const radius = 1 + scale * shapeReliefHeight(landHeight, relief);
     const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
-    const radius = surfaceRadius((terrain.width - 1) / 2, row, terrain, relief);
     return { x: normal.x * radius, y: normal.y * radius, z: normal.z * radius };
   }
 
@@ -196,9 +177,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const reliefScale = Number.isFinite(relief?.scale) ? relief.scale : .045;
-    const chainScale = Number.isFinite(relief?.visualChainScale) ? Math.max(0, relief.visualChainScale) : 1.35;
-    const maxRadius = 1 + reliefScale * (1 + visualMountainLiftMaximum(terrain) * chainScale) + .002;
+    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .045) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 
@@ -255,7 +234,6 @@
       return vec2(atan(d.z, d.x) / 6.28318530718 + 0.5,
         0.5 - asin(clamp(d.y, -1.0, 1.0)) / 3.14159265359);
     }`,
-    sampleField, sampleElevation, sampleVisualMountainLift, visualMountainLiftMaximum,
-    visualReliefRange, normalizeVisualHeight, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
+    sampleField, sampleElevation, visualReliefRange, normalizeVisualHeight, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);

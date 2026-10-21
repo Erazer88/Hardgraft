@@ -3,11 +3,9 @@
 
   const World = root.OrbitWorld;
   const Style = root.OrbitPlanetGlobeStyle;
-  // 1024x512 keeps the globe crisp on a phone while avoiding a 4x CPU/memory
-  // hit over the previous 2048 map during synchronous first upload.
-  const DEFAULT_WIDTH = 1024;
-  const DEFAULT_HEIGHT = 512;
-  const MAX_CACHE_ENTRIES = 3;
+  const DEFAULT_WIDTH = 2048;
+  const DEFAULT_HEIGHT = 1024;
+  const MAX_CACHE_ENTRIES = 2;
   const textureCache = new Map();
   const coastMapCache = new WeakMap();
   const noiseKernels = new Map();
@@ -23,9 +21,9 @@
       dryPlain: '#A5A05D', upland: '#879A57', highland: '#B38A5F', rock: '#936D4E', highRock: '#C1A179',
       snow: '#E7EEF0', coldSnow: '#CBDCE2', polarIce: '#B8D9E1',
       seaIce: '#B8D9E1', packedSeaIce: '#CBDCE2', iceCrack: '#4E8C9B' }),
-    frozen: Object.freeze({ seaIce: '#BFDDE6', packedIce: '#D5E7ED', brightIce: '#EAF2F5',
-      coldRock: '#8BAAB5', darkColdRock: '#7896A1', ridgeShadow: '#6C8791',
-      snow: '#EDF3F5', blueSnow: '#D6E7ED', crackTint: '#87ACB8', polarCore: '#E7F1F4' }),
+    frozen: Object.freeze({ seaIce: '#78B7C9', packedIce: '#B2D4DE', brightIce: '#DDEBF1',
+      coldRock: '#617985', darkColdRock: '#435A64', ridgeShadow: '#2D444C',
+      snow: '#E3EFF3', blueSnow: '#BADCE8', crackTint: '#477D8D', polarCore: '#699CAB' }),
     arid: Object.freeze({ basin: '#733D28', lowland: '#AA542F', plain: '#D1793E', sand: '#E5A55B',
       plateau: '#985038', upland: '#8C4730', rock: '#63372D', darkRock: '#432820',
       dust: '#F0C28B', polarFrost: '#E4DBCD', coldFrost: '#CFC5B6' }),
@@ -417,10 +415,7 @@
     const floor = climateSaturationFloor(climate);
     const luma = base[0] * .2126 + base[1] * .7152 + base[2] * .0722;
     const saturation = 1.04 + floor * .08;
-    // Frozen worlds use their pale blue-white palette directly. The general
-    // contrast lift pushes polar ice into clipped white and exaggerates the
-    // very color patches these planets should avoid.
-    const contrast = climate === 'frozen' ? 1.0 : 1.07;
+    const contrast = 1.07;
     const brightness = 1 + detail.macro * .014 + detail.geology * .006;
     for (let channel = 0; channel < 3; channel += 1) {
       const chromatic = luma + (base[channel] - luma) * saturation;
@@ -464,9 +459,7 @@
       const summitSnow = smoothstep(.82, .97, h) * .24;
       // Local temperature still dusts cold highlands, while the actual polar
       // cap outline comes from the irregular spherical coverage field above.
-      const coastalSnowFactor = climate === 'temperate'
-        ? smoothstep(seaLevel + 1.5, seaLevel + 7, elevation) : 1;
-      const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94) * coastalSnowFactor;
+      const snowCoverage = Math.max(snow * .10, summitSnow, polarCoverage * .94);
       if (elevation > seaLevel) {
         mixInto(temporary, palette.snow, palette.coldSnow,
           clamp(smoothstep(.42, .96, absoluteLatitude) * .52 + polarCoverage * .42, 0, .92));
@@ -477,8 +470,8 @@
       if (elevation <= seaLevel) {
         // Ice thickness varies in broad spherical plates; the polar core is
         // colder and denser, with fractures kept visible over both regions.
-        const iceThickness = clamp(.70 + depth * .08 + detail.macro * .20 +
-          detail.medium * .05 + detail.fine * .015, 0, 1);
+        const iceThickness = clamp(.52 + depth * .12 + detail.macro * .62 +
+          detail.medium * .16 + detail.fine * .05, 0, 1);
         mixInto(base, palette.seaIce, palette.packedIce, iceThickness);
         mixInto(temporary, base, palette.polarCore, polarCoverage * .78);
         copyInto(base, temporary);
@@ -486,13 +479,13 @@
         if (h < .24) mixInto(base, palette.seaIce, palette.packedIce, .28 + smoothstep(0, .24, h) * .40);
         else if (h < .58) mixInto(base, palette.packedIce, palette.coldRock, smoothstep(.24, .58, h) * .48);
         else mixInto(base, palette.coldRock, palette.brightIce, smoothstep(.58, .9, h) * .24);
-        const broadRockExposure = smoothstep(.18, .52, h) * clamp(.24 + detail.ridge * .22, .18, .48);
-        mixInto(temporary, base, palette.coldRock, broadRockExposure * .42);
+        const broadRockExposure = smoothstep(.10, .42, h) * clamp(.44 + detail.ridge * .45, .30, .82);
+        mixInto(temporary, base, palette.coldRock, broadRockExposure * .58);
         copyInto(base, temporary);
-        const exposedRidge = smoothstep(.28, .62, h) * smoothstep(.72, .92, detail.ridge);
-        mixInto(temporary, base, palette.darkColdRock, exposedRidge * .30);
+        const exposedRidge = smoothstep(.20, .55, h) * smoothstep(.58, .86, detail.ridge);
+        mixInto(temporary, base, palette.darkColdRock, exposedRidge * .68);
         copyInto(base, temporary);
-        const ridgeShadow = smoothstep(.86, .98, detail.ridge) * smoothstep(.22, .52, h) * .12;
+        const ridgeShadow = smoothstep(.82, .96, detail.ridge) * smoothstep(.18, .48, h) * .28;
         mixInto(temporary, base, palette.ridgeShadow, ridgeShadow);
         copyInto(base, temporary);
         const compactLowlandIce = polarCoverage * (1 - smoothstep(.16, .52, h)) * .42;
@@ -587,12 +580,9 @@
     const terrainStructurePixels = new Uint8Array(pixelCount * 4);
     const structureFields = [terrain.mountainMask, terrain.ridgeField, terrain.valleyField, terrain.ruggednessField];
     const terrainCellCount = terrain.width * terrain.height;
-    // R retains the soft ocean variation; G carries a restrained spherical
-    // soil-grain signal for the stylized land shader. It is packed into the
-    // same texture so it adds no draw call and only one existing texture read.
-    const detailPixels = new Uint8Array(pixelCount * 2);
-    const sourceDetailPixels = new Uint8Array(albedoWidth * albedoHeight);
-    const sourceTerrainDetailPixels = new Uint8Array(albedoWidth * albedoHeight);
+    const detailPixels = new Uint8Array(pixelCount);
+    const sourceDetailPixels = albedoWidth === width && albedoHeight === height
+      ? detailPixels : new Uint8Array(albedoWidth * albedoHeight);
     const colorOutput = new Float32Array(4);
     const waterColor = new Float32Array(4), landColor = new Float32Array(4);
     const colorWork = { a: new Float32Array(3), b: new Float32Array(3), c: new Float32Array(3) };
@@ -600,8 +590,6 @@
     const specialDetail = climate === 'frozen' || climate === 'volcanic';
     const macroSampler = createSphericalFieldSampler(width, height,
       (nx, ny, nz) => noise3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed));
-    const terrainDetailSampler = createSphericalFieldSampler(albedoWidth, albedoHeight,
-      (nx, ny, nz) => noise3(nx * 48, ny * 48, nz * 48, detailSeed ^ 0x27bd9a61));
     const mediumSampler = specialDetail ? createSphericalFieldSampler(width, height,
       (nx, ny, nz) => noise3(nx * 7, ny * 7, nz * 7, geologySeed)) : null;
     const fineSampler = specialDetail ? createSphericalFieldSampler(width, height,
@@ -751,16 +739,10 @@
         sourceAlbedoPixels[rgbaIndex + 2] = Math.round(colorOutput[2]);
         sourceAlbedoPixels[rgbaIndex + 3] = 255;
         sourceDetailPixels[offset + px] = Math.round(clamp(.5 + (specialDetail ? fine : macro) * .05, 0, 1) * 255);
-        sourceTerrainDetailPixels[offset + px] = Math.round(clamp(.5 + terrainDetailSampler(u, v) * .36, 0, 1) * 255);
       }
     }
 
-    if (sourceAlbedoPixels === albedoPixels) {
-      for (let index = 0; index < pixelCount; index += 1) {
-        detailPixels[index * 2] = sourceDetailPixels[index];
-        detailPixels[index * 2 + 1] = sourceTerrainDetailPixels[index];
-      }
-    } else {
+    if (sourceAlbedoPixels !== albedoPixels) {
       for (let py = 0; py < height; py += 1) {
         const sourceY = py / (height - 1 || 1) * (albedoHeight - 1), y0 = Math.floor(sourceY);
         const y1 = Math.min(albedoHeight - 1, y0 + 1), ty = sourceY - y0;
@@ -778,15 +760,11 @@
           albedoPixels[index + 3] = 255;
           const detailX = sourceX % albedoWidth;
           const detailX0 = Math.floor(detailX), detailX1 = (detailX0 + 1) % albedoWidth;
-          const detailIndex00 = y0 * albedoWidth + detailX0, detailIndex01 = y0 * albedoWidth + detailX1;
-          const detailIndex10 = y1 * albedoWidth + detailX0, detailIndex11 = y1 * albedoWidth + detailX1;
-          const outputDetailOffset = (py * width + px) * 2;
-          for (let channel = 0; channel < 2; channel += 1) {
-            const source = channel === 0 ? sourceDetailPixels : sourceTerrainDetailPixels;
-            const da = source[detailIndex00] * (1 - tx) + source[detailIndex01] * tx;
-            const db = source[detailIndex10] * (1 - tx) + source[detailIndex11] * tx;
-            detailPixels[outputDetailOffset + channel] = Math.round(da * (1 - ty) + db * ty);
-          }
+          const da = sourceDetailPixels[y0 * albedoWidth + detailX0] * (1 - tx) +
+            sourceDetailPixels[y0 * albedoWidth + detailX1] * tx;
+          const db = sourceDetailPixels[y1 * albedoWidth + detailX0] * (1 - tx) +
+            sourceDetailPixels[y1 * albedoWidth + detailX1] * tx;
+          detailPixels[py * width + px] = Math.round(da * (1 - ty) + db * ty);
         }
       }
     }

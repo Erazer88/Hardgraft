@@ -216,8 +216,7 @@ async function enterSurface(cdp, viewport, name) {
   assert.equal(metrics.overlay, 'block', `${name} projected cartographic overlay is visible`);
   assert.equal(metrics.error, true, `${name} WebGL2 fallback message is hidden when rendering succeeds`);
   assert.ok(metrics.globe.renderer.vertices >= 18000, `${name} globe reuses the expected mobile mesh resolution`);
-  assert.equal(metrics.globe.renderer.textureWidth, mobile ? 768 : 1024,
-    `${name} globe uses the responsive surface map resolution`);
+  assert.equal(metrics.globe.renderer.textureWidth, 2048, `${name} globe uses the clean 2048px source surface maps`);
   assert.equal(metrics.globe.renderer.textureHeight, metrics.globe.renderer.textureWidth / 2,
     `${name} separated surface maps preserve the equirectangular ratio`);
   assert.equal(metrics.globe.renderer.dpr, mobile ? 3 : 1, `${name} globe rendering honors the mobile DPR cap of 3`);
