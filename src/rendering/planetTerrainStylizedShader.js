@@ -13,6 +13,7 @@
     uniform highp usampler2D uTerrainFacetCandidatesTexture;
     uniform highp sampler2D uTerrainFacetSitesTexture;
     uniform float uTerrainFacetScale;
+    uniform float uMountainFacetScale;
     uniform int uTerrainView;
     uniform int uVisualClimate;
     uniform mat3 uGlobeRotation;
@@ -45,13 +46,15 @@
       return ivec2(int(id % width), int(id / width));
     }
 
-    void sampleTerrainFacet(vec3 direction, out vec4 material, out vec4 normalSample, out vec3 normal) {
+    void sampleTerrainFacetLayer(vec3 direction, float facetScale, int layer, out vec4 material,
+      out vec4 normalSample, out vec3 normal) {
       ivec2 candidateSize = textureSize(uTerrainFacetCandidatesTexture, 0);
+      int layerHeight = candidateSize.y / 2;
       ivec2 candidateUv = ivec2(
         int(floor(fract(vUv.x) * float(candidateSize.x) + .5)) % candidateSize.x,
-        int(floor(clamp(vUv.y, 0.0, 1.0) * float(candidateSize.y - 1) + .5)));
+        int(floor(clamp(vUv.y, 0.0, 1.0) * float(layerHeight - 1) + .5)) + layer * layerHeight);
       uvec4 candidates = texelFetch(uTerrainFacetCandidatesTexture, candidateUv, 0);
-      vec3 point = direction * uTerrainFacetScale;
+      vec3 point = direction * facetScale;
       uint nearestId = candidates.x;
       uint secondId = nearestId;
       vec3 nearestSite = texelFetch(uTerrainFacetSitesTexture, terrainFacetCoordinate(nearestId), 0).xyz;
@@ -106,6 +109,37 @@
       normal = rotateTerrainNormal(cellNormal);
     }
 
+    void sampleTerrainFacet(vec3 direction, float mountainWeight, out vec4 material,
+      out vec4 normalSample, out vec3 normal) {
+      float mountainFacetMix = smoothstep(.16, .70, mountainWeight);
+      vec4 plainMaterial;
+      vec4 plainNormalSample;
+      vec3 plainNormal;
+      if (mountainFacetMix < .999) {
+        sampleTerrainFacetLayer(direction, uTerrainFacetScale, 0, plainMaterial, plainNormalSample, plainNormal);
+      }
+      if (mountainFacetMix > .001) {
+        vec4 mountainMaterial;
+        vec4 mountainNormalSample;
+        vec3 mountainNormal;
+        sampleTerrainFacetLayer(direction, uMountainFacetScale, 1,
+          mountainMaterial, mountainNormalSample, mountainNormal);
+        if (mountainFacetMix > .998) {
+          material = mountainMaterial;
+          normalSample = mountainNormalSample;
+          normal = mountainNormal;
+        } else {
+          material = mix(plainMaterial, mountainMaterial, mountainFacetMix);
+          normalSample = mix(plainNormalSample, mountainNormalSample, mountainFacetMix);
+          normal = normalize(mix(plainNormal, mountainNormal, mountainFacetMix));
+        }
+      } else {
+        material = plainMaterial;
+        normalSample = plainNormalSample;
+        normal = plainNormal;
+      }
+    }
+
     float terrainCastShadow(vec3 surfaceDirection, vec3 light, float receiver) {
       float facing = dot(surfaceDirection, light);
       if (receiver < .10 || facing <= .02 || facing > .92) return 0.0;
@@ -137,14 +171,14 @@
       vec3 lightDirection = normalize(uLightDirection);
       vec4 classes = texture(uTerrainVisualClassTexture, vUv);
       classes /= max(.001, dot(classes, vec4(1.0)));
+      float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
       vec4 normalSample;
       vec4 material;
       vec3 stylizedNormal;
-      sampleTerrainFacet(objectDirection, material, normalSample, stylizedNormal);
+      sampleTerrainFacet(objectDirection, mountain, material, normalSample, stylizedNormal);
       vec4 realNormalSample = texture(uRealMountainNormalTexture, vUv);
       vec3 realMountainNormal = rotateTerrainNormal(normalize(realNormalSample.rgb * 2.0 - 1.0));
       vec2 surfaceDetail = texture(uDetailTexture, vUv).rg;
-      float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
       float smallMassif = texture(uSmallMassifTexture, vUv).r;
       float raisedTerrain = clamp(mountain + classes.g * .34 + smallMassif * .24, 0.0, 1.0);
       float castShadow = uTerrainView == 0 || uTerrainView == 3

@@ -56,15 +56,19 @@ l'identique depuis le terrain.
   conserve les petites arêtes de la vraie topographie. Son diagnostic signé est
   stocké dans l'alpha de cette carte existante, sans nouvelle texture GPU.
   Cela ne change ni le mesh ni le raycast.
-- **Facettes aquarellées à frontières analytiques** : des sites irréguliers en
-  coordonnées 3D sphériques définissent les cellules. Une carte `RGBA16UI`
-  conserve quatre sites candidats ; le fragment shader choisit le plus proche
-  par distance 3D réelle. La carte accélère la recherche sans imposer ses texels
-  aux frontières. Deux petits atlas contiennent une couleur et une normale de
-  relief par cellule, lus sans interpolation ; seul le bord reçoit un
+- **Facettes aquarellées à frontières analytiques** : deux pavages irréguliers
+  en coordonnées 3D sphériques définissent les cellules : grande maille dans les
+  plaines, maille 3,2 fois plus dense en montagne (environ dix fois plus de
+  polygones par surface). Une carte `RGBA16UI` empile les deux recherches et
+  conserve quatre sites candidats par couche ; le fragment shader choisit le
+  plus proche par distance 3D réelle. La carte accélère la recherche sans
+  imposer ses texels aux frontières. Un atlas contient une couleur et une
+  normale de relief par cellule, lus sans interpolation ; seul le bord reçoit un
   antialiasing d'environ un pixel écran. Les verts, forêts, ocres, roches et
   neiges ont ainsi des contours nets même en zoomant, sans agrandissement
-  bilinéaire du matériau. L'inclinaison du relief est transférée sur la normale
+  bilinéaire du matériau. Les verts des plaines varient moins entre cellules ;
+  la matière évolue vers des bruns de plus en plus foncés jusqu'aux sommets.
+  L'inclinaison du relief est transférée sur la normale
   sphérique locale pour éviter de facetter la sphère elle-même. Les cellules
   restent déterministes, continues à la couture et uniques aux pôles. La taille,
   la force des normales et celle du lavis restent réglables dans les DevTools.
@@ -121,10 +125,10 @@ supplémentaires exposent la force locale, le contraste du vallonnement,
 l'annulation de lumière sphérique, le plancher des ombres et le minimum d'AA côtier.
 Les réglages de petits massifs, de matériau highland et des deux lissages de côte
 s'appliquent au relâchement, sans régénérer la topographie.
-Les curseurs « Facettes aquarellées des plaines » et « Nuances aquarelle des
-plaines » règlent le facettage topographique léger et les lavis issus du relief
-et de l'humidité. Le liseré cyan interne suit le bord du globe sans couvrir son
-centre.
+Les curseurs « Densité des facettes de plaine » et « Densité des facettes de
+montagne » règlent séparément le nombre de polygones ; les « Nuances aquarelle
+des plaines » règlent les lavis issus du relief et de l'humidité. Le liseré cyan
+interne suit le bord du globe sans couvrir son centre.
 
 ## Responsabilités
 

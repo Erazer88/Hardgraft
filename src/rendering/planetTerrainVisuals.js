@@ -162,11 +162,13 @@
     return (h >>> 0) / 4294967295;
   }
 
-  function plainFacetMap(midNormals, width, height, scale, seed, facetAngle, facetJitter, outputScale = 1) {
+  function plainFacetMap(midNormals, width, height, scale, seed, facetAngle, facetJitter, outputScale = 1,
+    candidateWidth = 0) {
     // The raster only supplies four nearby candidates. The final boundary is
     // reconstructed from their actual 3D positions in the fragment shader,
     // so neither this map's resolution nor bilinear magnification blurs it.
-    const outputWidth = Math.max(384, Math.round(width * outputScale), Math.ceil(scale * 28));
+    const outputWidth = Math.max(384, Math.round(width * outputScale), candidateWidth,
+      Math.ceil(scale * 16));
     const outputHeight = Math.round(outputWidth / 2);
     const pixels = new Uint8Array(outputWidth * outputHeight * 4);
     const candidateIds = new Uint16Array(pixels.length), cells = [];
@@ -218,6 +220,29 @@
       width: outputWidth, height: outputHeight };
   }
 
+  function combineFacetMaps(layers) {
+    const width = Math.max(...layers.map(layer => layer.width));
+    const layerHeight = Math.max(...layers.map(layer => layer.height));
+    const height = layerHeight * layers.length;
+    const totalCells = layers.reduce((total, layer) => total + layer.cells, 0);
+    if (totalCells > 65535) throw new Error(`Terrain facet atlas exceeds 16-bit cell IDs (${totalCells})`);
+    const candidateIds = new Uint16Array(width * height * 4), cellData = [];
+    let cellOffset = 0;
+    layers.forEach((layer, layerIndex) => {
+      const rowOffset = layerIndex * layerHeight;
+      for (let y = 0; y < layer.height; y += 1) for (let x = 0; x < layer.width; x += 1) {
+        const source = (y * layer.width + x) * 4;
+        const target = ((rowOffset + y) * width + x) * 4;
+        for (let channel = 0; channel < 4; channel += 1) candidateIds[target + channel] = layer.candidateIds[source + channel] + cellOffset;
+      }
+      for (const cell of layer.cellData) cellData.push({ ...cell, id: cell.id + cellOffset });
+      layer.atlasOffset = cellOffset;
+      layer.candidateRowOffset = rowOffset;
+      cellOffset += layer.cells;
+    });
+    return { layers, width, height, layerHeight, cells: totalCells, candidateIds, cellData };
+  }
+
   function facetAtlas(facets, normalPixels, materialPixels, classPixels, elevations, seaLevel, width, height, strength) {
     const atlasWidth = 128, atlasHeight = Math.ceil(facets.cells / atlasWidth);
     const sites = new Float32Array(atlasWidth * atlasHeight * 4);
@@ -226,15 +251,18 @@
     // the ice-colored ocean placeholder used by the climate material map.
     const landSamples = new Int32Array(facets.cells); landSamples.fill(-1);
     const landDistances = new Float32Array(facets.cells); landDistances.fill(Infinity);
-    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-      const i = y * width + x;
-      if (elevations[i] <= seaLevel) continue;
-      const px = Math.round(x / width * facets.width) % facets.width;
-      const py = Math.round(y / (height - 1) * (facets.height - 1));
-      const id = facets.candidateIds[(py * facets.width + px) * 4];
-      const cell = facets.cellData[id], d = direction(x / width, y / (height - 1));
-      const distance = 1 - dot(d, cell.center);
-      if (distance < landDistances[id]) { landDistances[id] = distance; landSamples[id] = i; }
+    for (const layer of facets.layers) {
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const i = y * width + x;
+        if (elevations[i] <= seaLevel) continue;
+        const px = Math.round(x / width * layer.width) % layer.width;
+        const py = Math.round(y / (height - 1) * (layer.height - 1));
+        const localId = layer.candidateIds[(py * layer.width + px) * 4];
+        const id = localId + layer.atlasOffset;
+        const cell = facets.cellData[id], d = direction(x / width, y / (height - 1));
+        const distance = 1 - dot(d, cell.center);
+        if (distance < landDistances[id]) { landDistances[id] = distance; landSamples[id] = i; }
+      }
     }
     for (const cell of facets.cellData) {
       const o = cell.id * 4, u = cell.uv.x, v = cell.uv.y;
@@ -449,11 +477,11 @@
 
   function styleKey(style) {
     const s = style.stylizedTerrain;
-    return JSON.stringify(['analytic-facets-v1', s.fieldWidth, s.textureWidth, s.heightLowPass, s.macroLowPass, s.localLowPass, s.classLowPass,
+    return JSON.stringify(['analytic-facets-v2', s.fieldWidth, s.textureWidth, s.heightLowPass, s.macroLowPass, s.localLowPass, s.classLowPass,
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
       s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
-      s.hillNormalStrength, s.plainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.facetMapScale,
+      s.hillNormalStrength, s.plainFacetScale, s.mountainFacetScale, s.plainFacetStrength, s.plainWashStrength, s.facetMapScale,
       s.visualChains, s.mountainNormalStrength,
       s.facetAngleDegrees, s.facetJitter, s.facetStrength, s.materials, s.forests]);
   }
@@ -534,8 +562,13 @@
       const localSlope = Math.atan(Math.hypot(middle.du, middle.dv) * settings.normalReliefScale * 1.6);
       slopes[i] = clamp(localSlope / .42);
     }
+    const facetLookupWidth = Math.max(384, Math.round(width * Math.min(1.25, textureWidth / width)),
+      Math.ceil(settings.mountainFacetScale * 16));
     const plainFacets = plainFacetMap(midNormals, width, height, settings.plainFacetScale,
-      facetSeed, settings.facetAngleDegrees, settings.facetJitter, Math.min(1.25, textureWidth / width));
+      facetSeed, settings.facetAngleDegrees, settings.facetJitter, Math.min(1.25, textureWidth / width), facetLookupWidth);
+    const mountainFacets = plainFacetMap(midNormals, width, height, settings.mountainFacetScale,
+      facetSeed ^ 0x3c6ef372, settings.facetAngleDegrees * .78, settings.facetJitter, 1, facetLookupWidth);
+    const facetLayers = combineFacetMaps([plainFacets, mountainFacets]);
 
     const quantile = (field, q, upper = 1) => scalarQuantile(field, elevation, width, height, sea, q, upper);
     const residual15 = quantile(positiveResidual, .15, .5), residual30 = quantile(positiveResidual, .30, .5);
@@ -791,6 +824,8 @@
           color = mix(color, materials.highland[channel], elevatedHighland * .32);
           color = mix(color, materials.mountain[channel], rockExposure * .38);
           color = mix(color, materials.ridge[channel], clamp(summitExposure * .48 + ridgeMask * .16));
+          color = mix(color, (materials.summit || materials.ridge)[channel],
+            clamp(summitExposure * .54 + ridgeMask * .12));
           color = mix(color, materials.crevice[channel], clamp(valleyExposure));
         } else {
           color = mix(plain, washColor, watercolorMix);
@@ -800,12 +835,14 @@
           color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);
           color = mix(color, materials.mountain[channel], rockExposure * .60);
           color = mix(color, materials.ridge[channel], clamp(summitExposure * .58 + ridgeMask * .24));
+          color = mix(color, (materials.summit || materials.ridge)[channel],
+            clamp(summitExposure * .74 + ridgeMask * .18));
           color = mix(color, materials.crevice[channel], clamp(valleyExposure));
         }
         // Seeded, soft-edged cell pigment gives each broad plain a small
         // watercolor variation. The cell normal itself remains tied to the
         // filtered height at that cell's spherical center.
-        const channelTint = channel === 0 ? .22 : channel === 1 ? .12 : -.16;
+        const channelTint = channel === 0 ? .075 : channel === 1 ? .055 : -.055;
         color *= 1 + facetTone * watercolorMix * channelTint;
         // Broad humidity and altitude make small regional color shifts; there
         // is deliberately no fine noise in the albedo.
@@ -831,7 +868,7 @@
       materialPixels[o + 3] = Math.round(clamp(Math.max(snowValue, polarCoverage)) * 255);
     }
 
-    const crispFacets = facetAtlas(plainFacets, normalPixels, materialPixels, classPixels,
+    const crispFacets = facetAtlas(facetLayers, normalPixels, materialPixels, classPixels,
       elevation, sea, width, height, settings.plainFacetStrength);
     const finalNormalPixels = resizeRgba(normalPixels, sourceWidth, sourceHeight, textureWidth, textureHeight);
     const finalRealNormalPixels = resizeRgba(realNormalPixels, sourceWidth, sourceHeight, textureWidth, textureHeight);
@@ -839,8 +876,10 @@
 
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
       plainFacetWidth: plainFacets.width, plainFacetHeight: plainFacets.height,
-      facetCandidatesPixels: plainFacets.candidateIds,
+      facetCandidatesPixels: facetLayers.candidateIds,
       facetCandidateWidth: plainFacets.width, facetCandidateHeight: plainFacets.height,
+      mountainFacetCandidateWidth: mountainFacets.width, mountainFacetCandidateHeight: mountainFacets.height,
+      facetCandidateTextureWidth: facetLayers.width, facetCandidateTextureHeight: facetLayers.height,
       facetSitePixels: crispFacets.sites, facetAtlasWidth: crispFacets.width, facetAtlasHeight: crispFacets.height,
       facetMaterialPixels: crispFacets.materials, facetNormalPixels: crispFacets.normals,
       terrainVisualClassPixels: classPixels, smallMassifPixels, forestPixels,
@@ -855,6 +894,9 @@
       forests: { patches: forestPatches.length, landCoverage: forestProportion },
       plainFacets: { cells: plainFacets.cells, scale: settings.plainFacetScale, strength: settings.plainFacetStrength,
         resolution: [plainFacets.width, plainFacets.height] },
+      mountainFacets: { cells: mountainFacets.cells, scale: settings.mountainFacetScale,
+        densityRatio: mountainFacets.cells / Math.max(1, plainFacets.cells),
+        resolution: [mountainFacets.width, mountainFacets.height] },
       visualMountainChains: visualChains,
       generationMs: performance.now() - start });
     cache.set(terrain, result); return result;

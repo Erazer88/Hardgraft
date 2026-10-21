@@ -383,6 +383,7 @@
         terrainFacetCandidatesTexture: gl.getUniformLocation(program, 'uTerrainFacetCandidatesTexture'),
         terrainFacetSitesTexture: gl.getUniformLocation(program, 'uTerrainFacetSitesTexture'),
         terrainFacetScale: gl.getUniformLocation(program, 'uTerrainFacetScale'),
+        mountainFacetScale: gl.getUniformLocation(program, 'uMountainFacetScale'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
@@ -575,7 +576,7 @@
       // Candidate IDs are a coarse acceleration map only. The shader computes
       // the actual spherical cell boundary, so its edges never follow texels.
       const terrainFacetCandidatesTexture = uploadTexture(12, gl.RGBA16UI, gl.RGBA_INTEGER, visualData.facetCandidatesPixels,
-        visualData.facetCandidateWidth, visualData.facetCandidateHeight, gl.UNSIGNED_SHORT, true);
+        visualData.facetCandidateTextureWidth, visualData.facetCandidateTextureHeight, gl.UNSIGNED_SHORT, true);
       const terrainFacetSitesTexture = uploadTexture(13, gl.RGBA32F, gl.RGBA, visualData.facetSitePixels,
         visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.FLOAT, true);
       gl.bindVertexArray(null);
@@ -586,6 +587,7 @@
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
           localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs,
           visualMountainChains: visualData.visualMountainChains, plainFacets: visualData.plainFacets,
+          mountainFacets: visualData.mountainFacets,
           generationMs: visualData.generationMs },
         visualSand: visualData.sand, visualStyleKey: root.OrbitPlanetTerrainVisuals.styleKey(style), coastRange: surfaceData.coastRange,
         coastColor: surfaceData.coastColor, textureKey: surfaceData.key,
@@ -714,6 +716,7 @@
       gl.activeTexture(gl.TEXTURE13); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainFacetSitesTexture);
       gl.uniform1i(program.uniforms.terrainFacetSitesTexture, 13);
       gl.uniform1f(program.uniforms.terrainFacetScale, style.stylizedTerrain.plainFacetScale);
+      gl.uniform1f(program.uniforms.mountainFacetScale, style.stylizedTerrain.mountainFacetScale);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;

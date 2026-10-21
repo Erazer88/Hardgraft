@@ -432,6 +432,15 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
     OrbitPlanetTerrainVisuals: visuals } = loadGlobeContext();
   const style = { ...baseStyle, stylizedTerrain: { ...baseStyle.stylizedTerrain,
     fieldWidth: 48, textureWidth: 96, plainFacetScale: 13.5 } };
+  const temperateMaterials = style.stylizedTerrain.materials.temperate;
+  const luminance = hex => {
+    const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
+    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+  };
+  assert.ok(luminance(temperateMaterials.highland) > luminance(temperateMaterials.mountain) &&
+    luminance(temperateMaterials.mountain) > luminance(temperateMaterials.ridge) &&
+    luminance(temperateMaterials.ridge) > luminance(temperateMaterials.summit),
+  'temperate highlands darken through the mountain face to dark brown summits');
   const planet = { id: 'facet-world', seed: 'watercolor-facet-seed', kind: 'tellurique', temperature: 18 };
   const firstTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
   const secondTerrain = world.createTerrain(planet.seed, 64, 32, { ...planet, surfaceWater: .55 });
@@ -446,6 +455,10 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
   assert.deepEqual(Array.from(first.plainFacetNormalPixels), Array.from(second.plainFacetNormalPixels),
     'the same seed and terrain produce the exact same face map');
   assert.ok(first.plainFacets.cells > 20, 'the spherical face field contains many broad, coherent cells');
+  assert.ok(first.mountainFacets.cells > first.plainFacets.cells * 1.5,
+    'mountain regions get a distinctly denser polygon field than the plains');
+  assert.ok(first.mountainFacets.scale > first.plainFacets.scale,
+    'the mountain cell scale is larger, yielding more faces per area');
   const normals = new Set(), pigmentTones = new Set();
   for (let i = 0; i < first.plainFacetNormalPixels.length; i += 4) {
     normals.add(`${first.plainFacetNormalPixels[i]},${first.plainFacetNormalPixels[i + 1]},${first.plainFacetNormalPixels[i + 2]}`);
@@ -463,12 +476,12 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
         first.materialPixels[i + 2] !== unwashed.materialPixels[i + 2]) washedMaterialPixels += 1;
   }
   assert.ok(washedMaterialPixels > 100, 'seeded pigment changes the actual surface albedo, not only a diagnostic map');
-  assert.equal(first.facetCandidatesPixels.length, first.facetCandidateWidth * first.facetCandidateHeight * 4);
+  assert.equal(first.facetCandidatesPixels.length, first.facetCandidateTextureWidth * first.facetCandidateTextureHeight * 4);
   assert.equal(first.facetSitePixels.length, first.facetAtlasWidth * first.facetAtlasHeight * 4);
   assert.equal(first.facetMaterialPixels.length, first.facetSitePixels.length);
   assert.equal(first.facetNormalPixels.length, first.facetSitePixels.length);
   assert.deepEqual(Array.from(first.facetCandidatesPixels), Array.from(second.facetCandidatesPixels),
-    'the acceleration map repeats with the same seed');
+    'both facet-density layers repeat with the same seed');
   assert.deepEqual(Array.from(first.facetMaterialPixels), Array.from(second.facetMaterialPixels),
     'each spherical face keeps its deterministic palette material');
   for (let i = 0; i < first.facetMaterialPixels.length; i += 4) {
@@ -488,19 +501,23 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
   // Compare the compact four-candidate lookup with a full nearest-site search
   // at arbitrary subtexel positions. IDs only accelerate the query: they must
   // not impose square UV boundaries or change the true spherical partition.
-  const nearest = (u, v, accelerated) => {
+  const nearest = (u, v, accelerated, layerIndex = 0) => {
     const direction = { x: Math.cos((.5 - v) * Math.PI) * Math.cos((u - .5) * Math.PI * 2),
       y: Math.sin((.5 - v) * Math.PI),
       z: Math.cos((.5 - v) * Math.PI) * Math.sin((u - .5) * Math.PI * 2) };
-    const scale = style.stylizedTerrain.plainFacetScale;
+    const layer = layerIndex === 0 ? first.plainFacets : first.mountainFacets;
+    const scale = layer.scale;
     const px = direction.x * scale, py = direction.y * scale, pz = direction.z * scale;
     let best = -1, distance = Infinity;
     const x = Math.round(((u % 1) + 1) % 1 * first.facetCandidateWidth) % first.facetCandidateWidth;
-    const y = Math.round(v * (first.facetCandidateHeight - 1));
+    const layerHeight = layerIndex === 0 ? first.facetCandidateHeight : first.mountainFacetCandidateHeight;
+    const rowOffset = layerIndex * layerHeight;
+    const y = Math.round(v * (layerHeight - 1)) + rowOffset;
     const offset = (y * first.facetCandidateWidth + x) * 4;
-    const count = accelerated ? 4 : first.plainFacets.cells;
+    const firstId = layerIndex === 0 ? 0 : first.plainFacets.cells;
+    const count = accelerated ? 4 : layer.cells;
     for (let i = 0; i < count; i += 1) {
-      const id = accelerated ? first.facetCandidatesPixels[offset + i] : i, o = id * 4;
+      const id = accelerated ? first.facetCandidatesPixels[offset + i] : firstId + i, o = id * 4;
       const dx = first.facetSitePixels[o] - px, dy = first.facetSitePixels[o + 1] - py,
         dz = first.facetSitePixels[o + 2] - pz;
       const d = dx * dx + dy * dy + dz * dz;
@@ -509,10 +526,10 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
     return best;
   };
   const random = world.rng(world.hashSeed('subtexel-facet-check'));
-  for (let i = 0; i < 400; i += 1) {
+  for (let layer = 0; layer < 2; layer += 1) for (let i = 0; i < 400; i += 1) {
     const u = random(), v = Math.acos(random() * 2 - 1) / Math.PI;
-    assert.equal(nearest(u, v, true), nearest(u, v, false),
-      'arbitrary subtexel queries recover the actual geometric face');
+    assert.equal(nearest(u, v, true, layer), nearest(u, v, false, layer),
+      'both facet scales recover the actual geometric face at arbitrary subtexel positions');
   }
   for (const v of [.08, .25, .5, .73, .94]) assert.equal(nearest(0, v, true), nearest(1, v, true));
   for (const v of [0, 1]) for (const u of [.1, .3, .6, .9]) assert.equal(nearest(u, v, true), nearest(0, v, true));
