@@ -463,8 +463,20 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
         first.materialPixels[i + 2] !== unwashed.materialPixels[i + 2]) washedMaterialPixels += 1;
   }
   assert.ok(washedMaterialPixels > 100, 'seeded pigment changes the actual surface albedo, not only a diagnostic map');
-  assert.equal(first.plainFacetWidth, Math.round(first.classWidth * 1.25),
-    'the facet map is supersampled to keep polygon boundaries crisp');
+  assert.equal(first.facetCandidatesPixels.length, first.facetCandidateWidth * first.facetCandidateHeight * 4);
+  assert.equal(first.facetSitePixels.length, first.facetAtlasWidth * first.facetAtlasHeight * 4);
+  assert.equal(first.facetMaterialPixels.length, first.facetSitePixels.length);
+  assert.equal(first.facetNormalPixels.length, first.facetSitePixels.length);
+  assert.deepEqual(Array.from(first.facetCandidatesPixels), Array.from(second.facetCandidatesPixels),
+    'the acceleration map repeats with the same seed');
+  assert.deepEqual(Array.from(first.facetMaterialPixels), Array.from(second.facetMaterialPixels),
+    'each spherical face keeps its deterministic palette material');
+  for (let i = 0; i < first.facetMaterialPixels.length; i += 4) {
+    if (first.facetMaterialPixels[i + 3] !== 0) continue;
+    assert.ok(!(first.facetMaterialPixels[i] > 170 && first.facetMaterialPixels[i + 1] > 190 &&
+      first.facetMaterialPixels[i + 2] > 170),
+    'a snow-free coastal face must not inherit the white ocean placeholder');
+  }
   for (const y of [0, first.plainFacetHeight - 1]) {
     const pole = Array.from(first.plainFacetNormalPixels.slice(y * first.plainFacetWidth * 4, y * first.plainFacetWidth * 4 + 4));
     for (let x = 1; x < first.plainFacetWidth; x += 1) {
@@ -473,17 +485,37 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
         'all longitude samples at a pole resolve to the same spherical face');
     }
   }
-  const shader = readFileSync(resolve(__dirname, '../src/rendering/planetTerrainStylizedShader.js'), 'utf8');
-  const renderer = readFileSync(resolve(__dirname, '../src/rendering/planetGlobeRenderer.js'), 'utf8');
-  assert.match(shader, /uniform sampler2D uPlainFacetNormalTexture/);
-  assert.match(shader, /plainFacetCoverage \* uPlainFacetStrength/);
-  assert.match(shader, /mix\(stylizedNormal, plainFacetNormal, plainFacetMix\)/);
-  assert.match(shader, /plainFacetCoverage \* \.72/,
-    'the lowland faces contribute to lighting contrast even over calm terrain');
-  assert.match(renderer, /uploadTexture\(11, gl\.RGBA8, gl\.RGBA, visualData\.plainFacetNormalPixels/);
-  assert.equal(baseStyle.stylizedTerrain.plainFacetScale, 13.5);
-  assert.equal(baseStyle.stylizedTerrain.plainFacetStrength, .88);
-  assert.equal(baseStyle.stylizedTerrain.plainWashStrength, .88);
+  // Compare the compact four-candidate lookup with a full nearest-site search
+  // at arbitrary subtexel positions. IDs only accelerate the query: they must
+  // not impose square UV boundaries or change the true spherical partition.
+  const nearest = (u, v, accelerated) => {
+    const direction = { x: Math.cos((.5 - v) * Math.PI) * Math.cos((u - .5) * Math.PI * 2),
+      y: Math.sin((.5 - v) * Math.PI),
+      z: Math.cos((.5 - v) * Math.PI) * Math.sin((u - .5) * Math.PI * 2) };
+    const scale = style.stylizedTerrain.plainFacetScale;
+    const px = direction.x * scale, py = direction.y * scale, pz = direction.z * scale;
+    let best = -1, distance = Infinity;
+    const x = Math.round(((u % 1) + 1) % 1 * first.facetCandidateWidth) % first.facetCandidateWidth;
+    const y = Math.round(v * (first.facetCandidateHeight - 1));
+    const offset = (y * first.facetCandidateWidth + x) * 4;
+    const count = accelerated ? 4 : first.plainFacets.cells;
+    for (let i = 0; i < count; i += 1) {
+      const id = accelerated ? first.facetCandidatesPixels[offset + i] : i, o = id * 4;
+      const dx = first.facetSitePixels[o] - px, dy = first.facetSitePixels[o + 1] - py,
+        dz = first.facetSitePixels[o + 2] - pz;
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d < distance) { distance = d; best = id; }
+    }
+    return best;
+  };
+  const random = world.rng(world.hashSeed('subtexel-facet-check'));
+  for (let i = 0; i < 400; i += 1) {
+    const u = random(), v = Math.acos(random() * 2 - 1) / Math.PI;
+    assert.equal(nearest(u, v, true), nearest(u, v, false),
+      'arbitrary subtexel queries recover the actual geometric face');
+  }
+  for (const v of [.08, .25, .5, .73, .94]) assert.equal(nearest(0, v, true), nearest(1, v, true));
+  for (const v of [0, 1]) for (const u of [.1, .3, .6, .9]) assert.equal(nearest(u, v, true), nearest(0, v, true));
 });
 
 test('globe atmosphere has climate materials and the vignette stays behind the globe', () => {

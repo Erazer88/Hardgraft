@@ -162,92 +162,103 @@
     return (h >>> 0) / 4294967295;
   }
 
-  function facetSite(x, y, z, seed, cache) {
-    const key = `${x},${y},${z}`;
-    if (cache.has(key)) return cache.get(key);
-    const tone = cellRandom(x, y, z, seed, 0x1a2b3c4d) * 2 - 1;
-    const inset = .06, span = .88;
-    const site = { x: x + inset + cellRandom(x, y, z, seed, 0x6c8e9cf5) * span,
-      y: y + inset + cellRandom(x, y, z, seed, 0x3d72a4b1) * span,
-      z: z + inset + cellRandom(x, y, z, seed, 0x52f8d731) * span,
-      key: `${x},${y},${z}`, tone };
-    cache.set(key, site);
-    return site;
-  }
-
-  function valueNoise3(x, y, z, seed, salt, cache) {
-    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
-    const fx = x - ix, fy = y - iy, fz = z - iz;
-    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), sz = fz * fz * (3 - 2 * fz);
-    const lattice = (gx, gy, gz) => {
-      const key = `${salt}:${gx},${gy},${gz}`;
-      if (!cache.has(key)) cache.set(key, cellRandom(gx, gy, gz, seed, salt));
-      return cache.get(key);
-    };
-    const z0 = mix(mix(lattice(ix, iy, iz), lattice(ix + 1, iy, iz), sx),
-      mix(lattice(ix, iy + 1, iz), lattice(ix + 1, iy + 1, iz), sx), sy);
-    const z1 = mix(mix(lattice(ix, iy, iz + 1), lattice(ix + 1, iy, iz + 1), sx),
-      mix(lattice(ix, iy + 1, iz + 1), lattice(ix + 1, iy + 1, iz + 1), sx), sy);
-    return mix(z0, z1, sz) * 2 - 1;
-  }
-
-  function inverseWarpedSite(site, scale, seed, noiseCache) {
-    let x = site.x, y = site.y, z = site.z;
-    for (let i = 0; i < 2; i += 1) {
-      x = site.x - valueNoise3(x * .42, y * .42, z * .42, seed, 0x7a43c215, noiseCache) * .48;
-      y = site.y - valueNoise3(x * .42, y * .42, z * .42, seed, 0x3f51d8a7, noiseCache) * .48;
-      z = site.z - valueNoise3(x * .42, y * .42, z * .42, seed, 0xb71c930d, noiseCache) * .48;
-    }
-    return normalize({ x: x / scale, y: y / scale, z: z / scale });
-  }
-
-  function nearestFacetSite(d, scale, seed, siteCache, noiseCache) {
-    let px = d.x * scale, py = d.y * scale, pz = d.z * scale;
-    const sourceX = px, sourceY = py, sourceZ = pz;
-    // A low-frequency spherical domain warp makes the cells breathe and
-    // bend like watercolor pigment instead of exposing a regular 3D lattice.
-    px += valueNoise3(sourceX * .42, sourceY * .42, sourceZ * .42, seed, 0x7a43c215, noiseCache) * .48;
-    py += valueNoise3(sourceX * .42, sourceY * .42, sourceZ * .42, seed, 0x3f51d8a7, noiseCache) * .48;
-    pz += valueNoise3(sourceX * .42, sourceY * .42, sourceZ * .42, seed, 0xb71c930d, noiseCache) * .48;
-    const ix = Math.floor(px), iy = Math.floor(py), iz = Math.floor(pz);
-    let nearest = null, nearestDistance = Infinity;
-    for (let z = -1; z <= 1; z += 1) for (let y = -1; y <= 1; y += 1) for (let x = -1; x <= 1; x += 1) {
-      const site = facetSite(ix + x, iy + y, iz + z, seed, siteCache);
-      const dx = site.x - px, dy = site.y - py, dz = site.z - pz;
-      const distance = dx * dx + dy * dy + dz * dz;
-      if (distance < nearestDistance) { nearestDistance = distance; nearest = site; }
-    }
-    return nearest;
-  }
-
   function plainFacetMap(midNormals, width, height, scale, seed, facetAngle, facetJitter, outputScale = 1) {
-    const outputWidth = Math.max(width, Math.round(width * outputScale));
-    const outputHeight = Math.max(height, Math.round(height * outputScale));
-    const pixels = new Uint8Array(outputWidth * outputHeight * 4), cells = new Map();
-    const siteCache = new Map(), noiseCache = new Map();
+    // The raster only supplies four nearby candidates. The final boundary is
+    // reconstructed from their actual 3D positions in the fragment shader,
+    // so neither this map's resolution nor bilinear magnification blurs it.
+    const outputWidth = Math.max(384, Math.round(width * outputScale), Math.ceil(scale * 28));
+    const outputHeight = Math.round(outputWidth / 2);
+    const pixels = new Uint8Array(outputWidth * outputHeight * 4);
+    const candidateIds = new Uint16Array(pixels.length), cells = [];
+    const radius = Math.ceil(scale) + 3, span = radius * 2 + 1;
+    const grid = new Int32Array(span * span * span); grid.fill(-1);
+    const distances = new Float64Array(4), ids = new Uint16Array(4);
+    function siteAt(x, y, z) {
+      const index = ((z + radius) * span + y + radius) * span + x + radius;
+      if (grid[index] >= 0) return cells[grid[index]];
+      const site = { x: x + .06 + cellRandom(x, y, z, seed, 0x6c8e9cf5) * .88,
+        y: y + .06 + cellRandom(x, y, z, seed, 0x3d72a4b1) * .88,
+        z: z + .06 + cellRandom(x, y, z, seed, 0x52f8d731) * .88,
+        tone: cellRandom(x, y, z, seed, 0x1a2b3c4d) * 2 - 1, id: cells.length };
+      const center = normalize(site), uv = Projection.sphereToTerrain(center, uvTerrain);
+      const smooth = normalize({ x: sample(midNormals, width, height, uv.x, uv.y, 3, 0),
+        y: sample(midNormals, width, height, uv.x, uv.y, 3, 1),
+        z: sample(midNormals, width, height, uv.x, uv.y, 3, 2) });
+      const amplified = normalize({ x: center.x + (smooth.x - center.x) * 2.2,
+        y: center.y + (smooth.y - center.y) * 2.2, z: center.z + (smooth.z - center.z) * 2.2 });
+      site.center = center; site.uv = uv;
+      site.normal = quantizeTerrainNormal(amplified, center, tangentFrame(center), site.tone * .5,
+        facetAngle * .82, facetJitter, .0015);
+      grid[index] = site.id; cells.push(site);
+      return site;
+    }
     for (let y = 0; y < outputHeight; y += 1) for (let x = 0; x < outputWidth; x += 1) {
       const d = y === 0 ? { x: 0, y: 1, z: 0 } : y === outputHeight - 1 ? { x: 0, y: -1, z: 0 } : direction(x / outputWidth, y / (outputHeight - 1));
-      const site = nearestFacetSite(d, scale, seed, siteCache, noiseCache);
-      let cell = cells.get(site.key);
-      if (!cell) {
-        const center = inverseWarpedSite(site, scale, seed, noiseCache), uv = Projection.sphereToTerrain(center, uvTerrain);
-        const smooth = normalize({ x: sample(midNormals, width, height, uv.x, uv.y, 3, 0),
-          y: sample(midNormals, width, height, uv.x, uv.y, 3, 1),
-          z: sample(midNormals, width, height, uv.x, uv.y, 3, 2) });
-        const frame = tangentFrame(center);
-        // Boost only the real mid-scale slope before quantizing it into a
-        // coherent face. This makes shallow plains read as watercolor facets.
-        const amplified = normalize({ x: center.x + (smooth.x - center.x) * 2.2,
-          y: center.y + (smooth.y - center.y) * 2.2, z: center.z + (smooth.z - center.z) * 2.2 });
-        cell = { normal: quantizeTerrainNormal(amplified, center, frame, site.tone * .5,
-          facetAngle * .82, facetJitter, .0015), tone: site.tone };
-        cells.set(site.key, cell);
+      const px = d.x * scale, py = d.y * scale, pz = d.z * scale;
+      const ix = Math.floor(px), iy = Math.floor(py), iz = Math.floor(pz);
+      distances.fill(Infinity);
+      for (let dz = -1; dz <= 1; dz += 1) for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
+        const site = siteAt(ix + dx, iy + dy, iz + dz);
+        const sx = site.x - px, sy = site.y - py, sz = site.z - pz;
+        const distance = sx * sx + sy * sy + sz * sz;
+        if (distance >= distances[3]) continue;
+        let k = 3;
+        while (k > 0 && distance < distances[k - 1]) {
+          distances[k] = distances[k - 1]; ids[k] = ids[k - 1]; k -= 1;
+        }
+        distances[k] = distance; ids[k] = site.id;
       }
       const o = (y * outputWidth + x) * 4;
+      const cell = cells[ids[0]];
+      candidateIds.set(ids, o);
       encodeNormal(pixels, o, cell.normal);
       pixels[o + 3] = Math.round((cell.tone * .5 + .5) * 255);
     }
-    return { pixels, cells: cells.size, width: outputWidth, height: outputHeight };
+    return { pixels, candidateIds, cellData: cells, cells: cells.length, scale,
+      width: outputWidth, height: outputHeight };
+  }
+
+  function facetAtlas(facets, normalPixels, materialPixels, classPixels, elevations, seaLevel, width, height, strength) {
+    const atlasWidth = 128, atlasHeight = Math.ceil(facets.cells / atlasWidth);
+    const sites = new Float32Array(atlasWidth * atlasHeight * 4);
+    const normals = new Uint8Array(sites.length), materials = new Uint8Array(sites.length);
+    // A coastal face must take its land pigment from a land texel, never from
+    // the ice-colored ocean placeholder used by the climate material map.
+    const landSamples = new Int32Array(facets.cells); landSamples.fill(-1);
+    const landDistances = new Float32Array(facets.cells); landDistances.fill(Infinity);
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const i = y * width + x;
+      if (elevations[i] <= seaLevel) continue;
+      const px = Math.round(x / width * facets.width) % facets.width;
+      const py = Math.round(y / (height - 1) * (facets.height - 1));
+      const id = facets.candidateIds[(py * facets.width + px) * 4];
+      const cell = facets.cellData[id], d = direction(x / width, y / (height - 1));
+      const distance = 1 - dot(d, cell.center);
+      if (distance < landDistances[id]) { landDistances[id] = distance; landSamples[id] = i; }
+    }
+    for (const cell of facets.cellData) {
+      const o = cell.id * 4, u = cell.uv.x, v = cell.uv.y;
+      sites[o] = cell.x; sites[o + 1] = cell.y; sites[o + 2] = cell.z; sites[o + 3] = 1;
+      const landIndex = landSamples[cell.id];
+      for (let c = 0; c < 4; c += 1) {
+        materials[o + c] = landIndex >= 0 ? materialPixels[landIndex * 4 + c] :
+          Math.round(sample(materialPixels, width, height, u, v, 4, c));
+      }
+      const sourceNormal = normalize({
+        x: sample(normalPixels, width, height, u, v, 4, 0) / 127.5 - 1,
+        y: sample(normalPixels, width, height, u, v, 4, 1) / 127.5 - 1,
+        z: sample(normalPixels, width, height, u, v, 4, 2) / 127.5 - 1 });
+      const mountain = clamp((sample(classPixels, width, height, u, v, 4, 2) +
+        sample(classPixels, width, height, u, v, 4, 3)) / 255);
+      // All faces follow the real relief. Lowland facets use the broad,
+      // amplified mid normal; mountain faces retain the sculpted normal.
+      const plainMix = (1 - mountain) * clamp(strength) * .78;
+      const normal = normalize({ x: mix(sourceNormal.x, cell.normal.x, plainMix),
+        y: mix(sourceNormal.y, cell.normal.y, plainMix), z: mix(sourceNormal.z, cell.normal.z, plainMix) });
+      encodeNormal(normals, o, normal);
+      normals[o + 3] = Math.round(sample(normalPixels, width, height, u, v, 4, 3));
+    }
+    return { width: atlasWidth, height: atlasHeight, sites, normals, materials };
   }
 
   function seededRandom(seed) {
@@ -438,7 +449,7 @@
 
   function styleKey(style) {
     const s = style.stylizedTerrain;
-    return JSON.stringify([s.fieldWidth, s.textureWidth, s.heightLowPass, s.macroLowPass, s.localLowPass, s.classLowPass,
+    return JSON.stringify(['analytic-facets-v1', s.fieldWidth, s.textureWidth, s.heightLowPass, s.macroLowPass, s.localLowPass, s.classLowPass,
       s.hillQuantile, s.mountainQuantile, s.summitQuantile, s.normalReliefScale, s.residualNormalStrength,
       s.localNormalStrength, s.smallMassifStrength, s.smallMassifNormalStrength, s.highlandMaterialMix,
       s.macroNormalStrength, s.plainNormalStrength, s.rollingNormalStrength, s.hillockNormalStrength,
@@ -804,7 +815,14 @@
           const forestColor = mix(materials.forest[channel], materials.canopy[channel], canopyTone);
           color = mix(color, forestColor, forestField[i] * settings.forests.colorMix);
         }
-        if (isSea && (climate === 'temperate' || climate === 'frozen')) color = materials.ice[channel];
+        if (isSea && (climate === 'frozen' || climate === 'temperate' && snowField[i] > .02)) {
+          color = materials.ice[channel];
+        } else if (isSea && climate === 'temperate') {
+          // Non-frozen water is drawn by the separate ocean shader. A land
+          // pigment fallback prevents thin coastal faces from inheriting the
+          // old white ice placeholder when their center lies just offshore.
+          color = materials.plain[channel];
+        }
         if (isSea && climate === 'arid') color *= .73;
         color = mix(color, isSea ? materials.ice[channel] : materials.snow[channel], snowValue);
         materialPixels[o + channel] = Math.round(clamp(color, 0, 255));
@@ -813,12 +831,18 @@
       materialPixels[o + 3] = Math.round(clamp(Math.max(snowValue, polarCoverage)) * 255);
     }
 
+    const crispFacets = facetAtlas(plainFacets, normalPixels, materialPixels, classPixels,
+      elevation, sea, width, height, settings.plainFacetStrength);
     const finalNormalPixels = resizeRgba(normalPixels, sourceWidth, sourceHeight, textureWidth, textureHeight);
     const finalRealNormalPixels = resizeRgba(realNormalPixels, sourceWidth, sourceHeight, textureWidth, textureHeight);
     const finalMaterialPixels = resizeRgba(materialPixels, sourceWidth, sourceHeight, textureWidth, textureHeight);
 
     const result = Object.freeze({ key, width: textureWidth, height: textureHeight, classWidth: width, classHeight: height,
       plainFacetWidth: plainFacets.width, plainFacetHeight: plainFacets.height,
+      facetCandidatesPixels: plainFacets.candidateIds,
+      facetCandidateWidth: plainFacets.width, facetCandidateHeight: plainFacets.height,
+      facetSitePixels: crispFacets.sites, facetAtlasWidth: crispFacets.width, facetAtlasHeight: crispFacets.height,
+      facetMaterialPixels: crispFacets.materials, facetNormalPixels: crispFacets.normals,
       terrainVisualClassPixels: classPixels, smallMassifPixels, forestPixels,
       visualMountainLiftPixels: visualChainData.liftField, visualMountainLiftMax: visualChainData.maxLift,
       plainFacetNormalPixels: plainFacets.pixels,

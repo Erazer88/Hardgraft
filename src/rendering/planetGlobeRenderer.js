@@ -380,6 +380,9 @@
         stylizedMaterialTexture: gl.getUniformLocation(program, 'uStylizedMaterialTexture'),
         smallMassifTexture: gl.getUniformLocation(program, 'uSmallMassifTexture'),
         plainFacetNormalTexture: gl.getUniformLocation(program, 'uPlainFacetNormalTexture'),
+        terrainFacetCandidatesTexture: gl.getUniformLocation(program, 'uTerrainFacetCandidatesTexture'),
+        terrainFacetSitesTexture: gl.getUniformLocation(program, 'uTerrainFacetSitesTexture'),
+        terrainFacetScale: gl.getUniformLocation(program, 'uTerrainFacetScale'),
         globeRotation: gl.getUniformLocation(program, 'uGlobeRotation'),
         terrainView: gl.getUniformLocation(program, 'uTerrainView'),
         visualClimate: gl.getUniformLocation(program, 'uVisualClimate'),
@@ -509,6 +512,8 @@
         gl.deleteTexture(buffers.smallMassifTexture);
         gl.deleteTexture(buffers.plainFacetNormalTexture);
         gl.deleteTexture(buffers.stylizedMaterialTexture);
+        gl.deleteTexture(buffers.terrainFacetCandidatesTexture);
+        gl.deleteTexture(buffers.terrainFacetSitesTexture);
         gl.deleteVertexArray(buffers.vao);
       }
       const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -538,16 +543,17 @@
       const visualData = prepared?.visualStyleKey === visualStyleKey
         ? prepared.visual : root.OrbitPlanetTerrainVisuals.create(mesh.terrain, mesh.planet, style);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height) {
+      function uploadTexture(unit, internalFormat, format, pixels, mapWidth = surfaceData.width, mapHeight = surfaceData.height,
+        type = gl.UNSIGNED_BYTE, nearest = false) {
         const texture = gl.createTexture();
         gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, nearest ? gl.NEAREST : gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, nearest ? gl.NEAREST : gl.LINEAR_MIPMAP_LINEAR);
         gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, mapWidth, mapHeight, 0,
-          format, gl.UNSIGNED_BYTE, pixels);
-        gl.generateMipmap(gl.TEXTURE_2D);
+          format, type, pixels);
+        if (!nearest) gl.generateMipmap(gl.TEXTURE_2D);
         return texture;
       }
       const albedoTexture = uploadTexture(0, gl.RGBA8, gl.RGBA, surfaceData.albedoPixels);
@@ -559,17 +565,24 @@
       const visualClassTexture = uploadTexture(6, gl.RGBA8, gl.RGBA, visualData.terrainVisualClassPixels,
         visualData.classWidth, visualData.classHeight);
       const stylizedNormalTexture = uploadTexture(7, gl.RGBA8, gl.RGBA, visualData.stylizedNormalPixels, visualData.width, visualData.height);
-      const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.materialPixels, visualData.width, visualData.height);
+      const stylizedMaterialTexture = uploadTexture(8, gl.RGBA8, gl.RGBA, visualData.facetMaterialPixels,
+        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.UNSIGNED_BYTE, true);
       const realMountainNormalTexture = uploadTexture(9, gl.RGBA8, gl.RGBA, visualData.realMountainNormalPixels, visualData.width, visualData.height);
       const smallMassifTexture = uploadTexture(10, gl.RG8, gl.RG, visualData.smallMassifPixels,
         visualData.classWidth, visualData.classHeight);
-      const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.plainFacetNormalPixels,
-        visualData.plainFacetWidth, visualData.plainFacetHeight);
+      const plainFacetNormalTexture = uploadTexture(11, gl.RGBA8, gl.RGBA, visualData.facetNormalPixels,
+        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.UNSIGNED_BYTE, true);
+      // Candidate IDs are a coarse acceleration map only. The shader computes
+      // the actual spherical cell boundary, so its edges never follow texels.
+      const terrainFacetCandidatesTexture = uploadTexture(12, gl.RGBA16UI, gl.RGBA_INTEGER, visualData.facetCandidatesPixels,
+        visualData.facetCandidateWidth, visualData.facetCandidateHeight, gl.UNSIGNED_SHORT, true);
+      const terrainFacetSitesTexture = uploadTexture(13, gl.RGBA32F, gl.RGBA, visualData.facetSitePixels,
+        visualData.facetAtlasWidth, visualData.facetAtlasHeight, gl.FLOAT, true);
       gl.bindVertexArray(null);
       buffers = { vao, positions, normals, uvs, elevations, indices, albedoTexture, heightTexture,
         landMaskTexture, coastSdfTexture, detailTexture, terrainStructureTexture,
         visualClassTexture, stylizedNormalTexture, stylizedMaterialTexture, realMountainNormalTexture, smallMassifTexture,
-        plainFacetNormalTexture,
+        plainFacetNormalTexture, terrainFacetCandidatesTexture, terrainFacetSitesTexture,
         visualMetrics: { proportions: visualData.proportions, rollingRelief: visualData.rollingRelief,
           localRelief: visualData.localRelief, smallMassifs: visualData.smallMassifs,
           visualMountainChains: visualData.visualMountainChains, plainFacets: visualData.plainFacets,
@@ -696,6 +709,11 @@
       gl.uniform1i(program.uniforms.smallMassifTexture, 10);
       gl.activeTexture(gl.TEXTURE11); gl.bindTexture(gl.TEXTURE_2D, buffers.plainFacetNormalTexture);
       gl.uniform1i(program.uniforms.plainFacetNormalTexture, 11);
+      gl.activeTexture(gl.TEXTURE12); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainFacetCandidatesTexture);
+      gl.uniform1i(program.uniforms.terrainFacetCandidatesTexture, 12);
+      gl.activeTexture(gl.TEXTURE13); gl.bindTexture(gl.TEXTURE_2D, buffers.terrainFacetSitesTexture);
+      gl.uniform1i(program.uniforms.terrainFacetSitesTexture, 13);
+      gl.uniform1f(program.uniforms.terrainFacetScale, style.stylizedTerrain.plainFacetScale);
       const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cx = Math.cos(view.pitch), sx = Math.sin(view.pitch);
       normalRotation[0] = cy; normalRotation[1] = sx * sy; normalRotation[2] = -cx * sy;
       normalRotation[3] = 0; normalRotation[4] = cx; normalRotation[5] = sx;

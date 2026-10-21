@@ -3,12 +3,16 @@
 
   // Separate terrestrial pass; the v0.35.12 path stays available for comparison.
   root.OrbitPlanetTerrainStylizedShader = `
+    precision highp int;
     uniform sampler2D uTerrainVisualClassTexture;
     uniform sampler2D uStylizedNormalTexture;
     uniform sampler2D uRealMountainNormalTexture;
     uniform sampler2D uStylizedMaterialTexture;
     uniform sampler2D uSmallMassifTexture;
     uniform sampler2D uPlainFacetNormalTexture;
+    uniform highp usampler2D uTerrainFacetCandidatesTexture;
+    uniform highp sampler2D uTerrainFacetSitesTexture;
+    uniform float uTerrainFacetScale;
     uniform int uTerrainView;
     uniform int uVisualClimate;
     uniform mat3 uGlobeRotation;
@@ -34,6 +38,72 @@
     }
     vec3 inverseTerrainNormal(vec3 n) {
       return normalize(transpose(uGlobeRotation) * n);
+    }
+
+    ivec2 terrainFacetCoordinate(uint id) {
+      uint width = uint(textureSize(uTerrainFacetSitesTexture, 0).x);
+      return ivec2(int(id % width), int(id / width));
+    }
+
+    void sampleTerrainFacet(vec3 direction, out vec4 material, out vec4 normalSample, out vec3 normal) {
+      ivec2 candidateSize = textureSize(uTerrainFacetCandidatesTexture, 0);
+      ivec2 candidateUv = ivec2(
+        int(floor(fract(vUv.x) * float(candidateSize.x) + .5)) % candidateSize.x,
+        int(floor(clamp(vUv.y, 0.0, 1.0) * float(candidateSize.y - 1) + .5)));
+      uvec4 candidates = texelFetch(uTerrainFacetCandidatesTexture, candidateUv, 0);
+      vec3 point = direction * uTerrainFacetScale;
+      uint nearestId = candidates.x;
+      uint secondId = nearestId;
+      vec3 nearestSite = texelFetch(uTerrainFacetSitesTexture, terrainFacetCoordinate(nearestId), 0).xyz;
+      vec3 secondSite = nearestSite;
+      vec3 delta = point - nearestSite;
+      float nearestDistance = dot(delta, delta);
+      float secondDistance = 1e20;
+      // The compact CPU map provides candidates, not a rasterized boundary.
+      // True 3D distances reconstruct each polygon at the display resolution.
+      for (int i = 1; i < 4; i++) {
+        uint candidateId = candidates[i];
+        if (candidateId == nearestId) continue;
+        vec3 site = texelFetch(uTerrainFacetSitesTexture, terrainFacetCoordinate(candidateId), 0).xyz;
+        vec3 offset = point - site;
+        float distance = dot(offset, offset);
+        if (distance < nearestDistance) {
+          secondDistance = nearestDistance;
+          secondId = nearestId;
+          secondSite = nearestSite;
+          nearestDistance = distance;
+          nearestId = candidateId;
+          nearestSite = site;
+        } else if (distance < secondDistance) {
+          secondDistance = distance;
+          secondId = candidateId;
+          secondSite = site;
+        }
+      }
+      if (secondDistance > 1e19) secondDistance = nearestDistance + 1.0;
+      float signedBorderDistance = nearestId < secondId
+        ? secondDistance - nearestDistance : nearestDistance - secondDistance;
+      float borderDistance = abs(signedBorderDistance);
+      float borderAa = max(1e-6, fwidth(signedBorderDistance) * .65);
+      float secondWeight = .5 * (1.0 - smoothstep(0.0, borderAa, borderDistance));
+      ivec2 nearestUv = terrainFacetCoordinate(nearestId);
+      material = texelFetch(uStylizedMaterialTexture, nearestUv, 0);
+      vec4 firstNormal = texelFetch(uPlainFacetNormalTexture, nearestUv, 0);
+      normalSample = firstNormal;
+      // Transfer the site's terrain tilt onto the local sphere. The terrain
+      // forms a face; the globe itself retains its smooth spherical curvature.
+      vec3 cellNormal = normalize(direction + normalize(firstNormal.rgb * 2.0 - 1.0) - normalize(nearestSite));
+      // Only edge pixels need the second material/normal. Interior pixels keep
+      // a constant palette color and avoid those additional texture reads.
+      if (secondWeight > 0.0) {
+        ivec2 secondUv = terrainFacetCoordinate(secondId);
+        material = mix(material, texelFetch(uStylizedMaterialTexture, secondUv, 0), secondWeight);
+        vec4 secondNormal = texelFetch(uPlainFacetNormalTexture, secondUv, 0);
+        normalSample = mix(firstNormal, secondNormal, secondWeight);
+        vec3 secondDirection = normalize(direction + normalize(secondNormal.rgb * 2.0 - 1.0) - normalize(secondSite));
+        cellNormal = normalize(mix(cellNormal, secondDirection, secondWeight));
+      }
+      normal = rotateTerrainNormal(cellNormal);
     }
 
     float terrainCastShadow(vec3 surfaceDirection, vec3 light, float receiver) {
@@ -67,11 +137,12 @@
       vec3 lightDirection = normalize(uLightDirection);
       vec4 classes = texture(uTerrainVisualClassTexture, vUv);
       classes /= max(.001, dot(classes, vec4(1.0)));
-      vec4 normalSample = texture(uStylizedNormalTexture, vUv);
-      vec3 stylizedNormal = rotateTerrainNormal(normalize(normalSample.rgb * 2.0 - 1.0));
+      vec4 normalSample;
+      vec4 material;
+      vec3 stylizedNormal;
+      sampleTerrainFacet(objectDirection, material, normalSample, stylizedNormal);
       vec4 realNormalSample = texture(uRealMountainNormalTexture, vUv);
       vec3 realMountainNormal = rotateTerrainNormal(normalize(realNormalSample.rgb * 2.0 - 1.0));
-      vec4 material = texture(uStylizedMaterialTexture, vUv);
       vec2 surfaceDetail = texture(uDetailTexture, vUv).rg;
       float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
       float smallMassif = texture(uSmallMassifTexture, vUv).r;
@@ -117,12 +188,9 @@
       // the ramp reads their face orientation instead of lighting every slope
       // at once just because the whole hemisphere is facing the sun.
       float mountainInfluence = smoothstep(.03, .60, mountain + ridge * .08);
-      vec4 plainFacetSample = texture(uPlainFacetNormalTexture, vUv);
-      vec3 plainFacetNormal = rotateTerrainNormal(normalize(plainFacetSample.rgb * 2.0 - 1.0));
       float plainRegion = clamp(classes.r + classes.g * .92 + smallMassif * .30, 0.0, 1.0);
-      float plainFacetCoverage = land * (1.0 - mountainInfluence) * plainRegion;
-      float plainFacetMix = clamp(plainFacetCoverage * uPlainFacetStrength, 0.0, .78);
-      stylizedNormal = normalize(mix(stylizedNormal, plainFacetNormal, plainFacetMix));
+      float plainFacetCoverage = land * (1.0 - mountainInfluence) * plainRegion *
+        clamp(uPlainFacetStrength, 0.0, 1.0);
       float rollingActivity = normalSample.a;
       float plainFacetActivity = (1.0 - mountainInfluence) *
         smoothstep(.004, .11, length(stylizedNormal - sphereNormal));
@@ -155,12 +223,6 @@
       vec3 tint = mix(shadowTint, vec3(1.0), shadow);
       tint = mix(tint, lightTint, highlight * mountainInfluence);
       vec3 landColor = material.rgb * lighting * tint;
-      // A seed-stable, spherical grain is packed into the green channel of the
-      // existing detail map. It sharpens the painted surface slightly without
-      // adding a sampler, geometry, or per-frame noise work.
-      float soilGrain = (surfaceDetail.g - .5) *
-        (uVisualClimate == 1 ? .12 : .22);
-      landColor *= 1.0 + soilGrain * (1.0 - material.a) * (1.0 - sandBand * .8);
       landColor = mix(landColor, material.rgb, lavaMask * .25);
       // Valley metadata only deepens the actual mountain troughs; the mask is
       // absent from ordinary plains, so it cannot draw global dark stripes.
@@ -170,8 +232,12 @@
       // Two finite bands: a narrow turquoise shoal and a separate sand strip.
       // The broad ocean gradient never adds light to the edge of the continent.
       float distanceToLand = max(0.0, -coastDistance);
-      float shallowWaterBand = (1.0 - land) * (1.0 - smoothstep(.10, uShallowBandWidth + aa, distanceToLand));
-      float depth = smoothstep(1.5, 14.0, distanceToLand);
+      float shallowWaterBand = (1.0 - land) * (1.0 - smoothstep(
+        max(0.0, uShallowBandWidth - aa), uShallowBandWidth + aa, distanceToLand));
+      // Give the water palette the same graphic hierarchy as the land: clean
+      // depth bands with screen-space edge AA instead of a wide airbrush mix.
+      float depthEdge = max(uShallowBandWidth + aa * 2.0, uWaterCoastDepthDistance * .65);
+      float depth = smoothstep(depthEdge - aa, depthEdge + aa, distanceToLand);
       vec3 waterMaterial = mix(uWaterMidColor, uWaterDeepColor, depth);
       waterMaterial = mix(waterMaterial, uWaterShallowColor, shallowWaterBand * .85);
       float oceanNoise = clamp((surfaceDetail.r - .5) * 20.0, -1.0, 1.0);
@@ -198,7 +264,7 @@
       } else if (uTerrainView == 5) {
         color = realMountainNormal * .5 + .5;
       } else if (uTerrainView == 6) {
-        float rolling = pow(normalSample.a, .72);
+        float rolling = pow(texture(uStylizedNormalTexture, vUv).a, .72);
         color = vec3(rolling, rolling * .76, rolling * .34) * land;
       } else if (uTerrainView == 7) {
         float localRelief = clamp((realNormalSample.a * 255.0 - 128.0) / 127.0, -1.0, 1.0);
