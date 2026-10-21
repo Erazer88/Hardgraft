@@ -554,7 +554,7 @@
       const heightTexture = uploadTexture(1, gl.RG8, gl.RG, surfaceData.heightPixels);
       const landMaskTexture = uploadTexture(2, gl.R8, gl.RED, surfaceData.landMaskPixels);
       const coastSdfTexture = uploadTexture(3, gl.R8, gl.RED, surfaceData.coastSdfPixels);
-      const detailTexture = uploadTexture(4, gl.R8, gl.RED, surfaceData.detailPixels);
+      const detailTexture = uploadTexture(4, gl.RG8, gl.RG, surfaceData.detailPixels);
       const terrainStructureTexture = uploadTexture(5, gl.RGBA8, gl.RGBA, surfaceData.terrainStructurePixels);
       const visualClassTexture = uploadTexture(6, gl.RGBA8, gl.RGBA, visualData.terrainVisualClassPixels,
         visualData.classWidth, visualData.classHeight);

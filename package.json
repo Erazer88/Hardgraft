@@ -1,6 +1,6 @@
 {
   "name": "nereide-atlas-orbital",
-  "version": "0.35.24",
+  "version": "0.35.25",
   "private": true,
   "description": "Prototype mobile de navigation dans un univers procédural",
   "scripts": {

@@ -4,7 +4,7 @@
   const clone = value => JSON.parse(JSON.stringify(value));
   const definitions = Object.freeze([
     // Large continental structures.
-    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalFrequency', label: 'Fréquence continentale', min: .35, max: 3.5, step: .01 },
+    { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.continentalFrequency', label: 'Fréquence / fragmentation continentale', min: .35, max: 3.5, step: .01 },
     { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.plateCount.0', label: 'Plaques · minimum', min: 6, max: 32, step: 1 },
     { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.plateCount.1', label: 'Plaques · maximum', min: 8, max: 40, step: 1 },
     { group: '1 · MACRO RELIEF', kind: 'terrain', path: 'tectonics.angularSpeed.0', label: 'Vitesse des plaques · minimum', min: .1, max: 1.5, step: .001 },

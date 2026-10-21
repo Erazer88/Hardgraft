@@ -587,9 +587,12 @@
     const terrainStructurePixels = new Uint8Array(pixelCount * 4);
     const structureFields = [terrain.mountainMask, terrain.ridgeField, terrain.valleyField, terrain.ruggednessField];
     const terrainCellCount = terrain.width * terrain.height;
-    const detailPixels = new Uint8Array(pixelCount);
-    const sourceDetailPixels = albedoWidth === width && albedoHeight === height
-      ? detailPixels : new Uint8Array(albedoWidth * albedoHeight);
+    // R retains the soft ocean variation; G carries a restrained spherical
+    // soil-grain signal for the stylized land shader. It is packed into the
+    // same texture so it adds no draw call and only one existing texture read.
+    const detailPixels = new Uint8Array(pixelCount * 2);
+    const sourceDetailPixels = new Uint8Array(albedoWidth * albedoHeight);
+    const sourceTerrainDetailPixels = new Uint8Array(albedoWidth * albedoHeight);
     const colorOutput = new Float32Array(4);
     const waterColor = new Float32Array(4), landColor = new Float32Array(4);
     const colorWork = { a: new Float32Array(3), b: new Float32Array(3), c: new Float32Array(3) };
@@ -597,6 +600,8 @@
     const specialDetail = climate === 'frozen' || climate === 'volcanic';
     const macroSampler = createSphericalFieldSampler(width, height,
       (nx, ny, nz) => noise3(nx * 2.2, ny * 2.2, nz * 2.2, colorSeed));
+    const terrainDetailSampler = createSphericalFieldSampler(albedoWidth, albedoHeight,
+      (nx, ny, nz) => noise3(nx * 48, ny * 48, nz * 48, detailSeed ^ 0x27bd9a61));
     const mediumSampler = specialDetail ? createSphericalFieldSampler(width, height,
       (nx, ny, nz) => noise3(nx * 7, ny * 7, nz * 7, geologySeed)) : null;
     const fineSampler = specialDetail ? createSphericalFieldSampler(width, height,
@@ -746,10 +751,16 @@
         sourceAlbedoPixels[rgbaIndex + 2] = Math.round(colorOutput[2]);
         sourceAlbedoPixels[rgbaIndex + 3] = 255;
         sourceDetailPixels[offset + px] = Math.round(clamp(.5 + (specialDetail ? fine : macro) * .05, 0, 1) * 255);
+        sourceTerrainDetailPixels[offset + px] = Math.round(clamp(.5 + terrainDetailSampler(u, v) * .36, 0, 1) * 255);
       }
     }
 
-    if (sourceAlbedoPixels !== albedoPixels) {
+    if (sourceAlbedoPixels === albedoPixels) {
+      for (let index = 0; index < pixelCount; index += 1) {
+        detailPixels[index * 2] = sourceDetailPixels[index];
+        detailPixels[index * 2 + 1] = sourceTerrainDetailPixels[index];
+      }
+    } else {
       for (let py = 0; py < height; py += 1) {
         const sourceY = py / (height - 1 || 1) * (albedoHeight - 1), y0 = Math.floor(sourceY);
         const y1 = Math.min(albedoHeight - 1, y0 + 1), ty = sourceY - y0;
@@ -767,11 +778,15 @@
           albedoPixels[index + 3] = 255;
           const detailX = sourceX % albedoWidth;
           const detailX0 = Math.floor(detailX), detailX1 = (detailX0 + 1) % albedoWidth;
-          const da = sourceDetailPixels[y0 * albedoWidth + detailX0] * (1 - tx) +
-            sourceDetailPixels[y0 * albedoWidth + detailX1] * tx;
-          const db = sourceDetailPixels[y1 * albedoWidth + detailX0] * (1 - tx) +
-            sourceDetailPixels[y1 * albedoWidth + detailX1] * tx;
-          detailPixels[py * width + px] = Math.round(da * (1 - ty) + db * ty);
+          const detailIndex00 = y0 * albedoWidth + detailX0, detailIndex01 = y0 * albedoWidth + detailX1;
+          const detailIndex10 = y1 * albedoWidth + detailX0, detailIndex11 = y1 * albedoWidth + detailX1;
+          const outputDetailOffset = (py * width + px) * 2;
+          for (let channel = 0; channel < 2; channel += 1) {
+            const source = channel === 0 ? sourceDetailPixels : sourceTerrainDetailPixels;
+            const da = source[detailIndex00] * (1 - tx) + source[detailIndex01] * tx;
+            const db = source[detailIndex10] * (1 - tx) + source[detailIndex11] * tx;
+            detailPixels[outputDetailOffset + channel] = Math.round(da * (1 - ty) + db * ty);
+          }
         }
       }
     }

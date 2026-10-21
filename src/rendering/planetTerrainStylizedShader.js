@@ -72,6 +72,7 @@
       vec4 realNormalSample = texture(uRealMountainNormalTexture, vUv);
       vec3 realMountainNormal = rotateTerrainNormal(normalize(realNormalSample.rgb * 2.0 - 1.0));
       vec4 material = texture(uStylizedMaterialTexture, vUv);
+      vec2 surfaceDetail = texture(uDetailTexture, vUv).rg;
       float mountain = clamp(classes.b + classes.a, 0.0, 1.0);
       float smallMassif = texture(uSmallMassifTexture, vUv).r;
       float raisedTerrain = clamp(mountain + classes.g * .34 + smallMassif * .24, 0.0, 1.0);
@@ -154,6 +155,12 @@
       vec3 tint = mix(shadowTint, vec3(1.0), shadow);
       tint = mix(tint, lightTint, highlight * mountainInfluence);
       vec3 landColor = material.rgb * lighting * tint;
+      // A seed-stable, spherical grain is packed into the green channel of the
+      // existing detail map. It sharpens the painted surface slightly without
+      // adding a sampler, geometry, or per-frame noise work.
+      float soilGrain = (surfaceDetail.g - .5) *
+        (uVisualClimate == 1 ? .12 : .22);
+      landColor *= 1.0 + soilGrain * (1.0 - material.a) * (1.0 - sandBand * .8);
       landColor = mix(landColor, material.rgb, lavaMask * .25);
       // Valley metadata only deepens the actual mountain troughs; the mask is
       // absent from ordinary plains, so it cannot draw global dark stripes.
@@ -167,7 +174,7 @@
       float depth = smoothstep(1.5, 14.0, distanceToLand);
       vec3 waterMaterial = mix(uWaterMidColor, uWaterDeepColor, depth);
       waterMaterial = mix(waterMaterial, uWaterShallowColor, shallowWaterBand * .85);
-      float oceanNoise = clamp((texture(uDetailTexture, vUv).r - .5) * 20.0, -1.0, 1.0);
+      float oceanNoise = clamp((surfaceDetail.r - .5) * 20.0, -1.0, 1.0);
       vec3 waterColor = waterMaterial * (1.0 + oceanNoise * uWaterNoiseAmplitude);
       float oceanLight = .93 + max(dot(sphereNormal, lightDirection), 0.0) * .07;
       waterColor *= oceanLight;

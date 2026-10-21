@@ -177,7 +177,8 @@ test('procedural planet textures are deterministic, seed-unique, and climate-spe
     'height uses two channels to retain 16-bit precision');
   assert.equal(first.landMaskPixels.length, width * height);
   assert.equal(first.coastSdfPixels.length, width * height);
-  assert.equal(first.detailPixels.length, width * height, 'micro detail stays a single low-amplitude channel');
+  assert.equal(first.detailPixels.length, width * height * 2,
+    'water variation and terrain grain share a compact two-channel texture');
   const differentSeed = textures.create(terrain, { ...basePlanet, seed: 'another-world-seed' }, { width, height, cache: false });
   assert.notDeepEqual(Array.from(first.pixels), Array.from(differentSeed.pixels));
   assert.notDeepEqual(Array.from(first.detailPixels), Array.from(differentSeed.detailPixels));
@@ -383,8 +384,12 @@ test('height texture preserves terrain gradients while the micro-detail map stay
   const sampledElevation = 72 + 2 * (36 / width * (width - 1));
   assert.ok(Math.abs(heightAt(36, 16) - sampledElevation / 255) < 1 / 65535,
     'the packed height retains bilinear elevation and bathymetry precision beyond 8 bits');
-  assert.ok(texture.detailPixels.every(value => value >= 117 && value <= 139),
-    'fine noise remains a restrained shader-only micro detail');
+  const oceanDetail = texture.detailPixels.filter((_, index) => index % 2 === 0);
+  const soilDetail = texture.detailPixels.filter((_, index) => index % 2 === 1);
+  assert.ok(oceanDetail.every(value => value >= 117 && value <= 139),
+    'the original ocean variation remains restrained');
+  assert.ok(Math.max(...soilDetail) - Math.min(...soilDetail) > 24,
+    'the second channel carries visible seeded spherical surface grain');
   const descending = new Uint8Array(elevation.length);
   for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
     descending[y * width + x] = Math.max(20, 230 - x * 2);
@@ -434,10 +439,10 @@ test('seeded spherical watercolor facets are visible and converge cleanly at bot
   const second = visuals.create(secondTerrain, planet, style);
   assert.deepEqual(Array.from(first.forestPixels), Array.from(second.forestPixels),
     'forest patches are stable for the same seed and terrain');
-  assert.ok(first.forests.patches > 0 && first.forests.landCoverage > 0,
-    'moist temperate terrain receives localized forest material patches');
-  assert.ok(first.forests.landCoverage < .30,
-    'forest material remains localized instead of tinting all land');
+  assert.ok(first.forests.patches >= 100 && first.forests.landCoverage > .08,
+    'moist temperate terrain receives clearly visible seeded forest regions');
+  assert.ok(first.forests.landCoverage < .55,
+    'forest material remains regional instead of tinting every land pixel');
   assert.deepEqual(Array.from(first.plainFacetNormalPixels), Array.from(second.plainFacetNormalPixels),
     'the same seed and terrain produce the exact same face map');
   assert.ok(first.plainFacets.cells > 20, 'the spherical face field contains many broad, coherent cells');

@@ -639,12 +639,13 @@
         const d = direction(x / width, y / (height - 1));
         const patch = forestPatchCoverage(d, forestPatches);
         if (patch <= .001) continue;
-        const localTemperature = temperature - Math.pow(Math.abs(d.y), 1.55) * 38 - mid[i] * 20;
-        const humid = smoothstep(.34, .66, humidity[i]);
-        const temperate = smoothstep(-8, 7, localTemperature);
+        const localTemperature = temperature - Math.pow(Math.abs(d.y), 1.45) * 27 - mid[i] * 12;
+        const humid = smoothstep(.24, .56, humidity[i]);
+        const temperate = smoothstep(-17, 0, localTemperature) *
+          (1 - smoothstep(38, 48, localTemperature) * .22);
         const lowlandOrHill = clamp(classWeights[i * 4] + classWeights[i * 4 + 1] * .82 + smallMassifField[i] * .20);
-        const highlandFade = 1 - smoothstep(.62, .86, mid[i]);
-        const mountainFade = 1 - smoothstep(.10, .58, classWeights[i * 4 + 2] + classWeights[i * 4 + 3]);
+        const highlandFade = 1 - smoothstep(.66, .90, mid[i]);
+        const mountainFade = 1 - smoothstep(.16, .72, classWeights[i * 4 + 2] + classWeights[i * 4 + 3]);
         const coverage = clamp(patch * humid * temperate * lowlandOrHill * highlandFade * mountainFade);
         forestField[i] = coverage;
         forestPixels[i] = Math.round(coverage * 255);
@@ -799,7 +800,7 @@
         // is deliberately no fine noise in the albedo.
         color *= 1 + regionalVariation;
         if (climate === 'temperate' && !isSea && forestField[i] > .001) {
-          const canopyTone = clamp(.50 + facetTone * .24 + (wet - .5) * .32, .18, .84);
+          const canopyTone = clamp(.50 + facetTone * .48 + (wet - .5) * .36, .12, .90);
           const forestColor = mix(materials.forest[channel], materials.canopy[channel], canopyTone);
           color = mix(color, forestColor, forestField[i] * settings.forests.colorMix);
         }
