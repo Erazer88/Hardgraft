@@ -19,7 +19,7 @@
       // times denser in area and are only selected by the mountain class.
       plainFacetScale: 8.5, mountainFacetScale: 27, plainFacetStrength: .88,
       // Plainland pigment is a broad regional wash, not a per-facet color roll.
-      plainPatternLowPass: .18, plainWashStrength: .03,
+      plainPatternLowPass: .18, plainWashStrength: .012,
       facetMapScale: 2,
       visualChains: Object.freeze({
         baseCount: 10, minimumMultiplier: 3, maximumMultiplier: 4, islandChainRatio: .22,
@@ -34,12 +34,13 @@
       lightDirection: Object.freeze({ x: -.55, y: .70, z: .42 }),
       shallowBandWidth: .62, sandBandWidth: .82, coastAaMinimum: .10,
       coastSmoothing: 1.4, coastFieldBlur: .90,
-      forests: Object.freeze({ patchCount: 132, minimumMoisture: .28, maximumLatitude: .95,
-        patchRadius: Object.freeze([.055, .13]), colorMix: 1 }),
+      // Forest overlays are disabled while calibrating the lowland palette.
+      forests: Object.freeze({ patchCount: 0, minimumMoisture: .28, maximumLatitude: .95,
+        patchRadius: Object.freeze([.055, .13]), colorMix: 0 }),
       water: Object.freeze({ deep: '#06375F', mid: '#0A6090', shallow: '#258EA8' }),
       materials: Object.freeze({
-        temperate: Object.freeze({ plain: '#6FA84B', wet: '#477F3D', dry: '#9B9A54',
-          rolling: '#78944D', hill: '#648345', foothill: '#827D4E', highland: '#A08B67', mountain: '#986A49',
+        temperate: Object.freeze({ plain: '#6FA84B', wet: '#659747', dry: '#79A852',
+          rolling: '#71954B', hill: '#6D9049', foothill: '#7D804E', highland: '#A08B67', mountain: '#986A49',
           ridge: '#79513A', summit: '#4A3328', crevice: '#514033', snow: '#E7ECEE', ice: '#BCD5DF', sand: '#D9BF76',
           forest: '#24502E', canopy: '#4A7B3C' }),
         frozen: Object.freeze({ plain: '#C4DDE6', wet: '#BED9E3', dry: '#C9E0E7',

@@ -240,8 +240,10 @@
         dot(sphereNormal, lightDirection) * mountain * uSphereLightCancellation;
       float shadow = smoothstep(-.22, .14, ndl);
       float highlight = smoothstep(.28, .66, ndl);
-      float darkTone = mix(mix(.95, .84, secondaryActivity), .72, mountainInfluence);
-      float brightTone = mix(mix(1.04, 1.13, secondaryActivity), 1.17, mountainInfluence);
+      // Keep lowland facet-to-facet color shifts very fine. The broad ramp is
+      // reserved for real mountain massifs, not the plain watercolor cells.
+      float darkTone = mix(mix(.985, .965, secondaryActivity), .72, mountainInfluence);
+      float brightTone = mix(mix(1.015, 1.04, secondaryActivity), 1.17, mountainInfluence);
       brightTone = mix(brightTone, min(brightTone, 1.04), material.a);
       float lighting = mix(darkTone, 1.0, shadow);
       lighting = mix(lighting, brightTone, highlight);

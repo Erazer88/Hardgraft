@@ -672,36 +672,11 @@
     rollingMean /= count;
     smallMassifMean /= count;
 
-    // Forests are a deterministic material overlay, placed only on moist
-    // temperate lowlands and hills. Their spherical patch shapes follow the
-    // seed and never alter the canonical elevation or gameplay terrain.
-    const forestPatches = climate === 'temperate'
-      ? createForestPatches(root.OrbitWorld.hashSeed(`${planet.seed}:forest-patches-v1`), terrain, sea, settings.forests) : [];
+    // Keep the debug texture available, but omit the forest overlay entirely
+    // so it cannot produce dark, high-contrast patches between plain facets.
+    const forestPatches = [];
     const forestField = new Float32Array(count), forestPixels = new Uint8Array(count);
-    let forestArea = 0, forestLandArea = 0;
-    if (forestPatches.length) {
-      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-        const i = y * width + x;
-        if (elevation[i] <= sea) continue;
-        const area = Math.max(0, Math.sin(y / (height - 1) * Math.PI));
-        forestLandArea += area;
-        const d = direction(x / width, y / (height - 1));
-        const patch = forestPatchCoverage(d, forestPatches);
-        if (patch <= .001) continue;
-        const localTemperature = temperature - Math.pow(Math.abs(d.y), 1.45) * 27 - mid[i] * 12;
-        const humid = smoothstep(.24, .56, humidity[i]);
-        const temperate = smoothstep(-17, 0, localTemperature) *
-          (1 - smoothstep(38, 48, localTemperature) * .22);
-        const lowlandOrHill = clamp(classWeights[i * 4] + classWeights[i * 4 + 1] * .82 + smallMassifField[i] * .20);
-        const highlandFade = 1 - smoothstep(.66, .90, mid[i]);
-        const mountainFade = 1 - smoothstep(.16, .72, classWeights[i * 4 + 2] + classWeights[i * 4 + 3]);
-        const coverage = clamp(patch * humid * temperate * lowlandOrHill * highlandFade * mountainFade);
-        forestField[i] = coverage;
-        forestPixels[i] = Math.round(coverage * 255);
-        forestArea += coverage * area;
-      }
-    }
-    const forestProportion = forestArea / Math.max(1, forestLandArea);
+    const forestProportion = 0;
 
     // Build visual materials at the field resolution, then upsample once.
     // Evaluating every biome mix and sphere projection at 1024x512 synchronously
@@ -810,13 +785,13 @@
       const ridgeMask = mountainWeight * crest * smoothstep(.38, .78, heightValue);
       const valleyExposure = hollow * (classes[1] * .24 + mountainWeight) *
         smoothstep(.15, .50, crest + mountainWeight) * (climate === 'frozen' ? .055 : .12);
-      const regionalVariation = clamp(((wet - .5) * .045 +
-        (macro[i] - .35) * .014 - rollingAtPixel * .006) * (climate === 'frozen' ? .35 : 1), -.025, .025);
+      const regionalVariation = clamp(((wet - .5) * .022 +
+        (macro[i] - .35) * .006 - rollingAtPixel * .002) * (climate === 'frozen' ? .35 : 1), -.012, .012);
       for (let channel = 0; channel < 3; channel += 1) {
         // Keep each plain facet within a couple of percent of its base hue;
         // the broad pigment field carries the wet/dry pattern across many cells.
-        let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .035);
-        plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .03);
+        let plain = mix(materials.plain[channel], materials.wet[channel], smoothstep(.40, .76, wet) * .025);
+        plain = mix(plain, materials.dry[channel], (1 - smoothstep(.12, .40, wet)) * .022);
         const washColor = mix(materials.dry[channel], materials.wet[channel], smoothstep(.24, .78, localWet));
         let color;
         if (climate === 'frozen') {
@@ -835,9 +810,9 @@
           color = mix(color, materials.crevice[channel], clamp(valleyExposure));
         } else {
           color = mix(plain, washColor, watercolorMix);
-          color = mix(color, materials.rolling[channel], rollingAtPixel * .18 + hillockAtPixel * .26);
-          color = mix(color, materials.hill[channel], clamp(classes[1] * .72 + mountainWeight * .62));
-          color = mix(color, materials.foothill[channel], clamp(foothillWeight * .45 + smallMassif * .22));
+          color = mix(color, materials.rolling[channel], rollingAtPixel * .08 + hillockAtPixel * .10);
+          color = mix(color, materials.hill[channel], clamp(classes[1] * .22 + mountainWeight * .22));
+          color = mix(color, materials.foothill[channel], clamp(foothillWeight * .20 + smallMassif * .12));
           color = mix(color, materials.highland[channel], elevatedHighland * settings.highlandMaterialMix);
           color = mix(color, materials.mountain[channel], rockExposure * .60);
           color = mix(color, materials.ridge[channel], clamp(summitExposure * .58 + ridgeMask * .24));
@@ -848,18 +823,11 @@
         // Seeded, soft-edged cell pigment gives each broad plain a small
         // watercolor variation. The cell normal itself remains tied to the
         // filtered height at that cell's spherical center.
-        const channelTint = channel === 0 ? .018 : channel === 1 ? .014 : -.012;
+        const channelTint = channel === 0 ? .010 : channel === 1 ? .008 : -.007;
         color *= 1 + facetTone * watercolorMix * channelTint;
         // Broad humidity and altitude make small regional color shifts; there
         // is deliberately no fine noise in the albedo.
         color *= 1 + regionalVariation;
-        if (climate === 'temperate' && !isSea && forestField[i] > .001) {
-          // Forest tone follows the same broad humidity regions; avoid a random
-          // light/dark canopy change at every polygon boundary.
-          const canopyTone = clamp(.50 + (wet - .5) * .30, .28, .72);
-          const forestColor = mix(materials.forest[channel], materials.canopy[channel], canopyTone);
-          color = mix(color, forestColor, forestField[i] * settings.forests.colorMix);
-        }
         if (isSea && (climate === 'frozen' || climate === 'temperate' && snowField[i] > .02)) {
           color = materials.ice[channel];
         } else if (isSea && climate === 'temperate') {
