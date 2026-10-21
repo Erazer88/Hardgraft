@@ -54,7 +54,9 @@
       tangentV = vec3(tangentV.x, cx * tangentV.y - sx * tangentV.z,
         sx * tangentV.y + cx * tangentV.z);
       if (uAtmospherePass > 0.5) {
-        p = normalize(p) * uShellScale;
+        // Keep the atmosphere just outside the local terrain surface. This
+        // prevents the shell from cutting through the newly raised peaks.
+        p = normalize(p) * (length(p) + uShellScale - 1.0);
         n = normalize(p);
       }
       // Keep the correction local to the final two degrees, where the
@@ -126,6 +128,8 @@
     uniform float uReliefShapeLinear;
     uniform float uReliefShapeExponent;
     uniform float uReliefCompressionStart;
+    uniform float uMountainReliefBoost;
+    uniform float uPeakReliefBoost;
     uniform float uMidReliefStrength;
     uniform float uFacetMix;
     uniform float uAoStrength;
@@ -177,7 +181,11 @@
       return uReliefShapeLinear * h + (1.0 - uReliefShapeLinear) * pow(mountainCurve, uReliefShapeExponent);
     }
     float sampleShapedLandHeight(vec2 uv, float lod) {
-      return shapeReliefHeight(sampleLandHeight(uv, lod));
+      float height = sampleLandHeight(uv, lod);
+      vec2 structure = textureLod(uTerrainStructureTexture, uv, lod).rg;
+      float mountain = pow(clamp(structure.r, 0.0, 1.0), 1.35) * smoothstep(.18, .60, height);
+      float peak = pow(clamp(structure.g, 0.0, 1.0), 2.35) * smoothstep(.52, .84, height);
+      return shapeReliefHeight(height) + mountain * uMountainReliefBoost + peak * uPeakReliefBoost;
     }
     void main() {
       if (uAtmospherePass > 0.5) {
@@ -452,6 +460,8 @@
         reliefShapeLinear: gl.getUniformLocation(program, 'uReliefShapeLinear'),
         reliefShapeExponent: gl.getUniformLocation(program, 'uReliefShapeExponent'),
         reliefCompressionStart: gl.getUniformLocation(program, 'uReliefCompressionStart'),
+        mountainReliefBoost: gl.getUniformLocation(program, 'uMountainReliefBoost'),
+        peakReliefBoost: gl.getUniformLocation(program, 'uPeakReliefBoost'),
         midReliefStrength: gl.getUniformLocation(program, 'uMidReliefStrength'),
         facetMix: gl.getUniformLocation(program, 'uFacetMix'),
         aoStrength: gl.getUniformLocation(program, 'uAoStrength'),
@@ -732,6 +742,8 @@
       gl.uniform1f(program.uniforms.reliefShapeLinear, style.relief.linearFraction);
       gl.uniform1f(program.uniforms.reliefShapeExponent, style.relief.exponent);
       gl.uniform1f(program.uniforms.reliefCompressionStart, style.relief.compressionStart);
+      gl.uniform1f(program.uniforms.mountainReliefBoost, style.relief.mountainBoost);
+      gl.uniform1f(program.uniforms.peakReliefBoost, style.relief.peakBoost);
       gl.uniform1f(program.uniforms.midReliefStrength, shading.midReliefStrength);
       gl.uniform1f(program.uniforms.facetMix, shading.mountainFacetMix);
       gl.uniform1f(program.uniforms.aoStrength, shading.mountainAoStrength);

@@ -4,6 +4,10 @@
   const TAU = Math.PI * 2;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const finite = value => Number.isFinite(value) ? value : 0;
+  const smoothstep = (edge0, edge1, value) => {
+    const t = clamp((value - edge0) / Math.max(1e-6, edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
   const reliefRangeCache = new WeakMap();
 
   function terrainToSphere(x, y, terrain) {
@@ -118,11 +122,36 @@
     return linearFraction * normalized + (1 - linearFraction) * Math.pow(pointedMountainCurve, exponent);
   }
 
-  function surfaceRadius(x, y, terrain, relief = {}) {
+  function mountainReliefHeight(elevation, mountainMask, ridgeField, terrain, relief = {}) {
+    const height = visualHeight(elevation, terrain, relief);
+    const mountain = clamp(finite(mountainMask) / 255, 0, 1);
+    const ridge = clamp(finite(ridgeField) / 255, 0, 1);
+    // Lift broad massifs, then concentrate the extra height on actual ridges so
+    // the skyline resolves into peaks instead of flat-topped mountain blobs.
+    const mountainSupport = Math.pow(mountain, 1.35) * smoothstep(.18, .60, height);
+    const peakSupport = Math.pow(ridge, 2.35) * smoothstep(.52, .84, height);
+    const mountainBoost = Number.isFinite(relief.mountainBoost) ? Math.max(0, relief.mountainBoost) : 1;
+    const peakBoost = Number.isFinite(relief.peakBoost) ? Math.max(0, relief.peakBoost) : 1.35;
+    return shapeReliefHeight(height, relief) + mountainSupport * mountainBoost + peakSupport * peakBoost;
+  }
+
+  function sampleMountainReliefHeight(x, y, terrain, relief = {}) {
     const elevation = sampleElevation(x, y, terrain);
-    const landHeight = visualHeight(elevation, terrain, relief);
+    const mountainMask = sampleField(terrain?.mountainMask, x, y, terrain);
+    const ridgeField = sampleField(terrain?.ridgeField, x, y, terrain);
+    return mountainReliefHeight(elevation, mountainMask, ridgeField, terrain, relief);
+  }
+
+  function maximumSurfaceRadius(relief = {}) {
+    const scale = Number.isFinite(relief.scale) ? Math.max(0, relief.scale) : .045;
+    const mountainBoost = Number.isFinite(relief.mountainBoost) ? Math.max(0, relief.mountainBoost) : 1;
+    const peakBoost = Number.isFinite(relief.peakBoost) ? Math.max(0, relief.peakBoost) : 1.35;
+    return 1 + scale * (1 + mountainBoost + peakBoost);
+  }
+
+  function surfaceRadius(x, y, terrain, relief = {}) {
     const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
-    return 1 + scale * shapeReliefHeight(landHeight, relief);
+    return 1 + scale * sampleMountainReliefHeight(x, y, terrain, relief);
   }
 
   function surfacePosition(x, y, terrain, relief) {
@@ -132,11 +161,10 @@
 
   function poleSurfacePosition(terrain, north, relief = {}) {
     const row = north ? 0 : terrain.height - 1;
-    const elevation = sampleElevation((terrain.width - 1) / 2, row, terrain);
-    const landHeight = visualHeight(elevation, terrain, relief);
+    const x = (terrain.width - 1) / 2;
     const scale = Number.isFinite(relief.scale) ? relief.scale : .045;
-    const radius = 1 + scale * shapeReliefHeight(landHeight, relief);
-    const normal = terrainToSphere((terrain.width - 1) / 2, row, terrain);
+    const radius = 1 + scale * sampleMountainReliefHeight(x, row, terrain, relief);
+    const normal = terrainToSphere(x, row, terrain);
     return { x: normal.x * radius, y: normal.y * radius, z: normal.z * radius };
   }
 
@@ -177,7 +205,7 @@
     const centerX = Number.isFinite(view.centerX) ? view.centerX : view.width / 2;
     const centerY = Number.isFinite(view.centerY) ? view.centerY : view.height / 2;
     const rayX = (screenX - centerX) / radiusPx, rayY = (centerY - screenY) / radiusPx;
-    const maxRadius = 1 + (Number.isFinite(relief?.scale) ? relief.scale : .045) + .002;
+    const maxRadius = maximumSurfaceRadius(relief) + .002;
     const perpendicular = rayX * rayX + rayY * rayY;
     if (perpendicular > maxRadius * maxRadius) return null;
 
@@ -198,7 +226,9 @@
     };
 
     let previousDepth = Math.max(0, entry - .002), previous = valueAt(previousDepth);
-    const steps = 36;
+    // Narrower, taller peaks need a denser bracket before bisection so taps and
+    // building placement still intersect the same silhouette as the mesh.
+    const steps = 72;
     for (let i = 1; i <= steps; i += 1) {
       const depth = entry + (exit - entry) * i / steps;
       const current = valueAt(depth);
@@ -234,6 +264,7 @@
       return vec2(atan(d.z, d.x) / 6.28318530718 + 0.5,
         0.5 - asin(clamp(d.y, -1.0, 1.0)) / 3.14159265359);
     }`,
-    sampleField, sampleElevation, visualReliefRange, normalizeVisualHeight, visualHeight, shapeReliefHeight, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
+    sampleField, sampleElevation, visualReliefRange, normalizeVisualHeight, visualHeight, shapeReliefHeight,
+    mountainReliefHeight, maximumSurfaceRadius, surfaceRadius, surfacePosition, poleSurfacePosition, projectSurfacePoint,
     isSurfacePointVisible, raycastTerrain, rotateToCamera });
 })(globalThis);

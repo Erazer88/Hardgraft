@@ -23,12 +23,15 @@ Le relief de rendu est radial et borné par `src/data/planetGlobeStyle.js`. Sa
 plage verticale est recalculée depuis le quantile surfacique 98,5 % des altitudes
 terrestres de chaque planète (pondération par latitude), entre 24 et 58 unités au-dessus du niveau marin.
 Ce quantile calibre le relief sans écrêter les sommets : une queue rationnelle
-strictement croissante conserve les hauteurs jusqu'au maximum réel. Le profil
-des massifs garde des épaules douces et une pente non nulle à la pointe, au lieu
-de plafonner en plateau sphérique. La même normalisation, centralisée dans
-`planetGlobeProjection.js` avec son équivalent GLSL, pilote maillage, normales,
-ombres, overlays et raycast. La génération v9,
-`elevation`, l'érosion et les quatre champs géologiques restent les données canoniques.
+strictement croissante conserve les hauteurs jusqu'au maximum réel. En plus de
+ce profil de base, `mountainMask` soulève les massifs et `ridgeField` ajoute une
+poussée plus étroite aux crêtes hautes. Ces boosts visuels rendent les silhouettes
+plus hautes et pointues sans changer `elevation` ni les données de gameplay. Les
+champs sont utilisés dans la projection du maillage et dans le calcul GLSL des
+normales/ombres ; le raycast utilise une borne correspondante et un échantillonnage
+plus dense. Le décalage atmosphérique suit la nouvelle surface pour éviter de
+traverser les pics. La génération v9, `elevation`, l'érosion et les quatre champs
+géologiques restent les données canoniques.
 
 ## Pipeline illustratif terrestre
 

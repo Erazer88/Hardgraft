@@ -4,6 +4,9 @@
   root.OrbitPlanetGlobeStyle = Object.freeze({
     mesh: Object.freeze({ longitudeSegments: 640, latitudeSegments: 320 }),
     relief: Object.freeze({ scale: .038, exponent: 1.00, linearFraction: .16,
+      // Additional visual-only displacement follows the generated mountain
+      // and ridge masks, leaving canonical gameplay elevation untouched.
+      mountainBoost: 1.15, peakBoost: 2.30,
       compressionStart: .42, peakTailStart: .70, landQuantile: .985, minLandRange: 24, maxLandRange: 58 }),
     stylizedTerrain: Object.freeze({
       fieldWidth: 384, textureWidth: 1024,
