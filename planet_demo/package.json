@@ -1,0 +1,11 @@
+{
+  "name": "nereide-stylized-planet-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas procédural 2D et aperçu globe Canvas pour Hardgraft",
+  "scripts": {
+    "test": "node --test tests/world.test.cjs",
+    "build": "python3 build.py",
+    "start": "python3 -m http.server 8000 --bind 0.0.0.0"
+  }
+}

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#081521">
+  <meta name="description" content="Néréide, atlas de l'Arche : une planète procédurale illustrée, reproductible par seed. Prototype Hardgraft 0.1.">
+  <title>Néréide — Atlas de l'Arche · 0.1</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='27' fill='%230e456a' stroke='%237fc9d9' stroke-width='2'/%3E%3Cpath d='M21 11 38 16 33 27 46 36 37 51 27 44 28 32 16 24Z' fill='%23b6c875'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <a class="brand" href="./" aria-label="Néréide, accueil"><span class="brand-mark" aria-hidden="true">◎</span><span>NÉRÉIDE<small>ATLAS DE L’ARCHE</small></span></a>
+      <div class="header-meta"><span class="status-dot"></span> CARTOGRAPHIE PROCÉDURALE <span class="version">v0.1</span></div>
+    </header>
+    <main class="workspace">
+      <section class="stage" aria-label="Aperçu de la planète">
+        <div class="stage-heading"><div><span class="eyebrow">MONDE GÉNÉRÉ · 01</span><h1>Une terre à découvrir.</h1></div><span class="stage-index" aria-hidden="true">N / 001</span></div>
+        <div class="visual" id="visual">
+          <div class="orbit orbit-one" aria-hidden="true"></div><div class="orbit orbit-two" aria-hidden="true"></div>
+          <canvas id="globe" width="800" height="800" tabindex="0" role="img" aria-label="Globe de Néréide. Glisser ou utiliser les flèches pour tourner, plus et moins pour zoomer."></canvas>
+          <div id="map-view" class="map-view" hidden><canvas id="map" width="1536" height="768" role="img" aria-label="Carte équirectangulaire de la planète"></canvas><span>PROJECTION ÉQUIRECTANGULAIRE</span></div>
+          <div class="loading" id="loading" role="status"><span></span> L’Arche dessine un monde…</div>
+          <span class="coordinate coord-top" aria-hidden="true">90° N</span><span class="coordinate coord-bottom" aria-hidden="true">90° S</span>
+        </div>
+        <div class="stage-bottom">
+          <div class="view-switch" role="group" aria-label="Vue"><button id="view-globe" class="selected" aria-pressed="true">Globe</button><button id="view-map" aria-pressed="false">Carte 2D</button></div>
+          <span class="gesture" id="gesture">Glisser pour explorer</span>
+          <div class="view-tools"><button id="grid" class="icon-button active" aria-label="Afficher la grille" aria-pressed="true" title="Grille">▦</button><button id="zoom-out" class="icon-button" aria-label="Dézoomer" title="Dézoomer">−</button><button id="zoom-in" class="icon-button" aria-label="Zoomer" title="Zoomer">+</button><button id="reset-view" class="icon-button" aria-label="Recentrer le globe" title="Recentrer">⌖</button></div>
+        </div>
+      </section>
+      <aside class="controls" aria-label="Génération du monde">
+        <div class="control-heading"><span class="eyebrow">CONFIGURATION</span><h2>Façonner le monde</h2><p>Une seed. Un nouvel horizon.</p></div>
+        <form id="seed-form" class="seed-block"><label for="seed">SEED DU MONDE</label><div class="seed-input"><input id="seed" name="seed" value="4E455245" maxlength="64" autocomplete="off" spellcheck="false" aria-describedby="seed-help"><button type="submit" aria-label="Appliquer la seed" title="Appliquer la seed">↵</button><button type="button" id="share" aria-label="Copier le lien de cette planète" title="Copier le lien">⧉</button></div><span id="seed-help">Même seed, mêmes réglages, même planète.</span></form>
+        <div class="sliders">
+          <label class="slider-control" for="continentSize"><span>Taille du continent<output for="continentSize" id="continentSize-value">50</output></span><input type="range" id="continentSize" min="0" max="100" value="50"><span class="range-labels"><span>Île-monde</span><span>Supercontinent</span></span></label>
+          <label class="slider-control" for="mountains"><span>Montagnes<output for="mountains" id="mountains-value">60</output></span><input type="range" id="mountains" min="0" max="100" value="60"></label>
+          <label class="slider-control" for="forests"><span>Forêts<output for="forests" id="forests-value">65</output></span><input type="range" id="forests" min="0" max="100" value="65"></label>
+          <label class="slider-control" for="roughness"><span>Découpe du littoral<output for="roughness" id="roughness-value">45</output></span><input type="range" id="roughness" min="0" max="100" value="45"><span class="range-labels"><span>Douce</span><span>Accidentée</span></span></label>
+        </div>
+        <button id="randomize" class="primary-button"><span aria-hidden="true">⟳</span> Randomiser <span class="button-arrow" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13 13 3M4 3h9v9"/></svg></span></button>
+        <p class="world-stats" id="world-stats" aria-live="polite">Préparation de l’atlas…</p>
+        <div class="export-section"><span class="eyebrow">EMPORTER CE MONDE</span><button id="export-texture" class="export-button"><span>Exporter la carte <small>Texture PNG · 2:1</small></span><span aria-hidden="true">↓</span></button><a href="nereide-atlas-v0.1.html" download class="html-link" id="download-html">Télécharger la démo HTML <svg aria-hidden="true" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13 13 3M4 3h9v9"/></svg></a></div>
+        <p id="message" class="message" role="status" aria-live="polite"></p>
+      </aside>
+    </main>
+    <footer class="footer"><span class="footer-name">HARDGRAFT <span>/</span> EXPLORATIONS</span><div class="legend" aria-label="Légende"><span><i style="--swatch:#135385"></i>Océan</span><span><i style="--swatch:#e9d796"></i>Plages</span><span><i style="--swatch:#b1c668"></i>Plaines</span><span><i style="--swatch:#3b7245"></i>Forêts</span><span><i style="--swatch:#ad9868"></i>Reliefs</span><span><i style="--swatch:#efefda"></i>Neige</span></div><span class="footer-note">CHAQUE MONDE A SA SIGNATURE.</span></footer>
+  </div>
+  <script id="initial-state" type="application/json">{}</script>
+  <script src="src/random.js"></script>
+  <script src="src/world.js"></script>
+  <script src="src/assets.js"></script>
+  <script src="src/texture.js"></script>
+  <script src="src/globe.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
