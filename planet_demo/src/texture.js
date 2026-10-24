@@ -93,13 +93,14 @@
     const image = ctx.createImageData(width, height), landMask = A.surface(width, height), oceanMask = A.surface(width, height);
     const lctx = landMask.getContext('2d'), octx = oceanMask.getContext('2d');
     const landImage = lctx.createImageData(width, height), oceanImage = octx.createImageData(width, height);
+    const shoreImage = ctx.createImageData(width, height), forestImage = ctx.createImageData(width, height);
     for (let y = 0; y < height; y++) {
       const v = y / (height - 1), mapY = v * 2 - 1;
       for (let x = 0; x < width; x++) {
         const u = x / (width - 1), i = (y * width + x) * 4;
         const d = interpolated(grid.field, grid.width, grid.height, u, v);
         const water = d > 0, variation = interpolated(grid.variation, grid.width, grid.height, u, v);
-        let color;
+        let color, beachAlpha = 0, forestAlpha = 0;
         if (water) {
           color = mix(palette.coast, palette.shallow, smoothstep(.0005, .0027, d));
           color = mix(color, palette.deep, smoothstep(.0027, .012, d));
@@ -117,51 +118,49 @@
           color = mix(plain, palette.forest, forest * .72);
           const beachWidth = .0048 + variation * .0055;
           color = mix(palette.sand, color, smoothstep(beachWidth * .42, beachWidth * 1.15, -d));
+          beachAlpha = 1 - smoothstep(beachWidth * .42, beachWidth * 1.15, -d);
+          forestAlpha = forest * .2;
         }
         image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
         const maskIndex = i + 3, edge = clamp(.5 - d / .0012, 0, 1);
         landImage.data[maskIndex] = edge * 255; oceanImage.data[maskIndex] = (1 - edge) * 255;
+        shoreImage.data[i] = palette.sand[0]; shoreImage.data[i + 1] = palette.sand[1];
+        shoreImage.data[i + 2] = palette.sand[2]; shoreImage.data[i + 3] = beachAlpha * 255;
+        forestImage.data[i] = 30; forestImage.data[i + 1] = 79; forestImage.data[i + 2] = 39;
+        forestImage.data[i + 3] = forestAlpha * 255;
       }
     }
     ctx.putImageData(image, 0, 0); lctx.putImageData(landImage, 0, 0); octx.putImageData(oceanImage, 0, 0);
+    if (library.ground) {
+      const groundLayer = A.surface(width, height), groundCtx = groundLayer.getContext('2d');
+      groundCtx.drawImage(library.ground, 0, 0, width, height);
+      groundCtx.globalCompositeOperation = 'destination-in'; groundCtx.drawImage(landMask, 0, 0);
+      groundCtx.globalCompositeOperation = 'source-over'; ctx.drawImage(groundLayer, 0, 0);
+    }
+    const shore = A.surface(width, height), sctx = shore.getContext('2d');
+    sctx.putImageData(shoreImage, 0, 0); ctx.drawImage(shore, 0, 0);
+    const forests = A.surface(width, height), fctx = forests.getContext('2d');
+    fctx.putImageData(forestImage, 0, 0); fctx.globalCompositeOperation = 'destination-in';
+    fctx.drawImage(landMask, 0, 0); fctx.globalCompositeOperation = 'source-over'; ctx.drawImage(forests, 0, 0);
     const clouds = A.surface(width, height), cctx = clouds.getContext('2d');
     drawClouds(cctx, world, width, height, width / 1536);
     cctx.globalCompositeOperation = 'destination-in'; cctx.drawImage(oceanMask, 0, 0); cctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(clouds, 0, 0);
 
     const details = A.surface(width, height), dctx = details.getContext('2d');
-    const decorations = [];
-    for (const chain of world.chains) {
-      decorations.push({p: {...chain, size: chain.size * .72, angle: chain.direction * .12}, image: library.images.mountain, alpha: .9});
+    for (let i = 0; i < world.chains.length; i++) {
+      const chain = world.chains[i];
+      if (!library.mountains.length) break;
+      const variant = (i + (world.seed & 1)) % library.mountains.length;
+      const mountain = library.mountains[variant];
+      sprite(dctx, mountain, {...chain, size: chain.size * 1.12, heightScale: 1.75, angle: chain.direction,
+        anchor: .72, mirror: ((chain.variant || i) & 1) === 1}, width, height, 1, .98);
     }
-    for (const p of world.peaks) {
-      decorations.push({p: {...p, size: p.size * .8, heightScale: .92, anchor: .81}, image: library.mountain[p.variant], alpha: p.major ? .94 : .84});
-    }
-    for (const p of world.hills) decorations.push({p: {...p, heightScale: .72}, image: library.hill[p.variant], alpha: .7});
-    for (const p of world.trees) decorations.push({p: {...p, size: p.size * .88, heightScale: .9}, image: library.forest[p.variant], alpha: .88});
-    for (let i = 0; i < world.forestZones.length; i += 2) {
-      const zone = world.forestZones[i];
-      if (world.landDistance(zone.x, zone.y) < -.055 && world.lakeDistance(zone.x, zone.y) > .04 && world.riverDistance(zone.x, zone.y) > .025) {
-        decorations.push({p: {...zone, size: .034}, image: library.images.forest, alpha: .82});
-      }
-    }
-    for (let i = 0; i < world.hills.length; i += 9) {
-      const p = world.hills[i];
-      decorations.push({p: {...p, size: .04, heightScale: .8}, image: library.images.hills, alpha: .42});
-    }
-    decorations.sort((a, b) => a.p.y - b.p.y);
-    for (const item of decorations) sprite(dctx, item.image, item.p, width, height, 1, item.alpha);
     dctx.globalCompositeOperation = 'destination-in'; dctx.drawImage(landMask, 0, 0); dctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(details, 0, 0);
 
     const rivers = A.surface(width, height), riverCtx = rivers.getContext('2d'), unit = width / 1536;
     for (const river of world.rivers) {
-      if (river.order === 'main' && library.valley && river.points.length > 38) {
-        const index = Math.floor(river.points.length * .54), p = river.points[index];
-        const before = river.points[Math.max(0, index - 3)], after = river.points[Math.min(river.points.length - 1, index + 3)];
-        const angle = Math.atan2((after.y - before.y) * .5, after.x - before.x);
-        sprite(riverCtx, library.valley, {...p, size: .045, angle, anchor: .5}, width, height, 1, .065);
-      }
       strokeRiver(riverCtx, river, width, height, unit, 'bank');
       strokeRiver(riverCtx, river, width, height, unit, 'water');
       if (river.order === 'main' && river.width > 1) strokeRiver(riverCtx, river, width, height, unit, 'glint');

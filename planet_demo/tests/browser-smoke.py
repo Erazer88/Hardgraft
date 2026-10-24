@@ -38,7 +38,7 @@ with sync_playwright() as playwright:
     page.on('pageerror', lambda error: report['errors'].append(str(error)))
     page.goto(base, wait_until='networkidle')
     page.wait_for_function('!!globalThis.NereideDemo?.texture', timeout=30000)
-    check(page.evaluate('NereideDemo.texture.failedAssets.length === 0'), 'four original images decoded')
+    check(page.evaluate('NereideDemo.texture.failedAssets.length === 0'), 'three supplied images decoded')
     initial = texture_hash(page)
     page.screenshot(path=str(out / 'desktop.png'), full_page=True)
     page.evaluate('async()=>{await NereideDemo.regenerate(false)}')

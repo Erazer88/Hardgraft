@@ -1,12 +1,12 @@
-# Validation — démo Néréide 0.2.1
+# Validation — démo Néréide 0.3.0
 
 Livraison du 24 octobre 2026. La démo demeure séparée du jeu Hardgraft.
 
-- Le build produit un HTML autonome de 336 Ko avec les quatre assets d'origine embarqués.
-- 21 contrôles Chromium réussis : déterminisme des pixels, seed, contrôles de caméra, grille, vue carte, sliders, téléchargements PNG/HTML, couture 2:1 et erreurs JavaScript.
-- Les vues Chromium à 320, 390, 1024 et 1440 px tiennent dans leur panneau sans débordement horizontal.
+- Le build produit un HTML autonome de 1,1 Mo avec uniquement les trois images fournies embarquées.
+- 21 contrôles Chromium et 24 contrôles Firefox réussis : assets, déterminisme des pixels, caméra, grille, vue carte, sliders, téléchargements, couture 2:1 et erreurs JavaScript.
+- Les vues dans les deux navigateurs à 320, 390, 1024 et 1440 px tiennent sans débordement horizontal. L'export HTML fonctionne aussi hors connexion dans Firefox.
 - L'export PNG fait 1536 × 768 et les pixels des deux bords longitudinaux correspondent, y compris aux pôles.
-- \`npm test\` conserve trois échecs présents dans la base v0.2.0 : le nombre minimum de lacs attendu, l'hypothèse que chaque affluent finit dans l'océan ou un lac alors qu'il rejoint le cours principal, et le décompte du terrain qui ne connaît pas la classe banquise ajoutée en 0.2.0.
+- La suite \`npm test\` garde les trois assertions déjà en échec dans la base v0.2.0 : nombre minimum de lacs, exutoire des affluents et classe banquise.
 
 ## Version 0.1.0
 

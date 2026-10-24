@@ -112,7 +112,7 @@
     const config = texture ? {seed: A.formatSeed(texture.world.seed), ...texture.world.options} : {seed: byId('seed').value};
     copy.querySelector('#initial-state').textContent = JSON.stringify(config);
     copy.querySelector('#message').textContent = '';
-    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.2.html');
+    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.3.html');
     message('Démo autonome téléchargée avec la seed et les réglages actuels.');
   });
   globalThis.NereideDemo = {globe, regenerate, get texture() {return texture;}, get mapMode() {return mapMode;}};

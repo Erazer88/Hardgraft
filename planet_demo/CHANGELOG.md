@@ -1,3 +1,10 @@
+# 0.3.0 — 2026-10-24
+
+- Remplacement de l'ancienne bibliothèque d'images par la texture de sol et les deux massifs fournis.
+- Texture de sol utilisée comme base de toutes les surfaces terrestres, avec plages et côtes conservées en bordure.
+- Massifs nettoyés des fragments alpha isolés et dotés d'un fondu doux avant leur composition sur le sol.
+- Variantes attribuées aux chaînes par seed ; export autonome limité aux trois images choisies.
+
 # 0.2.1 — 2026-10-24
 
 - Littoral et rives calculés depuis le champ de terrain continu, sans masque côtier binaire qui formait des escaliers au zoom.

@@ -11,6 +11,11 @@ OUT = ROOT / 'dist'
 OUT.mkdir(exist_ok=True)
 version = json.loads((ROOT / 'package.json').read_text())['version']
 demo_version = '.'.join(version.split('.')[:2])
+current_html = f'nereide-atlas-v{demo_version}.html'
+current_sources = f'nereide-atlas-v{demo_version}-sources.zip'
+for path in OUT.glob('nereide-atlas-v*'):
+    if path.name not in {current_html, current_sources}:
+        path.unlink()
 html = (ROOT / 'index.html').read_text()
 html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>\n' + (ROOT / 'styles.css').read_text() + '\n</style>')
 
@@ -28,9 +33,9 @@ for path in sorted((ROOT / 'assets').glob('*')):
         html = html.replace('assets/' + path.name, f'data:{mime};base64,{data}')
 if re.search(r'<script\s+src=|<link[^>]+href="styles.css"|[\"\x27]assets/', html):
     raise ValueError('An external application resource remains in the standalone HTML')
-for name in ['index.html', f'nereide-atlas-v{demo_version}.html']:
+for name in ['index.html', current_html]:
     (OUT / name).write_text(html)
-with zipfile.ZipFile(OUT / f'nereide-atlas-v{demo_version}-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
+with zipfile.ZipFile(OUT / current_sources, 'w', zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(ROOT.rglob('*')):
         relative = path.relative_to(ROOT)
         if path.is_file() and relative.parts[0] in {'src', 'assets', 'tests'}:
