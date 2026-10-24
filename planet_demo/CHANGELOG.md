@@ -1,3 +1,10 @@
+# 0.2.1 — 2026-10-24
+
+- Littoral et rives calculés depuis le champ de terrain continu, sans masque côtier binaire qui formait des escaliers au zoom.
+- Bandes de côte et de plage affinées ; retour à des bleus et des verts plus proches de la première version.
+- Chaînes et forêts composées avec les petits assets déjà présents ; retrait des grands collages photo qui dominaient la carte.
+- Sommets réduits pour rendre les chaînes plus lisibles à l'échelle du continent.
+
 # 0.2.0 — 2026-10-23
 
 - Deux grands massifs continus avec sommets lisibles et échelle renforcée par rapport aux arbres et aux cours d'eau.

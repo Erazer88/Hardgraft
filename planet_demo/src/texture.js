@@ -3,50 +3,25 @@
   const A = root.NereideAtlas, {clamp, lerp, noise, smoothstep} = A;
   const mix = (a, b, t) => a.map((n, i) => lerp(n, b[i], clamp(t, 0, 1)));
   const palette = {
-    ocean: [3, 31, 72], deep: [5, 53, 111], shallow: [8, 93, 145], coast: [34, 178, 196],
-    sand: [238, 217, 145], plain: [139, 178, 84], light: [171, 198, 100],
-    warm: [190, 192, 104], dark: [112, 153, 76], forest: [60, 112, 64], ice: [217, 232, 237]
+    ocean: [6, 43, 83], deep: [7, 51, 91], shallow: [10, 62, 101], coast: [48, 183, 184],
+    sand: [236, 219, 151], plain: [174, 197, 100], light: [198, 210, 123],
+    warm: [170, 188, 93], dark: [147, 178, 84], forest: [78, 130, 68], ice: [217, 232, 237]
   };
 
-  function signedShore(world, width, height) {
-    const length = width * height, land = new Uint8Array(length), distance = new Float32Array(length);
+  function raster(world, width, height) {
+    const length = width * height, field = new Float32Array(length);
     const variation = new Float32Array(length), forest = new Float32Array(length), polar = new Float32Array(length);
-    const horizontal = 2 / (width - 1), vertical = 1 / (height - 1);
-    const diagonal = Math.hypot(horizontal, vertical), far = 1e6;
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const px = x / (width - 1) * 2 - 1, py = y / (height - 1) * 2 - 1, i = y * width + x;
-      land[i] = world.landDistance(px, py) < 0 && world.lakeDistance(px, py) > 0 ? 1 : 0;
-      const u = x / (width - 1), v = y / (height - 1);
-      variation[i] = noise(u * 4.6 + 7, v * 4.1 - 2, world.seed ^ 798) * .66 +
-        noise(u * 10.5 - 5, v * 8.2 + 9, world.seed ^ 889) * .34;
-      forest[i] = land[i] ? world.forestAt(px, py) : 0;
-      polar[i] = noise(u * 6.2 + 4, v * 8.7 - 6, world.seed ^ 233);
-      distance[i] = far;
+      const u = x / (width - 1), v = y / (height - 1), px = u * 2 - 1, py = v * 2 - 1, i = y * width + x;
+      const shore = world.landDistance(px, py), lake = world.lakeDistance(px, py);
+      field[i] = Math.max(shore, -lake);
+      variation[i] = noise(u * 7.4 + 7, v * 5.6 - 2, world.seed ^ 798) * .7 +
+        noise(u * 16.5 - 5, v * 11.2 + 9, world.seed ^ 889) * .3;
+      forest[i] = shore < -.001 && lake > 0 ? world.forestAt(px, py) : 0;
+      const longitude = u * Math.PI * 2;
+      polar[i] = noise(Math.cos(longitude) * 3 + 4, v * 8.7 - 6 + Math.sin(longitude) * 3, world.seed ^ 233);
     }
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const i = y * width + x, here = land[i];
-      if ((x && land[i - 1] !== here) || (x + 1 < width && land[i + 1] !== here) ||
-          (y && land[i - width] !== here) || (y + 1 < height && land[i + width] !== here)) distance[i] = 0;
-    }
-    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const i = y * width + x; let d = distance[i];
-      if (x) d = Math.min(d, distance[i - 1] + horizontal);
-      if (y) d = Math.min(d, distance[i - width] + vertical);
-      if (x && y) d = Math.min(d, distance[i - width - 1] + diagonal);
-      if (x + 1 < width && y) d = Math.min(d, distance[i - width + 1] + diagonal);
-      distance[i] = d;
-    }
-    for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) {
-      const i = y * width + x; let d = distance[i];
-      if (x + 1 < width) d = Math.min(d, distance[i + 1] + horizontal);
-      if (y + 1 < height) d = Math.min(d, distance[i + width] + vertical);
-      if (x + 1 < width && y + 1 < height) d = Math.min(d, distance[i + width + 1] + diagonal);
-      if (x && y + 1 < height) d = Math.min(d, distance[i + width - 1] + diagonal);
-      distance[i] = d;
-    }
-    const signed = new Float32Array(length);
-    for (let i = 0; i < length; i++) signed[i] = (land[i] ? -1 : 1) * distance[i];
-    return {width, height, signed, land, variation, forest, polar};
+    return {width, height, field, variation, forest, polar};
   }
   function interpolated(array, width, height, u, v) {
     const x = clamp(u, 0, 1) * (width - 1), y = clamp(v, 0, 1) * (height - 1);
@@ -113,23 +88,22 @@
       throw new Error('La texture doit avoir un ratio 2:1, entre 256 et 4096 pixels de large.');
     }
     const library = await A.loadLibrary(), world = A.createWorld(settings.seed === undefined ? 0x4E455245 : settings.seed, settings);
-    const grid = signedShore(world, 768, 384), canvas = A.surface(width, height), ctx = canvas.getContext('2d');
+    const gridWidth = Math.min(1024, Math.max(512, width)), grid = raster(world, gridWidth, gridWidth / 2);
+    const canvas = A.surface(width, height), ctx = canvas.getContext('2d');
     const image = ctx.createImageData(width, height), landMask = A.surface(width, height), oceanMask = A.surface(width, height);
-    const mountainMask = A.surface(width, height);
-    const lctx = landMask.getContext('2d'), octx = oceanMask.getContext('2d'), mctx = mountainMask.getContext('2d');
+    const lctx = landMask.getContext('2d'), octx = oceanMask.getContext('2d');
     const landImage = lctx.createImageData(width, height), oceanImage = octx.createImageData(width, height);
-    const mountainImage = mctx.createImageData(width, height);
     for (let y = 0; y < height; y++) {
       const v = y / (height - 1), mapY = v * 2 - 1;
       for (let x = 0; x < width; x++) {
         const u = x / (width - 1), i = (y * width + x) * 4;
-        const d = interpolated(grid.signed, grid.width, grid.height, u, v);
+        const d = interpolated(grid.field, grid.width, grid.height, u, v);
         const water = d > 0, variation = interpolated(grid.variation, grid.width, grid.height, u, v);
         let color;
         if (water) {
-          color = mix(palette.coast, palette.shallow, smoothstep(.0005, .0026, d));
-          color = mix(color, palette.deep, smoothstep(.0026, .009, d));
-          color = mix(color, palette.ocean, smoothstep(.009, .035, d));
+          color = mix(palette.coast, palette.shallow, smoothstep(.0005, .0027, d));
+          color = mix(color, palette.deep, smoothstep(.0027, .012, d));
+          color = mix(color, palette.ocean, smoothstep(.012, .04, d));
           const polar = smoothstep(.86, .99, Math.abs(mapY));
           const iceNoise = interpolated(grid.polar, grid.width, grid.height, u, v);
           const ice = polar * smoothstep(.35, .77, iceNoise);
@@ -137,43 +111,40 @@
           const wave = Math.sin(u * Math.PI * 8 + Math.sin(v * 14) * .5) * Math.sin(v * 19) * 1.25;
           color = color.map(n => n + wave);
         } else {
-          const plain = variation > .48 ? mix(palette.plain, palette.light, smoothstep(.48, .94, variation)) :
-            mix(palette.dark, palette.warm, smoothstep(.08, .56, variation));
+          const plain = variation > .5 ? mix(palette.plain, palette.light, smoothstep(.5, .94, variation)) :
+            mix(palette.dark, palette.warm, smoothstep(.08, .55, variation));
           const forest = interpolated(grid.forest, grid.width, grid.height, u, v);
           color = mix(plain, palette.forest, forest * .72);
-          const beachWidth = .005 + variation * .007;
-          color = mix(palette.sand, color, smoothstep(beachWidth * .45, beachWidth * 1.2, -d));
+          const beachWidth = .0048 + variation * .0055;
+          color = mix(palette.sand, color, smoothstep(beachWidth * .42, beachWidth * 1.15, -d));
         }
         image.data[i] = color[0]; image.data[i + 1] = color[1]; image.data[i + 2] = color[2]; image.data[i + 3] = 255;
         const maskIndex = i + 3, edge = clamp(.5 - d / .0012, 0, 1);
         landImage.data[maskIndex] = edge * 255; oceanImage.data[maskIndex] = (1 - edge) * 255;
-        mountainImage.data[maskIndex] = clamp((-d - .004) / .01, 0, 1) * 255;
       }
     }
     ctx.putImageData(image, 0, 0); lctx.putImageData(landImage, 0, 0); octx.putImageData(oceanImage, 0, 0);
-    mctx.putImageData(mountainImage, 0, 0);
     const clouds = A.surface(width, height), cctx = clouds.getContext('2d');
     drawClouds(cctx, world, width, height, width / 1536);
     cctx.globalCompositeOperation = 'destination-in'; cctx.drawImage(oceanMask, 0, 0); cctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(clouds, 0, 0);
 
     const details = A.surface(width, height), dctx = details.getContext('2d');
-    const mountainLayer = A.surface(width, height), mountainCtx = mountainLayer.getContext('2d');
-    const mountainGroups = world.chains.map(chain => ({
-      p: {...chain, size: chain.size * 1.04, heightScale: 1.5, angle: chain.direction, anchor: .84}, image: library.chain, alpha: .97
-    }));
-    mountainGroups.sort((a, b) => a.p.y - b.p.y);
-    for (const item of mountainGroups) sprite(mountainCtx, item.image, item.p, width, height, 1, item.alpha);
-    for (const p of world.peaks) sprite(mountainCtx, library.mountain[p.variant], {...p, anchor: .84}, width, height, 1, p.major ? .97 : .88);
-    mountainCtx.globalCompositeOperation = 'destination-in'; mountainCtx.drawImage(mountainMask, 0, 0); mountainCtx.globalCompositeOperation = 'source-over';
-    dctx.drawImage(mountainLayer, 0, 0);
-
     const decorations = [];
-    for (const zone of world.forestZones) {
-      decorations.push({p: {...zone, size: zone.rx * 1.3, angle: zone.phase * .12, anchor: .72}, image: library.grove, alpha: .58});
+    for (const chain of world.chains) {
+      decorations.push({p: {...chain, size: chain.size * .72, angle: chain.direction * .12}, image: library.images.mountain, alpha: .9});
+    }
+    for (const p of world.peaks) {
+      decorations.push({p: {...p, size: p.size * .8, heightScale: .92, anchor: .81}, image: library.mountain[p.variant], alpha: p.major ? .94 : .84});
     }
     for (const p of world.hills) decorations.push({p: {...p, heightScale: .72}, image: library.hill[p.variant], alpha: .7});
-    for (const p of world.trees) decorations.push({p: {...p, heightScale: .9}, image: library.forest[p.variant], alpha: .94});
+    for (const p of world.trees) decorations.push({p: {...p, size: p.size * .88, heightScale: .9}, image: library.forest[p.variant], alpha: .88});
+    for (let i = 0; i < world.forestZones.length; i += 2) {
+      const zone = world.forestZones[i];
+      if (world.landDistance(zone.x, zone.y) < -.055 && world.lakeDistance(zone.x, zone.y) > .04 && world.riverDistance(zone.x, zone.y) > .025) {
+        decorations.push({p: {...zone, size: .034}, image: library.images.forest, alpha: .82});
+      }
+    }
     for (let i = 0; i < world.hills.length; i += 9) {
       const p = world.hills[i];
       decorations.push({p: {...p, size: .04, heightScale: .8}, image: library.images.hills, alpha: .42});

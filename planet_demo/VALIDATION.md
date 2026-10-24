@@ -1,12 +1,12 @@
-# Validation — démo Néréide 0.2.0
+# Validation — démo Néréide 0.2.1
 
 Livraison du 24 octobre 2026. La démo demeure séparée du jeu Hardgraft.
 
-- Vérification syntaxique des scripts JavaScript et génération du paquet avec \`build.py\`.
-- Aperçu Chromium à 1440 px et 390 px ; aucun débordement mobile ni erreur JavaScript.
-- À la seed \`4E455245\` : deux massifs, deux cours principaux (un vers un lac, un vers la mer), trois affluents, onze îles et deux lacs.
-- Les six illustrations sont chargées ; la carte 2:1 et la vue globe rendent les rivières, plages et massifs sans erreur.
-- Export autonome \`dist/nereide-atlas-v0.2.html\` : 1,4 Mo ; CSS, scripts et assets sont intégrés au fichier, sans requête d'asset externe.
+- Le build produit un HTML autonome de 336 Ko avec les quatre assets d'origine embarqués.
+- 21 contrôles Chromium réussis : déterminisme des pixels, seed, contrôles de caméra, grille, vue carte, sliders, téléchargements PNG/HTML, couture 2:1 et erreurs JavaScript.
+- Les vues Chromium à 320, 390, 1024 et 1440 px tiennent dans leur panneau sans débordement horizontal.
+- L'export PNG fait 1536 × 768 et les pixels des deux bords longitudinaux correspondent, y compris aux pôles.
+- \`npm test\` conserve trois échecs présents dans la base v0.2.0 : le nombre minimum de lacs attendu, l'hypothèse que chaque affluent finit dans l'océan ou un lac alors qu'il rejoint le cours principal, et le décompte du terrain qui ne connaît pas la classe banquise ajoutée en 0.2.0.
 
 ## Version 0.1.0
 

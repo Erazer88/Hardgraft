@@ -1,8 +1,8 @@
-# Néréide — planète stylisée 0.2.0
+# Néréide — planète stylisée 0.2.1
 
 Démo autonome Hardgraft : une carte procédurale illustrée en Canvas 2D, affichée sur un globe. Aucun moteur 3D, système tectonique, heightmap ou shader de relief. La version reste indépendante du jeu Néréide.
 
-Ouvrir \`dist/nereide-atlas-v0.2.html\` dans Firefox ou Chromium, y compris hors connexion. Le fichier contient le code, les styles et les six assets d'illustration. \`dist/index.html\` est le même export pour l'hébergement statique.
+Ouvrir \`dist/nereide-atlas-v0.2.html\` dans Firefox ou Chromium, y compris hors connexion. Le fichier contient le code, les styles et les quatre assets d'illustration. \`dist/index.html\` est le même export pour l'hébergement statique.
 
 Pour travailler sur les sources :
 
@@ -27,13 +27,13 @@ La page propose une seed modifiable, Randomiser, quatre sliders, une vue globe e
 | \`src/app.js\` | Interface, URL de seed, téléchargement et orchestration |
 | \`build.py\` | Exports HTML autonomes et archive de sources |
 
-La silhouette fusionne plusieurs blobs, de grandes baies et un bruit doux à plusieurs échelles. Les îles se regroupent en archipels. Le littoral provient d'un champ de distance signé calculé sur une grille de 768 × 384 ; l'eau claire, le turquoise côtier, les plages et la plaine se mélangent selon leur distance réelle à la rive.
+La silhouette fusionne plusieurs blobs, de grandes baies et un bruit doux à plusieurs échelles. Les îles se regroupent en archipels. Le littoral est échantillonné depuis le champ continu de la carte, sur une grille de 1024 × 512 au maximum. L'eau côtière, le sable et les masques d'assets suivent cette distance, ce qui évite les marches dues à une côte binaire.
 
-À réglage moyen, la carte place deux longues chaînes montagneuses principales. Les sommets réutilisent une illustration de crête originale générée pour la démo, avec des pics secondaires, des piémonts, des collines et de petits assets hérités. Les forêts forment des zones irrégulières et la taille des arbres individuels reste à l'échelle du globe.
+À réglage moyen, la carte place deux longues chaînes montagneuses principales. Les pics réutilisent les illustrations d'origine, réduites pour se composer en lignes de relief. Les forêts forment des zones irrégulières faites d'arbres groupés et de quelques petits assets de feuillage. Les sommets, les arbres, les rivières et les lacs restent lisibles à l'échelle du globe.
 
 Les rivières partent des massifs. Chaque bassin possède un cours principal qui rejoint la mer ou un lac, avec des affluents qui se raccordent au cours aval. Les largeurs augmentent vers l'embouchure et les berges forment des vallées plus larges. Le routage reste guidé par des règles et des courbes 2D ; aucune simulation hydraulique ou heightmap n'est utilisée. Des banquises polaires et de faibles filaments nuageux complètent la mer.
 
-Les six illustrations comprennent les quatre assets de départ (\`mountain.webp\`, \`forest.webp\`, \`hills.svg\`, \`valley.svg\`) et deux nouveaux assets de relief et de forêt. Une petite bibliothèque de variantes est dérivée par cadrage, miroir, légère variation de saturation et dessin Canvas de secours.
+Les quatre illustrations de départ (\`mountain.webp\`, \`forest.webp\`, \`hills.svg\`, \`valley.svg\`) sont réutilisées en variantes par cadrage, miroir, légère variation de saturation et dessin Canvas de secours. Les deux grands collages de forêt et de montagne ajoutés en 0.2.0 ont été retirés : ils prenaient trop de place et leur texture contrastait avec le reste de la carte.
 
 Pour raccorder la carte à la sphère actuelle du jeu :
 
@@ -62,4 +62,4 @@ const result = await NereideAtlas.generatePlanetTexture({
 
 La démo n'est pas encore raccordée aux ressources, bâtiments et routes du jeu. Le relief est illustré en 2D et la logique fluviale reste volontairement artistique. La projection du globe ne transforme pas la carte en terrain 3D.
 
-La vérification fonctionnelle de la version 0.2 est consignée dans \`VALIDATION.md\`. Le dossier \`tests/\` garde également les tests de déterminisme de la version précédente.
+La vérification fonctionnelle de la version 0.2.1 est consignée dans \`VALIDATION.md\`. Le dossier \`tests/\` garde également les tests de déterminisme de la version précédente.

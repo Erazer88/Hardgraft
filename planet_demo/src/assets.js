@@ -3,7 +3,7 @@
   const A = root.NereideAtlas;
   const sources = {
     mountain: 'assets/mountain.webp', forest: 'assets/forest.webp', hills: 'assets/hills.svg',
-    valley: 'assets/valley.svg', chain: 'assets/mountain-chain.webp', grove: 'assets/forest-grove.webp'
+    valley: 'assets/valley.svg'
   };
   let pending;
   function surface(width, height) {
@@ -68,7 +68,7 @@
         image.onerror = () => {failed.push(name); resolve();};
         image.src = src;
       })));
-      const library = {images, failed, mountain: [], forest: [], hill: [], chain: images.chain || images.mountain, grove: images.grove || images.forest};
+      const library = {images, failed, mountain: [], forest: [], hill: []};
       const mountainFrames = [[140, 20, 210, 235], [235, 150, 230, 250], [380, 300, 250, 285],
         [35, 100, 240, 255], [300, 235, 230, 250], [125, 165, 230, 250]];
       const forestFrames = [[85, 55, 230, 220], [255, 45, 240, 230], [350, 150, 240, 230],
@@ -86,8 +86,6 @@
         ctx.globalCompositeOperation = 'source-in'; ctx.fillStyle = '#558b49'; ctx.fillRect(0, 0, 320, 210);
         library.valley = c;
       }
-      if (!images.chain) library.chain = mountain(0);
-      if (!images.grove) library.grove = images.forest || forest(0);
       return library;
     })();
     return pending;

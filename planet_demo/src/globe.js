@@ -90,14 +90,14 @@
         }
       }
       ctx.clearRect(0, 0, size, size);
-      const halo = ctx.createRadialGradient(center, center, radius, center, center, radius + size * .065);
-      halo.addColorStop(0, '#3db8ff44'); halo.addColorStop(.22, '#208de333');
-      halo.addColorStop(.68, '#1563ba17'); halo.addColorStop(1, '#155eaf00');
+      const halo = ctx.createRadialGradient(center, center, radius - 1, center, center, radius + size * .052);
+      halo.addColorStop(0, '#5ecbff66'); halo.addColorStop(.23, '#2698e33b');
+      halo.addColorStop(.72, '#1563ba15'); halo.addColorStop(1, '#155eaf00');
       ctx.fillStyle = halo; ctx.fillRect(0, 0, size, size);
       this.buffer.getContext('2d').putImageData(image, 0, 0); ctx.drawImage(this.buffer, 0, 0);
-      ctx.save(); ctx.shadowColor = '#70d7ffb8'; ctx.shadowBlur = size * .012;
+      ctx.save(); ctx.shadowColor = '#70d7ff99'; ctx.shadowBlur = size * .008;
       ctx.beginPath(); ctx.arc(center, center, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#91e4ffed'; ctx.lineWidth = Math.max(1.5, size * .0032); ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = '#92ddffbb'; ctx.lineWidth = Math.max(1.2, size / 650); ctx.stroke(); ctx.restore();
     }
   }
   A.Globe = Globe;
