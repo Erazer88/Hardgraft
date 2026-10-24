@@ -45,7 +45,9 @@
       const map = byId('map'); map.width = texture.width; map.height = texture.height;
       map.getContext('2d').drawImage(texture.canvas, 0, 0);
       byId('seed').value = A.formatSeed(texture.world.seed);
-      byId('world-stats').textContent = `1 continent · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs · ${texture.world.rivers.length} rivières`;
+      const mains = texture.world.rivers.filter(river => river.order === 'main').length;
+      const tributaries = texture.world.rivers.length - mains;
+      byId('world-stats').textContent = `${texture.world.chains.length} massifs · ${mains} rivières · ${tributaries} affluents · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs`;
       try {history.replaceState(null, '', urlFor(config));} catch (_) { /* file:// can disallow history changes. */ }
       if (texture.failedAssets.length) message('Quelques illustrations sont indisponibles ; les motifs vectoriels prennent le relais.');
       byId('export-texture').disabled = false;
@@ -110,7 +112,7 @@
     const config = texture ? {seed: A.formatSeed(texture.world.seed), ...texture.world.options} : {seed: byId('seed').value};
     copy.querySelector('#initial-state').textContent = JSON.stringify(config);
     copy.querySelector('#message').textContent = '';
-    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.1.html');
+    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.2.html');
     message('Démo autonome téléchargée avec la seed et les réglages actuels.');
   });
   globalThis.NereideDemo = {globe, regenerate, get texture() {return texture;}, get mapMode() {return mapMode;}};

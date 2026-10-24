@@ -67,8 +67,12 @@
           const sz = Math.sqrt(1 - rr), py = sy * cos + sz * sin, pz = sz * cos - sy * sin;
           const lat = Math.asin(A.clamp(py, -1, 1)), lon = Math.atan2(sx, pz) + this.longitude;
           const u = ((lon / (Math.PI * 2) + .5) % 1 + 1) % 1, v = .5 - lat / Math.PI;
-          const tx = Math.min(tw - 1, Math.floor(u * tw)), ty = Math.min(th - 1, Math.floor(v * th));
-          const s = (ty * tw + tx) * 4, d = (y * size + x) * 4;
+          const fx = u * tw - .5, fy = v * th - .5;
+          const rawX = Math.floor(fx), rawY = Math.floor(fy), dx = fx - rawX, dy = fy - rawY;
+          const x0 = ((rawX % tw) + tw) % tw, x1 = (x0 + 1) % tw;
+          const y0 = A.clamp(rawY, 0, th - 1), y1 = A.clamp(rawY + 1, 0, th - 1);
+          const s00 = (y0 * tw + x0) * 4, s10 = (y0 * tw + x1) * 4;
+          const s01 = (y1 * tw + x0) * 4, s11 = (y1 * tw + x1) * 4, d = (y * size + x) * 4;
           const light = .79 + .19 * Math.max(0, -.28 * sx + .38 * sy + .86 * sz);
           const edge = Math.pow(1 - sz, 3) * .16;
           let grid = 0;
@@ -76,19 +80,24 @@
             const latitudeLine = Math.abs(Math.sin(lat * 12)), longitudeLine = Math.abs(Math.sin(lon * 12));
             if (latitudeLine < .018 || longitudeLine < .018) grid = .075 * Math.min(1, sz * 4);
           }
-          out[d] = A.lerp(source[s] * light, 137, grid) + edge * 10;
-          out[d + 1] = A.lerp(source[s + 1] * light, 200, grid) + edge * 34;
-          out[d + 2] = A.lerp(source[s + 2] * light, 221, grid) + edge * 48;
+          const r0 = A.lerp(source[s00], source[s10], dx), r1 = A.lerp(source[s01], source[s11], dx);
+          const g0 = A.lerp(source[s00 + 1], source[s10 + 1], dx), g1 = A.lerp(source[s01 + 1], source[s11 + 1], dx);
+          const b0 = A.lerp(source[s00 + 2], source[s10 + 2], dx), b1 = A.lerp(source[s01 + 2], source[s11 + 2], dx);
+          out[d] = A.lerp(A.lerp(r0, r1, dy) * light, 137, grid) + edge * 10;
+          out[d + 1] = A.lerp(A.lerp(g0, g1, dy) * light, 200, grid) + edge * 34;
+          out[d + 2] = A.lerp(A.lerp(b0, b1, dy) * light, 221, grid) + edge * 48;
           out[d + 3] = Math.min(1, (1 - Math.sqrt(rr)) * radius) * 255;
         }
       }
       ctx.clearRect(0, 0, size, size);
-      const halo = ctx.createRadialGradient(center, center, radius - 1, center, center, radius + size * .041);
-      halo.addColorStop(0, '#5ecbff66'); halo.addColorStop(.23, '#2698e33b'); halo.addColorStop(1, '#2698e300');
+      const halo = ctx.createRadialGradient(center, center, radius, center, center, radius + size * .065);
+      halo.addColorStop(0, '#3db8ff44'); halo.addColorStop(.22, '#208de333');
+      halo.addColorStop(.68, '#1563ba17'); halo.addColorStop(1, '#155eaf00');
       ctx.fillStyle = halo; ctx.fillRect(0, 0, size, size);
       this.buffer.getContext('2d').putImageData(image, 0, 0); ctx.drawImage(this.buffer, 0, 0);
+      ctx.save(); ctx.shadowColor = '#70d7ffb8'; ctx.shadowBlur = size * .012;
       ctx.beginPath(); ctx.arc(center, center, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#92ddffb5'; ctx.lineWidth = size / 650; ctx.stroke();
+      ctx.strokeStyle = '#91e4ffed'; ctx.lineWidth = Math.max(1.5, size * .0032); ctx.stroke(); ctx.restore();
     }
   }
   A.Globe = Globe;

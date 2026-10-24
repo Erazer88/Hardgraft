@@ -1,39 +1,43 @@
-# Néréide — planète stylisée 0.1.0
+# Néréide — planète stylisée 0.2.0
 
-Démo autonome pour Hardgraft : une carte procédurale illustrée en Canvas 2D, affichée sur un globe. Aucun moteur 3D, aucune tectonique, aucune heightmap ni shader de relief. Cette version de démo est indépendante de la version du jeu Néréide.
+Démo autonome Hardgraft : une carte procédurale illustrée en Canvas 2D, affichée sur un globe. Aucun moteur 3D, système tectonique, heightmap ou shader de relief. La version reste indépendante du jeu Néréide.
 
-Ouvrir `dist/nereide-atlas-v0.1.html` dans Firefox ou Chromium, même sans connexion. Le fichier contient le code, les styles et les quatre images d'origine. `dist/index.html` est le même export pour l'hébergement statique.
+Ouvrir \`dist/nereide-atlas-v0.2.html\` dans Firefox ou Chromium, y compris hors connexion. Le fichier contient le code, les styles et les six assets d'illustration. \`dist/index.html\` est le même export pour l'hébergement statique.
 
 Pour travailler sur les sources :
 
-```sh
+\`\`\`sh
 python3 -m http.server 8000
 # http://localhost:8000/
 npm test
 python3 build.py
-```
+\`\`\`
 
-Aucune installation npm n'est nécessaire. JavaScript classique en IIFE et `globalThis`, compatible avec l'architecture actuelle de Hardgraft.
+Aucune installation npm n'est nécessaire. Les scripts restent en JavaScript classique avec IIFE et \`globalThis\`, dans l'ordre compatible avec Hardgraft.
 
-La démo propose une seed modifiable (hexadécimal ou nom), Randomiser, quatre sliders, une vue globe et une vue carte. Glisser ou utiliser les flèches pour tourner ; molette ou boutons pour zoomer. La grille et le halo restent propres à l'aperçu. Le lien copié contient la seed et les quatre réglages. Les exports PNG et HTML conservent le monde affiché.
+La page propose une seed modifiable, Randomiser, quatre sliders, une vue globe et une vue carte. Le globe se tourne à la souris, au toucher ou au clavier. La grille, l'éclairage global et l'atmosphère sont composés à part de la texture. Les exports PNG et HTML conservent le monde affiché.
 
 | Fichier | Responsabilité |
 | --- | --- |
-| `src/random.js` | Seeds, PRNG et bruit cohérent ; flux aléatoires séparés par couche |
-| `src/world.js` | Modèle pur : masques, îles, lacs, chaînes, forêts, collines et tracés de rivières |
-| `src/assets.js` | Chargement des quatre assets et petites variantes mises en cache ; motifs vectoriels de secours |
-| `src/texture.js` | Composition de la carte 2:1 et classification des terrains |
-| `src/globe.js` | Projection orthographique de la texture, lumière légère, grille et atmosphère |
-| `src/app.js` | Interface, URL, téléchargement et orchestration |
-| `build.py` | Exports HTML autonomes et archive de sources |
+| \`src/random.js\` | Seeds, PRNG, bruit cohérent et flux aléatoires séparés |
+| \`src/world.js\` | Continent, baies, archipels, massifs, bassins, forêts et collines |
+| \`src/assets.js\` | Bibliothèque d'illustrations et variantes réutilisables |
+| \`src/texture.js\` | Littoral mesuré, couleurs, forêts, rivières, nuages et texture 2:1 |
+| \`src/globe.js\` | Projection sur sphère, échantillonnage lissé, lumière, grille et halo |
+| \`src/app.js\` | Interface, URL de seed, téléchargement et orchestration |
+| \`build.py\` | Exports HTML autonomes et archive de sources |
 
-La silhouette fusionne plusieurs ellipses, des baies et une perturbation basse fréquence. Les côtes sont interpolées, avec une bande turquoise fine et une plage. Les forêts sont des zones irrégulières, pas des tirages uniformes sur toute la carte. Les rivières suivent des courbes simples depuis les massifs ou des sources intérieures ; leur parcours est tronqué sur la première côte ou le premier lac réellement rencontré. Les lacs ont plusieurs lobes et les îles restent séparées de la terre principale.
+La silhouette fusionne plusieurs blobs, de grandes baies et un bruit doux à plusieurs échelles. Les îles se regroupent en archipels. Le littoral provient d'un champ de distance signé calculé sur une grille de 768 × 384 ; l'eau claire, le turquoise côtier, les plages et la plaine se mélangent selon leur distance réelle à la rive.
 
-Les images fournies (`mountain.webp`, `forest.webp`, `hills.svg`, `valley.svg`) sont conservées. La bibliothèque dérive 24 variantes de petits reliefs et 20 variantes forestières à partir des illustrations existantes, avec cadrage, miroir, légère variation de saturation et bords adoucis. Vingt motifs de collines complètent les assets. La silhouette teintée de vallée sert aux berges ; le tracé bleu est généré séparément, ce qui évite une rivière décorative déconnectée. Les variantes ne sont pas autant d'illustrations originales distinctes.
+À réglage moyen, la carte place deux longues chaînes montagneuses principales. Les sommets réutilisent une illustration de crête originale générée pour la démo, avec des pics secondaires, des piémonts, des collines et de petits assets hérités. Les forêts forment des zones irrégulières et la taille des arbres individuels reste à l'échelle du globe.
 
-Pour préparer le raccord à la sphère du jeu :
+Les rivières partent des massifs. Chaque bassin possède un cours principal qui rejoint la mer ou un lac, avec des affluents qui se raccordent au cours aval. Les largeurs augmentent vers l'embouchure et les berges forment des vallées plus larges. Le routage reste guidé par des règles et des courbes 2D ; aucune simulation hydraulique ou heightmap n'est utilisée. Des banquises polaires et de faibles filaments nuageux complètent la mer.
 
-```js
+Les six illustrations comprennent les quatre assets de départ (\`mountain.webp\`, \`forest.webp\`, \`hills.svg\`, \`valley.svg\`) et deux nouveaux assets de relief et de forêt. Une petite bibliothèque de variantes est dérivée par cadrage, miroir, légère variation de saturation et dessin Canvas de secours.
+
+Pour raccorder la carte à la sphère actuelle du jeu :
+
+\`\`\`js
 const result = await NereideAtlas.generatePlanetTexture({
   seed: '4E455245',
   width: 2048,
@@ -45,16 +49,17 @@ const result = await NereideAtlas.generatePlanetTexture({
 });
 
 // result.canvas : texture 2:1, sans grille, éclairage ni halo
-// result.world : données et placements, sans dépendance au DOM
+// result.world : placements et courbes déterministes, sans dépendance au DOM
 // result.terrain : Uint8Array de 128 × 64 cellules
+// result.world.rivers : troncs et affluents de chaque bassin
 // NereideAtlas.Terrain : ocean, land, coast, plain, forest,
-//                       hill, mountain, valley, river, snow, lake
-// NereideAtlas.classify(result.world, x, y) : classification plus précise
+//                       hill, mountain, valley, river, snow, lake, ice
+// NereideAtlas.classify(result.world, x, y) : classification détaillée
 // x = longitude / 180 ; y = -latitude / 90, dans [-1, 1]
-```
+\`\`\`
 
-`world.landDistance(x, y)` est négatif sur la terre ; `world.water(x, y)` inclut la mer et les lacs. La texture accepte une largeur paire entre 256 et 4096 et une hauteur égale à la moitié. Les bords longitudinaux sont océaniques et se raccordent. Le modèle conserve sa seed, et tous les réglages appartiennent à son identité reproductible. Les rasterisations de navigateurs différents peuvent présenter de petites différences de pixels malgré des données identiques.
+\`world.landDistance(x, y)\` est négatif sur la terre ; \`world.water(x, y)\` inclut la mer et les lacs. Les mêmes seed et réglages donnent les mêmes placements. La texture accepte une largeur paire entre 256 et 4096, avec une hauteur égale à la moitié.
 
-La démo n'est pas encore raccordée aux ressources, bâtiments et routes du jeu. Les formes restent une composition artistique simple ; aucune simulation géologique ou hydraulique n'est effectuée. Le globe calcule uniquement une projection de pixels sur une sphère lisse et utilise une résolution réduite pendant le déplacement.
+La démo n'est pas encore raccordée aux ressources, bâtiments et routes du jeu. Le relief est illustré en 2D et la logique fluviale reste volontairement artistique. La projection du globe ne transforme pas la carte en terrain 3D.
 
-Validation 0.1 : six tests Node couvrent le déterminisme, les seeds zéro et textuelles, les marges côtières, les îles, lacs, rivières, sliders à zéro et classes de terrain. Les contrôles navigateur supplémentaires sont consignés dans `VALIDATION.md` lors de la livraison.
+La vérification fonctionnelle de la version 0.2 est consignée dans \`VALIDATION.md\`. Le dossier \`tests/\` garde également les tests de déterminisme de la version précédente.
