@@ -42,54 +42,28 @@
 
   function createWorld(seed, input) {
     seed = A.parseSeed(seed);
-    const options = optionsFrom(input), rng = random(seed, 'continent');
-    const scale = .79 + options.continentSize * .0041;
-    const angle = (rng() - .5) * .48, cos = Math.cos(angle), sin = Math.sin(angle);
-    const offsetX = (rng() - .5) * .05, offsetY = (rng() - .5) * .07;
-    const blobs = [
-      [-.08, -.47, .135, .205], [-.035, -.24, .205, .245], [.005, .025, .215, .265],
-      [.085, .285, .17, .235], [.08, .515, .105, .155], [-.205, -.13, .115, .15], [.215, .12, .12, .145]
-    ].map(([x, y, rx, ry]) => ({
-      x: x + (rng() - .5) * .065, y: y + (rng() - .5) * .065,
-      rx: rx * (.89 + rng() * .22), ry: ry * (.89 + rng() * .22)
-    }));
-    const bays = [
-      {x: -.16, y: .245, rx: .135 + rng() * .025, ry: .16},
-      {x: .205, y: -.265, rx: .118, ry: .105 + rng() * .025},
-      {x: -.015, y: .095, rx: .052 + rng() * .014, ry: .085},
-      {x: .19, y: .265, rx: .042 + rng() * .012, ry: .06}
-    ];
-    function local(x, y) {
-      x = (x - offsetX) / scale; y = (y - offsetY) / scale;
-      return {x: x * cos + y * sin * .5, y: -x * sin * 2 + y * cos};
-    }
-    function worldPoint(x, y) {
-      return {x: offsetX + scale * (x * cos - y * sin * .5),
-        y: offsetY + scale * (2 * x * sin + y * cos)};
-    }
-    function mainland(x, y) {
-      const p = local(x, y);
-      if (Math.abs(p.x) > .7 || Math.abs(p.y) > .92) return .3;
-      const rough = .008 + options.roughness * .00029;
-      const wx = p.x + (noise(p.x * 5.5 + 19, p.y * 3.6 - 8, seed) - .5) * rough * 1.7;
-      const wy = p.y + (noise(p.x * 4.2 - 7, p.y * 4.7 + 13, seed ^ 19) - .5) * rough * 2.2;
-      let field = 1;
-      for (const b of blobs) field = union(field, ellipse(wx, wy, b), .033);
-      for (const bay of bays) field = Math.max(field, -ellipse(wx, wy, bay));
-      field += (noise(wx * 14 + 8, wy * 9 - 7, seed ^ 873) - .5) * (.004 + options.roughness * .0001);
-      field += (noise(wx * 27 + 3, wy * 19 - 5, seed ^ 441) - .5) * (.001 + options.roughness * .000045);
-      return field * scale;
-    }
-
+    const options = optionsFrom(input);
+    const {continents, mainland} = A.createGeography(seed, options);
     const islands = [], lakes = [], chains = [], peaks = [], hills = [], forestZones = [], trees = [], rivers = [], clouds = [];
-    const world = {seed, options, blobs, islands, lakes, chains, peaks, hills, forestZones, trees, rivers, clouds, mainland};
+    const world = {seed, options, continents, islands, lakes, chains, peaks, hills, forestZones, trees, rivers, clouds, mainland};
 
     function islandField(x, y, b) {
-      return ellipse(x, y, b) + (noise(x * 34 + b.id, y * 29 - b.id, seed ^ b.id) - .5) * Math.min(b.rx, b.ry) * .19;
+      const dx = x - b.x, dy = (y - b.y) * .5, cos = Math.cos(b.angle), sin = Math.sin(b.angle);
+      const u = (dx * cos + dy * sin) / b.rx, v = (-dx * sin + dy * cos) / b.ry;
+      if (Math.abs(u) > 1.8 || Math.abs(v) > 1.8) return .3;
+      const n = A.gradientNoise;
+      const wx = u + n(u * 2 + b.id, v * 2, seed ^ 771) * .25;
+      const wy = v + n(u * 2, v * 2 - b.id, seed ^ 919) * .25;
+      const angle = Math.atan2(wy, wx);
+      const radius = 1 + Math.sin(angle * 3 + b.phase) * .14 + Math.cos(angle * 5 - b.phase) * .07;
+      return (Math.hypot(wx, wy) - radius + n(u * 7, v * 7, seed ^ b.id) * .065) * Math.min(b.rx, b.ry);
     }
     function landDistance(x, y) {
       let d = mainland(x, y);
-      for (const b of islands) d = Math.min(d, islandField(x, y, b));
+      for (const b of islands) {
+        if (Math.abs(x - b.x) > b.bound || Math.abs(y - b.y) > b.bound * 2) continue;
+        d = Math.min(d, islandField(x, y, b));
+      }
       return d;
     }
     function lakeDistance(x, y) {
@@ -103,104 +77,108 @@
       return d;
     }
     function water(x, y) { return landDistance(x, y) >= 0 || lakeDistance(x, y) <= 0; }
-    function safePoint(r, margin, predicate) {
-      for (let i = 0; i < 1800; i++) {
-        const p = {x: (r() - .5) * .9, y: (r() - .5) * 1.45};
+    function safePoint(r, margin, predicate, continent) {
+      for (let i = 0; i < 1400; i++) {
+        const c = continent || continents[Math.floor(r() * continents.length)];
+        const p = {x: c.x + (r() - .5) * c.rx * 2, y: c.y + (r() - .5) * c.ry * 4};
         if (mainland(p.x, p.y) < -margin && lakeDistance(p.x, p.y) > .025 && (!predicate || predicate(p))) return p;
       }
       return null;
     }
 
     const ir = random(seed, 'islands');
-    function addIsland(p, group) {
-      const latitudeScale = Math.max(.7, Math.cos(p.y * Math.PI * .5));
-      const rx = (.006 + ir() * .016) / latitudeScale;
-      const b = {x: p.x, y: p.y, rx, ry: rx * (1.25 + ir() * 1.8), angle: (ir() - .5) * .9,
-        id: islands.length + 57, group};
-      if (mainland(p.x, p.y) < b.rx * 1.25 + .012 || mainland(p.x, p.y) > .19) return false;
-      if (islands.some(other => metricDistance(p.x, p.y, other.x, other.y) < (rx + other.rx) * .9 + .012)) return false;
+    function addIsland(p, group, radius, bearing) {
+      const rx = radius * (1.05 + ir() * .5), ry = radius * (.5 + ir() * .35);
+      const bound = Math.max(rx, ry) * 1.45;
+      const b = {...p, rx, ry, bound, angle: bearing + (ir() - .5) * .65,
+        phase: ir() * Math.PI * 2, id: islands.length + 57, group};
+      const d = mainland(p.x, p.y);
+      if (d < bound + .006 || d > .11 || Math.abs(p.x) + bound > .87 || Math.abs(p.y) + bound * 2 > .83) return false;
+      if (islands.some(other => Math.hypot(p.x - other.x, (p.y - other.y) * .5) < bound + other.bound + .004)) return false;
       islands.push(b); return true;
     }
-    function coastAnchor(start, bearing, gap) {
-      const latitudeScale = Math.max(.5, Math.cos(start.y * Math.PI * .5));
-      let coast = null;
-      for (let d = .006; d < .76; d += .006) {
-        const p = {x: start.x + Math.cos(bearing) * d / latitudeScale, y: start.y + Math.sin(bearing) * d * 2};
-        if (mainland(p.x, p.y) >= 0) {coast = p; break;}
-      }
-      if (!coast) return null;
-      return {x: coast.x + Math.cos(bearing) * gap / latitudeScale, y: coast.y + Math.sin(bearing) * gap * 2};
-    }
-    const groupCount = 2 + Math.floor(ir() * 2);
-    for (let group = 0; group < groupCount; group++) {
-      const origin = safePoint(ir, .04);
-      if (!origin) continue;
-      const bearing = ir() * Math.PI * 2, gap = .04 + ir() * .075;
-      const anchor = coastAnchor(origin, bearing, gap);
-      if (!anchor) continue;
-      for (let j = 0, count = 3 + Math.floor(ir() * 4); j < count; j++) {
-        let placed = false;
-        for (let tries = 0; tries < 32 && !placed; tries++) {
-          const radius = Math.sqrt(ir()) * (.035 + ir() * .055), a = ir() * Math.PI * 2;
-          const p = {x: anchor.x + Math.cos(a) * radius, y: anchor.y + Math.sin(a) * radius * 2};
-          if (mainland(p.x, p.y) > .003 && mainland(p.x, p.y) < .16) placed = addIsland(p, group);
+    // Follow the coastline, then curve away from it; large inner islands taper
+    // into small outer ones rather than forming a uniform ring or random dots.
+    for (const c of continents) {
+      for (let group = 0, groups = 2 + Math.floor(ir() * 3); group < groups; group++) {
+        const origin = c.core || safePoint(ir, .025, null, c);
+        if (!origin) continue;
+        const bearing = ir() * Math.PI * 2;
+        let coast = null;
+        for (let d = .004; d < .7; d += .004) {
+          const p = {x: origin.x + Math.cos(bearing) * d, y: origin.y + Math.sin(bearing) * d * 2};
+          if (mainland(p.x, p.y) > 0) {coast = p; break;}
+        }
+        if (!coast) continue;
+        const h = .003;
+        let nx = mainland(coast.x + h, coast.y) - mainland(coast.x - h, coast.y);
+        let ny = mainland(coast.x, coast.y + h * 2) - mainland(coast.x, coast.y - h * 2);
+        const length = Math.hypot(nx, ny) || 1; nx /= length; ny /= length;
+        const sign = ir() < .5 ? -1 : 1, base = .009 + ir() * .010, gap = .025 + ir() * .017;
+        for (let j = 0, n = 4 + Math.floor(ir() * 4); j < n; j++) {
+          const t = j / (n - 1), along = (t - .3) * (.085 + base * 3) * sign;
+          const offshore = gap + t * .033 + Math.sin(t * Math.PI) * .014;
+          const p = {x: coast.x + nx * offshore - ny * along, y: coast.y + (ny * offshore + nx * along) * 2};
+          addIsland(p, c.id * 10 + group, base * (1 - t * .64), Math.atan2(ny, nx) + Math.PI * .5 + t * sign * .45);
         }
       }
     }
-    const wantedIslands = 9 + Math.floor(ir() * 5);
-    for (let i = 0; islands.length < wantedIslands && i < 1600; i++) {
-      const p = {x: (ir() - .5) * .95, y: (ir() - .5) * 1.48};
-      if (mainland(p.x, p.y) > .004 && mainland(p.x, p.y) < .15) addIsland(p, groupCount + i);
+    const wantedIslands = 8 + continents.length * 4 + Math.floor(ir() * 5);
+    for (let i = 0; islands.length < wantedIslands && i < 3000; i++) {
+      const c = continents[Math.floor(ir() * continents.length)];
+      const p = {x: c.x + (ir() - .5) * c.rx * 3, y: c.y + (ir() - .5) * c.ry * 6};
+      addIsland(p, 100 + i, .005 + ir() * .009, ir() * Math.PI * 2);
     }
 
     const mr = random(seed, 'mountains');
-    const rangeCount = options.mountains === 0 ? 0 : options.mountains < 22 ? 1 : 2;
+    const rangeCount = options.mountains === 0 ? 0 : options.mountains < 22 ? 1 : Math.max(2, continents.length);
     function createRange(index) {
-      const yBase = index === 0 ? -.155 : .245, xBase = index === 0 ? -.105 : .085;
-      const span = index === 0 ? .37 : .33;
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const x0 = xBase + (mr() - .5) * .105, y0 = yBase + (mr() - .5) * .085;
-        const slope = (mr() - .5) * .25, phase = mr() * Math.PI * 2, side = (mr() - .5) * .012;
-        const path = [];
-        let valid = 0;
+      const c = continents[index % continents.length];
+      for (let attempt = 0; attempt < 90; attempt++) {
+        const center = safePoint(mr, .027, p => chains.every(other => metricDistance(p.x, p.y, other.x, other.y) > .08), c);
+        if (!center) continue;
+        // Keep the painted peaks upright; slight variation avoids perfectly parallel rows.
+        const direction = (mr() - .5) * .34;
+        const span = (.07 + mr() * .08) * (attempt > 40 ? .65 : 1), phase = mr() * Math.PI * 2;
+        const path = [], dx = Math.cos(direction), dy = Math.sin(direction);
+        let valid = true;
         for (let i = 0; i <= 40; i++) {
-          const t = i / 40, y = y0 + (t - .5) * span, x = x0 + slope * (t - .5) + Math.sin(t * Math.PI * 2 + phase) * .015 + side;
-          const p = worldPoint(x, y); path.push(p);
-          if (mainland(p.x, p.y) < -.018) valid++;
+          const t = i / 40, along = (t - .5) * span, bend = Math.sin(t * Math.PI * 2 + phase) * .008;
+          const p = {x: center.x + dx * along - dy * bend, y: center.y + (dy * along + dx * bend) * 2};
+          path.push(p); if (mainland(p.x, p.y) > -.014) valid = false;
         }
-        if (valid < path.length * .79) continue;
-        const start = path[0], end = path[path.length - 1], center = path[path.length >> 1];
-        const length = Math.hypot(end.x - start.x, (end.y - start.y) * .5);
-        const chain = {id: index, x: center.x, y: center.y, start, end, path, direction: Math.atan2(end.y - start.y, end.x - start.x),
-          length, size: clamp(length * .92, .15, .24), variant: Math.floor(mr() * 24), peaks: []};
+        if (!valid) continue;
+        const start = path[0], end = path[path.length - 1], size = clamp(-mainland(center.x, center.y) * .95, .042, .16);
+        const chain = {id: index, ...center, start, end, path, direction, length: span,
+          size, variant: Math.floor(mr() * 24), peaks: []};
         const count = 12 + Math.round(options.mountains * .12);
         for (let i = 0; i < count; i++) {
-          const t = (i + .42 + (mr() - .5) * .35) / count;
-          const at = Math.max(0, Math.min(40, Math.round(t * 40))), base = path[at], localP = local(base.x, base.y);
-          const p = worldPoint(localP.x + (mr() - .5) * .045, localP.y + (mr() - .5) * .018);
-          if (mainland(p.x, p.y) > -.006) continue;
-          const middle = 1 - Math.abs(t - .5) * 1.8;
-          const size = .033 + clamp(middle, 0, 1) * .032 + mr() * .018;
+          const t = (i + .42 + (mr() - .5) * .35) / count, base = path[Math.min(40, Math.round(t * 40))];
+          const p = {x: base.x + (mr() - .5) * .015, y: base.y + (mr() - .5) * .024};
+          const clearance = -mainland(p.x, p.y);
+          if (clearance < .014) continue;
+          const size = Math.min(.036 + Math.sin(t * Math.PI) * .036 + mr() * .014, clearance * 1.1);
           const peak = {...p, size, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .18, mirror: mr() > .5,
-            snow: size > .069 || (size > .057 && mr() > .42), chain: index, major: size > .065};
+            snow: size > .062 || (size > .05 && mr() > .42), chain: index, major: size > .06};
           peaks.push(peak); chain.peaks.push(peak);
         }
-        chains.push(chain);
-        return chain;
+        chains.push(chain); return chain;
       }
       return null;
     }
     for (let i = 0; i < rangeCount; i++) createRange(i);
     for (let i = 0, count = Math.round(options.mountains / 26); i < count; i++) {
-      const p = safePoint(mr, .035, p => chains.every(c => metricDistance(p.x, p.y, c.x, c.y) > .045));
-      if (p) peaks.push({...p, size: .025 + mr() * .022, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .2,
+      const p = safePoint(mr, .04, p => chains.every(c => metricDistance(p.x, p.y, c.x, c.y) > .045));
+      if (p) peaks.push({...p, size: .025 + mr() * .018, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .2,
         mirror: mr() > .5, snow: mr() > .7, chain: -1, major: false});
     }
 
     const lr = random(seed, 'lakes');
     const lakeCount = 1 + Math.floor(lr() * 3);
     for (let i = 0; i < lakeCount; i++) {
-      const p = safePoint(lr, .055, p => peaks.every(b => metricDistance(p.x, p.y, b.x, b.y) > .04));
+      const clearOfRelief = (p, clearance) => peaks.every(b => metricDistance(p.x, p.y, b.x, b.y) > clearance);
+      const p = safePoint(lr, .055, p => clearOfRelief(p, .04)) ||
+        safePoint(lr, .055, p => clearOfRelief(p, .022));
       if (!p) continue;
       const angle = lr() * Math.PI, rx = .014 + lr() * .012, ry = rx * (1.55 + lr() * 1.3);
       lakes.push({...p, rx, ry, angle, id: 125 + i});

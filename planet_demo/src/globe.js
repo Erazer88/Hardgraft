@@ -5,33 +5,13 @@
     constructor(canvas) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d');
       this.longitude = 0; this.latitude = 0; this.zoom = 1; this.grid = true;
-      this.buffer = A.surface(1, 1); this.pending = false; this.drag = null;
+      this.buffer = A.surface(1, 1); this.pending = false;
       this.onChange = () => {};
-      canvas.addEventListener('pointerdown', event => {
-        if (event.button !== 0) return;
-        this.drag = {x: event.clientX, y: event.clientY, longitude: this.longitude, latitude: this.latitude};
-        canvas.setPointerCapture(event.pointerId); canvas.classList.add('dragging');
-      });
-      canvas.addEventListener('pointermove', event => {
-        if (!this.drag) return;
-        const size = canvas.getBoundingClientRect().width;
-        this.longitude = this.drag.longitude - (event.clientX - this.drag.x) / size * 3.2;
-        this.latitude = A.clamp(this.drag.latitude + (event.clientY - this.drag.y) / size * 2.4, -1.15, 1.15);
-        this.request(true);
-      });
-      const end = () => {this.drag = null; canvas.classList.remove('dragging'); this.request(false);};
-      canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
-      canvas.addEventListener('lostpointercapture', () => {if (this.drag) end();});
       canvas.addEventListener('wheel', event => {
         event.preventDefault(); this.setZoom(this.zoom * Math.exp(-event.deltaY * .001));
       }, {passive: false});
       canvas.addEventListener('keydown', event => {
-        const step = .12;
-        if (event.key === 'ArrowLeft') this.longitude -= step;
-        else if (event.key === 'ArrowRight') this.longitude += step;
-        else if (event.key === 'ArrowUp') this.latitude = A.clamp(this.latitude + step, -1.15, 1.15);
-        else if (event.key === 'ArrowDown') this.latitude = A.clamp(this.latitude - step, -1.15, 1.15);
-        else if (event.key === '+' || event.key === '=') this.setZoom(this.zoom * 1.1);
+        if (event.key === '+' || event.key === '=') this.setZoom(this.zoom * 1.1);
         else if (event.key === '-') this.setZoom(this.zoom / 1.1);
         else return;
         event.preventDefault(); this.request();

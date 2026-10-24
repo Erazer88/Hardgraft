@@ -47,11 +47,11 @@
       byId('seed').value = A.formatSeed(texture.world.seed);
       const mains = texture.world.rivers.filter(river => river.order === 'main').length;
       const tributaries = texture.world.rivers.length - mains;
-      byId('world-stats').textContent = `${texture.world.chains.length} massifs · ${mains} rivières · ${tributaries} affluents · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs`;
+      byId('world-stats').textContent = `${texture.world.continents.length} continent${texture.world.continents.length > 1 ? 's' : ''} · ${texture.world.chains.length} massifs · ${mains} rivières · ${tributaries} affluents · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs`;
       try {history.replaceState(null, '', urlFor(config));} catch (_) { /* file:// can disallow history changes. */ }
-      if (texture.failedAssets.length) message('Quelques illustrations sont indisponibles ; les motifs vectoriels prennent le relais.');
+      if (texture.failedAssets.length) message('Certaines images sont indisponibles. Le sol utilise les couleurs de secours.');
       byId('export-texture').disabled = false;
-      byId('globe').setAttribute('aria-label', `Globe de Néréide, seed ${A.formatSeed(config.seed)}. Glisser ou utiliser les flèches pour tourner.`);
+      byId('globe').setAttribute('aria-label', `Globe de Néréide en vue fixe de face, seed ${A.formatSeed(config.seed)}. Utiliser plus et moins pour zoomer.`);
       document.dispatchEvent(new CustomEvent('nereide:ready', {detail: {seed: config.seed}}));
     } catch (error) {if (id === request) message('Génération impossible : ' + error.message, true);}
     finally {if (id === request) {byId('loading').hidden = true; byId('visual').setAttribute('aria-busy', 'false');}}
@@ -75,7 +75,7 @@
       byId('view-' + name).classList.toggle('selected', selected); byId('view-' + name).setAttribute('aria-pressed', String(selected));
     }
     for (const id of ['grid', 'zoom-in', 'zoom-out', 'reset-view']) byId(id).disabled = map;
-    byId('gesture').textContent = map ? 'La surface, à plat' : 'Glisser pour explorer';
+    byId('gesture').textContent = map ? 'La surface, à plat' : 'Vue fixe de face';
     if (!map) globe.request();
   }
   byId('view-globe').addEventListener('click', () => setView(false));
@@ -112,7 +112,7 @@
     const config = texture ? {seed: A.formatSeed(texture.world.seed), ...texture.world.options} : {seed: byId('seed').value};
     copy.querySelector('#initial-state').textContent = JSON.stringify(config);
     copy.querySelector('#message').textContent = '';
-    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.3.html');
+    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.4.html');
     message('Démo autonome téléchargée avec la seed et les réglages actuels.');
   });
   globalThis.NereideDemo = {globe, regenerate, get texture() {return texture;}, get mapMode() {return mapMode;}};

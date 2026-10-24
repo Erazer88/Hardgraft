@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#081521">
-  <meta name="description" content="Néréide, atlas de l'Arche : une planète procédurale illustrée, reproductible par seed. Prototype Hardgraft 0.3.0.">
-  <title>Néréide — Atlas de l'Arche · 0.3</title>
+  <meta name="description" content="Néréide, atlas de l'Arche : une planète procédurale illustrée, reproductible par seed. Prototype Hardgraft 0.4.0.">
+  <title>Néréide — Atlas de l'Arche · 0.4</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='27' fill='%230e456a' stroke='%237fc9d9' stroke-width='2'/%3E%3Cpath d='M21 11 38 16 33 27 46 36 37 51 27 44 28 32 16 24Z' fill='%23b6c875'/%3E%3C/svg%3E">
   <style>
 :root{color-scheme:dark;--bg:#081521;--panel:#0c1b28;--line:#233542;--text:#e4e9e6;--muted:#8b9fa8;--accent:#dcc999;--blue:#8bc5d5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -35,8 +35,7 @@ a{color:inherit;text-decoration:none}
 h1{font:400 26px/1.25 Georgia,"Times New Roman",serif;letter-spacing:-.025em;margin:10px 0 0;color:#e6e9e1}
 .stage-index{font:9px ui-monospace,monospace;letter-spacing:.13em;color:#6b828d}
 .visual{position:relative;flex:1;min-height:540px;display:grid;place-items:center;isolation:isolate;background:radial-gradient(ellipse at 50% 48%,#10304b75 0,#0b203333 37%,#08152100 65%)}
-#globe{position:relative;width:min(100%,660px);height:auto;aspect-ratio:1;max-height:none;display:block;cursor:grab;touch-action:none;z-index:2}
-#globe.dragging{cursor:grabbing}
+#globe{position:relative;width:min(100%,660px);height:auto;aspect-ratio:1;max-height:none;display:block;cursor:default;z-index:2}
 .orbit{position:absolute;left:50%;top:50%;width:79%;max-width:630px;aspect-ratio:1;border:1px solid #607d8d1b;border-radius:50%;pointer-events:none;z-index:-1;transform:translate(-50%,-50%)}
 .orbit-two{width:92%;max-width:740px;border-style:dashed;border-color:#607d8d12}
 .coordinate{position:absolute;left:50%;transform:translateX(-50%);font:8px ui-monospace,monospace;letter-spacing:.13em;color:#6c8898;pointer-events:none}
@@ -156,36 +155,36 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
   <div class="shell">
     <header class="header">
       <a class="brand" href="./" aria-label="Néréide, accueil"><span class="brand-mark" aria-hidden="true">◎</span><span>NÉRÉIDE<small>ATLAS DE L’ARCHE</small></span></a>
-      <div class="header-meta"><span class="status-dot"></span> CARTOGRAPHIE PROCÉDURALE <span class="version">v0.3</span></div>
+      <div class="header-meta"><span class="status-dot"></span> CARTOGRAPHIE PROCÉDURALE <span class="version">v0.4</span></div>
     </header>
     <main class="workspace">
       <section class="stage" aria-label="Aperçu de la planète">
         <div class="stage-heading"><div><span class="eyebrow">MONDE GÉNÉRÉ · 01</span><h1>Une terre à découvrir.</h1></div><span class="stage-index" aria-hidden="true">N / 001</span></div>
         <div class="visual" id="visual">
           <div class="orbit orbit-one" aria-hidden="true"></div><div class="orbit orbit-two" aria-hidden="true"></div>
-          <canvas id="globe" width="800" height="800" tabindex="0" role="img" aria-label="Globe de Néréide. Glisser ou utiliser les flèches pour tourner, plus et moins pour zoomer."></canvas>
+          <canvas id="globe" width="800" height="800" tabindex="0" role="img" aria-label="Globe de Néréide en vue fixe de face. Plus et moins pour zoomer."></canvas>
           <div id="map-view" class="map-view" hidden><canvas id="map" width="1536" height="768" role="img" aria-label="Carte équirectangulaire de la planète"></canvas><span>PROJECTION ÉQUIRECTANGULAIRE</span></div>
           <div class="loading" id="loading" role="status"><span></span> L’Arche dessine un monde…</div>
           <span class="coordinate coord-top" aria-hidden="true">90° N</span><span class="coordinate coord-bottom" aria-hidden="true">90° S</span>
         </div>
         <div class="stage-bottom">
           <div class="view-switch" role="group" aria-label="Vue"><button id="view-globe" class="selected" aria-pressed="true">Globe</button><button id="view-map" aria-pressed="false">Carte 2D</button></div>
-          <span class="gesture" id="gesture">Glisser pour explorer</span>
-          <div class="view-tools"><button id="grid" class="icon-button active" aria-label="Afficher la grille" aria-pressed="true" title="Grille">▦</button><button id="zoom-out" class="icon-button" aria-label="Dézoomer" title="Dézoomer">−</button><button id="zoom-in" class="icon-button" aria-label="Zoomer" title="Zoomer">+</button><button id="reset-view" class="icon-button" aria-label="Recentrer le globe" title="Recentrer">⌖</button></div>
+          <span class="gesture" id="gesture">Vue fixe de face</span>
+          <div class="view-tools"><button id="grid" class="icon-button active" aria-label="Afficher la grille" aria-pressed="true" title="Grille">▦</button><button id="zoom-out" class="icon-button" aria-label="Dézoomer" title="Dézoomer">−</button><button id="zoom-in" class="icon-button" aria-label="Zoomer" title="Zoomer">+</button><button id="reset-view" class="icon-button" aria-label="Rétablir le zoom" title="Rétablir le zoom">⌖</button></div>
         </div>
       </section>
       <aside class="controls" aria-label="Génération du monde">
         <div class="control-heading"><span class="eyebrow">CONFIGURATION</span><h2>Façonner le monde</h2><p>Une seed. Un nouvel horizon.</p></div>
         <form id="seed-form" class="seed-block"><label for="seed">SEED DU MONDE</label><div class="seed-input"><input id="seed" name="seed" value="4E455245" maxlength="64" autocomplete="off" spellcheck="false" aria-describedby="seed-help"><button type="submit" aria-label="Appliquer la seed" title="Appliquer la seed">↵</button><button type="button" id="share" aria-label="Copier le lien de cette planète" title="Copier le lien">⧉</button></div><span id="seed-help">Même seed, mêmes réglages, même planète.</span></form>
         <div class="sliders">
-          <label class="slider-control" for="continentSize"><span>Taille du continent<output for="continentSize" id="continentSize-value">50</output></span><input type="range" id="continentSize" min="0" max="100" value="50"><span class="range-labels"><span>Île-monde</span><span>Supercontinent</span></span></label>
+          <label class="slider-control" for="continentSize"><span>Étendue des continents<output for="continentSize" id="continentSize-value">50</output></span><input type="range" id="continentSize" min="0" max="100" value="50"><span class="range-labels"><span>Resserrée</span><span>Étendue</span></span></label>
           <label class="slider-control" for="mountains"><span>Montagnes<output for="mountains" id="mountains-value">60</output></span><input type="range" id="mountains" min="0" max="100" value="60"></label>
           <label class="slider-control" for="forests"><span>Forêts<output for="forests" id="forests-value">65</output></span><input type="range" id="forests" min="0" max="100" value="65"></label>
           <label class="slider-control" for="roughness"><span>Découpe du littoral<output for="roughness" id="roughness-value">45</output></span><input type="range" id="roughness" min="0" max="100" value="45"><span class="range-labels"><span>Douce</span><span>Accidentée</span></span></label>
         </div>
         <button id="randomize" class="primary-button"><span aria-hidden="true">⟳</span> Randomiser <span class="button-arrow" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13 13 3M4 3h9v9"/></svg></span></button>
         <p class="world-stats" id="world-stats" aria-live="polite">Préparation de l’atlas…</p>
-        <div class="export-section"><span class="eyebrow">EMPORTER CE MONDE</span><button id="export-texture" class="export-button"><span>Exporter la carte <small>Texture PNG · 2:1</small></span><span aria-hidden="true">↓</span></button><a href="nereide-atlas-v0.3.html" download class="html-link" id="download-html">Télécharger la démo HTML <svg aria-hidden="true" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13 13 3M4 3h9v9"/></svg></a></div>
+        <div class="export-section"><span class="eyebrow">EMPORTER CE MONDE</span><button id="export-texture" class="export-button"><span>Exporter la carte <small>Texture PNG · 2:1</small></span><span aria-hidden="true">↓</span></button><a href="nereide-atlas-v0.4.html" download class="html-link" id="download-html">Télécharger la démo HTML <svg aria-hidden="true" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 13 13 3M4 3h9v9"/></svg></a></div>
         <p id="message" class="message" role="status" aria-live="polite"></p>
       </aside>
     </main>
@@ -237,6 +236,183 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
   <script>
 (function (root) {
   'use strict';
+  const A = root.NereideAtlas, {random, clamp, lerp} = A;
+
+  // Gradient noise avoids the horizontal/vertical shelves of value noise.
+  function gradientNoise(x, y, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+    function dot(a, b, dx, dy) {
+      let h = Math.imul(a, 374761393) ^ Math.imul(b, 668265263) ^ seed;
+      h = Math.imul(h ^ h >>> 13, 1274126177); h ^= h >>> 16;
+      switch (h & 7) {
+        case 0: return dx; case 1: return -dx; case 2: return dy; case 3: return -dy;
+        case 4: return (dx + dy) * .7071; case 5: return (dx - dy) * .7071;
+        case 6: return (-dx + dy) * .7071; default: return (-dx - dy) * .7071;
+      }
+    }
+    return lerp(lerp(dot(ix, iy, fx, fy), dot(ix + 1, iy, fx - 1, fy), fade(fx)),
+      lerp(dot(ix, iy + 1, fx, fy - 1), dot(ix + 1, iy + 1, fx - 1, fy - 1), fade(fx)), fade(fy)) * 1.5;
+  }
+  function oval(x, y, b) {
+    const dx = x - b.x, dy = y - b.y;
+    return (Math.hypot((dx * b.cos + dy * b.sin) / b.rx, (-dx * b.sin + dy * b.cos) / b.ry) - 1) * Math.min(b.rx, b.ry);
+  }
+  function blob(x, y, rx, ry, angle) {return {x, y, rx, ry, cos: Math.cos(angle), sin: Math.sin(angle)};}
+  function blend(a, b, k) {
+    const h = Math.max(k - Math.abs(a - b), 0) / k;
+    return Math.min(a, b) - h * h * k * .25;
+  }
+
+  function createGeography(seed, options) {
+    const rng = random(seed, 'geography-v4'), count = 1 + Math.floor(rng() * 3);
+    const scale = .82 + options.continentSize * .0032, rough = options.roughness / 100;
+    // Coordinates use x, y/2 so shapes have the same scale in both map axes.
+    // Separate envelopes keep the major landmasses apart at every slider value.
+    const layouts = [
+      [[0, 0, .31, .33]],
+      [[-.20, -.06, .145, .29], [.20, .07, .14, .22]],
+      [[-.22, -.16, .13, .16], [0, .13, .16, .21], [.22, -.16, .13, .15]]
+    ];
+    const mirror = rng() < .5 ? -1 : 1;
+    const continents = layouts[count - 1].map(([x, y, rx, ry], id) => {
+      const angle = (rng() - .5) * (count === 3 ? .42 : id === 0 ? .95 : 2.5);
+      const c = {id, x: x * scale * mirror, y: (y + (rng() - .5) * .035) * scale * 2,
+        rx: rx * scale, ry: ry * scale, angle, cos: Math.cos(angle), sin: Math.sin(angle),
+        xCompression: count === 3 ? 1.08 : 1,
+        seed: (seed ^ Math.floor(rng() * 0xffffffff)) >>> 0, lobes: [], bays: []};
+      const phase = rng() * Math.PI * 2;
+      for (let j = 0; j < 5; j++) {
+        const t = j / 4, bx = Math.sin(t * 3.8 + phase) * .25;
+        const taper = .68 + Math.sin(t * Math.PI) * .32;
+        c.lobes.push(blob(bx, (t - .5) * 1.25, (.42 + rng() * .2) * taper, .34 + rng() * .13, (rng() - .5) * .5));
+      }
+      // Unequal lateral lobes produce broad peninsulas, isthmuses and asymmetric basins.
+      for (let j = 0, n = 3 + Math.floor(rng() * 3); j < n; j++) {
+        const side = j % 2 ? -1 : 1, by = (rng() - .5) * 1.3;
+        const reach = count === 3 ? .34 + rng() * .12 : .4 + rng() * .21;
+        const width = count === 3 ? .2 + rng() * .12 : .28 + rng() * .17;
+        c.lobes.push(blob(side * reach, by, width, .12 + rng() * .17, side * (rng() - .5) * 1.4));
+      }
+      for (let j = 0, n = 2 + Math.floor(rng() * 3); j < n; j++) {
+        const side = j % 2 ? -1 : 1;
+        c.bays.push(blob(side * (.78 + rng() * .15), (rng() - .5) * 1.42, .32 + rng() * .18, .12 + rng() * .17, (rng() - .5) * 1.4));
+      }
+      return c;
+    });
+    function continentField(x, y, c) {
+      const dx = x - c.x, dy = (y - c.y) * .5;
+      const px = (dx * c.cos + dy * c.sin) / c.rx * c.xCompression;
+      const py = (-dx * c.sin + dy * c.cos) / c.ry;
+      if (Math.abs(px) > 1.65 || Math.abs(py) > 1.65) return .3;
+      const s = c.seed, n = gradientNoise;
+      const broad = .25 + rough * .15;
+      const wx = px + n(px * 1.8 + 9, py * 1.8 - 5, s) * broad + n(px * 5 + 13, py * 5, s ^ 29) * .055;
+      const wy = py + n(px * 1.8 - 7, py * 1.8 + 4, s ^ 71) * broad + n(px * 5, py * 5 + 7, s ^ 137) * .055;
+      let d = 2;
+      for (const b of c.lobes) d = blend(d, oval(wx, wy, b), .10);
+      for (const b of c.bays) d = -blend(-d, oval(wx, wy, b), .045);
+      // Detail amplitude decreases with wavelength: bays first, coves last.
+      // Local exposure varies so sheltered shores remain calmer than broken coasts.
+      const exposure = .55 + .45 * (n(px * 2.7 + 31, py * 2.7 - 13, s ^ 443) + 1) * .5;
+      const detail = .45 + rough * .9;
+      d += exposure * detail * (n(wx * 9 + 17, wy * 9 - 9, s ^ 831) * .083 +
+        n(wx * 23 - 5, wy * 23 + 3, s ^ 921) * .033 + n(wx * 57, wy * 57 + 18, s ^ 1471) * .013);
+      return d * Math.min(c.rx, c.ry);
+    }
+    // Precompute once: placement and rendering subsequently query a continuous
+    // bilinear field. This is a 2D shoreline mask, not a terrain heightmap.
+    const width = 1537, height = 769, step = 2 / (width - 1);
+    const field = new Float32Array(width * height); field.fill(.3);
+    for (const c of continents) {
+      const radius = Math.hypot(c.rx, c.ry) * 1.32;
+      const x0 = clamp(Math.floor((c.x - radius + 1) / step), 1, width - 2);
+      const x1 = clamp(Math.ceil((c.x + radius + 1) / step), 1, width - 2);
+      const y0 = clamp(Math.floor((c.y * .5 - radius + .5) / step), 1, height - 2);
+      const y1 = clamp(Math.ceil((c.y * .5 + radius + .5) / step), 1, height - 2);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = y * width + x;
+        // Preserve open water at the poles and at the equirectangular seam.
+        field[i] = Math.min(field[i], Math.max(continentField(x * step - 1, y * step * 2 - 1, c),
+          (Math.abs(y * step * 2 - 1) - .85) * .5, Math.abs(x * step - 1) - .88));
+      }
+    }
+    // Retain the connected body containing each continent's core. Fragments are
+    // generated separately as deliberate coastal archipelagos, never noise specks.
+    const connected = new Uint8Array(field.length), queue = new Int32Array(field.length);
+    // Fill tiny enclosed water pockets created by the coastal perturbation.
+    // Designed lakes are added later; genuine open bays remain connected to sea.
+    for (let i = 0; i < field.length; i++) {
+      if (connected[i] || field[i] < 0) continue;
+      let head = 0, tail = 0, boundary = false; queue[tail++] = i; connected[i] = 1;
+      while (head < tail) {
+        const at = queue[head++], x = at % width, y = Math.floor(at / width);
+        if (!x || !y || x === width - 1 || y === height - 1) boundary = true;
+        for (const next of [x ? at - 1 : -1, x < width - 1 ? at + 1 : -1, at - width, at + width]) {
+          if (next >= 0 && next < field.length && !connected[next] && field[next] >= 0) {
+            connected[next] = 1; queue[tail++] = next;
+          }
+        }
+      }
+      if (!boundary && tail < 500) for (let j = 0; j < tail; j++) field[queue[j]] = -Math.abs(field[queue[j]]) - step;
+    }
+    connected.fill(0);
+    for (const c of continents) {
+      let start = -1, best = Infinity;
+      for (let y = 1; y < height - 1; y += 3) for (let x = 1; x < width - 1; x += 3) {
+        const i = y * width + x;
+        if (field[i] >= -.012) continue;
+        const d = (x * step - 1 - c.x) ** 2 + (y * step - .5 - c.y * .5) ** 2;
+        if (d < best) {best = d; start = i;}
+      }
+      if (start < 0 || connected[start]) continue;
+      c.core = {x: (start % width) * step - 1, y: Math.floor(start / width) * step * 2 - 1};
+      let head = 0, tail = 0; queue[tail++] = start; connected[start] = 1;
+      while (head < tail) {
+        const i = queue[head++];
+        for (const j of [i - 1, i + 1, i - width, i + width]) {
+          if (j >= 0 && j < field.length && !connected[j] && field[j] < 0) {connected[j] = 1; queue[tail++] = j;}
+        }
+      }
+    }
+    for (let i = 0; i < field.length; i++) if (field[i] < 0 && !connected[i]) field[i] = Math.abs(field[i]) + step;
+
+    // Re-distance from subpixel zero crossings so narrow bays do not acquire
+    // thick sand bands. Two chamfer sweeps preserve the original coastline.
+    const distance = new Float32Array(field.length); distance.fill(4);
+    for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x, a = field[i];
+      for (const j of [i - 1, i + 1, i - width, i + width]) {
+        if ((a < 0) !== (field[j] < 0)) distance[i] = Math.min(distance[i], Math.abs(a / (a - field[j])) * step);
+      }
+    }
+    const diagonal = step * Math.SQRT2;
+    for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      distance[i] = Math.min(distance[i], distance[i - 1] + step, distance[i - width] + step,
+        distance[i - width - 1] + diagonal, distance[i - width + 1] + diagonal);
+    }
+    for (let y = height - 2; y > 0; y--) for (let x = width - 2; x > 0; x--) {
+      const i = y * width + x;
+      distance[i] = Math.min(distance[i], distance[i + 1] + step, distance[i + width] + step,
+        distance[i + width + 1] + diagonal, distance[i + width - 1] + diagonal);
+    }
+    for (let i = 0; i < field.length; i++) field[i] = Math.min(.3, distance[i]) * (field[i] < 0 ? -1 : 1);
+    function mainland(x, y) {
+      if (Math.abs(x) >= .99 || Math.abs(y) >= .99) return .3;
+      const gx = (x + 1) / step, gy = (y + 1) / (step * 2), ix = Math.floor(gx), iy = Math.floor(gy);
+      const tx = gx - ix, ty = gy - iy, i = iy * width + ix;
+      return lerp(lerp(field[i], field[i + 1], tx), lerp(field[i + width], field[i + width + 1], tx), ty);
+    }
+    return {continents, mainland, resolution: width};
+  }
+  Object.assign(A, {gradientNoise, createGeography});
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
   const A = root.NereideAtlas;
   const {random, noise, clamp, lerp} = A;
   const Terrain = Object.freeze({
@@ -279,54 +455,28 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
 
   function createWorld(seed, input) {
     seed = A.parseSeed(seed);
-    const options = optionsFrom(input), rng = random(seed, 'continent');
-    const scale = .79 + options.continentSize * .0041;
-    const angle = (rng() - .5) * .48, cos = Math.cos(angle), sin = Math.sin(angle);
-    const offsetX = (rng() - .5) * .05, offsetY = (rng() - .5) * .07;
-    const blobs = [
-      [-.08, -.47, .135, .205], [-.035, -.24, .205, .245], [.005, .025, .215, .265],
-      [.085, .285, .17, .235], [.08, .515, .105, .155], [-.205, -.13, .115, .15], [.215, .12, .12, .145]
-    ].map(([x, y, rx, ry]) => ({
-      x: x + (rng() - .5) * .065, y: y + (rng() - .5) * .065,
-      rx: rx * (.89 + rng() * .22), ry: ry * (.89 + rng() * .22)
-    }));
-    const bays = [
-      {x: -.16, y: .245, rx: .135 + rng() * .025, ry: .16},
-      {x: .205, y: -.265, rx: .118, ry: .105 + rng() * .025},
-      {x: -.015, y: .095, rx: .052 + rng() * .014, ry: .085},
-      {x: .19, y: .265, rx: .042 + rng() * .012, ry: .06}
-    ];
-    function local(x, y) {
-      x = (x - offsetX) / scale; y = (y - offsetY) / scale;
-      return {x: x * cos + y * sin * .5, y: -x * sin * 2 + y * cos};
-    }
-    function worldPoint(x, y) {
-      return {x: offsetX + scale * (x * cos - y * sin * .5),
-        y: offsetY + scale * (2 * x * sin + y * cos)};
-    }
-    function mainland(x, y) {
-      const p = local(x, y);
-      if (Math.abs(p.x) > .7 || Math.abs(p.y) > .92) return .3;
-      const rough = .008 + options.roughness * .00029;
-      const wx = p.x + (noise(p.x * 5.5 + 19, p.y * 3.6 - 8, seed) - .5) * rough * 1.7;
-      const wy = p.y + (noise(p.x * 4.2 - 7, p.y * 4.7 + 13, seed ^ 19) - .5) * rough * 2.2;
-      let field = 1;
-      for (const b of blobs) field = union(field, ellipse(wx, wy, b), .033);
-      for (const bay of bays) field = Math.max(field, -ellipse(wx, wy, bay));
-      field += (noise(wx * 14 + 8, wy * 9 - 7, seed ^ 873) - .5) * (.004 + options.roughness * .0001);
-      field += (noise(wx * 27 + 3, wy * 19 - 5, seed ^ 441) - .5) * (.001 + options.roughness * .000045);
-      return field * scale;
-    }
-
+    const options = optionsFrom(input);
+    const {continents, mainland} = A.createGeography(seed, options);
     const islands = [], lakes = [], chains = [], peaks = [], hills = [], forestZones = [], trees = [], rivers = [], clouds = [];
-    const world = {seed, options, blobs, islands, lakes, chains, peaks, hills, forestZones, trees, rivers, clouds, mainland};
+    const world = {seed, options, continents, islands, lakes, chains, peaks, hills, forestZones, trees, rivers, clouds, mainland};
 
     function islandField(x, y, b) {
-      return ellipse(x, y, b) + (noise(x * 34 + b.id, y * 29 - b.id, seed ^ b.id) - .5) * Math.min(b.rx, b.ry) * .19;
+      const dx = x - b.x, dy = (y - b.y) * .5, cos = Math.cos(b.angle), sin = Math.sin(b.angle);
+      const u = (dx * cos + dy * sin) / b.rx, v = (-dx * sin + dy * cos) / b.ry;
+      if (Math.abs(u) > 1.8 || Math.abs(v) > 1.8) return .3;
+      const n = A.gradientNoise;
+      const wx = u + n(u * 2 + b.id, v * 2, seed ^ 771) * .25;
+      const wy = v + n(u * 2, v * 2 - b.id, seed ^ 919) * .25;
+      const angle = Math.atan2(wy, wx);
+      const radius = 1 + Math.sin(angle * 3 + b.phase) * .14 + Math.cos(angle * 5 - b.phase) * .07;
+      return (Math.hypot(wx, wy) - radius + n(u * 7, v * 7, seed ^ b.id) * .065) * Math.min(b.rx, b.ry);
     }
     function landDistance(x, y) {
       let d = mainland(x, y);
-      for (const b of islands) d = Math.min(d, islandField(x, y, b));
+      for (const b of islands) {
+        if (Math.abs(x - b.x) > b.bound || Math.abs(y - b.y) > b.bound * 2) continue;
+        d = Math.min(d, islandField(x, y, b));
+      }
       return d;
     }
     function lakeDistance(x, y) {
@@ -340,104 +490,108 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
       return d;
     }
     function water(x, y) { return landDistance(x, y) >= 0 || lakeDistance(x, y) <= 0; }
-    function safePoint(r, margin, predicate) {
-      for (let i = 0; i < 1800; i++) {
-        const p = {x: (r() - .5) * .9, y: (r() - .5) * 1.45};
+    function safePoint(r, margin, predicate, continent) {
+      for (let i = 0; i < 1400; i++) {
+        const c = continent || continents[Math.floor(r() * continents.length)];
+        const p = {x: c.x + (r() - .5) * c.rx * 2, y: c.y + (r() - .5) * c.ry * 4};
         if (mainland(p.x, p.y) < -margin && lakeDistance(p.x, p.y) > .025 && (!predicate || predicate(p))) return p;
       }
       return null;
     }
 
     const ir = random(seed, 'islands');
-    function addIsland(p, group) {
-      const latitudeScale = Math.max(.7, Math.cos(p.y * Math.PI * .5));
-      const rx = (.006 + ir() * .016) / latitudeScale;
-      const b = {x: p.x, y: p.y, rx, ry: rx * (1.25 + ir() * 1.8), angle: (ir() - .5) * .9,
-        id: islands.length + 57, group};
-      if (mainland(p.x, p.y) < b.rx * 1.25 + .012 || mainland(p.x, p.y) > .19) return false;
-      if (islands.some(other => metricDistance(p.x, p.y, other.x, other.y) < (rx + other.rx) * .9 + .012)) return false;
+    function addIsland(p, group, radius, bearing) {
+      const rx = radius * (1.05 + ir() * .5), ry = radius * (.5 + ir() * .35);
+      const bound = Math.max(rx, ry) * 1.45;
+      const b = {...p, rx, ry, bound, angle: bearing + (ir() - .5) * .65,
+        phase: ir() * Math.PI * 2, id: islands.length + 57, group};
+      const d = mainland(p.x, p.y);
+      if (d < bound + .006 || d > .11 || Math.abs(p.x) + bound > .87 || Math.abs(p.y) + bound * 2 > .83) return false;
+      if (islands.some(other => Math.hypot(p.x - other.x, (p.y - other.y) * .5) < bound + other.bound + .004)) return false;
       islands.push(b); return true;
     }
-    function coastAnchor(start, bearing, gap) {
-      const latitudeScale = Math.max(.5, Math.cos(start.y * Math.PI * .5));
-      let coast = null;
-      for (let d = .006; d < .76; d += .006) {
-        const p = {x: start.x + Math.cos(bearing) * d / latitudeScale, y: start.y + Math.sin(bearing) * d * 2};
-        if (mainland(p.x, p.y) >= 0) {coast = p; break;}
-      }
-      if (!coast) return null;
-      return {x: coast.x + Math.cos(bearing) * gap / latitudeScale, y: coast.y + Math.sin(bearing) * gap * 2};
-    }
-    const groupCount = 2 + Math.floor(ir() * 2);
-    for (let group = 0; group < groupCount; group++) {
-      const origin = safePoint(ir, .04);
-      if (!origin) continue;
-      const bearing = ir() * Math.PI * 2, gap = .04 + ir() * .075;
-      const anchor = coastAnchor(origin, bearing, gap);
-      if (!anchor) continue;
-      for (let j = 0, count = 3 + Math.floor(ir() * 4); j < count; j++) {
-        let placed = false;
-        for (let tries = 0; tries < 32 && !placed; tries++) {
-          const radius = Math.sqrt(ir()) * (.035 + ir() * .055), a = ir() * Math.PI * 2;
-          const p = {x: anchor.x + Math.cos(a) * radius, y: anchor.y + Math.sin(a) * radius * 2};
-          if (mainland(p.x, p.y) > .003 && mainland(p.x, p.y) < .16) placed = addIsland(p, group);
+    // Follow the coastline, then curve away from it; large inner islands taper
+    // into small outer ones rather than forming a uniform ring or random dots.
+    for (const c of continents) {
+      for (let group = 0, groups = 2 + Math.floor(ir() * 3); group < groups; group++) {
+        const origin = c.core || safePoint(ir, .025, null, c);
+        if (!origin) continue;
+        const bearing = ir() * Math.PI * 2;
+        let coast = null;
+        for (let d = .004; d < .7; d += .004) {
+          const p = {x: origin.x + Math.cos(bearing) * d, y: origin.y + Math.sin(bearing) * d * 2};
+          if (mainland(p.x, p.y) > 0) {coast = p; break;}
+        }
+        if (!coast) continue;
+        const h = .003;
+        let nx = mainland(coast.x + h, coast.y) - mainland(coast.x - h, coast.y);
+        let ny = mainland(coast.x, coast.y + h * 2) - mainland(coast.x, coast.y - h * 2);
+        const length = Math.hypot(nx, ny) || 1; nx /= length; ny /= length;
+        const sign = ir() < .5 ? -1 : 1, base = .009 + ir() * .010, gap = .025 + ir() * .017;
+        for (let j = 0, n = 4 + Math.floor(ir() * 4); j < n; j++) {
+          const t = j / (n - 1), along = (t - .3) * (.085 + base * 3) * sign;
+          const offshore = gap + t * .033 + Math.sin(t * Math.PI) * .014;
+          const p = {x: coast.x + nx * offshore - ny * along, y: coast.y + (ny * offshore + nx * along) * 2};
+          addIsland(p, c.id * 10 + group, base * (1 - t * .64), Math.atan2(ny, nx) + Math.PI * .5 + t * sign * .45);
         }
       }
     }
-    const wantedIslands = 9 + Math.floor(ir() * 5);
-    for (let i = 0; islands.length < wantedIslands && i < 1600; i++) {
-      const p = {x: (ir() - .5) * .95, y: (ir() - .5) * 1.48};
-      if (mainland(p.x, p.y) > .004 && mainland(p.x, p.y) < .15) addIsland(p, groupCount + i);
+    const wantedIslands = 8 + continents.length * 4 + Math.floor(ir() * 5);
+    for (let i = 0; islands.length < wantedIslands && i < 3000; i++) {
+      const c = continents[Math.floor(ir() * continents.length)];
+      const p = {x: c.x + (ir() - .5) * c.rx * 3, y: c.y + (ir() - .5) * c.ry * 6};
+      addIsland(p, 100 + i, .005 + ir() * .009, ir() * Math.PI * 2);
     }
 
     const mr = random(seed, 'mountains');
-    const rangeCount = options.mountains === 0 ? 0 : options.mountains < 22 ? 1 : 2;
+    const rangeCount = options.mountains === 0 ? 0 : options.mountains < 22 ? 1 : Math.max(2, continents.length);
     function createRange(index) {
-      const yBase = index === 0 ? -.155 : .245, xBase = index === 0 ? -.105 : .085;
-      const span = index === 0 ? .37 : .33;
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const x0 = xBase + (mr() - .5) * .105, y0 = yBase + (mr() - .5) * .085;
-        const slope = (mr() - .5) * .25, phase = mr() * Math.PI * 2, side = (mr() - .5) * .012;
-        const path = [];
-        let valid = 0;
+      const c = continents[index % continents.length];
+      for (let attempt = 0; attempt < 90; attempt++) {
+        const center = safePoint(mr, .027, p => chains.every(other => metricDistance(p.x, p.y, other.x, other.y) > .08), c);
+        if (!center) continue;
+        // Keep the painted peaks upright; slight variation avoids perfectly parallel rows.
+        const direction = (mr() - .5) * .34;
+        const span = (.07 + mr() * .08) * (attempt > 40 ? .65 : 1), phase = mr() * Math.PI * 2;
+        const path = [], dx = Math.cos(direction), dy = Math.sin(direction);
+        let valid = true;
         for (let i = 0; i <= 40; i++) {
-          const t = i / 40, y = y0 + (t - .5) * span, x = x0 + slope * (t - .5) + Math.sin(t * Math.PI * 2 + phase) * .015 + side;
-          const p = worldPoint(x, y); path.push(p);
-          if (mainland(p.x, p.y) < -.018) valid++;
+          const t = i / 40, along = (t - .5) * span, bend = Math.sin(t * Math.PI * 2 + phase) * .008;
+          const p = {x: center.x + dx * along - dy * bend, y: center.y + (dy * along + dx * bend) * 2};
+          path.push(p); if (mainland(p.x, p.y) > -.014) valid = false;
         }
-        if (valid < path.length * .79) continue;
-        const start = path[0], end = path[path.length - 1], center = path[path.length >> 1];
-        const length = Math.hypot(end.x - start.x, (end.y - start.y) * .5);
-        const chain = {id: index, x: center.x, y: center.y, start, end, path, direction: Math.atan2(end.y - start.y, end.x - start.x),
-          length, size: clamp(length * .92, .15, .24), variant: Math.floor(mr() * 24), peaks: []};
+        if (!valid) continue;
+        const start = path[0], end = path[path.length - 1], size = clamp(-mainland(center.x, center.y) * .95, .042, .16);
+        const chain = {id: index, ...center, start, end, path, direction, length: span,
+          size, variant: Math.floor(mr() * 24), peaks: []};
         const count = 12 + Math.round(options.mountains * .12);
         for (let i = 0; i < count; i++) {
-          const t = (i + .42 + (mr() - .5) * .35) / count;
-          const at = Math.max(0, Math.min(40, Math.round(t * 40))), base = path[at], localP = local(base.x, base.y);
-          const p = worldPoint(localP.x + (mr() - .5) * .045, localP.y + (mr() - .5) * .018);
-          if (mainland(p.x, p.y) > -.006) continue;
-          const middle = 1 - Math.abs(t - .5) * 1.8;
-          const size = .033 + clamp(middle, 0, 1) * .032 + mr() * .018;
+          const t = (i + .42 + (mr() - .5) * .35) / count, base = path[Math.min(40, Math.round(t * 40))];
+          const p = {x: base.x + (mr() - .5) * .015, y: base.y + (mr() - .5) * .024};
+          const clearance = -mainland(p.x, p.y);
+          if (clearance < .014) continue;
+          const size = Math.min(.036 + Math.sin(t * Math.PI) * .036 + mr() * .014, clearance * 1.1);
           const peak = {...p, size, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .18, mirror: mr() > .5,
-            snow: size > .069 || (size > .057 && mr() > .42), chain: index, major: size > .065};
+            snow: size > .062 || (size > .05 && mr() > .42), chain: index, major: size > .06};
           peaks.push(peak); chain.peaks.push(peak);
         }
-        chains.push(chain);
-        return chain;
+        chains.push(chain); return chain;
       }
       return null;
     }
     for (let i = 0; i < rangeCount; i++) createRange(i);
     for (let i = 0, count = Math.round(options.mountains / 26); i < count; i++) {
-      const p = safePoint(mr, .035, p => chains.every(c => metricDistance(p.x, p.y, c.x, c.y) > .045));
-      if (p) peaks.push({...p, size: .025 + mr() * .022, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .2,
+      const p = safePoint(mr, .04, p => chains.every(c => metricDistance(p.x, p.y, c.x, c.y) > .045));
+      if (p) peaks.push({...p, size: .025 + mr() * .018, variant: Math.floor(mr() * 24), angle: (mr() - .5) * .2,
         mirror: mr() > .5, snow: mr() > .7, chain: -1, major: false});
     }
 
     const lr = random(seed, 'lakes');
     const lakeCount = 1 + Math.floor(lr() * 3);
     for (let i = 0; i < lakeCount; i++) {
-      const p = safePoint(lr, .055, p => peaks.every(b => metricDistance(p.x, p.y, b.x, b.y) > .04));
+      const clearOfRelief = (p, clearance) => peaks.every(b => metricDistance(p.x, p.y, b.x, b.y) > clearance);
+      const p = safePoint(lr, .055, p => clearOfRelief(p, .04)) ||
+        safePoint(lr, .055, p => clearOfRelief(p, .022));
       if (!p) continue;
       const angle = lr() * Math.PI, rx = .014 + lr() * .012, ry = rx * (1.55 + lr() * 1.3);
       lakes.push({...p, rx, ry, angle, id: 125 + i});
@@ -842,7 +996,7 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
       throw new Error('La texture doit avoir un ratio 2:1, entre 256 et 4096 pixels de large.');
     }
     const library = await A.loadLibrary(), world = A.createWorld(settings.seed === undefined ? 0x4E455245 : settings.seed, settings);
-    const gridWidth = Math.min(1024, Math.max(512, width)), grid = raster(world, gridWidth, gridWidth / 2);
+    const gridWidth = Math.min(2048, Math.max(1024, width)), grid = raster(world, gridWidth, gridWidth / 2);
     const canvas = A.surface(width, height), ctx = canvas.getContext('2d');
     const image = ctx.createImageData(width, height), landMask = A.surface(width, height), oceanMask = A.surface(width, height);
     const lctx = landMask.getContext('2d'), octx = oceanMask.getContext('2d');
@@ -870,7 +1024,7 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
             mix(palette.dark, palette.warm, smoothstep(.08, .55, variation));
           const forest = interpolated(grid.forest, grid.width, grid.height, u, v);
           color = mix(plain, palette.forest, forest * .72);
-          const beachWidth = .0048 + variation * .0055;
+          const beachWidth = .0018 + variation * .0026;
           color = mix(palette.sand, color, smoothstep(beachWidth * .42, beachWidth * 1.15, -d));
           beachAlpha = 1 - smoothstep(beachWidth * .42, beachWidth * 1.15, -d);
           forestAlpha = forest * .2;
@@ -940,33 +1094,13 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
     constructor(canvas) {
       this.canvas = canvas; this.ctx = canvas.getContext('2d');
       this.longitude = 0; this.latitude = 0; this.zoom = 1; this.grid = true;
-      this.buffer = A.surface(1, 1); this.pending = false; this.drag = null;
+      this.buffer = A.surface(1, 1); this.pending = false;
       this.onChange = () => {};
-      canvas.addEventListener('pointerdown', event => {
-        if (event.button !== 0) return;
-        this.drag = {x: event.clientX, y: event.clientY, longitude: this.longitude, latitude: this.latitude};
-        canvas.setPointerCapture(event.pointerId); canvas.classList.add('dragging');
-      });
-      canvas.addEventListener('pointermove', event => {
-        if (!this.drag) return;
-        const size = canvas.getBoundingClientRect().width;
-        this.longitude = this.drag.longitude - (event.clientX - this.drag.x) / size * 3.2;
-        this.latitude = A.clamp(this.drag.latitude + (event.clientY - this.drag.y) / size * 2.4, -1.15, 1.15);
-        this.request(true);
-      });
-      const end = () => {this.drag = null; canvas.classList.remove('dragging'); this.request(false);};
-      canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
-      canvas.addEventListener('lostpointercapture', () => {if (this.drag) end();});
       canvas.addEventListener('wheel', event => {
         event.preventDefault(); this.setZoom(this.zoom * Math.exp(-event.deltaY * .001));
       }, {passive: false});
       canvas.addEventListener('keydown', event => {
-        const step = .12;
-        if (event.key === 'ArrowLeft') this.longitude -= step;
-        else if (event.key === 'ArrowRight') this.longitude += step;
-        else if (event.key === 'ArrowUp') this.latitude = A.clamp(this.latitude + step, -1.15, 1.15);
-        else if (event.key === 'ArrowDown') this.latitude = A.clamp(this.latitude - step, -1.15, 1.15);
-        else if (event.key === '+' || event.key === '=') this.setZoom(this.zoom * 1.1);
+        if (event.key === '+' || event.key === '=') this.setZoom(this.zoom * 1.1);
         else if (event.key === '-') this.setZoom(this.zoom / 1.1);
         else return;
         event.preventDefault(); this.request();
@@ -1089,11 +1223,11 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
       byId('seed').value = A.formatSeed(texture.world.seed);
       const mains = texture.world.rivers.filter(river => river.order === 'main').length;
       const tributaries = texture.world.rivers.length - mains;
-      byId('world-stats').textContent = `${texture.world.chains.length} massifs · ${mains} rivières · ${tributaries} affluents · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs`;
+      byId('world-stats').textContent = `${texture.world.continents.length} continent${texture.world.continents.length > 1 ? 's' : ''} · ${texture.world.chains.length} massifs · ${mains} rivières · ${tributaries} affluents · ${texture.world.islands.length} îles · ${texture.world.lakes.length} lacs`;
       try {history.replaceState(null, '', urlFor(config));} catch (_) { /* file:// can disallow history changes. */ }
-      if (texture.failedAssets.length) message('Quelques illustrations sont indisponibles ; les motifs vectoriels prennent le relais.');
+      if (texture.failedAssets.length) message('Certaines images sont indisponibles. Le sol utilise les couleurs de secours.');
       byId('export-texture').disabled = false;
-      byId('globe').setAttribute('aria-label', `Globe de Néréide, seed ${A.formatSeed(config.seed)}. Glisser ou utiliser les flèches pour tourner.`);
+      byId('globe').setAttribute('aria-label', `Globe de Néréide en vue fixe de face, seed ${A.formatSeed(config.seed)}. Utiliser plus et moins pour zoomer.`);
       document.dispatchEvent(new CustomEvent('nereide:ready', {detail: {seed: config.seed}}));
     } catch (error) {if (id === request) message('Génération impossible : ' + error.message, true);}
     finally {if (id === request) {byId('loading').hidden = true; byId('visual').setAttribute('aria-busy', 'false');}}
@@ -1117,7 +1251,7 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
       byId('view-' + name).classList.toggle('selected', selected); byId('view-' + name).setAttribute('aria-pressed', String(selected));
     }
     for (const id of ['grid', 'zoom-in', 'zoom-out', 'reset-view']) byId(id).disabled = map;
-    byId('gesture').textContent = map ? 'La surface, à plat' : 'Glisser pour explorer';
+    byId('gesture').textContent = map ? 'La surface, à plat' : 'Vue fixe de face';
     if (!map) globe.request();
   }
   byId('view-globe').addEventListener('click', () => setView(false));
@@ -1154,7 +1288,7 @@ input[type=range]::-moz-range-thumb{width:8px;height:8px;border:1px solid #10212
     const config = texture ? {seed: A.formatSeed(texture.world.seed), ...texture.world.options} : {seed: byId('seed').value};
     copy.querySelector('#initial-state').textContent = JSON.stringify(config);
     copy.querySelector('#message').textContent = '';
-    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.3.html');
+    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.4.html');
     message('Démo autonome téléchargée avec la seed et les réglages actuels.');
   });
   globalThis.NereideDemo = {globe, regenerate, get texture() {return texture;}, get mapMode() {return mapMode;}};

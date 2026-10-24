@@ -88,7 +88,7 @@
       throw new Error('La texture doit avoir un ratio 2:1, entre 256 et 4096 pixels de large.');
     }
     const library = await A.loadLibrary(), world = A.createWorld(settings.seed === undefined ? 0x4E455245 : settings.seed, settings);
-    const gridWidth = Math.min(1024, Math.max(512, width)), grid = raster(world, gridWidth, gridWidth / 2);
+    const gridWidth = Math.min(2048, Math.max(1024, width)), grid = raster(world, gridWidth, gridWidth / 2);
     const canvas = A.surface(width, height), ctx = canvas.getContext('2d');
     const image = ctx.createImageData(width, height), landMask = A.surface(width, height), oceanMask = A.surface(width, height);
     const lctx = landMask.getContext('2d'), octx = oceanMask.getContext('2d');
@@ -116,7 +116,7 @@
             mix(palette.dark, palette.warm, smoothstep(.08, .55, variation));
           const forest = interpolated(grid.forest, grid.width, grid.height, u, v);
           color = mix(plain, palette.forest, forest * .72);
-          const beachWidth = .0048 + variation * .0055;
+          const beachWidth = .0018 + variation * .0026;
           color = mix(palette.sand, color, smoothstep(beachWidth * .42, beachWidth * 1.15, -d));
           beachAlpha = 1 - smoothstep(beachWidth * .42, beachWidth * 1.15, -d);
           forestAlpha = forest * .2;

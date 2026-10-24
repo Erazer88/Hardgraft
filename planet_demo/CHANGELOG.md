@@ -1,3 +1,14 @@
+# 0.4.0 — Continents et littoral
+
+- Une à trois grandes masses déterministes, avec des silhouettes, orientations et proportions variées.
+- Péninsules, golfes et criques par déformation à plusieurs échelles ; nettoyage des fragments et petites poches accidentelles.
+- Distance au littoral recalculée en 2D à partir des passages sous-pixel ; plages plus fines et détails conservés à l'export.
+- Archipels proches des côtes, organisés en arcs et de tailles décroissantes.
+- Massifs redressés et alignés en chaînes légèrement inclinées autour de l’horizontale ; le tracé des cours d’eau et les lacs s’adaptent aux nouvelles masses. Les trois images fournies restent les seules images utilisées.
+- Caméra verrouillée de face et centres des 1–3 continents regroupés dans l'hémisphère visible.
+- Nombre de continents visible dans l'interface ; tests de connexité, variation des côtes et placement des îles.
+- Silhouette inspirée de la référence : grand noyau asymétrique, baies profondes et péninsules avec détails de côte à plusieurs échelles.
+
 # 0.3.0 — 2026-10-24
 
 - Remplacement de l'ancienne bibliothèque d'images par la texture de sol et les deux massifs fournis.

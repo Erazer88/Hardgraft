@@ -25,8 +25,7 @@ a{color:inherit;text-decoration:none}
 h1{font:400 26px/1.25 Georgia,"Times New Roman",serif;letter-spacing:-.025em;margin:10px 0 0;color:#e6e9e1}
 .stage-index{font:9px ui-monospace,monospace;letter-spacing:.13em;color:#6b828d}
 .visual{position:relative;flex:1;min-height:540px;display:grid;place-items:center;isolation:isolate;background:radial-gradient(ellipse at 50% 48%,#10304b75 0,#0b203333 37%,#08152100 65%)}
-#globe{position:relative;width:min(100%,660px);height:auto;aspect-ratio:1;max-height:none;display:block;cursor:grab;touch-action:none;z-index:2}
-#globe.dragging{cursor:grabbing}
+#globe{position:relative;width:min(100%,660px);height:auto;aspect-ratio:1;max-height:none;display:block;cursor:default;z-index:2}
 .orbit{position:absolute;left:50%;top:50%;width:79%;max-width:630px;aspect-ratio:1;border:1px solid #607d8d1b;border-radius:50%;pointer-events:none;z-index:-1;transform:translate(-50%,-50%)}
 .orbit-two{width:92%;max-width:740px;border-style:dashed;border-color:#607d8d12}
 .coordinate{position:absolute;left:50%;transform:translateX(-50%);font:8px ui-monospace,monospace;letter-spacing:.13em;color:#6c8898;pointer-events:none}

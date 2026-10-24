@@ -50,7 +50,7 @@ with sync_playwright() as playwright:
     page.locator('#zoom-in').click()
     check(page.evaluate('NereideDemo.globe.zoom') > zoom, 'zoom control works')
     page.locator('#globe').focus(); page.keyboard.press('ArrowRight')
-    check(page.evaluate('NereideDemo.globe.longitude') != 0, 'keyboard rotation works')
+    check(page.evaluate('NereideDemo.globe.longitude === 0 && NereideDemo.globe.latitude === 0'), 'fixed front view ignores rotation keys')
     page.locator('#reset-view').click()
     check(page.evaluate('NereideDemo.globe.longitude === 0 && NereideDemo.globe.zoom === 1'), 'camera reset works')
     page.locator('#view-map').click()
