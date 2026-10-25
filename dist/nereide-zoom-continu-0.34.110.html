@@ -168,17 +168,27 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-header-tools{display:flex;align-items:center;gap:7px;margin-left:auto;min-width:0}
 #factory-editor-status{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px;font-size:8px;color:#7397a9}
 .factory-editor-layout{display:flex;flex:1 1 auto;min-height:0;overflow:hidden}
-.factory-palette{z-index:1;display:flex;flex:0 0 186px;flex-direction:column;min-width:0;min-height:0;padding:12px 9px;border-right:1px solid #65859b20;background:#091a29;box-shadow:7px 0 24px #0002}
-.factory-palette-heading{display:flex;flex-direction:column;gap:4px;margin:1px 4px 10px;padding:0 3px 8px;border-bottom:1px solid #718da31f}
-.factory-palette-heading span{font-size:8px;letter-spacing:1.3px;color:#9bb2bf}
-.factory-palette-heading small{font-size:7px;letter-spacing:.6px;color:#567588}
-.factory-block-list{display:flex;flex-direction:column;gap:5px;overflow:auto;overscroll-behavior:contain}
-.factory-block-add{display:flex;align-items:center;gap:9px;width:100%;min-height:39px;padding:5px 7px;border:1px solid #728da01e;border-radius:4px;background:#0b1c2a;color:#bed0d8;text-align:left}
-.factory-block-add:hover,.factory-block-add:focus-visible{border-color:#6bb8c167;background:#112a3b;color:#e2eef2}
-.factory-block-icon{display:flex;flex:0 0 25px;align-items:center;justify-content:center;width:25px;height:25px;border:1px solid #72b7c537;border-radius:4px;color:#8dcbd2;font-size:9px}
-.factory-block-copy{display:flex;min-width:0;flex-direction:column;gap:3px}
-.factory-block-copy strong{font-size:9px;font-weight:500;letter-spacing:.6px}
-.factory-block-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#698799;font-size:7px}
+.factory-palette-overlay{position:absolute;z-index:5;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(70px + var(--safe-top)) 16px calc(88px + var(--safe-bottom));background:#030b14a6;backdrop-filter:blur(4px)}
+.factory-palette-overlay[hidden]{display:none!important}
+.factory-palette{display:flex;flex-direction:column;width:min(820px,100%);max-height:100%;min-height:0;overflow:hidden;border:1px solid #63869d50;border-radius:10px;background:linear-gradient(145deg,#111f30,#0a1725 75%);box-shadow:0 24px 80px #0009}
+.factory-palette-heading{display:flex;align-items:center;gap:15px;flex:0 0 auto;padding:13px 16px;border-bottom:1px solid #718da326;background:#0c1b2a}
+.factory-palette-heading>div{display:flex;flex-direction:column;gap:4px}
+.factory-palette-heading span{font-size:7px;letter-spacing:1.5px;color:#70baca}
+.factory-palette-heading strong{font-size:12px;font-weight:500;letter-spacing:.8px;color:#dae7ed}
+.factory-palette-heading>small{margin-left:auto;font-size:7px;letter-spacing:.8px;color:#66859a}
+.factory-palette-heading>button{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #7495a52e;border-radius:5px;color:#a9bfcb;font-size:22px}
+.factory-palette-heading>button:hover{background:#1b3042;color:#fff}
+.factory-block-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(154px,1fr));gap:9px;min-height:0;padding:12px;overflow:auto;overscroll-behavior:contain}
+.factory-block-add{display:flex;min-width:0;min-height:172px;flex-direction:column;align-items:stretch;gap:7px;padding:7px;border:1px solid #728da02b;border-radius:7px;background:linear-gradient(150deg,#13263a,#0d1b2a);color:#bed0d8;text-align:left;transition:transform .14s,border-color .14s,background .14s}
+.factory-block-add:hover,.factory-block-add:focus-visible{transform:translateY(-2px);border-color:#6bb8c18c;background:linear-gradient(150deg,#1a3449,#122338);color:#e2eef2}
+.factory-block-art{display:block;width:100%;height:84px;flex:0 0 84px;border:1px solid #7ca3b01c;border-radius:4px;background:#081725;stroke-linecap:round;stroke-linejoin:round}
+.factory-block-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
+.factory-block-copy strong{font-size:8px;font-weight:600;letter-spacing:.55px;color:#d7e7ee}
+.factory-block-copy .factory-block-description{display:-webkit-box;overflow:hidden;color:#86a1b1;font-size:7px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.factory-block-copy .factory-block-specs{margin-top:auto;padding-top:3px;color:#6db3c0;font-size:7px;letter-spacing:.2px}
+.factory-add-block-trigger{position:absolute;z-index:6;bottom:calc(13px + var(--safe-bottom));left:50%;display:flex;align-items:center;justify-content:center;gap:9px;min-width:190px;min-height:46px;padding:0 18px;border:1px solid #72bac579;border-radius:24px;background:linear-gradient(135deg,#174257,#102738);box-shadow:0 8px 30px #0008;color:#d3e8ed;font-size:8px;letter-spacing:1px;transform:translateX(-50%);transition:background .15s,border-color .15s}
+.factory-add-block-trigger:hover,.factory-add-block-trigger[aria-expanded="true"]{border-color:#83d0dc;background:linear-gradient(135deg,#21647b,#164055)}
+.factory-add-block-trigger svg{width:18px;height:18px;stroke:#7ed5df;stroke-width:2}
 .factory-viewport{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;background-color:#071522;touch-action:none;outline:none;overscroll-behavior:contain}
 .factory-world{position:absolute;top:0;left:0;width:7800px;height:5400px;transform-origin:0 0;background-image:radial-gradient(circle,#41617757 1px,transparent 1.4px);background-size:24px 24px;will-change:transform}
 .factory-links{position:absolute;inset:0;width:7800px;height:5400px;overflow:visible;pointer-events:auto}
@@ -188,7 +198,9 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6}
 .factory-nodes{position:absolute;inset:0;pointer-events:none}
 .factory-node{position:absolute;z-index:1;width:258px;height:162px;overflow:visible;border:1px solid #506d8560;border-radius:6px;background:linear-gradient(145deg,#18283d,#101d30 72%);box-shadow:0 8px 22px #0005;color:#c8d6e1;pointer-events:auto;touch-action:none;user-select:none}
-.factory-node-output-dock{height:212px}
+.factory-node-output-dock{height:222px}
+.factory-node-input-dock{height:252px}
+.factory-received-stock{display:block;max-height:28px;overflow:auto;color:#8fcabf;font-size:8px;line-height:12px;touch-action:pan-y;user-select:text}
 .factory-node.selected{border-color:#71c4dfb3;box-shadow:0 0 0 2px #44b9da26,0 8px 24px #0006}
 .factory-node-header{display:flex;align-items:center;gap:8px;height:34px;padding:5px 8px;border-bottom:1px solid #a5c3da14;cursor:grab;touch-action:none}
 .factory-node-header:active{cursor:grabbing}
@@ -236,10 +248,12 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-editor-header{min-height:54px;gap:10px;padding-top:calc(5px + var(--safe-top));padding-bottom:5px}
   .factory-back{padding:6px 8px}
   .factory-heading strong{font-size:11px}
-  .factory-palette{flex-basis:160px;padding:8px 7px}
-  .factory-palette-heading{margin-bottom:7px;padding-bottom:6px}
-  .factory-block-list{gap:4px}
-  .factory-block-add{min-height:36px;padding:4px 5px;gap:7px}
+  .factory-palette-overlay{padding:calc(62px + var(--safe-top)) 10px calc(70px + var(--safe-bottom))}
+  .factory-palette-heading{padding:8px 12px}
+  .factory-block-list{grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:6px;padding:8px}
+  .factory-block-add{min-height:138px;gap:5px;padding:6px}
+  .factory-block-art{height:62px;flex-basis:62px}
+  .factory-add-block-trigger{bottom:calc(8px + var(--safe-bottom));min-height:40px}
 }
 @media(orientation:portrait),(max-width:600px){
   .factory-editor-header{gap:7px;min-height:56px;padding-left:calc(8px + var(--safe-left));padding-right:calc(8px + var(--safe-right))}
@@ -248,14 +262,18 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-heading strong{max-width:30vw;font-size:10px}
   .factory-heading small{display:none}
   #factory-editor-status{max-width:100px;font-size:7px}
-  .factory-editor-layout{flex-direction:column-reverse}
-  .factory-palette{flex:0 0 112px;width:100%;padding:6px 8px;border-top:1px solid #65859b20;border-right:0;box-shadow:0 -5px 18px #0003}
-  .factory-palette-heading{margin:0 2px 5px;padding:0 2px 4px;flex-direction:row;justify-content:space-between}
-  .factory-palette-heading small{align-self:center}
-  .factory-block-list{flex-direction:row;gap:5px;overflow-x:auto;overflow-y:hidden}
-  .factory-block-add{flex:0 0 142px;min-height:48px;gap:6px;padding:5px}
+  .factory-palette-overlay{padding:calc(64px + var(--safe-top)) 8px calc(78px + var(--safe-bottom))}
+  .factory-palette{width:100%;max-height:min(72dvh,670px)}
+  .factory-palette-heading{gap:8px;padding:9px 10px}
+  .factory-palette-heading>small{display:none}
+  .factory-palette-heading>button{width:34px;height:34px}
+  .factory-block-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:8px}
+  .factory-block-add{min-height:150px;gap:5px;padding:6px}
+  .factory-block-art{height:68px;flex-basis:68px}
   .factory-block-copy strong{font-size:7px}
-  .factory-block-copy small{font-size:6px}
+  .factory-block-copy .factory-block-description{font-size:7px}
+  .factory-block-copy .factory-block-specs{font-size:6px}
+  .factory-add-block-trigger{min-width:178px;min-height:44px;bottom:calc(10px + var(--safe-bottom));font-size:7px}
   .factory-viewport-hint{right:7px;bottom:6px;font-size:6px}
 }
 </style>
@@ -322,10 +340,6 @@ body[data-level="surface"] .corner-note{display:none}
       </div>
     </header>
     <div class="factory-editor-layout">
-      <aside class="factory-palette" aria-label="Blocs de processus">
-        <div class="factory-palette-heading"><span>AJOUTER UN BLOC</span><small>FLUX · TRAITEMENT</small></div>
-        <div class="factory-block-list" id="factory-block-list"></div>
-      </aside>
       <main class="factory-viewport" id="factory-viewport" tabindex="0"
           aria-label="Espace de processus 2D : pincer ou utiliser la molette pour zoomer">
         <div class="factory-world" id="factory-world">
@@ -342,6 +356,21 @@ body[data-level="surface"] .corner-note{display:none}
         <div class="factory-viewport-hint" id="factory-viewport-hint">GLISSER LE FOND · DÉPLACER UNE MACHINE · PINCER / MOLETTE · SORTIE → ENTRÉE</div>
       </main>
     </div>
+    <div class="factory-palette-overlay" id="factory-palette-overlay" hidden>
+      <section class="factory-palette" aria-labelledby="factory-palette-title">
+        <header class="factory-palette-heading">
+          <div><span>PROCESSUS INDUSTRIEL</span><strong id="factory-palette-title">AJOUTER UN BLOC</strong></div>
+          <small>CHOISIR UNE MACHINE</small>
+          <button id="factory-palette-close" type="button" aria-label="Fermer le menu des blocs">×</button>
+        </header>
+        <div class="factory-block-list" id="factory-block-list"></div>
+      </section>
+    </div>
+    <button class="factory-add-block-trigger" id="factory-add-block-toggle" type="button"
+        aria-controls="factory-palette-overlay" aria-expanded="false" aria-label="Ajouter un bloc au processus">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>AJOUTER UN BLOC</span>
+    </button>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
@@ -387,7 +416,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.34.103";
+globalThis.OrbitVersion = "0.34.110";
 
 </script>
   <script>
@@ -580,10 +609,30 @@ globalThis.OrbitVersion = "0.34.103";
     solid('iron_ore_raw', 'Roche ferrifère brute', ['ore', 'ferrous'], { iron: .52 }, 'impure', 'raw'),
     solid('iron_ore_crushed', 'Minerai concassé', ['ore', 'ferrous'], { iron: .52 }, 'impure', 'fragment'),
     solid('iron_ore_ground', 'Minerai broyé', ['ore', 'ferrous'], { iron: .52 }, 'impure', 'powder'),
+    solid('copper_ore_raw', 'Roche cuprifère brute', ['ore', 'nonFerrous'], { copper: .52 }, 'impure', 'raw'),
+    solid('copper_ore_crushed', 'Minerai de cuivre concassé', ['ore', 'nonFerrous'], { copper: .52 }, 'impure', 'fragment'),
+    solid('copper_ore_ground', 'Minerai de cuivre broyé', ['ore', 'nonFerrous'], { copper: .52 }, 'impure', 'powder'),
+    solid('silicon_ore_raw', 'Roche siliceuse brute', ['ore', 'silicate'], { silicon: .52 }, 'impure', 'raw'),
+    solid('silicon_ore_crushed', 'Minerai siliceux concassé', ['ore', 'silicate'], { silicon: .52 }, 'impure', 'fragment'),
+    solid('silicon_ore_ground', 'Minerai siliceux broyé', ['ore', 'silicate'], { silicon: .52 }, 'impure', 'powder'),
+    solid('carbon_ore_raw', 'Roche carbonée brute', ['ore', 'carbonaceous'], { carbon: .52 }, 'impure', 'raw'),
+    solid('carbon_ore_crushed', 'Minerai carboné concassé', ['ore', 'carbonaceous'], { carbon: .52 }, 'impure', 'fragment'),
+    solid('carbon_ore_ground', 'Minerai carboné broyé', ['ore', 'carbonaceous'], { carbon: .52 }, 'impure', 'powder'),
     solid('iron_concentrate', 'Concentré de fer', ['ore', 'ferrous'], { iron: 1 }, 'impure', 'powder'),
     solid('iron_tailings', 'Résidus de séparation', ['waste', 'ferrous'], { iron: .1 }, 'impure', 'powder'),
     solid('raw_iron', 'Fer brut', ['metal', 'ferrous'], { iron: 1 }, 'impure'),
     solid('iron_slag', 'Laitier', ['waste'], { iron: .1 }, 'impure', 'powder'),
+    solid('copper_concentrate', 'Concentré de cuivre', ['ore', 'nonFerrous'], { copper: 1 }, 'impure', 'powder'),
+    solid('copper_tailings', 'Résidus de cuivre', ['waste', 'nonFerrous'], { copper: .1 }, 'impure', 'powder'),
+    solid('raw_copper', 'Cuivre brut', ['metal', 'nonFerrous'], { copper: 1 }, 'impure'),
+    solid('copper_slag', 'Laitier de cuivre', ['waste'], { copper: .1 }, 'impure', 'powder'),
+    solid('impure_silicon_wet', 'Silicium impur humide', ['silicate', 'wet'], { silicon: 1 }, 'impure', 'powder'),
+    solid('impure_silicon_dry', 'Silicium impur sec', ['silicate', 'dry'], { silicon: 1 }, 'impure', 'powder'),
+    solid('raw_silicon', 'Silicium brut', ['silicate'], { silicon: 1 }, 'impure', 'powder'),
+    solid('silicon_sludge', 'Boues siliceuses', ['waste', 'silicate', 'wet'], { silicon: .1 }, 'impure', 'powder'),
+    solid('silicon_slag', 'Laitier de silicium', ['waste'], { silicon: .1 }, 'impure', 'powder'),
+    solid('carbon_tailings', 'Résidus carbonés', ['waste', 'carbonaceous'], { carbon: .1 }, 'impure', 'powder'),
+    solid('carbon_sludge', 'Boues carbonées', ['waste', 'carbonaceous', 'wet'], { carbon: .1 }, 'impure', 'powder'),
     solid('rock_fragments', 'Fragments de roche', ['ore'], {}, 'impure'),
     solid('rock_powder', 'Poudre de roche', ['ore'], {}, 'impure', 'powder'),
     solid('residual_ore', 'Minerai résiduel', ['ore'], {}, 'impure', 'raw'),
@@ -636,7 +685,7 @@ globalThis.OrbitVersion = "0.34.103";
   'use strict';
 
   const config = {
-    version: 4,
+    version: 5,
     fixedStepSeconds: .1,
     maxTicksPerAdvance: 100,
     inputCapacity: 20,
@@ -645,79 +694,84 @@ globalThis.OrbitVersion = "0.34.103";
     windPowerUnlimited: true,
     windPowerMW: 32,
     geothermalPowerMW: 80,
-    geology: {
-      hardnessRange: [.8, 1.8],
-      ironAbundance: .52
-    }
+    geology: { hardnessRange: [.8, 1.8], depositAbundance: .52 }
   };
 
-  const input = (id, label, resourceId) => ({ id, label, resourceId });
-  const output = (id, label, resourceId) => ({ id, label, resourceId });
-  const definitions = {
-    drill: {
-      id: 'drill', label: 'FOREUSE', mark: 'FO', source: true,
-      inputPorts: [],
-      outputPorts: [output('raw_ore', 'Roche ferrifère brute', 'iron_ore_raw')],
-      recipe: null, throughput: null, energyMW: 2.5
-    },
-    crusher: {
-      id: 'crusher', label: 'CONCASSEUR', mark: 'CO',
-      inputPorts: [input('raw_ore', 'Roche ferrifère brute', 'iron_ore_raw')],
-      outputPorts: [output('crushed_ore', 'Minerai concassé', 'iron_ore_crushed')],
-      recipe: { inputs: [{ inputId: 'raw_ore', amount: 1 }],
-        outputs: [{ outputId: 'crushed_ore', resourceId: 'iron_ore_crushed', amount: 1 }] },
-      throughput: 2, energyMW: 2
-    },
-    grinder: {
-      id: 'grinder', label: 'BROYEUR', mark: 'BR',
-      inputPorts: [input('crushed_ore', 'Minerai concassé', 'iron_ore_crushed')],
-      outputPorts: [output('ground_ore', 'Minerai broyé', 'iron_ore_ground')],
-      recipe: { inputs: [{ inputId: 'crushed_ore', amount: 1 }],
-        outputs: [{ outputId: 'ground_ore', resourceId: 'iron_ore_ground', amount: 1 }] },
-      throughput: 2, energyMW: 6
-    },
-    magnetic_separator: {
-      id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
-      inputPorts: [input('ground_ore', 'Minerai broyé', 'iron_ore_ground')],
-      outputPorts: [output('concentrate', 'Concentré de fer', 'iron_concentrate'),
-        output('tailings', 'Résidus', 'iron_tailings')],
-      recipe: { inputs: [{ inputId: 'ground_ore', amount: 5 }], outputs: [
-        { outputId: 'concentrate', resourceId: 'iron_concentrate', amount: 2 },
-        { outputId: 'tailings', resourceId: 'iron_tailings', amount: 3 }
-      ] },
-      throughput: 2, energyMW: 3
-    },
-    reduction_furnace: {
-      id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
-      inputPorts: [input('concentrate', 'Concentré de fer', 'iron_concentrate')],
-      outputPorts: [output('raw_iron', 'Fer brut', 'raw_iron'),
-        output('slag', 'Laitier', 'iron_slag')],
-      recipe: { inputs: [{ inputId: 'concentrate', amount: 2 }], outputs: [
-        { outputId: 'raw_iron', resourceId: 'raw_iron', amount: 1 },
-        { outputId: 'slag', resourceId: 'iron_slag', amount: 1 }
-      ] },
-      throughput: 2, energyMW: 10
-    }
+  const input = (id, label, resourceId, extras = {}) => ({ id, label, resourceId, ...extras });
+  const output = (id, label, resourceId, extras = {}) => ({ id, label, resourceId, ...extras });
+  const materials = {
+    iron: { raw: 'iron_ore_raw', crushed: 'iron_ore_crushed', ground: 'iron_ore_ground',
+      rawLabel: 'Roche ferrifère brute', crushedLabel: 'Minerai concassé', groundLabel: 'Minerai broyé',
+      separator: 'magnetic_separator', concentrate: 'iron_concentrate', concentrateLabel: 'Concentré de fer',
+      residue: 'iron_tailings', residueLabel: 'Résidus', product: 'raw_iron', productLabel: 'Fer brut', slag: 'iron_slag' },
+    copper: { raw: 'copper_ore_raw', crushed: 'copper_ore_crushed', ground: 'copper_ore_ground',
+      rawLabel: 'Roche cuprifère brute', crushedLabel: 'Minerai concassé', groundLabel: 'Minerai broyé',
+      separator: 'gravity_separator', concentrate: 'copper_concentrate', concentrateLabel: 'Concentré de cuivre',
+      residue: 'copper_tailings', residueLabel: 'Résidus', product: 'raw_copper', productLabel: 'Cuivre brut', slag: 'copper_slag' },
+    silicon: { raw: 'silicon_ore_raw', crushed: 'silicon_ore_crushed', ground: 'silicon_ore_ground',
+      rawLabel: 'Roche siliceuse brute', crushedLabel: 'Minerai concassé', groundLabel: 'Minerai broyé',
+      product: 'raw_silicon', productLabel: 'Silicium brut', slag: 'silicon_slag' },
+    carbon: { raw: 'carbon_ore_raw', crushed: 'carbon_ore_crushed', ground: 'carbon_ore_ground',
+      rawLabel: 'Roche carbonée brute', crushedLabel: 'Minerai concassé', groundLabel: 'Minerai broyé',
+      separator: 'carbon_separator', concentrate: 'coal', concentrateLabel: 'Charbon',
+      residue: 'carbon_tailings', residueLabel: 'Résidus carbonés' }
   };
+
+  const templates = {
+    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la ressource du gisement associé au bâtiment.', source: true, requiresDeposit: true,
+      inputPorts: [], recipe: null, throughput: null, energyMW: 2.5 },
+    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut d’un gisement sous-marin.', source: true, requiresDeposit: true,
+      inputPorts: [], outputPorts: [output('raw_oil', 'Pétrole brut', 'raw_oil')], recipe: null,
+      throughput: 2, energyMW: 2.5 },
+    water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', description: 'Fournit l’eau nécessaire aux procédés de lavage.', source: true,
+      requiresDeposit: false, inputPorts: [], outputPorts: [output('water', 'Eau', 'water')], recipe: null,
+      throughput: null, energyMW: 0 },
+    crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en minerai concassé, sans séparer les matières.', throughput: 2, energyMW: 2 },
+    grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit le minerai concassé en grains plus fins.', throughput: 2, energyMW: 6 },
+    magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
+      description: 'Attire le fer hors du minerai et rejette les résidus.', throughput: 2, energyMW: 3 },
+    gravity_separator: { id: 'gravity_separator', label: 'SÉPARATEUR GRAVITAIRE', mark: 'SG',
+      description: 'Concentre le cuivre et sépare les résidus plus légers.', throughput: 2, energyMW: 3 },
+    silicon_washer: { id: 'silicon_washer', label: 'LAVEUSE DE SILICE', mark: 'LS',
+      description: 'Lave la silice avec de l’eau et produit des boues.', throughput: 2, energyMW: 3 },
+    silicon_dryer: { id: 'silicon_dryer', label: 'SÉCHEUR DE SILICE', mark: 'SS',
+      description: 'Retire l’humidité du silicium lavé avant réduction.', throughput: 2, energyMW: 4 },
+    carbon_separator: { id: 'carbon_separator', label: 'TRIEUSE DE CARBONE', mark: 'TC',
+      description: 'Sépare le charbon de la roche carbonée.', throughput: 2, energyMW: 3 },
+    carbon_washer: { id: 'carbon_washer', label: 'LAVAGE DU CHARBON', mark: 'LC',
+      description: 'Lave le charbon à l’eau pour obtenir du carbone.', throughput: 2, energyMW: 3 },
+    reduction_furnace: { id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
+      description: 'Transforme le concentré en métal brut et en laitier.', throughput: 2, energyMW: 10 },
+    triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
+      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 }
+  };
+
   const utilities = {
-    trash: {
-      id: 'trash', label: 'POUBELLE', mark: 'PO', sink: true,
-      inputPorts: [{ id: 'material', label: 'Toutes ressources', resourceId: null, acceptsAnyResource: true }],
-      outputPorts: [], recipe: null, throughput: 2, energyMW: 0
+    input_dock: {
+      id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources du réseau routier et alimente les machines.', externalInput: true,
+      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: 2, energyMW: 0
+    },
+    terril: {
+      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
+      inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
+      outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
     output_dock: {
-      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', sink: true, externalOutput: true,
-      inputPorts: [{ id: 'material', label: 'Sortie planétaire', resourceId: null, acceptsAnyResource: true }],
+      id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', description: 'Envoie sa ressource vers un bâtiment relié par route.', sink: true, externalOutput: true,
+      inputPorts: [input('material', 'Sortie planétaire', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: 2, energyMW: 0
     }
   };
 
-  const statuses = Object.freeze({
-    active: 'ACTIF',
-    waiting_input: 'ATTENTE ENTRÉE',
-    output_full: 'SORTIE PLEINE',
-    no_energy: 'SANS ÉNERGIE'
-  });
+  const catalogByResource = {
+    iron: ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'terril', 'output_dock'],
+    copper: ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'terril', 'output_dock'],
+    silicon: ['drill', 'crusher', 'grinder', 'water_supply', 'silicon_washer', 'silicon_dryer',
+      'reduction_furnace', 'terril', 'output_dock'],
+    carbon: ['drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer',
+      'terril', 'output_dock'],
+    oil: ['oil_pump', 'triphasic_separator', 'terril', 'output_dock']
+  };
 
   function freeze(value) {
     if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -725,18 +779,132 @@ globalThis.OrbitVersion = "0.34.103";
     return Object.freeze(value);
   }
 
-  freeze(config);
-  freeze(definitions);
-  freeze(utilities);
+  function solidDefinition(type, resourceId) {
+    const material = materials[resourceId];
+    if (!material) return null;
+    const base = templates[type];
+    if (type === 'drill') return { ...base,
+      outputPorts: [output('raw_ore', material.rawLabel, material.raw)] };
+    if (type === 'crusher') return { ...base,
+      inputPorts: [input('raw_ore', material.rawLabel, material.raw)],
+      outputPorts: [output('crushed_ore', material.crushedLabel, material.crushed)],
+      recipe: { inputs: [{ inputId: 'raw_ore', amount: 1 }],
+        outputs: [{ outputId: 'crushed_ore', resourceId: material.crushed, amount: 1 }] } };
+    if (type === 'grinder') return { ...base,
+      inputPorts: [input('crushed_ore', material.crushedLabel, material.crushed)],
+      outputPorts: [output('ground_ore', material.groundLabel, material.ground)],
+      recipe: { inputs: [{ inputId: 'crushed_ore', amount: 1 }],
+        outputs: [{ outputId: 'ground_ore', resourceId: material.ground, amount: 1 }] } };
+    if (type === material.separator) {
+      if (type === 'silicon_washer' || type === 'carbon_washer') return null;
+      return { ...base,
+        inputPorts: [input('ground_ore', material.groundLabel, material.ground)],
+        outputPorts: [output('concentrate', material.concentrateLabel, material.concentrate),
+          output('residue', material.residueLabel, material.residue)],
+        recipe: { inputs: [{ inputId: 'ground_ore', amount: 5 }], outputs: [
+          { outputId: 'concentrate', resourceId: material.concentrate, amount: 2 },
+          { outputId: 'residue', resourceId: material.residue, amount: 3 }
+        ] } };
+    }
+    if (type === 'silicon_washer' && resourceId === 'silicon') return { ...base,
+      inputPorts: [input('ground_ore', material.groundLabel, material.ground), input('water', 'Eau', 'water')],
+      outputPorts: [output('wet_silicon', 'Silicium impur humide', 'impure_silicon_wet'),
+        output('sludge', 'Boues siliceuses', 'silicon_sludge')],
+      recipe: { inputs: [{ inputId: 'ground_ore', amount: 20 }, { inputId: 'water', amount: 5 }], outputs: [
+        { outputId: 'wet_silicon', resourceId: 'impure_silicon_wet', amount: 8 },
+        { outputId: 'sludge', resourceId: 'silicon_sludge', amount: 12 }
+      ] } };
+    if (type === 'silicon_dryer' && resourceId === 'silicon') return { ...base,
+      inputPorts: [input('wet_silicon', 'Silicium impur humide', 'impure_silicon_wet')],
+      outputPorts: [output('dry_silicon', 'Silicium impur sec', 'impure_silicon_dry')],
+      recipe: { inputs: [{ inputId: 'wet_silicon', amount: 1 }], outputs: [
+        { outputId: 'dry_silicon', resourceId: 'impure_silicon_dry', amount: 1 }
+      ] } };
+    if (type === 'carbon_washer' && resourceId === 'carbon') return { ...base,
+      inputPorts: [input('coal', 'Charbon', 'coal'), input('water', 'Eau', 'water')],
+      outputPorts: [output('carbon', 'Carbone', 'carbon'), output('sludge', 'Boues carbonées', 'carbon_sludge')],
+      recipe: { inputs: [{ inputId: 'coal', amount: 20 }, { inputId: 'water', amount: 5 }], outputs: [
+        { outputId: 'carbon', resourceId: 'carbon', amount: 8 },
+        { outputId: 'sludge', resourceId: 'carbon_sludge', amount: 12 }
+      ] } };
+    if (type === 'reduction_furnace' && material.product) {
+      const inputId = resourceId === 'silicon' ? 'dry_silicon' : 'concentrate';
+      const inputResource = resourceId === 'silicon' ? 'impure_silicon_dry' : material.concentrate;
+      const inputLabel = resourceId === 'silicon' ? 'Silicium impur sec' : material.concentrateLabel;
+      return { ...base,
+        inputPorts: [input(inputId, inputLabel, inputResource)],
+        outputPorts: [output('product', material.productLabel, material.product),
+          output('slag', resourceId === 'silicon' ? 'Laitier de silicium' : 'Laitier', material.slag)],
+        recipe: { inputs: [{ inputId, amount: 2 }], outputs: [
+          { outputId: 'product', resourceId: material.product, amount: 1 },
+          { outputId: 'slag', resourceId: material.slag, amount: 1 }
+        ] } };
+    }
+    return null;
+  }
+
+  const cache = new Map();
+  function get(type, resourceId = 'iron') {
+    const key = `${type}:${resourceId || ''}`;
+    if (cache.has(key)) return cache.get(key);
+    if ((type === 'oil_pump' || type === 'triphasic_separator') && resourceId !== 'oil') {
+      cache.set(key, null);
+      return null;
+    }
+    let definition = null;
+    if (type === 'drill' || type === 'crusher' || type === 'grinder' || type === 'magnetic_separator' ||
+        type === 'gravity_separator' || type === 'silicon_washer' || type === 'silicon_dryer' ||
+        type === 'carbon_separator' || type === 'carbon_washer' || type === 'reduction_furnace') {
+      definition = solidDefinition(type, resourceId || 'iron');
+    } else if (type === 'triphasic_separator' && resourceId === 'oil') {
+      const base = templates.triphasic_separator;
+      definition = { ...base,
+        inputPorts: [input('raw_oil', 'Pétrole brut', 'raw_oil')],
+        outputPorts: [output('oil', 'Pétrole', 'oil'), output('gas', 'Gaz', 'gas'), output('waste', 'Déchets', 'waste')],
+        recipe: { inputs: [{ inputId: 'raw_oil', amount: 20 }], outputs: [
+          { outputId: 'oil', resourceId: 'oil', amount: 16 },
+          { outputId: 'gas', resourceId: 'gas', amount: 3 },
+          { outputId: 'waste', resourceId: 'waste', amount: 1 }
+        ] } };
+    } else if (type === 'oil_pump' && resourceId === 'oil') definition = templates.oil_pump;
+    else definition = templates[type] || utilities[type] || null;
+    cache.set(key, definition ? freeze(definition) : null);
+    return cache.get(key);
+  }
+
+  const definitionContexts = {
+    drill: 'iron', oil_pump: 'oil', water_supply: 'silicon', crusher: 'iron', grinder: 'iron',
+    magnetic_separator: 'iron', gravity_separator: 'copper', silicon_washer: 'silicon',
+    silicon_dryer: 'silicon', carbon_separator: 'carbon', carbon_washer: 'carbon',
+    reduction_furnace: 'iron', triphasic_separator: 'oil'
+  };
+  const definitions = Object.freeze(Object.fromEntries(Object.entries(definitionContexts)
+    .map(([type, resourceId]) => [type, get(type, resourceId)])
+    .filter(([, definition]) => definition)));
+  const frozenUtilities = freeze(utilities);
+  function contextForResource(resourceId) {
+    if (Object.hasOwn(materials, resourceId)) return resourceId;
+    for (const [context, material] of Object.entries(materials)) {
+      if (Object.values(material).includes(resourceId)) return context;
+    }
+    if (['impure_silicon_wet', 'impure_silicon_dry', 'silicon_sludge'].includes(resourceId)) return 'silicon';
+    if (['coal', 'carbon', 'carbon_sludge'].includes(resourceId)) return 'carbon';
+    if (['raw_oil', 'oil', 'gas'].includes(resourceId)) return 'oil';
+    return null;
+  }
+  const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
+  freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates);
+
   root.OrbitProcessData = Object.freeze({
-    config,
-    definitions,
-    utilities,
-    statuses,
-    get(type) { return definitions[type] || utilities[type] || null; },
-    catalog(buildingType) {
-      return ['factory', 'extractor'].includes(buildingType)
-        ? [...Object.values(definitions), ...Object.values(utilities)] : [];
+    config, definitions, utilities: frozenUtilities, statuses, materials,
+    get, contextForResource,
+    catalog(buildingType, resourceId) {
+      if (!['factory', 'extractor', 'oil_platform'].includes(buildingType)) return [];
+      const selected = resourceId || (buildingType === 'oil_platform' ? 'oil' : 'iron');
+      if (buildingType === 'oil_platform' && selected !== 'oil' || buildingType === 'extractor' && selected === 'oil') return [];
+      const types = catalogByResource[selected] || [];
+      return [...(buildingType === 'factory' ? [get('input_dock', selected)] : []),
+        ...types.map(type => get(type, selected))].filter(Boolean);
     }
   });
 })(globalThis);
@@ -752,13 +920,15 @@ globalThis.OrbitVersion = "0.34.103";
   const transfer = Object.freeze({ directCorrectionRadians: .12, radialExcursionFraction: .16,
     alignmentLaunchIntervalFactor: 1.5, alignmentMinimumRadians: .12, alignmentMaximumRadians: .7,
     routeSamples: 48, durationIterations: 16, durationToleranceSeconds: .001 });
-  // Every transportable material can be routed by an output dock. Destination
-  // selection lives on the dock; the platform no longer maintains an allowlist.
+  // Destination choice is made at the dock. V1 only routes to factories and
+  // launch platforms; other logistics/building destinations remain out of scope.
+  const dockDestinationTypes = Object.freeze(['factory', 'launch_platform']);
   const exportResources = Object.freeze((root.OrbitResourceData?.catalog() || [])
     .filter(resource => resource.transportable)
     .map(resource => Object.freeze({ id: resource.id, label: resource.label })));
 
-  root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer, exportResources });
+  root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer,
+    dockDestinationTypes, exportResources });
 })(globalThis);
 
 </script>
@@ -1879,10 +2049,17 @@ globalThis.OrbitVersion = "0.34.103";
   const integer = (value, fallback = 0) => Number.isFinite(value) && value >= 0
     ? Math.floor(value) : fallback;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const definitionOf = machine => Data.get(machine?.type);
+  function definitionOf(machine) {
+    const definition = Data.get(machine?.type, machine?.resourceId);
+    if (!definition?.externalInput) return definition;
+    const resourceId = machine.importResourceId || null;
+    return { ...definition, outputPorts: [{ ...definition.outputPorts[0], resourceId,
+      label: root.OrbitResourceData.get(resourceId)?.label || 'Ressource reçue' }] };
+  }
 
-  function createMachine(value = {}) {
-    const definition = Data.get(value.type);
+  function createMachine(value = {}, geologyResourceId = null) {
+    const resourceId = value.resourceId || geologyResourceId || 'iron';
+    const definition = Data.get(value.type, resourceId);
     if (!definition || typeof value.id !== 'string' || !value.id) return null;
     const inputBuffer = {}, outputBuffer = {};
     for (const port of definition.inputPorts) inputBuffer[port.id] = integer(value.inputBuffer?.[port.id]);
@@ -1890,10 +2067,14 @@ globalThis.OrbitVersion = "0.34.103";
     return {
       id: value.id,
       type: definition.id,
+      resourceId,
+      ...(definition.externalInput ? { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null } : {}),
       x: Number.isFinite(value.x) ? value.x : 80,
       y: Number.isFinite(value.y) ? value.y : 80,
       inputBuffer,
       outputBuffer,
+      storedResources: Object.fromEntries(Object.entries(value.storedResources || {})
+        .filter(([, amount]) => Number.isInteger(amount) && amount > 0)),
       cycleProgress: clamp(Number.isFinite(value.cycleProgress) ? value.cycleProgress : 0, 0, .999999),
       state: Data.statuses[value.state] ? value.state : 'waiting_input',
       currentRate: 0,
@@ -1903,12 +2084,13 @@ globalThis.OrbitVersion = "0.34.103";
 
   function create(value = {}) {
     const current = value.version === Data.config.version && Array.isArray(value.machines);
-    const machines = current ? value.machines.map(createMachine).filter(Boolean) : [];
+    const geology = value.geology ? clone(value.geology) : null;
+    const machines = current ? value.machines.map(machine => createMachine(machine, geology?.resourceId)).filter(Boolean) : [];
     const graph = {
       version: Data.config.version,
       machines,
       connections: [],
-      geology: value.geology ? clone(value.geology) : null,
+      geology,
       accumulator: current ? Math.max(0, Number(value.accumulator) || 0) : 0,
       tick: current ? integer(value.tick) : 0,
       energyUnlimited: false,
@@ -1955,6 +2137,7 @@ globalThis.OrbitVersion = "0.34.103";
     const output = definitionOf(from).outputPorts.find(port => port.id === value.fromOutputId);
     const input = definitionOf(to).inputPorts.find(port => port.id === value.toInputId);
     if (!output || !input) return { ok: false, reason: 'Port de sortie ou d’entrée invalide.' };
+    if (!output.resourceId) return { ok: false, reason: 'Choisissez une ressource reçue dans le quai d’entrée.' };
     if (!input.acceptsAnyResource && output.resourceId !== input.resourceId) {
       return { ok: false, reason: 'Ces ports ne transportent pas la même matière.' };
     }
@@ -1972,7 +2155,7 @@ globalThis.OrbitVersion = "0.34.103";
   }
 
   function addMachine(graph, value) {
-    const machine = createMachine(value);
+    const machine = createMachine(value, graph.geology?.resourceId);
     if (!machine || graph.machines.some(item => item.id === machine.id)) return { ok: false, reason: 'Machine invalide.' };
     graph.machines.push(machine);
     return { ok: true, machine };
@@ -1981,7 +2164,8 @@ globalThis.OrbitVersion = "0.34.103";
   function removeMachine(graph, id) {
     const machine = graph.machines.find(item => item.id === id);
     if (!machine) return { ok: false, reason: 'Machine introuvable.' };
-    const discardedUnits = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)]
+    const discardedUnits = [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer),
+      ...Object.values(machine.storedResources)]
       .reduce((sum, amount) => sum + amount, 0);
     graph.machines = graph.machines.filter(item => item !== machine);
     graph.connections = graph.connections.filter(connection =>
@@ -2014,8 +2198,11 @@ globalThis.OrbitVersion = "0.34.103";
       tick: graph.tick,
       geology: clone(graph.geology),
       machines: graph.machines.map(machine => ({ id: machine.id, type: machine.type,
+        resourceId: machine.resourceId,
+        ...(definitionOf(machine).externalInput ? { importResourceId: machine.importResourceId } : {}),
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
+        storedResources: clone(machine.storedResources),
         state: machine.state })),
       connections: graph.connections.map(connection => ({ id: connection.id,
         fromMachineId: connection.fromMachineId, fromOutputId: connection.fromOutputId,
@@ -2044,7 +2231,27 @@ globalThis.OrbitVersion = "0.34.103";
     return ports.find(item => item.id === id) || null;
   }
   function inputBatch(machine, inputId) {
-    return definition(machine).recipe.inputs.find(item => item.inputId === inputId)?.amount || 0;
+    return definition(machine).recipe?.inputs.find(item => item.inputId === inputId)?.amount || 1;
+  }
+  function primaryInput(machine) { return definition(machine).recipe?.inputs[0] || null; }
+  function sourceAvailable(graph, machine) {
+    const def = definition(machine);
+    return !def.requiresDeposit || graph.geology?.resourceId === machine.resourceId;
+  }
+  function sourceRateForTarget(graph, source, target, connection, powerRatio) {
+    const sourceDef = definition(source), targetDef = definition(target);
+    if (!sourceAvailable(graph, source) || (!targetDef.sink && !outputsReady(target))) return 0;
+    if (targetDef.storesResources) return (sourceDef.throughput || 1 / Data.config.fixedStepSeconds) *
+      (sourceDef.energyMW > 0 ? powerRatio : 1);
+    const targetInputAmount = inputBatch(target, connection.toInputId);
+    if (targetDef.sink) return Math.min(targetDef.throughput || Infinity,
+      (sourceDef.throughput || Infinity) * (sourceDef.energyMW > 0 ? powerRatio : 1));
+    const primary = primaryInput(target);
+    if (!primary) return 0;
+    const targetCycleRate = targetDef.throughput * (targetDef.energyMW > 0 ? powerRatio : 1) / primary.amount;
+    const targetRate = targetCycleRate * targetInputAmount;
+    return Math.min(sourceDef.throughput ? sourceDef.throughput * (sourceDef.energyMW > 0 ? powerRatio : 1) : Infinity,
+      targetRate);
   }
   function outputsReady(machine) {
     const config = Data.config;
@@ -2055,40 +2262,46 @@ globalThis.OrbitVersion = "0.34.103";
     return definition(machine).recipe.inputs.every(item => machine.inputBuffer[item.inputId] >= item.amount);
   }
 
-  function estimateRates(graph, powerRatio = 1) {
+  function estimateRates(graph, powerRatio = 1, externalStock = {}) {
     const byId = new Map(graph.machines.map(machine => [machine.id, machine]));
     const outputRates = new Map();
     for (const machine of Graph.topologicalOrder(graph)) {
       const def = definition(machine), rates = {};
-      if (def.sink) {
+      if (def.externalInput) {
+        const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
+        const target = link && byId.get(link.toMachineId);
+        const available = integer(externalStock[machine.importResourceId]) + integer(machine.outputBuffer.material);
+        const ready = target && (definition(target).sink || outputsReady(target));
+        machine.currentRate = available && ready && machine.outputBuffer.material < Data.config.outputCapacity ? def.throughput : 0;
+        rates.material = machine.currentRate;
+      } else if (def.sink) {
         const incomingRate = graph.connections.reduce((sum, connection) => {
           if (connection.toMachineId !== machine.id) return sum;
           return sum + (outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0);
         }, 0);
         const inputId = def.inputPorts[0]?.id;
         const hasBufferedUnits = inputId && machine.inputBuffer[inputId] > 0;
-        machine.currentRate = Math.min(def.throughput,
+        machine.currentRate = def.storesResources ? incomingRate : Math.min(def.throughput,
           incomingRate > 0 || hasBufferedUnits ? Math.max(incomingRate, hasBufferedUnits ? def.throughput : 0) : 0);
       } else if (def.source) {
         const outgoing = graph.connections.find(connection => connection.fromMachineId === machine.id);
         const target = outgoing && byId.get(outgoing.toMachineId);
-        const validDeposit = graph.geology?.resourceId === 'iron';
-        const targetDefinition = target && definition(target);
-        const targetBlocked = target && !targetDefinition.sink && !outputsReady(target);
-        rates[def.outputPorts[0].id] = validDeposit && target && !targetBlocked
-          ? (targetDefinition.throughput || 0) * powerRatio : 0;
+        rates[def.outputPorts[0].id] = target
+          ? sourceRateForTarget(graph, machine, target, outgoing, powerRatio) : 0;
       } else {
-        const recipe = def.recipe;
-        const feedRates = recipe.inputs.map(item => {
+        const recipe = def.recipe, primary = primaryInput(machine);
+        const nominalCycleRate = primary ? def.throughput *
+          (def.energyMW > 0 ? powerRatio : 1) / primary.amount : 0;
+        const feedCycleRates = recipe.inputs.map(item => {
           const connection = graph.connections.find(link => link.toMachineId === machine.id && link.toInputId === item.inputId);
           const supplied = connection ? outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0 : 0;
-          return supplied > 0 ? supplied : machine.inputBuffer[item.inputId] >= item.amount ? def.throughput * powerRatio : 0;
+          return supplied > 0 ? supplied / item.amount
+            : machine.inputBuffer[item.inputId] >= item.amount ? nominalCycleRate : 0;
         });
-        let rate = Math.min(def.throughput * powerRatio, ...(feedRates.length ? feedRates : [0]));
-        if (!outputsReady(machine)) rate = 0;
-        machine.currentRate = rate;
-        const consumed = recipe.inputs.reduce((sum, item) => sum + item.amount, 0);
-        for (const item of recipe.outputs) rates[item.outputId] = consumed > 0 ? rate * item.amount / consumed : 0;
+        let cycleRate = Math.min(nominalCycleRate, ...(feedCycleRates.length ? feedCycleRates : [0]));
+        if (!outputsReady(machine)) cycleRate = 0;
+        machine.currentRate = primary ? primary.amount * cycleRate : 0;
+        for (const item of recipe.outputs) rates[item.outputId] = cycleRate * item.amount;
       }
       outputRates.set(machine.id, rates);
       if (def.source) machine.currentRate = Object.values(rates).reduce((sum, value) => sum + value, 0);
@@ -2096,8 +2309,8 @@ globalThis.OrbitVersion = "0.34.103";
     return outputRates;
   }
 
-  function demand(graph) {
-    estimateRates(graph);
+  function demand(graph, externalStock = {}) {
+    estimateRates(graph, 1, externalStock);
     return graph.machines.reduce((sum, machine) => {
       const def = definition(machine);
       return machine.currentRate > 0 ? sum + def.energyMW : sum;
@@ -2110,8 +2323,16 @@ globalThis.OrbitVersion = "0.34.103";
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
       if (!out || !input) continue;
+      if (definition(to).storesResources) {
+        const amount = integer(from.outputBuffer[out.id]);
+        if (!amount) continue;
+        to.storedResources[out.resourceId] = (to.storedResources[out.resourceId] || 0) + amount;
+        from.outputBuffer[out.id] = 0;
+        continue;
+      }
       if (definition(from).source && !definition(to).sink) {
-        if (powerRatio <= 0 || graph.geology?.resourceId !== 'iron' || !outputsReady(to)) continue;
+        const sourceDef = definition(from);
+        if ((powerRatio <= 0 && sourceDef.energyMW > 0) || !sourceAvailable(graph, from) || !outputsReady(to)) continue;
         const needed = inputBatch(to, input.id);
         const room = Math.max(0, Data.config.inputCapacity - to.inputBuffer[input.id]);
         const amount = integer(Math.min(room, Math.max(0, needed - to.inputBuffer[input.id])));
@@ -2126,10 +2347,30 @@ globalThis.OrbitVersion = "0.34.103";
     }
   }
 
-  function runMachine(graph, machine, powerRatio) {
+  function runMachine(graph, machine, powerRatio, externalStock) {
     const def = definition(machine);
     machine.energyMW = 0;
+    if (def.externalInput) {
+      const resourceId = machine.importResourceId;
+      if (machine.outputBuffer.material >= Data.config.outputCapacity) { machine.state = 'output_full'; return; }
+      if (integer(externalStock[resourceId]) && !machine.currentRate &&
+          graph.connections.some(link => link.fromMachineId === machine.id)) { machine.state = 'output_full'; return; }
+      if (!integer(externalStock[resourceId]) || !machine.currentRate) { machine.state = 'waiting_input'; return; }
+      machine.state = 'active';
+      machine.cycleProgress += Data.config.fixedStepSeconds * def.throughput;
+      while (machine.cycleProgress + CYCLE_EPSILON >= 1 && integer(externalStock[resourceId]) > 0 &&
+          machine.outputBuffer.material < Data.config.outputCapacity) {
+        externalStock[resourceId] -= 1;
+        machine.outputBuffer.material += 1;
+        machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
+      }
+      return;
+    }
     if (def.sink) {
+      if (def.storesResources) {
+        machine.state = machine.currentRate > 0 ? 'active' : 'waiting_input';
+        return;
+      }
       const inputId = def.inputPorts[0]?.id;
       const batchRate = def.throughput;
       if (!inputId || machine.inputBuffer[inputId] < 1) {
@@ -2148,16 +2389,16 @@ globalThis.OrbitVersion = "0.34.103";
     if (def.source) {
       const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
       const target = link && graph.machines.find(item => item.id === link.toMachineId);
-      const validDeposit = graph.geology?.resourceId === 'iron';
+      const validDeposit = sourceAvailable(graph, machine);
       if (validDeposit && target && definition(target).sink) {
         const outputId = def.outputPorts[0].id;
-        if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
+        if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
         if (machine.outputBuffer[outputId] >= Data.config.outputCapacity) {
           machine.state = 'output_full';
           return;
         }
         machine.state = 'active';
-        machine.energyMW = def.energyMW * powerRatio;
+        machine.energyMW = def.energyMW > 0 ? def.energyMW * powerRatio : 0;
         machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
         while (machine.cycleProgress + CYCLE_EPSILON >= 1 &&
           machine.outputBuffer[outputId] < Data.config.outputCapacity) {
@@ -2167,9 +2408,9 @@ globalThis.OrbitVersion = "0.34.103";
         return;
       }
       machine.state = !validDeposit || !target ? 'waiting_input'
-        : powerRatio <= 0 ? 'no_energy'
+        : powerRatio <= 0 && def.energyMW > 0 ? 'no_energy'
           : !definition(target).sink && !outputsReady(target) ? 'output_full' : 'active';
-      machine.energyMW = machine.state === 'active' ? def.energyMW * powerRatio : 0;
+      machine.energyMW = machine.state === 'active' && def.energyMW > 0 ? def.energyMW * powerRatio : 0;
       return;
     }
     if (!outputsReady(machine)) { machine.state = 'output_full'; return; }
@@ -2177,9 +2418,10 @@ globalThis.OrbitVersion = "0.34.103";
     if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
     machine.state = 'active';
     machine.energyMW = def.energyMW * powerRatio;
-    const batch = def.recipe.inputs.reduce((sum, item) => sum + item.amount, 0);
-    const rate = machine.currentRate > 0 ? machine.currentRate : def.throughput * powerRatio;
-    machine.cycleProgress += Data.config.fixedStepSeconds * rate / batch;
+    const primary = primaryInput(machine);
+    const cycleRate = primary ? (machine.currentRate > 0 ? machine.currentRate :
+      def.throughput * (def.energyMW > 0 ? powerRatio : 1)) / primary.amount : 0;
+    machine.cycleProgress += Data.config.fixedStepSeconds * cycleRate;
     while (machine.cycleProgress + CYCLE_EPSILON >= 1 && inputsReady(machine) && outputsReady(machine)) {
       for (const item of def.recipe.inputs) machine.inputBuffer[item.inputId] -= item.amount;
       for (const item of def.recipe.outputs) machine.outputBuffer[item.outputId] += item.amount;
@@ -2187,22 +2429,22 @@ globalThis.OrbitVersion = "0.34.103";
     }
   }
 
-  function tick(graph) {
+  function tick(graph, externalStock) {
     graph.tick++;
-    estimateRates(graph);
-    graph.energyDemandMW = demand(graph);
+    estimateRates(graph, 1, externalStock);
+    graph.energyDemandMW = demand(graph, externalStock);
     const ratio = graph.energyUnlimited || graph.energyDemandMW <= 0 ? 1
       : Math.min(1, graph.energyAvailableMW / graph.energyDemandMW);
-    estimateRates(graph, ratio);
+    estimateRates(graph, ratio, externalStock);
     transfer(graph, ratio);
     graph.energyUsedMW = 0;
     for (const machine of Graph.topologicalOrder(graph)) {
-      estimateRates(graph, ratio);
-      runMachine(graph, machine, ratio);
+      estimateRates(graph, ratio, externalStock);
+      runMachine(graph, machine, ratio, externalStock);
       graph.energyUsedMW += machine.energyMW;
     }
-    graph.energyDemandMW = demand(graph);
-    estimateRates(graph, ratio);
+    graph.energyDemandMW = demand(graph, externalStock);
+    estimateRates(graph, ratio, externalStock);
   }
 
   function advance(graph, seconds, context = {}) {
@@ -2212,7 +2454,7 @@ globalThis.OrbitVersion = "0.34.103";
     graph.accumulator += seconds;
     let count = 0;
     while (graph.accumulator + 1e-9 >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {
-      tick(graph);
+      tick(graph, context.externalStock || {});
       graph.accumulator = Math.max(0, graph.accumulator - Data.config.fixedStepSeconds);
       count++;
     }
@@ -3008,6 +3250,7 @@ globalThis.OrbitVersion = "0.34.103";
   'use strict';
 
   const BUILD_EPSILON = 1e-6;
+  const ALLOWED_DOCK_DESTINATIONS = root.OrbitOrbitalLogisticsData.dockDestinationTypes;
 
   function hasBuiltLandPath(network, fromBuildingId, toBuildingId) {
     if (!network || fromBuildingId === toBuildingId) return false;
@@ -3033,6 +3276,12 @@ globalThis.OrbitVersion = "0.34.103";
     return false;
   }
 
+  function hasReceivingDock(state, building) {
+    if (building?.type === 'launch_platform') return true;
+    if (building?.type !== 'factory') return false;
+    return Boolean(state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === 'input_dock'));
+  }
+
   function transferDockStockToBuildings(state, seconds = 0) {
     const transferred = new Map();
     const buildings = state.surfaceBuildings || [];
@@ -3045,7 +3294,9 @@ globalThis.OrbitVersion = "0.34.103";
         const destinationId = source.dockDestinations?.[resourceId];
         const destination = byId.get(destinationId);
         if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
-            destination.constructionState !== 'complete' || !hasBuiltLandPath(network, source.id, destination.id)) continue;
+            !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+            !hasReceivingDock(state, destination) ||
+            !hasBuiltLandPath(network, source.id, destination.id)) continue;
         const stock = destination.type === 'launch_platform'
           ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
         stock[resourceId] = (stock[resourceId] || 0) + amount;
@@ -3062,7 +3313,7 @@ globalThis.OrbitVersion = "0.34.103";
     return { transferred, rates };
   }
 
-  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath,
+  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, hasReceivingDock,
     transferDockStockToBuildings, transferDockStockToPlatforms: transferDockStockToBuildings });
 })(globalThis);
 
@@ -3383,7 +3634,12 @@ globalThis.OrbitVersion = "0.34.103";
     const logistics = state.orbitalLogistics;
     logistics.dispatchHistory = history;
     const interval = Data.launch.batchIntervalSeconds;
-    if (!hadDispatchClock) logistics.nextDispatchTime = (Math.floor(currentTime / interval) + 1) * interval;
+    const nextBoundary = (Math.floor(currentTime / interval) + 1) * interval;
+    // Older seed changes could reset simulation time while keeping the previous
+    // universe's dispatch clock. Repair only that clock, preserving stocks/lots.
+    if (!hadDispatchClock || logistics.nextDispatchTime > nextBoundary + EPSILON) {
+      logistics.nextDispatchTime = nextBoundary;
+    }
     const systems = systemsById instanceof Map ? systemsById : new Map(Object.entries(systemsById || {}));
     const platformById = new Map((state.surfaceBuildings || []).filter(item => item.type === 'launch_platform').map(item => [item.id, item]));
     for (const platform of platformById.values()) {
@@ -5314,21 +5570,32 @@ globalThis.OrbitVersion = "0.34.103";
   }
 
   function geology(state, building) {
-    if (building.type !== 'extractor' || !building.resourceId) return null;
+    if (!['extractor', 'oil_platform'].includes(building.type) || !building.resourceId) return null;
     const id = `${building.planetId}:${building.resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
     return { id, planetId: building.planetId, resourceId: building.resourceId,
       hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
-        (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]) };
+        (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]),
+      abundance: Number.isFinite(building.depositAbundance) ? building.depositAbundance : Data.config.geology.depositAbundance };
   }
 
   function ensureGraph(state, building) {
+    const deposit = geology(state, building);
     const previous = state.factoryPlans[building.id];
-    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines)) {
+    if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines) ||
+        (deposit && previous.geology?.resourceId !== deposit.resourceId)) {
       state.factoryPlans[building.id] = Graph.create({ version: Data.config.version,
-        geology: geology(state, building) });
+        geology: deposit });
     }
     const graph = state.factoryPlans[building.id];
-    graph.geology ||= geology(state, building);
+    graph.geology ||= deposit;
+    for (const machine of graph.machines) {
+      if (!Graph.definitionOf(machine).externalInput) continue;
+      machine.outputBuffer.material ||= 0;
+      if (!machine.importResourceId) {
+        machine.importResourceId = Object.keys(building.inventory || {}).sort()
+          .find(resourceId => Number.isInteger(building.inventory[resourceId]) && building.inventory[resourceId] > 0) || null;
+      }
+    }
     return graph;
   }
 
@@ -5351,7 +5618,7 @@ globalThis.OrbitVersion = "0.34.103";
       power.set(building.planetId, entry);
       const savedGraph = state.factoryPlans[building.id];
       if (!savedGraph) continue;
-      const graph = ensureGraph(state, building), demand = Simulation.demand(graph);
+      const graph = ensureGraph(state, building), demand = Simulation.demand(graph, building.inventory);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
 
@@ -5359,9 +5626,10 @@ globalThis.OrbitVersion = "0.34.103";
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
       const graph = ensureGraph(state, building);
       const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
-      const demand = Simulation.demand(graph), planetDemand = demands.get(building.planetId) || 0;
+      const demand = Simulation.demand(graph, building.inventory), planetDemand = demands.get(building.planetId) || 0;
       Simulation.advance(graph, seconds, {
         energyUnlimited: available.unlimited,
+        externalStock: building.inventory ||= {},
         energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
       });
       building.energyUse = graph.energyUsedMW * 1e6;
@@ -5439,6 +5707,10 @@ globalThis.OrbitVersion = "0.34.103";
           if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId: output.resourceId,
             amount, origin: { kind: 'building', id: building.id } }));
         }
+        for (const [resourceId, amount] of Object.entries(machine.storedResources || {})) {
+          if (amount) Stack.addToStock(state.colonyMaterials, Stack.create({ resourceId,
+            amount, origin: { kind: 'building', id: building.id } }));
+        }
       }
       delete state.factoryPlans[building.id];
     }
@@ -5475,7 +5747,7 @@ globalThis.OrbitVersion = "0.34.103";
   }
 
   function setDockDestination(building, resourceId, destinationId) {
-    if (!building || !['factory', 'extractor'].includes(building.type) ||
+    if (!building || !['factory', 'extractor', 'oil_platform'].includes(building.type) ||
         !Data.exportResources.some(item => item.id === resourceId)) return false;
     building.dockDestinations ||= {};
     if (destinationId === null || destinationId === '') delete building.dockDestinations[resourceId];
@@ -8393,7 +8665,7 @@ globalThis.OrbitVersion = "0.34.103";
 
     function buildingStats(building) {
       const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
-      const property = ['factory', 'extractor'].includes(building.type) ? 'dockStock' : 'inventory';
+      const property = ['factory', 'extractor', 'oil_platform'].includes(building.type) ? 'dockStock' : 'inventory';
       const inventory = inventoryEntries(building, property), total = inventory.reduce((sum, item) => sum + item.amount, 0);
       const stockText = inventory.length
         ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
@@ -8488,7 +8760,7 @@ globalThis.OrbitVersion = "0.34.103";
       const isBuilding = item.kind === 'building';
       const isArk = item.kind === 'orbital-hub';
       const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
-      const hasFactoryEditor = isBuilding && ['factory', 'extractor'].includes(item.type);
+      const hasFactoryEditor = isBuilding && ['factory', 'extractor', 'oil_platform'].includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
       panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);
@@ -8896,9 +9168,27 @@ globalThis.OrbitVersion = "0.34.103";
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
-  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 212 });
+  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 222, inputDockHeight: 252 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
+  const BLOCK_ART = Object.freeze({
+    drill: { accent: '#ecc06e', shape: '<rect x="50" y="10" width="28" height="18" rx="4" fill="#31566a"/><path d="M44 28h40l-7 10H51z" fill="#54798a"/><path d="M61 38v17l3 8 3-8V38" fill="var(--art-accent)"/><path d="M38 63h52M44 67l8-7 8 4 8-9 7 10 8-5 7 6" fill="none"/>' },
+    oil_pump: { accent: '#e8b66e', shape: '<path d="M29 64h71M39 64l13-34M52 30h32M61 30l13 34M44 25l48 9" fill="none"/><path d="M76 31l16 3-6 6-17-4z" fill="var(--art-accent)"/><rect x="49" y="61" width="30" height="7" rx="2" fill="#385568"/><path d="M58 68v5m13-5v5"/>' },
+    water_supply: { accent: '#75cfee', shape: '<path d="M64 14C54 28 44 39 44 50a20 20 0 0 0 40 0c0-11-10-22-20-36z" fill="#16445e"/><path d="M64 22C57 33 51 41 51 50a13 13 0 0 0 13 13" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M31 68h66"/><circle cx="94" cy="24" r="3" fill="var(--art-accent)"/><circle cx="101" cy="34" r="2" fill="var(--art-accent)"/>' },
+    crusher: { accent: '#f0ad5e', shape: '<path d="M31 24h66l-8 10H39zM31 61h66l-8-10H39z" fill="#496b7b"/><circle cx="49" cy="43" r="12" fill="#142d3d"/><circle cx="79" cy="43" r="12" fill="#142d3d"/><path d="M49 34v18m-9-9h18M79 34v18m-9-9h18"/><path d="M61 32l4-5 4 6-4 5zM62 50l4-4 4 5-4 5z" fill="var(--art-accent)"/><path d="M41 68l7-6 7 5 8-7 7 7 7-5 9 6" fill="none" stroke="var(--art-accent)"/>' },
+    grinder: { accent: '#74d2ce', shape: '<path d="M36 30h56v34H36z" fill="#173448"/><circle cx="51" cy="47" r="11" fill="#0c1b2a"/><circle cx="77" cy="47" r="11" fill="#0c1b2a"/><path d="M51 38v18m-9-9h18M77 38v18m-9-9h18"/><path d="M64 15v13m-9-7h18M64 64v10M38 74h52"/><path d="M59 19l5-5 5 5" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="64" cy="47" r="3" fill="var(--art-accent)"/>' },
+    magnetic_separator: { accent: '#75d9cd', shape: '<path d="M42 26v22a22 22 0 0 0 44 0V26h-13v22a9 9 0 0 1-18 0V26z" fill="#375c71"/><path d="M42 26h13v11H42zM73 26h13v11H73z" fill="var(--art-accent)"/><path d="M34 67h60"/><circle cx="47" cy="60" r="3" fill="#e6ae69"/><circle cx="60" cy="66" r="2" fill="#a8c3cf"/><circle cx="77" cy="61" r="3" fill="var(--art-accent)"/>' },
+    gravity_separator: { accent: '#c6a7ec', shape: '<path d="M35 24h58l-7 13H42zM42 41h44l-7 12H49zM49 58h30l-5 10H54z" fill="#244255"/><path d="M40 30h48M47 47h34M54 63h20"/><circle cx="51" cy="31" r="3" fill="#e4b165"/><circle cx="73" cy="47" r="3" fill="var(--art-accent)"/><circle cx="63" cy="63" r="3" fill="#a7d0d6"/><path d="M64 16v7m-4-3 4-4 4 4" fill="none" stroke="var(--art-accent)"/>' },
+    silicon_washer: { accent: '#76cef0', shape: '<path d="M37 29h54v37H37z" fill="#123b52"/><path d="M39 48q12-7 25 0t25 0v16H39z" fill="#167aa0" stroke="var(--art-accent)"/><path d="M51 18c-4 6-6 8-6 12a6 6 0 0 0 12 0c0-4-2-6-6-12zM75 18c-3 5-5 7-5 10a5 5 0 0 0 10 0c0-3-2-5-5-10z" fill="var(--art-accent)"/><path d="M44 67v6m40-6v6"/>' },
+    silicon_dryer: { accent: '#efbc66', shape: '<rect x="34" y="29" width="60" height="36" rx="5" fill="#304b5b"/><rect x="43" y="38" width="42" height="20" rx="3" fill="#132635"/><path d="M53 54c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12m12 12c-5-5 5-7 0-12" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M41 25c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10m18 10c-4-4 4-6 0-10" fill="none" stroke="var(--art-accent)" stroke-width="2"/>' },
+    carbon_separator: { accent: '#d5a36d', shape: '<path d="M32 57h64l-8 12H40z" fill="#284455"/><path d="M41 48h51M44 52l5 13m10-13 4 13m11-13 4 13"/><path d="M44 45l6-13 11 3 4 10zM67 44l8-16 12 5-3 11z" fill="#26313a" stroke="var(--art-accent)"/><circle cx="51" cy="40" r="2" fill="#d7e0d8"/><circle cx="80" cy="37" r="2" fill="#d7e0d8"/>' },
+    carbon_washer: { accent: '#74ced4', shape: '<path d="M37 30h54v37H37z" fill="#123342"/><path d="M39 49q13-7 25 0t25 0v15H39z" fill="#146277" stroke="var(--art-accent)"/><path d="M48 44l5-12 9 2 4 10zM68 44l5-13 10 4-2 9z" fill="#1f2e36" stroke="#cf9c68"/><path d="M45 24h38M46 69v4m37-4v4"/>' },
+    reduction_furnace: { accent: '#ff9863', shape: '<path d="M39 66V37l10-10h30l10 10v29z" fill="#4a3b39"/><path d="M51 66V47a13 13 0 0 1 26 0v19z" fill="#111b24"/><path d="M64 57c-9-7 3-11 0-18 9 7 11 12 4 18z" fill="var(--art-accent)" stroke="#ffd27b"/><path d="M33 68h62M49 22h30"/><circle cx="64" cy="70" r="3" fill="#ffd27b"/>' },
+    triphasic_separator: { accent: '#79cde3', shape: '<path d="M49 20h30v8l8 9v29H41V37l8-9z" fill="#18384c"/><path d="M43 44h42v8H43z" fill="#ae8154"/><path d="M43 53h42v8H43z" fill="#405c69"/><path d="M43 39h42v5H43z" fill="var(--art-accent)"/><path d="M55 17h18M37 68h54"/><circle cx="58" cy="41" r="2" fill="#d5e3e8"/><circle cx="72" cy="57" r="2" fill="#d5e3e8"/>' },
+    terril: { accent: '#bc9369', shape: '<path d="M28 66h72"/><path d="M35 65l9-17 8 7 12-23 11 16 7-6 11 23z" fill="#364855"/><path d="M42 54l7-4m17-14 5 6m9 7 6-4" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="51" cy="61" r="2" fill="#e3c293"/><circle cx="75" cy="58" r="2" fill="#e3c293"/>' },
+    input_dock: { accent: '#79d6c2', shape: '<path d="M91 43H42"/><path d="M50 34l-10 9 10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M41 56h49l-7 12H48z" fill="#254758"/><path d="M50 54V46m14 8V46m14 8V46"/><rect x="86" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M89 36h9m-9 6h9"/>' },
+    output_dock: { accent: '#75cfde', shape: '<path d="M37 43h49"/><path d="M78 34l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 56h49l-7 12H45z" fill="#254758"/><path d="M49 54V46m14 8V46m14 8V46"/><rect x="27" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M30 36h9m-9 6h9"/>' }
+  });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
@@ -8908,15 +9198,26 @@ globalThis.OrbitVersion = "0.34.103";
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
     const palette = $('factory-block-list');
+    const paletteOverlay = $('factory-palette-overlay'), paletteToggle = $('factory-add-block-toggle');
+    const paletteClose = $('factory-palette-close');
     let activeBuilding = null, graph = null, machines = [], connections = [];
     let pendingConnection = null, nextMachineId = 1, nextConnectionId = 1;
     const cards = new Map();
 
-    const typeOf = type => Graph.definitionOf({ type });
-    const heightOf = type => typeOf(type).externalOutput ? NODE.outputDockHeight : NODE.height;
+    const processingResource = () => graph?.geology?.resourceId || activeBuilding?.resourceId ||
+      Data.contextForResource(machines.find(machine => machine.type === 'input_dock' && machine.importResourceId)?.importResourceId) || 'iron';
+    const typeOf = value => Graph.definitionOf(typeof value === 'string'
+      ? { type: value, resourceId: processingResource() } : value);
+    const heightOf = value => {
+      const definition = typeOf(value);
+      if (definition.externalInput) return NODE.inputDockHeight;
+      if (definition.externalOutput) return NODE.outputDockHeight;
+      const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
+      return NODE.height + (portRows - 1) * 24;
+    };
     const machineById = id => machines.find(machine => machine.id === id);
     const portY = (machine, side, portId) => {
-      const ports = side === 'input' ? typeOf(machine.type).inputPorts : typeOf(machine.type).outputPorts;
+      const ports = side === 'input' ? typeOf(machine).inputPorts : typeOf(machine).outputPorts;
       const index = ports.findIndex(port => port.id === portId);
       return machine.y + 55 + Math.max(0, index) * 24;
     };
@@ -8932,6 +9233,36 @@ globalThis.OrbitVersion = "0.34.103";
 
     function status(message) { $('factory-editor-status').textContent = message; }
 
+    function setPaletteOpen(open) {
+      paletteOverlay.hidden = !open;
+      paletteToggle.setAttribute('aria-expanded', String(open));
+      paletteToggle.setAttribute('aria-label', open ? 'Fermer le menu des blocs' : 'Ajouter un bloc au processus');
+      const label = paletteToggle.querySelector('span');
+      if (label) label.textContent = open ? 'FERMER LE MENU' : 'AJOUTER UN BLOC';
+      const icon = paletteToggle.querySelector('svg path');
+      if (icon) icon.setAttribute('d', open ? 'M6 6l12 12M18 6 6 18' : 'M12 5v14M5 12h14');
+      if (open) palette.querySelector('[data-add-machine]')?.focus({ preventScroll: true });
+    }
+
+    function createBlockArtwork(def) {
+      const art = BLOCK_ART[def.id] || BLOCK_ART.terril;
+      const image = document.createElementNS(SVG, 'svg');
+      image.classList.add('factory-block-art');
+      image.setAttribute('viewBox', '0 0 128 84');
+      image.setAttribute('role', 'img');
+      image.setAttribute('aria-label', `Illustration : ${def.label}`);
+      image.innerHTML = `<defs><linearGradient id="art-${def.id}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#183348"/><stop offset="1" stop-color="#0a1927"/></linearGradient></defs><rect x="1" y="1" width="126" height="82" rx="5" fill="url(#art-${def.id})" stroke="#58768a" stroke-opacity=".34"/><path d="M8 16h112M8 73h112" stroke="#507086" stroke-opacity=".18"/><path d="M14 9h2m12 0h2m12 0h2m60 0h2m12 0h2" stroke="#84a6b6" stroke-opacity=".3" stroke-width="2"/><g stroke="#8ba9b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" style="--art-accent:${art.accent}">${art.shape}</g>`;
+      return image;
+    }
+
+    function blockSpecification(def) {
+      if (def.externalInput) return 'RÉSEAU TERRESTRE';
+      if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
+      if (def.externalOutput) return `${fmt(def.throughput)} u/s · EXPORT`;
+      const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
+      return `${throughput} · ${fmt(def.energyMW)} MW`;
+    }
+
     function persist() {
       if (!activeBuilding || !graph) return;
       graph.machines = machines; graph.connections = connections;
@@ -8946,7 +9277,11 @@ globalThis.OrbitVersion = "0.34.103";
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
-      const def = typeOf(machine.type), finite = Number.isFinite(def.throughput);
+      if (machine.type === 'input_dock') {
+        machine.importResourceId ||= Object.keys(activeBuilding?.inventory || {}).sort()
+          .find(id => activeBuilding.inventory[id] > 0) || null;
+      }
+      const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const rate = machine.currentRate || 0;
       const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
@@ -8960,10 +9295,13 @@ globalThis.OrbitVersion = "0.34.103";
       const state = card.querySelector('[data-readout="state"]');
       state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = machine.type === 'drill' || def.externalOutput;
+      const continuous = def.source || def.externalOutput;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
-      cycleLabel.textContent = machine.type === 'drill' ? 'EXTRACTION CONTINUE'
+      cycleLabel.textContent = def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
+        : def.storesResources
+        ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
+        : def.source ? (def.requiresDeposit ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
         : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
         : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
           : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
@@ -8973,7 +9311,7 @@ globalThis.OrbitVersion = "0.34.103";
           const connection = def.externalOutput && connections.find(item =>
             item.toMachineId === machine.id && item.toInputId === port.id);
           const source = connection && machineById(connection.fromMachineId);
-          const resource = source && typeOf(source.type).outputPorts
+          const resource = source && typeOf(source).outputPorts
             .find(output => output.id === connection.fromOutputId);
           label.innerHTML = resource
             ? resourceLine({ ...port, label: resource.label }, machine.inputBuffer[port.id])
@@ -8985,17 +9323,46 @@ globalThis.OrbitVersion = "0.34.103";
         if (label) label.innerHTML = resourceLine(port, machine.outputBuffer[port.id]);
       }
       updateDockDestination(machine);
+      if (def.externalInput) updateInputDock(machine);
+    }
+
+    function updateInputDock(machine) {
+      const card = cards.get(machine.id), select = card?.querySelector('[data-dock-resource]');
+      if (!select) return;
+      const stock = activeBuilding.inventory || {};
+      const resources = Object.keys(stock).filter(id => stock[id] > 0);
+      if (machine.importResourceId && !resources.includes(machine.importResourceId)) resources.push(machine.importResourceId);
+      resources.sort();
+      const key = JSON.stringify([resources.map(id => [id, stock[id] || 0]), machine.importResourceId]);
+      if (select.dataset.stockKey !== key) {
+        select.dataset.stockKey = key;
+        select.replaceChildren();
+        if (!resources.length) {
+          const option = document.createElement('option'); option.value = ''; option.textContent = 'En attente de livraison'; select.append(option);
+        }
+        for (const id of resources) {
+          const option = document.createElement('option'); option.value = id;
+          option.textContent = `${root.OrbitResourceData.get(id)?.label || id} · ${stock[id] || 0} u`;
+          select.append(option);
+        }
+        select.value = machine.importResourceId || '';
+      }
+      select.disabled = !resources.length || machine.outputBuffer.material > 0 ||
+        connections.some(link => link.fromMachineId === machine.id);
+      select.title = select.disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
+      card.querySelector('[data-received-stock]').textContent = `STOCK REÇU · ${Object.entries(stock)
+        .filter(([, amount]) => amount > 0).map(([id, amount]) => `${root.OrbitResourceData.get(id)?.label || id} : ${amount} u`).join(' · ') || 'VIDE'}`;
     }
 
     function connectedDockResource(machine) {
-      const input = typeOf(machine.type).inputPorts[0];
+      const input = typeOf(machine).inputPorts[0];
       const connection = input && connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
       const source = connection && machineById(connection.fromMachineId);
-      return source && typeOf(source.type).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
+      return source && typeOf(source).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
     }
 
     function updateDockDestination(machine) {
-      if (!typeOf(machine.type).externalOutput) return;
+      if (!typeOf(machine).externalOutput) return;
       const select = cards.get(machine.id)?.querySelector('[data-dock-destination]');
       if (!select) return;
       const resourceId = connectedDockResource(machine);
@@ -9028,12 +9395,12 @@ globalThis.OrbitVersion = "0.34.103";
       button.dataset.machineId = machine.id;
       button.dataset[side === 'input' ? 'inputId' : 'outputId'] = port.id;
       button.style.top = `${55 + index * 24}px`;
-      button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine.type).label}`);
+      button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine).label}`);
       return button;
     }
 
     function createMachineCard(machine) {
-      const def = typeOf(machine.type), card = document.createElement('article');
+      const def = typeOf(machine), card = document.createElement('article');
       card.className = 'factory-node';
       card.dataset.machineId = machine.id;
       card.style.left = `${machine.x}px`; card.style.top = `${machine.y}px`;
@@ -9058,14 +9425,18 @@ globalThis.OrbitVersion = "0.34.103";
         if (input) card.append(createPort(machine, 'input', input, index));
         if (output) card.append(createPort(machine, 'output', output, index));
       }
-      if (def.externalOutput) {
-        card.classList.add('factory-node-output-dock');
+      let dockControl = null;
+      if (def.externalOutput || def.externalInput) {
+        if (def.externalInput) card.classList.add('factory-node-input-dock');
+        else card.classList.add('factory-node-output-dock');
         const destination = document.createElement('label'); destination.className = 'factory-dock-route';
-        const label = document.createElement('span'); label.textContent = 'DESTINATION DU QUAI';
-        const select = document.createElement('select'); select.dataset.dockDestination = machine.id;
-        select.setAttribute('aria-label', 'Choisir le bâtiment destinataire pour cette ressource');
+        const label = document.createElement('span'); label.textContent = def.externalInput ? 'RESSOURCE À SORTIR' : 'DESTINATION DU QUAI';
+        const select = document.createElement('select');
+        if (def.externalInput) select.dataset.dockResource = machine.id;
+        else select.dataset.dockDestination = machine.id;
+        select.setAttribute('aria-label', def.externalInput ? 'Choisir la ressource reçue à envoyer aux machines' : 'Choisir le bâtiment destinataire pour cette ressource');
         destination.append(label, select);
-        card.append(destination);
+        dockControl = destination;
       }
       const rate = document.createElement('div'); rate.className = 'factory-readout-row';
       const rateLabel = document.createElement('span'); rateLabel.dataset.readout = 'rate';
@@ -9080,6 +9451,11 @@ globalThis.OrbitVersion = "0.34.103";
       cycleRow.append(cycleLabel, cycleBar);
       const state = document.createElement('small'); state.className = 'factory-state'; state.dataset.readout = 'state';
       body.append(rows, rate, energy, cycleRow, state);
+      if (dockControl) body.append(dockControl);
+      if (def.externalInput) {
+        const stock = document.createElement('small'); stock.className = 'factory-received-stock'; stock.dataset.receivedStock = '';
+        body.append(stock);
+      }
       card.append(header, body);
       return card;
     }
@@ -9130,7 +9506,7 @@ globalThis.OrbitVersion = "0.34.103";
     }
 
     function freeInput(machine) {
-      const def = typeOf(machine.type);
+      const def = typeOf(machine);
       return def.inputPorts.find(input => (def.sink && !def.externalOutput) || !connections.some(connection =>
         connection.toMachineId === machine.id && connection.toInputId === input.id)) || null;
     }
@@ -9149,7 +9525,7 @@ globalThis.OrbitVersion = "0.34.103";
       if (candidate) return candidate;
       for (const machine of machines) {
         const input = freeInput(machine), bounds = cards.get(machine.id)?.getBoundingClientRect();
-        if (!input || !bounds || typeOf(machine.type).inputPorts.length !== 1) continue;
+        if (!input || !bounds || typeOf(machine).inputPorts.length !== 1) continue;
         if (clientX >= bounds.left + bounds.width * .2 && clientX <= bounds.right - bounds.width * .2 &&
             clientY >= bounds.top + bounds.height * .2 && clientY <= bounds.bottom - bounds.height * .2) {
           return { machineId: machine.id, inputId: input.id };
@@ -9216,23 +9592,28 @@ globalThis.OrbitVersion = "0.34.103";
     });
 
     function addPalette() {
+      palette.dataset.context = processingResource();
       palette.replaceChildren();
-      for (const def of Data.catalog(activeBuilding?.type || 'factory')) {
+      for (const def of Data.catalog(activeBuilding?.type || 'factory',
+        processingResource())) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
-        const icon = document.createElement('span'); icon.className = 'factory-block-icon'; icon.textContent = def.mark;
+        const specification = blockSpecification(def);
+        button.setAttribute('aria-label', `${def.label}. ${def.description || 'Machine de traitement.'} ${specification}`);
+        button.append(createBlockArtwork(def));
         const copy = document.createElement('span'); copy.className = 'factory-block-copy';
         const title = document.createElement('strong'); title.textContent = def.label;
-        const detail = document.createElement('small');
-        detail.textContent = def.externalOutput ? `TOUTES RESSOURCES · STOCK PLANÉTAIRE · ${fmt(def.throughput)} u/s`
-          : def.sink ? `TOUTES RESSOURCES · DESTRUCTION · ${fmt(def.throughput)} u/s`
-          : `${Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : 'DÉBIT NON PLAFONNÉ'} · ${fmt(def.energyMW)} MW`;
-        copy.append(title, detail); button.append(icon, copy); palette.append(button);
+        const description = document.createElement('small');
+        description.className = 'factory-block-description';
+        description.textContent = def.description || 'Machine de traitement industriel.';
+        const specs = document.createElement('small');
+        specs.className = 'factory-block-specs'; specs.textContent = specification;
+        copy.append(title, description, specs); button.append(copy); palette.append(button);
       }
     }
 
     function addMachine(type) {
-      const def = Data.get(type);
+      const def = Data.get(type, processingResource());
       if (!def || !activeBuilding) return;
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,
@@ -9268,11 +9649,12 @@ globalThis.OrbitVersion = "0.34.103";
         position.y < visibleBottomRight.y;
       const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
       const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
-      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type,
+      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type, resourceId: processingResource(),
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
-      if (!result.ok) { status(result.reason); return; }
+      if (!result.ok) { status(result.reason); return false; }
       machines = graph.machines; renderNodes(); persist();
+      return true;
     }
 
     function removeMachine(id) {
@@ -9291,6 +9673,7 @@ globalThis.OrbitVersion = "0.34.103";
 
     function open(building, savedPlan) {
       activeBuilding = building;
+      setPaletteOpen(false);
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -9310,6 +9693,7 @@ globalThis.OrbitVersion = "0.34.103";
 
     function close() {
       if (editor.hidden) return;
+      setPaletteOpen(false);
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
@@ -9321,18 +9705,53 @@ globalThis.OrbitVersion = "0.34.103";
     function refresh() {
       if (editor.hidden || !graph) return;
       for (const machine of machines) updateMachineReadout(machine);
+      if (palette.dataset.context !== processingResource()) addPalette();
       if (viewportController.mode() === 'idle' && !pendingConnection) renderConnections();
     }
 
+    paletteToggle.addEventListener('click', () => {
+      if (palette.dataset.context !== processingResource()) addPalette();
+      setPaletteOpen(paletteOverlay.hidden);
+    });
+    paletteClose.addEventListener('click', () => {
+      setPaletteOpen(false);
+      paletteToggle.focus({ preventScroll: true });
+    });
+    paletteOverlay.addEventListener('click', event => {
+      if (event.target === paletteOverlay) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
+    editor.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !paletteOverlay.hidden) {
+        event.preventDefault();
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
+    });
     palette.addEventListener('click', event => {
       const button = event.target.closest('[data-add-machine]');
-      if (button) addMachine(button.dataset.addMachine);
+      if (button && addMachine(button.dataset.addMachine)) {
+        setPaletteOpen(false);
+        paletteToggle.focus({ preventScroll: true });
+      }
     });
     viewport.addEventListener('click', event => {
       const button = event.target.closest('[data-remove-machine]');
       if (button) removeMachine(button.dataset.removeMachine);
     });
     nodeLayer.addEventListener('change', event => {
+      const resourceSelect = event.target.closest('select[data-dock-resource]');
+      if (resourceSelect && activeBuilding) {
+        const machine = machineById(resourceSelect.dataset.dockResource);
+        if (!machine || machine.outputBuffer.material > 0 || connections.some(link => link.fromMachineId === machine.id)) return;
+        if (!(activeBuilding.inventory?.[resourceSelect.value] > 0)) return;
+        machine.importResourceId = resourceSelect.value;
+        machine.cycleProgress = 0;
+        updateMachineReadout(machine); addPalette(); persist();
+        return;
+      }
       const select = event.target.closest('select[data-dock-destination]');
       if (!select || !activeBuilding || !select.dataset.resourceId) return;
       const resourceId = select.dataset.resourceId, destinationId = select.value || null;
@@ -9468,6 +9887,8 @@ globalThis.OrbitVersion = "0.34.103";
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const Logistics = globalThis.OrbitLogistics;
+  const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
+  const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SettlementSimulation = globalThis.OrbitSettlementSimulation;
   const SettlementConfig = globalThis.OrbitSettlementConfig;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
@@ -9498,6 +9919,8 @@ globalThis.OrbitVersion = "0.34.103";
     getDestinations(building) {
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
         candidate.planetId === building.planetId && candidate.constructionState === 'complete' &&
+        OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
+        LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     onDockDestinationChange(buildingId, resourceId, destinationId) {
@@ -9739,6 +10162,7 @@ globalThis.OrbitVersion = "0.34.103";
     state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {}; state.factoryPlans = {};
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
+    state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
     cancelRoadDrag();

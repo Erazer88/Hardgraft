@@ -1,115 +1,49 @@
 # Contexte courant
 
-État de référence compact pour les petites tâches. Il décrit les décisions de jeu
-validées et distingue les systèmes en place des choix encore temporaires. Pour les
-conflits, voir l'ordre de priorité dans [`AGENTS.md`](../AGENTS.md).
+Résumé des décisions actives et des points d'entrée du prototype. Les détails d'un
+système restent dans sa documentation spécialisée ; les anciens plans de
+`docs/reference/` sont des archives et ne définissent pas l'implémentation actuelle.
 
-## Architecture en place
+## Architecture
 
-- Prototype HTML/CSS/JavaScript sans framework. `index.html` charge des IIFE exposés
-  via `globalThis`; `build.py` embarque scripts, styles et ressources dans le HTML
-  autonome. Garder cet ordre de chargement, sans migration ESM/npm transversale.
-- Direction des responsabilités : `src/data/` déclare les paramètres ;
-  `src/simulation/` porte les modèles et règles testables sans DOM/Canvas ;
-  `src/gameplay/` raccorde les systèmes ; `src/ui/` gère DOM et interactions ;
-  `src/rendering/` dessine ; `src/app.js` initialise, relie les modules, gère les
-  interactions globales et exécute la boucle.
-- La génération est déterministe à partir de la graine. Navigation continue,
-  sauvegardes locales, construction de surface, routes et éditeur industriel sont
-  fonctionnels. Voir [`ARCHITECTURE.md`](ARCHITECTURE.md) pour la carte des modules.
+- Prototype web sans framework. `index.html` charge des scripts IIFE exposés via
+  `globalThis`; garder cet ordre et la compatibilité avec `build.py`.
+- `src/data/` contient les réglages, `src/world/` la génération, `src/simulation/`
+  les modèles, `src/gameplay/` leur raccordement, `src/ui/` les interactions,
+  `src/rendering/` le dessin et `src/app.js` l'initialisation.
+- La génération est déterministe par graine. Préserver navigation, sauvegardes et
+  compatibilité mobile/desktop lors des changements.
 
-## Systèmes en place et frontières
+## Décisions actives
 
-- Les processus suivent le gisement du bâtiment : fer, cuivre, silice et carbone pour
-  les Extracteurs terrestres, pétrole pour la Plateforme pétrolière. Concasseur, Broyeur
-  et Four de réduction restent des cartes communes, séparées et configurées par matière.
-  Les séparateurs, laveuses et sécheurs sont propres aux filières. Le Terril stocke
-  toutes les ressources sans limite ni débit ; le Dock de sortie est commun. Les buffers
-  et quantités sont entiers.
-  Référence : [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- La Foreuse n'a pas de plafond nominal. Les machines de traitement niveau 1 tournent
-  à 2 u/s ; le Concasseur reste le premier goulot de la chaîne minérale. Les recettes
-  d'enrichissement provisoires utilisent le ratio 5 → 2 + 3 ; le Four utilise 2 → 1 + 1.
-  Paramètres : `src/data/processes.js`.
-- Le graphe industriel est version 5. Les plans antérieurs sont réinitialisés car les
-  ports et recettes dépendent maintenant de la matière du gisement ; les sauvegardes
-  générales et bâtiments restent conservés. Les connexions nomment explicitement les
-  deux machines et leurs ports.
-- Le moteur pur est dans `processGraph.js` et `processSimulation.js`. L'éditeur garde
-  son affichage dans `factoryEditor.js` et les gestes dans `factoryViewport.js`.
-  `node --test tests/process-simulation.test.cjs` vérifie le moteur ;
-  `npm run test:factory-editor` valide les gestes dans un vrai navigateur desktop et
-  en émulation tactile.
-- Le Dock choisit une destination parmi les usines terminées équipées d'un Quai d'entrée
-  et les Plateformes de lancement, qui reçoivent nativement. Le transfert est instantané
-  après un chemin terrestre entièrement construit ; une plateforme lance automatiquement
-  ce qu'elle reçoit. Les autres bâtiments ne sont pas des destinations en V1. Les routes
-  n'ont ni capacité ni temps de trajet. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md)
-  et [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md).
-- Le Quai d'entrée affiche le stock reçu et alimente les machines par sa sortie droite,
-  à 2 unités entières/s. Chaque quai sélectionne une matière dans `building.inventory` ;
-  les quais partagent ce stock. Les nouvelles machines suivent la filière reçue, sans
-  modifier les machines déjà placées. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- L’Arche est un objet orbital déterministe distinct de l’épave du système primaire.
-  Son stock entier infini est sauvegardé. Le lancement traite en moyenne 4 u/s par
-  paquets entiers de 10 secondes ; la capacité énergétique de test est de 5 MW,
-  déclarée dans `src/data/orbitalLogistics.js`.
-- Le transit spatial est sauvegardé en lots entiers avec des heures absolues de départ
-  et d’arrivée en temps simulé. Les cargos sont un rendu séparé et ne portent aucune
-  matière. Les nouveaux cargos utilisent un transfert orbital prograde déterministe ;
-  les lots déjà en transit conservent leur échéance et leur modèle visuel. Aucun flux
-  Hub → planète n’est implémenté. Voir
+- Les bâtiments et ressources appartiennent à la surface d'une planète. Les routes
+  manuelles forment le réseau logistique terrestre ; les quartiers décoratifs et
+  leurs rues restent visuels et indépendants.
+- Les processus industriels sont simulés par cycles, buffers entiers, recettes,
+  connexions explicites et débits configurés. Voir
+  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+- Le modèle de transport cible agrège les transferts entre bâtiments. Actuellement,
+  le Dock transfère vers une usine avec Quai d'entrée ou une Plateforme de lancement
+  lorsqu'une route construite les relie. Les routes n'ont pas de capacité ni de durée.
+  Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
+- La génération de planète conserve `terrain.elevation` comme hauteur canonique et
+  utilise des champs géologiques supplémentaires pour le rendu. Voir
+  [`WORLDGEN.md`](WORLDGEN.md).
+- Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
+  illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques
+  finales ; leurs réglages se trouvent dans `src/data/processes.js`.
 
-## Décisions de conception validées
+## Points d'entrée et vérification
 
-- Il n'existe pas de stock global dépensable. Les ressources appartiennent à un réseau
-  logistique local ; les bâtiments connectés à un réseau partagent son stock limité.
-- Le modèle cible du transport terrestre est agrégé : pas de cargaisons simulées
-  individuellement, transfert économiquement instantané sous les limites du réseau.
-  L’implémentation actuelle permet le transfert Dock → usine équipée d'un Quai d'entrée
-  ou Plateforme de lancement, sans capacité routière ni contre-pression générale.
-- Dans un bâtiment, les processus restent précis : buffers, cycles, recettes, connexions,
-  débits, énergie et blocages. Principe directeur : précision à l'intérieur,
-  agrégation entre bâtiments.
-- Le transport spatial a une capacité limitée et un temps de trajet réel. Construction
-  et approvisionnement dépendants du réseau local restent à venir.
-- Traiter localement réduit la matière envoyée dans le réseau ; expédier du brut vers
-  une méga-usine reste une autre stratégie viable. Une foreuse sans plafond laisse le
-  premier bloc de traitement limiter sa chaîne.
-- Les recettes du prototype restent temporairement abstraites : le Four de réduction
-  ne consomme pas de carbone explicite.
-
-## Modes temporaires et écarts actuels
-
-- Le prototype utilise encore une réserve de colonie infinie et une puissance
-  illimitée par éolienne terminée. Ce sont des modes de test, pas l'économie finale ;
-  leurs paramètres sont dans `src/data/processes.js`.
-- Le code de prototype conserve encore `state.inventory` pour les coûts et
-  l'approvisionnement manuel. L'absence de stock global dépensable décrit le modèle
-  logistique cible ; ne pas confondre ce contrat avec cette implémentation temporaire.
-- Le réseau logistique partagé entre bâtiments, ses dépôts, limites de stock et
-  contre-pression restent à venir. Une route conditionne actuellement le transfert
-  instantané du stock de Dock vers une Plateforme de lancement.
-- Plusieurs Plateformes de lancement peuvent être construites sur une même planète ;
-  aucune d'elles n'est un bâtiment principal obligatoire.
-- L'analyse qualité est déclarée mais désactivée ; l'économie logistique complète est
-  une étape future. Ne pas implémenter ces mécaniques simplement parce qu'elles sont
-  décrites dans les références historiques.
-
-## Fichiers à lire selon la tâche
-
-| Tâche | Lecture minimale | Vérification ciblée |
+| Sujet | Code de départ | Vérification ciblée |
 | --- | --- | --- |
-| Valeur de recette ou débit | `src/data/processes.js`, puis au besoin `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
-| Moteur de processus ou transfert | `processGraph.js`, `processSimulation.js` et `PROCESS_SYSTEM.md` | `node --test tests/process-simulation.test.cjs` |
-| Génération / graine | `src/data/worldgen.js`, `src/world.js`, `docs/WORLDGEN.md` | `node --test src/world.test.cjs` |
-| Caméra / navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs`; navigateur si interaction modifiée |
-| Routes / quartiers | `ROAD_SYSTEM.md` puis le module touché | `node --test tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs` |
-| Interface ou gestes de processus | `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js`, puis modules de graphe concernés | `npm run test:factory-editor` |
-| Sauvegarde | `src/storage/save.js`, `src/state.js`, `tests/architecture.test.cjs` | `node --test tests/architecture.test.cjs` |
-| Export orbital | `src/data/orbitalLogistics.js`, `src/simulation/logisticsNetwork.js`, `src/simulation/orbitalTransit.js`, `src/gameplay/logistics.js` | `node --test tests/orbital-logistics.test.cjs` |
-| Export autonome | `build.py`, `index.html`, références depuis le script concerné | `python3 build.py` lors d'une livraison |
+| Monde et graine | `src/world.js`, `src/data/worldgen.js` | `node --test src/world.test.cjs` |
+| Caméra et navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
+| Processus industriels | `src/simulation/processGraph.js`, `src/simulation/processSimulation.js` | `node --test tests/process-simulation.test.cjs` |
+| Routes et quartiers | `src/simulation/roadNetwork.js`, `src/simulation/settlements.js` | `node --test tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs` |
+| Sauvegardes | `src/storage/save.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
+| Export autonome | `build.py`, `index.html` | `python3 build.py` |
 
-Suite complète : `npm test`. Smoke navigateur : `node tests/browser-smoke.cjs` lorsque
-l'application, la navigation ou l'UI changent.
+Pour une livraison complète, `npm test` lance la suite ; les tests navigateur sont
+nécessaires lorsque la navigation, les gestes ou l'interface changent.

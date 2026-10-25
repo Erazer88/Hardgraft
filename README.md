@@ -2,7 +2,7 @@
 
 Prototype mobile de navigation spatiale et d'industrie, optimisé pour le paysage. Explorez une galaxie procédurale, examinez les cartes topographiques et construisez des chaînes de processus à l'intérieur des bâtiments.
 
-Les références de direction artistique sont dans [docs/images](docs/images). Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
+Les captures de contrôle temporaires ne sont pas versionnées. Les textures et modèles utilisés en jeu restent dans `assets/`. Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
 
 ## Développement
 
