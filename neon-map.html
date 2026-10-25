@@ -88,7 +88,7 @@
     </button>
     <aside class="panel" id="settings" hidden>
       <div class="panel-head">
-        <div><span class="eyebrow">NÉRÉIDE · CARTOGRAPHIE</span><span class="panel-title">Prototype Neon Map</span></div>
+        <div><span class="eyebrow">NÉRÉIDE · CARTOGRAPHIE</span><span class="panel-title">Prototype Neon Map · v0.2</span></div>
         <button class="close" id="close-settings" type="button" aria-label="Fermer les réglages">×</button>
       </div>
       <div class="field">
@@ -107,12 +107,12 @@
         <input id="island-count" type="range" min="0" max="72" value="34">
       </div>
       <div class="field">
-        <div class="field-heading"><label for="coast-detail">Détail côtier</label><output id="detail-value">72 %</output></div>
-        <input id="coast-detail" type="range" min="0" max="100" value="72">
+        <div class="field-heading"><label for="coast-detail">Détail côtier</label><output id="detail-value">90 %</output></div>
+        <input id="coast-detail" type="range" min="0" max="100" value="90">
       </div>
       <div class="field">
-        <div class="field-heading"><label for="coast-glow">Lueur du littoral</label><output id="glow-value">52 %</output></div>
-        <input id="coast-glow" type="range" min="0" max="100" value="52">
+        <div class="field-heading"><label for="coast-glow">Lueur du littoral</label><output id="glow-value">42 %</output></div>
+        <input id="coast-glow" type="range" min="0" max="100" value="42">
       </div>
       <div class="palette">
         <div class="color-control"><label for="ocean-color">OCÉAN</label><input id="ocean-color" type="color" value="#07182b"></div>
@@ -134,7 +134,7 @@
       const ctx = canvas.getContext('2d', { alpha: false });
       const settingsPanel = document.querySelector('#settings');
       const byId = id => document.getElementById(id);
-      const state = { seed: 'NEREIDE-NEON-01', continents: 3, islands: 34, detail: 72, glow: 52,
+      const state = { seed: 'NEREIDE-NEON-01', continents: 3, islands: 34, detail: 90, glow: 42,
         ocean: '#07182b', land: '#bd4d89', coast: '#ff87b7' };
       let pixelRatio = 1;
 
@@ -200,33 +200,16 @@
       }
       function makeWorldShapes(seedText, detail) {
         const random = seededRandom(seedText);
-        const shapes = [], lobes = [], bays = [], islandShapes = [];
+        const continents = [], islandShapes = [];
+        const fieldSeed = Math.floor(random() * 0x7fffffff);
         const count = state.continents;
         for (let i = 0; i < count; i += 1) {
           const lane = (i + .5) / count;
           const x = Math.max(.035, Math.min(.965, lane + (random() - .5) * .10));
           const y = .18 + random() * .64;
-          const baseRx = .23 / Math.sqrt(count);
-          const rx = baseRx * (.84 + random() * .36);
-          const ry = Math.min(.34, rx * (1.10 + random() * .48));
-          const continent = makeShape(x, y, rx, ry, random, detail, .48);
-          shapes.push(continent);
-          const lobeCount = 1 + Math.floor(random() * 3);
-          for (let lobe = 0; lobe < lobeCount; lobe += 1) {
-            const angle = random() * Math.PI * 2;
-            const distance = .46 + random() * .16;
-            const lobeRx = rx * (.30 + random() * .15), lobeRy = ry * (.30 + random() * .15);
-            lobes.push(makeShape(x + Math.cos(angle) * rx * distance,
-              y + Math.sin(angle) * ry * distance, lobeRx, lobeRy, random, detail, .58));
-          }
-          const bayCount = 1 + Math.floor(random() * 2);
-          for (let bay = 0; bay < bayCount; bay += 1) {
-            const angle = random() * Math.PI * 2;
-            const distance = .79 + random() * .16;
-            bays.push(makeShape(x + Math.cos(angle) * rx * distance,
-              y + Math.sin(angle) * ry * distance, rx * (.20 + random() * .11),
-              ry * (.20 + random() * .11), random, detail * .7, .55));
-          }
+          const rx = (.24 / Math.sqrt(count)) * (.78 + random() * .42);
+          const ry = Math.min(.34, rx * (.98 + random() * .72));
+          continents.push({ x, y, rx, ry, rotation: (random() - .5) * .75 });
         }
         const clusterCount = state.islands ? Math.max(2, Math.ceil(state.islands / 8)) : 0;
         const clusters = Array.from({ length: clusterCount }, () => ({ x: .05 + random() * .90, y: .08 + random() * .84 }));
@@ -240,7 +223,7 @@
           const ry = .006 + Math.pow(random(), 1.3) * .024;
           islandShapes.push(makeShape(x, y, rx, ry, random, detail, .58));
         }
-        return { shapes, lobes, bays, islands: islandShapes };
+        return { continents, islands: islandShapes, fieldSeed };
       }
       function rgba(hex, alpha) {
         const value = Number.parseInt(hex.slice(1), 16);
@@ -251,27 +234,123 @@
         const channels = [value >> 16, value >> 8 & 255, value & 255].map(channel => Math.min(255, Math.round(channel * amount)));
         return '#' + channels.map(channel => channel.toString(16).padStart(2, '0')).join('');
       }
-      function buildMask(width, height, detail) {
-        const mask = document.createElement('canvas');
-        mask.width = width; mask.height = height;
-        const maskCtx = mask.getContext('2d', { willReadFrequently: true });
-        const { shapes, lobes, bays, islands } = makeWorldShapes(state.seed, detail);
-        maskCtx.fillStyle = '#fff';
-        for (const shape of [...shapes, ...lobes]) { traceShape(maskCtx, shape, width, height, detail); maskCtx.fill(); }
-        maskCtx.globalCompositeOperation = 'destination-out';
-        for (const bay of bays) { traceShape(maskCtx, bay, width, height, detail); maskCtx.fill(); }
-        maskCtx.globalCompositeOperation = 'source-over';
-        for (const island of islands) { traceShape(maskCtx, island, width, height, detail); maskCtx.fill(); }
-        const softened = document.createElement('canvas'); softened.width = width; softened.height = height;
-        const softenCtx = softened.getContext('2d');
-        softenCtx.filter = `blur(${1.15 * pixelRatio}px)`; softenCtx.drawImage(mask, 0, 0); softenCtx.filter = 'none';
-        const image = softenCtx.getImageData(0, 0, width, height), pixels = image.data;
-        for (let i = 3; i < pixels.length; i += 4) {
-          const alpha = pixels[i];
-          pixels[i] = alpha < 104 ? 0 : alpha > 224 ? 255 : Math.round((alpha - 104) * 255 / 120);
-          pixels[i - 3] = 255; pixels[i - 2] = 255; pixels[i - 1] = 255;
+      function makeLandPigment(width, height, color, seedText) {
+        // Low-amplitude pigment variation keeps the land flat (no height cues,
+        // shadows or contour lines) while breaking the single-color sticker look.
+        const texture = document.createElement('canvas');
+        texture.width = Math.min(640, width);
+        texture.height = Math.max(1, Math.round(height * texture.width / width));
+        const textureCtx = texture.getContext('2d');
+        const image = textureCtx.createImageData(texture.width, texture.height);
+        const pixels = image.data;
+        const base = Number.parseInt(color.slice(1), 16);
+        const channels = [base >> 16, base >> 8 & 255, base & 255];
+        const random = seededRandom(seedText + ':pigment');
+        const seed = Math.floor(random() * 0x7fffffff);
+        for (let y = 0; y < texture.height; y += 1) {
+          const ny = y / texture.height;
+          for (let x = 0; x < texture.width; x += 1) {
+            const nx = x / texture.width;
+            const macro = noise2(nx * 4.6 + 2.1, ny * 3.8 - 6.4, seed) - .5;
+            const meso = noise2(nx * 16.8 - 9.2, ny * 13.6 + 3.7, seed ^ 0x9e3779b9) - .5;
+            const fine = noise2(nx * 48.2 + 12.8, ny * 39.6 - 1.5, seed ^ 0x243f6a88) - .5;
+            const grain = noise2(nx * 132.4 - 4.3, ny * 107.6 + 8.2, seed ^ 0xbb67ae85) - .5;
+            const index = (y * texture.width + x) * 4;
+            pixels[index] = Math.max(0, Math.min(255, Math.round(channels[0] * (1 + macro * .32 + meso * .16 + fine * .07))));
+            pixels[index + 1] = Math.max(0, Math.min(255, Math.round(channels[1] * (1 + macro * .27 + meso * .14 + fine * .06 - grain * .06))));
+            pixels[index + 2] = Math.max(0, Math.min(255, Math.round(channels[2] * (1 + macro * .32 + meso * .16 + fine * .07 + grain * .08))));
+            pixels[index + 3] = 255;
+          }
         }
-        softenCtx.putImageData(image, 0, 0);
+        textureCtx.putImageData(image, 0, 0);
+        return texture;
+      }
+      function buildMask(width, height, detail) {
+        // Evaluate an implicit continental field rather than drawing noisy
+        // ellipses. A low-frequency warp creates shelves and capes; increasingly
+        // fine seeded bands break the coast into bays, inlets and small points.
+        const fieldWidth = Math.min(width, 1800);
+        const fieldHeight = Math.max(1, Math.round(height * fieldWidth / width));
+        const mask = document.createElement('canvas');
+        mask.width = fieldWidth; mask.height = fieldHeight;
+        const maskCtx = mask.getContext('2d', { willReadFrequently: true });
+        const { continents, islands, fieldSeed } = makeWorldShapes(state.seed, detail);
+        for (const continent of continents) {
+          continent.cos = Math.cos(continent.rotation);
+          continent.sin = Math.sin(continent.rotation);
+        }
+        const image = maskCtx.createImageData(fieldWidth, fieldHeight);
+        const pixels = image.data;
+        const detailScale = detail / 100;
+        const mediumFrequency = 8 + detailScale * 7;
+        const fineFrequency = 23 + detailScale * 31;
+        const microFrequency = 55 + detailScale * 75;
+        const coastalFrequency = 128 + detailScale * 150;
+        for (let y = 0; y < fieldHeight; y += 1) {
+          const ny = y / Math.max(1, fieldHeight - 1);
+          for (let x = 0; x < fieldWidth; x += 1) {
+            const nx = x / Math.max(1, fieldWidth - 1);
+            // Two differently scaled vector warps prevent the coast from reading
+            // as a noisy ellipse: the first bends whole shelves, the second
+            // breaks those shelves into long capes, bays and narrow inlets.
+            const warpX = (noise2(nx * 2.2 + 3.7, ny * 1.8 - 5.2, fieldSeed ^ 0x3c6ef372) - .5) * .34 +
+              (noise2(nx * 7.1 + 12.4, ny * 5.4 - 2.6, fieldSeed ^ 0x9e3779b9) - .5) * .10;
+            const warpY = (noise2(nx * 2.0 - 8.3, ny * 2.0 + 9.1, fieldSeed ^ 0x1bf5a6d7) - .5) * .31 +
+              (noise2(nx * 6.3 - 4.7, ny * 7.7 + 3.2, fieldSeed ^ 0x243f6a88) - .5) * .09;
+            const wx = nx + warpX, wy = ny + warpY;
+            let continentalCore = -2;
+            for (const continent of continents) {
+              const dx = wx - continent.x, dy = wy - continent.y;
+              const rx = (dx * continent.cos + dy * continent.sin) / continent.rx;
+              const ry = (-dx * continent.sin + dy * continent.cos) / continent.ry;
+              continentalCore = Math.max(continentalCore, 1 - Math.hypot(rx, ry));
+            }
+            const broad = (noise2(wx * 3.7 + 5.3, wy * 2.8 - 4.7, fieldSeed ^ 0x5a827999) - .5) * 1.02;
+            const medium = (noise2(wx * mediumFrequency + 11.8, wy * mediumFrequency * .72 + 6.1,
+              fieldSeed ^ 0xbb67ae85) - .5) * (.30 + detailScale * .34);
+            const fine = (noise2(wx * fineFrequency - 16.4, wy * fineFrequency * .70 + 2.8,
+              fieldSeed ^ 0x6a09e667) - .5) * (.10 + detailScale * .17);
+            const shapeField = continentalCore + broad + medium + fine;
+            let coastalDetail = 0;
+            // Spend high-frequency work only near the shoreline. A four-octave
+            // coastal fractal creates nested headlands, coves and tiny inlets;
+            // unlike a polygon outline, every scale follows one continuous field.
+            if (detailScale > 0 && Math.abs(shapeField) < .40) {
+              const coastX = wx + (noise2(wx * 19.3 + 7.2, wy * 15.7 - 3.6,
+                fieldSeed ^ 0x3c6ef35f) - .5) * .010;
+              const coastY = wy + (noise2(wx * 16.1 - 9.4, wy * 21.7 + 5.3,
+                fieldSeed ^ 0xa54ff53a) - .5) * .010;
+              // Rotate the coastal field away from the canvas axes, which keeps
+              // its small coves from lining up into obvious horizontal streaks.
+              const coastU = (coastX * .83 + coastY * .58) * coastalFrequency * .22 - 31.6;
+              const coastV = (-coastX * .58 + coastY * .83) * coastalFrequency * .16 + 17.2;
+              const fractalCoast = fbm2(coastU, coastV, fieldSeed ^ 0xa54ff53a, 4);
+              const micro = (noise2(wx * microFrequency * .82 + wy * microFrequency * .31 + 23.1,
+                -wx * microFrequency * .31 + wy * microFrequency * .55 - 19.7,
+                fieldSeed ^ 0x3c6ef35f) - .5) * detailScale * .10;
+              const coast = (noise2(coastU * 1.18, coastV * 1.18,
+                fieldSeed ^ 0x165667b1) - .5) * detailScale * .07;
+              coastalDetail = detailScale * fractalCoast * .40 + micro + coast;
+            }
+            const land = shapeField + coastalDetail > 0;
+            const offset = (y * fieldWidth + x) * 4;
+            pixels[offset] = 255; pixels[offset + 1] = 255; pixels[offset + 2] = 255;
+            pixels[offset + 3] = land ? 255 : 0;
+          }
+        }
+        maskCtx.putImageData(image, 0, 0);
+        maskCtx.fillStyle = '#fff';
+        for (const island of islands) { traceShape(maskCtx, island, fieldWidth, fieldHeight, detail); maskCtx.fill(); }
+        const softened = document.createElement('canvas'); softened.width = fieldWidth; softened.height = fieldHeight;
+        const softenCtx = softened.getContext('2d');
+        softenCtx.filter = 'blur(.7px)'; softenCtx.drawImage(mask, 0, 0); softenCtx.filter = 'none';
+        const softenedImage = softenCtx.getImageData(0, 0, fieldWidth, fieldHeight), softenedPixels = softenedImage.data;
+        for (let i = 3; i < softenedPixels.length; i += 4) {
+          const alpha = softenedPixels[i];
+          softenedPixels[i] = alpha < 90 ? 0 : alpha > 235 ? 255 : Math.round((alpha - 90) * 255 / 145);
+          softenedPixels[i - 3] = 255; softenedPixels[i - 2] = 255; softenedPixels[i - 1] = 255;
+        }
+        softenCtx.putImageData(softenedImage, 0, 0);
         return softened;
       }
       function makeEdgeMask(mask, color) {
@@ -328,19 +407,15 @@
         glowCtx.globalCompositeOperation = 'destination-in'; glowCtx.drawImage(mask, 0, 0);
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
-        ctx.globalAlpha = .18 + glow * .58;
+        ctx.globalAlpha = .14 + glow * .44;
         ctx.shadowColor = rgba(state.coast, .92);
-        ctx.shadowBlur = (3 + glow * 21) * pixelRatio;
+        ctx.shadowBlur = (2 + glow * 13) * pixelRatio;
         ctx.drawImage(glowSource, 0, 0);
         ctx.restore();
 
         const landCanvas = document.createElement('canvas'); landCanvas.width = width; landCanvas.height = height;
         const landCtx = landCanvas.getContext('2d');
-        const landGradient = landCtx.createLinearGradient(width * .12, height * .05, width * .9, height * .94);
-        landGradient.addColorStop(0, brighter(state.land, 1.13));
-        landGradient.addColorStop(.52, state.land);
-        landGradient.addColorStop(1, brighter(state.land, .88));
-        landCtx.fillStyle = landGradient; landCtx.fillRect(0, 0, width, height);
+        landCtx.drawImage(makeLandPigment(width, height, state.land, state.seed), 0, 0, width, height);
         landCtx.globalCompositeOperation = 'destination-in'; landCtx.drawImage(mask, 0, 0);
         ctx.drawImage(landCanvas, 0, 0);
 
@@ -386,7 +461,13 @@
         byId('seed').value = randomSeed(); readControls(); render();
       });
       byId('lock-seed').addEventListener('change', event => { byId('new-seed').disabled = event.target.checked; });
-      for (const id of ['continent-count', 'island-count', 'coast-detail', 'coast-glow', 'ocean-color', 'land-color', 'coast-color']) {
+      for (const id of ['continent-count', 'island-count', 'coast-detail', 'coast-glow']) {
+        byId(id).addEventListener('input', readControls);
+        // Coast generation is intentionally committed on release. At full map
+        // resolution it is too costly to rebuild on every pointer-move event.
+        byId(id).addEventListener('change', () => { readControls(); render(); });
+      }
+      for (const id of ['ocean-color', 'land-color', 'coast-color']) {
         byId(id).addEventListener('input', () => { readControls(); render(); });
       }
       byId('seed').addEventListener('change', () => { readControls(); render(); });
