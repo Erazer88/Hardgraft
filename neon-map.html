@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071425">
+  <meta name="description" content="Prototype de carte planétaire néon, générée par seed.">
+  <title>Néréide — Prototype Neon Map</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #030a13; }
+    body { display: grid; place-items: center; }
+    .stage {
+      position: relative;
+      width: min(100vw, 160vh);
+      aspect-ratio: 1.6;
+      overflow: hidden;
+      background: #071425;
+      box-shadow: 0 24px 90px #0009, 0 0 0 1px #27405a66;
+      isolation: isolate;
+    }
+    #map { display: block; width: 100%; height: 100%; }
+    .settings-toggle {
+      position: absolute; z-index: 3; top: 14px; right: 14px;
+      display: grid; place-items: center; width: 38px; height: 38px;
+      border: 1px solid #8ba6bb33; border-radius: 11px;
+      color: #c6d4df; background: #071421c9; box-shadow: 0 6px 24px #02070c66;
+      cursor: pointer; backdrop-filter: blur(12px);
+    }
+    .settings-toggle:hover { border-color: #ff84b977; color: #fff; }
+    .settings-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+    .panel {
+      position: absolute; z-index: 4; top: 14px; right: 14px;
+      width: min(340px, calc(100% - 28px)); padding: 16px;
+      border: 1px solid #8ba6bb3d; border-radius: 14px;
+      background: #071421ed; box-shadow: 0 18px 56px #0009;
+      color: #c8d4df; backdrop-filter: blur(18px);
+    }
+    .panel[hidden] { display: none; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+    .panel-head div { display: grid; gap: 4px; }
+    .eyebrow { color: #a4b7c7; font: 10px/1.2 ui-monospace, SFMono-Regular, monospace; letter-spacing: .22em; }
+    .panel-title { color: #f0eaf1; font-size: 14px; font-weight: 600; letter-spacing: .035em; }
+    .close {
+      display: grid; place-items: center; width: 28px; height: 28px; border: 0;
+      color: #afbfcc; background: transparent; font-size: 23px; cursor: pointer;
+    }
+    .field { display: grid; gap: 7px; margin: 12px 0; }
+    .field-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    label, .field-heading span { color: #a8bac8; font-size: 11px; letter-spacing: .055em; }
+    output { color: #f1afc9; font: 11px ui-monospace, monospace; }
+    input[type="text"] {
+      min-width: 0; width: 100%; height: 34px; padding: 0 10px;
+      border: 1px solid #627b8e55; border-radius: 7px; outline: none;
+      color: #e6edf2; background: #0b1d2d; font: 12px ui-monospace, monospace;
+    }
+    input[type="text"]:focus { border-color: #f278a5aa; }
+    input[type="range"] { width: 100%; accent-color: #e56a9a; }
+    .seed-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+    .lock { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .lock input { accent-color: #e56a9a; }
+    .palette { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; margin: 15px 0 13px; }
+    .color-control { display: grid; gap: 6px; }
+    .color-control label { font-size: 9px; }
+    input[type="color"] { width: 100%; height: 31px; padding: 3px; border: 1px solid #627b8e55; border-radius: 7px; background: #0b1d2d; cursor: pointer; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+    .action {
+      min-height: 34px; border: 1px solid #60788c66; border-radius: 7px;
+      color: #d7e1e8; background: #102335; font: 10px ui-monospace, monospace;
+      letter-spacing: .08em; cursor: pointer;
+    }
+    .action.primary { border-color: #df77a477; background: #61294766; }
+    .action:disabled { opacity: .4; cursor: not-allowed; }
+    @media (max-width: 560px) {
+      .stage { width: 100vw; }
+      .settings-toggle, .panel { top: 9px; right: 9px; }
+      .panel { padding: 13px; }
+      .field { margin: 9px 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="Carte planétaire rectangulaire">
+    <canvas id="map" aria-label="Océan sombre, continents magenta et archipels sans relief ni marqueurs"></canvas>
+    <button class="settings-toggle" id="settings-toggle" type="button" aria-label="Ouvrir les réglages" title="Réglages">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.3 13.3a7.5 7.5 0 0 0 0-2.6l1.5-1.2-1.7-3-1.8.7a7.3 7.3 0 0 0-2.2-1.3L14.8 4h-3.5l-.3 1.9a7.3 7.3 0 0 0-2.2 1.3L7 6.5l-1.7 3 1.5 1.2a7.5 7.5 0 0 0 0 2.6l-1.5 1.2 1.7 3 1.8-.7a7.3 7.3 0 0 0 2.2 1.3l.3 1.9h3.5l.3-1.9a7.3 7.3 0 0 0 2.2-1.3l1.8.7 1.7-3z"/></svg>
+    </button>
+    <aside class="panel" id="settings" hidden>
+      <div class="panel-head">
+        <div><span class="eyebrow">NÉRÉIDE · CARTOGRAPHIE</span><span class="panel-title">Prototype Neon Map</span></div>
+        <button class="close" id="close-settings" type="button" aria-label="Fermer les réglages">×</button>
+      </div>
+      <div class="field">
+        <div class="field-heading"><label for="seed">Seed</label></div>
+        <div class="seed-row">
+          <input id="seed" type="text" value="NEREIDE-NEON-01" autocomplete="off" spellcheck="false">
+          <label class="lock"><input id="lock-seed" type="checkbox" checked> Verrouillée</label>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-heading"><label for="continent-count">Grandes masses</label><output id="continent-value">3</output></div>
+        <input id="continent-count" type="range" min="1" max="5" value="3">
+      </div>
+      <div class="field">
+        <div class="field-heading"><label for="island-count">Îles secondaires</label><output id="island-value">34</output></div>
+        <input id="island-count" type="range" min="0" max="72" value="34">
+      </div>
+      <div class="field">
+        <div class="field-heading"><label for="coast-detail">Détail côtier</label><output id="detail-value">72 %</output></div>
+        <input id="coast-detail" type="range" min="0" max="100" value="72">
+      </div>
+      <div class="field">
+        <div class="field-heading"><label for="coast-glow">Lueur du littoral</label><output id="glow-value">52 %</output></div>
+        <input id="coast-glow" type="range" min="0" max="100" value="52">
+      </div>
+      <div class="palette">
+        <div class="color-control"><label for="ocean-color">OCÉAN</label><input id="ocean-color" type="color" value="#07182b"></div>
+        <div class="color-control"><label for="land-color">TERRE</label><input id="land-color" type="color" value="#bd4d89"></div>
+        <div class="color-control"><label for="coast-color">CÔTE</label><input id="coast-color" type="color" value="#ff87b7"></div>
+      </div>
+      <div class="actions">
+        <button class="action primary" id="regenerate" type="button">RÉGÉNÉRER</button>
+        <button class="action" id="new-seed" type="button">NOUVELLE SEED</button>
+      </div>
+    </aside>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+
+      const stage = document.querySelector('.stage');
+      const canvas = document.querySelector('#map');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const settingsPanel = document.querySelector('#settings');
+      const byId = id => document.getElementById(id);
+      const state = { seed: 'NEREIDE-NEON-01', continents: 3, islands: 34, detail: 72, glow: 52,
+        ocean: '#07182b', land: '#bd4d89', coast: '#ff87b7' };
+      let pixelRatio = 1;
+
+      function seededRandom(seedText) {
+        let seed = 2166136261;
+        for (let i = 0; i < seedText.length; i += 1) seed = Math.imul(seed ^ seedText.charCodeAt(i), 16777619);
+        return () => {
+          seed += 0x6D2B79F5;
+          let value = seed;
+          value = Math.imul(value ^ value >>> 15, value | 1);
+          value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+          return ((value ^ value >>> 14) >>> 0) / 4294967296;
+        };
+      }
+      const mix = (a, b, t) => a + (b - a) * t;
+      const smooth = t => t * t * (3 - 2 * t);
+      function hash2(x, y, seed) {
+        let value = Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(y | 0, 0x5f356495) ^ seed;
+        value = Math.imul(value ^ value >>> 15, value | 1);
+        value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+        return ((value ^ value >>> 14) >>> 0) / 4294967296;
+      }
+      function noise2(x, y, seed) {
+        const ix = Math.floor(x), iy = Math.floor(y), tx = smooth(x - ix), ty = smooth(y - iy);
+        return mix(mix(hash2(ix, iy, seed), hash2(ix + 1, iy, seed), tx),
+          mix(hash2(ix, iy + 1, seed), hash2(ix + 1, iy + 1, seed), tx), ty);
+      }
+      function fbm2(x, y, seed, octaves = 4) {
+        let value = 0, amplitude = .56, total = 0, frequency = 1;
+        for (let octave = 0; octave < octaves; octave += 1) {
+          value += (noise2(x * frequency, y * frequency, seed + octave * 0x45d9f3b) - .5) * amplitude;
+          total += amplitude;
+          amplitude *= .52; frequency *= 2.03;
+        }
+        return value / total;
+      }
+      function makeShape(x, y, rx, ry, random, detail, minRadius = .72) {
+        return { x, y, rx, ry, rotation: (random() - .5) * .8,
+          seed: Math.floor(random() * 0x7fffffff), phase: random() * Math.PI * 2,
+          points: Math.min(560, Math.max(96, Math.round(160 + detail * 3.4 * Math.min(1.5, rx * 5)))), minRadius };
+      }
+      function traceShape(target, shape, width, height, detail) {
+        const { x, y, rx, ry, rotation, seed, phase, points } = shape;
+        const co = Math.cos(rotation), si = Math.sin(rotation);
+        target.beginPath();
+        for (let i = 0; i <= points; i += 1) {
+          const angle = i / points * Math.PI * 2;
+          const cx = Math.cos(angle), cy = Math.sin(angle);
+          const broad = fbm2(cx * 2.6 + 4.1, cy * 2.6 - 3.2, seed, 3);
+          const mid = fbm2(cx * 8.2 - 2.7, cy * 8.2 + 1.8, seed ^ 0x7f4a7c15, 3);
+          const fine = fbm2(cx * 22 + 6.3, cy * 22 - 4.8, seed ^ 0x165667b1, 2);
+          const detailScale = detail / 100;
+          const waves = Math.sin(angle * 3 + phase) * .045 + Math.sin(angle * 5 - phase * 1.7) * .030 +
+            Math.sin(angle * 9 + phase * .61) * .015;
+          const radius = Math.max(shape.minRadius, 1 + waves + broad * .48 + mid * (.12 + detailScale * .27) +
+            fine * detailScale * .13);
+          const lx = cx * rx * radius, ly = cy * ry * radius;
+          const px = (x + lx * co - ly * si) * width;
+          const py = (y + lx * si + ly * co) * height;
+          if (i === 0) target.moveTo(px, py); else target.lineTo(px, py);
+        }
+        target.closePath();
+      }
+      function makeWorldShapes(seedText, detail) {
+        const random = seededRandom(seedText);
+        const shapes = [], lobes = [], bays = [], islandShapes = [];
+        const count = state.continents;
+        for (let i = 0; i < count; i += 1) {
+          const lane = (i + .5) / count;
+          const x = Math.max(.035, Math.min(.965, lane + (random() - .5) * .10));
+          const y = .18 + random() * .64;
+          const baseRx = .23 / Math.sqrt(count);
+          const rx = baseRx * (.84 + random() * .36);
+          const ry = Math.min(.34, rx * (1.10 + random() * .48));
+          const continent = makeShape(x, y, rx, ry, random, detail, .48);
+          shapes.push(continent);
+          const lobeCount = 1 + Math.floor(random() * 3);
+          for (let lobe = 0; lobe < lobeCount; lobe += 1) {
+            const angle = random() * Math.PI * 2;
+            const distance = .46 + random() * .16;
+            const lobeRx = rx * (.30 + random() * .15), lobeRy = ry * (.30 + random() * .15);
+            lobes.push(makeShape(x + Math.cos(angle) * rx * distance,
+              y + Math.sin(angle) * ry * distance, lobeRx, lobeRy, random, detail, .58));
+          }
+          const bayCount = 1 + Math.floor(random() * 2);
+          for (let bay = 0; bay < bayCount; bay += 1) {
+            const angle = random() * Math.PI * 2;
+            const distance = .79 + random() * .16;
+            bays.push(makeShape(x + Math.cos(angle) * rx * distance,
+              y + Math.sin(angle) * ry * distance, rx * (.20 + random() * .11),
+              ry * (.20 + random() * .11), random, detail * .7, .55));
+          }
+        }
+        const clusterCount = state.islands ? Math.max(2, Math.ceil(state.islands / 8)) : 0;
+        const clusters = Array.from({ length: clusterCount }, () => ({ x: .05 + random() * .90, y: .08 + random() * .84 }));
+        for (let i = 0; i < state.islands; i += 1) {
+          const cluster = clusters[i % clusters.length];
+          const jitterX = (random() + random() + random() - 1.5) * .105;
+          const jitterY = (random() + random() + random() - 1.5) * .15;
+          const x = Math.max(.008, Math.min(.992, cluster.x + jitterX));
+          const y = Math.max(.02, Math.min(.98, cluster.y + jitterY));
+          const rx = .004 + Math.pow(random(), 1.4) * .017;
+          const ry = .006 + Math.pow(random(), 1.3) * .024;
+          islandShapes.push(makeShape(x, y, rx, ry, random, detail, .58));
+        }
+        return { shapes, lobes, bays, islands: islandShapes };
+      }
+      function rgba(hex, alpha) {
+        const value = Number.parseInt(hex.slice(1), 16);
+        return `rgba(${value >> 16},${value >> 8 & 255},${value & 255},${alpha})`;
+      }
+      function brighter(hex, amount) {
+        const value = Number.parseInt(hex.slice(1), 16);
+        const channels = [value >> 16, value >> 8 & 255, value & 255].map(channel => Math.min(255, Math.round(channel * amount)));
+        return '#' + channels.map(channel => channel.toString(16).padStart(2, '0')).join('');
+      }
+      function buildMask(width, height, detail) {
+        const mask = document.createElement('canvas');
+        mask.width = width; mask.height = height;
+        const maskCtx = mask.getContext('2d', { willReadFrequently: true });
+        const { shapes, lobes, bays, islands } = makeWorldShapes(state.seed, detail);
+        maskCtx.fillStyle = '#fff';
+        for (const shape of [...shapes, ...lobes]) { traceShape(maskCtx, shape, width, height, detail); maskCtx.fill(); }
+        maskCtx.globalCompositeOperation = 'destination-out';
+        for (const bay of bays) { traceShape(maskCtx, bay, width, height, detail); maskCtx.fill(); }
+        maskCtx.globalCompositeOperation = 'source-over';
+        for (const island of islands) { traceShape(maskCtx, island, width, height, detail); maskCtx.fill(); }
+        const softened = document.createElement('canvas'); softened.width = width; softened.height = height;
+        const softenCtx = softened.getContext('2d');
+        softenCtx.filter = `blur(${1.15 * pixelRatio}px)`; softenCtx.drawImage(mask, 0, 0); softenCtx.filter = 'none';
+        const image = softenCtx.getImageData(0, 0, width, height), pixels = image.data;
+        for (let i = 3; i < pixels.length; i += 4) {
+          const alpha = pixels[i];
+          pixels[i] = alpha < 104 ? 0 : alpha > 224 ? 255 : Math.round((alpha - 104) * 255 / 120);
+          pixels[i - 3] = 255; pixels[i - 2] = 255; pixels[i - 1] = 255;
+        }
+        softenCtx.putImageData(image, 0, 0);
+        return softened;
+      }
+      function makeEdgeMask(mask, color) {
+        const width = mask.width, height = mask.height, source = mask.getContext('2d').getImageData(0, 0, width, height).data;
+        const edge = document.createElement('canvas'); edge.width = width; edge.height = height;
+        const edgeCtx = edge.getContext('2d'), output = edgeCtx.createImageData(width, height), pixels = output.data;
+        const colorValue = Number.parseInt(color.slice(1), 16);
+        const red = colorValue >> 16, green = colorValue >> 8 & 255, blue = colorValue & 255;
+        for (let y = 1; y < height - 1; y += 1) for (let x = 1; x < width - 1; x += 1) {
+          const index = (y * width + x) * 4;
+          if (source[index + 3] < 128) continue;
+          const empty = source[index - 4 + 3] < 128 || source[index + 4 + 3] < 128 ||
+            source[index - width * 4 + 3] < 128 || source[index + width * 4 + 3] < 128;
+          if (!empty) continue;
+          pixels[index] = red; pixels[index + 1] = green; pixels[index + 2] = blue; pixels[index + 3] = 235;
+        }
+        edgeCtx.putImageData(output, 0, 0);
+        return edge;
+      }
+      function drawOcean(width, height) {
+        const gradient = ctx.createLinearGradient(0, 0, width * .2, height);
+        gradient.addColorStop(0, brighter(state.ocean, 1.13));
+        gradient.addColorStop(.52, state.ocean);
+        gradient.addColorStop(1, brighter(state.ocean, .78));
+        ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height);
+        ctx.save();
+        ctx.lineWidth = Math.max(.6, pixelRatio * .65);
+        const minor = rgba('#75a4c4', .075), major = rgba('#8ab0c9', .115);
+        for (let column = 1; column < 28; column += 1) {
+          ctx.strokeStyle = column % 4 === 0 ? major : minor;
+          ctx.beginPath(); ctx.moveTo(width * column / 28, 0); ctx.lineTo(width * column / 28, height); ctx.stroke();
+        }
+        for (let row = 1; row < 16; row += 1) {
+          ctx.strokeStyle = row % 4 === 0 ? major : minor;
+          ctx.beginPath(); ctx.moveTo(0, height * row / 16); ctx.lineTo(width, height * row / 16); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      function render() {
+        const bounds = stage.getBoundingClientRect();
+        pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+        const width = Math.max(1, Math.round(bounds.width * pixelRatio));
+        const height = Math.max(1, Math.round(bounds.height * pixelRatio));
+        if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+        drawOcean(width, height);
+        const mask = buildMask(width, height, state.detail);
+        const edge = makeEdgeMask(mask, state.coast);
+        const glow = state.glow / 100;
+
+        // A single union mask means only the actual coastline emits light.
+        const glowSource = document.createElement('canvas'); glowSource.width = width; glowSource.height = height;
+        const glowCtx = glowSource.getContext('2d');
+        glowCtx.fillStyle = state.coast; glowCtx.fillRect(0, 0, width, height);
+        glowCtx.globalCompositeOperation = 'destination-in'; glowCtx.drawImage(mask, 0, 0);
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = .18 + glow * .58;
+        ctx.shadowColor = rgba(state.coast, .92);
+        ctx.shadowBlur = (3 + glow * 21) * pixelRatio;
+        ctx.drawImage(glowSource, 0, 0);
+        ctx.restore();
+
+        const landCanvas = document.createElement('canvas'); landCanvas.width = width; landCanvas.height = height;
+        const landCtx = landCanvas.getContext('2d');
+        const landGradient = landCtx.createLinearGradient(width * .12, height * .05, width * .9, height * .94);
+        landGradient.addColorStop(0, brighter(state.land, 1.13));
+        landGradient.addColorStop(.52, state.land);
+        landGradient.addColorStop(1, brighter(state.land, .88));
+        landCtx.fillStyle = landGradient; landCtx.fillRect(0, 0, width, height);
+        landCtx.globalCompositeOperation = 'destination-in'; landCtx.drawImage(mask, 0, 0);
+        ctx.drawImage(landCanvas, 0, 0);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = .54 + glow * .34;
+        ctx.shadowColor = rgba(state.coast, .95);
+        ctx.shadowBlur = (1.5 + glow * 5.5) * pixelRatio;
+        ctx.drawImage(edge, 0, 0);
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = .62 + glow * .30;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(edge, 0, 0);
+        ctx.restore();
+      }
+      function readControls() {
+        state.seed = byId('seed').value.trim() || 'NEREIDE-NEON-01';
+        state.continents = Number(byId('continent-count').value);
+        state.islands = Number(byId('island-count').value);
+        state.detail = Number(byId('coast-detail').value);
+        state.glow = Number(byId('coast-glow').value);
+        state.ocean = byId('ocean-color').value;
+        state.land = byId('land-color').value;
+        state.coast = byId('coast-color').value;
+        byId('continent-value').value = state.continents;
+        byId('island-value').value = state.islands;
+        byId('detail-value').value = state.detail + ' %';
+        byId('glow-value').value = state.glow + ' %';
+      }
+      function randomSeed() { return 'NEON-' + Math.random().toString(36).slice(2, 8).toUpperCase(); }
+      function setPanel(open) {
+        settingsPanel.hidden = !open;
+        byId('settings-toggle').hidden = open;
+      }
+      function resize() { render(); }
+
+      byId('settings-toggle').addEventListener('click', () => setPanel(true));
+      byId('close-settings').addEventListener('click', () => setPanel(false));
+      byId('regenerate').addEventListener('click', () => { readControls(); render(); });
+      byId('new-seed').addEventListener('click', () => {
+        if (byId('lock-seed').checked) return;
+        byId('seed').value = randomSeed(); readControls(); render();
+      });
+      byId('lock-seed').addEventListener('change', event => { byId('new-seed').disabled = event.target.checked; });
+      for (const id of ['continent-count', 'island-count', 'coast-detail', 'coast-glow', 'ocean-color', 'land-color', 'coast-color']) {
+        byId(id).addEventListener('input', () => { readControls(); render(); });
+      }
+      byId('seed').addEventListener('change', () => { readControls(); render(); });
+      new ResizeObserver(resize).observe(stage);
+      byId('new-seed').disabled = byId('lock-seed').checked;
+      readControls(); render();
+    })();
+  </script>
+</body>
+</html>
