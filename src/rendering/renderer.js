@@ -289,10 +289,7 @@
       render,
       prepareGalaxy,
       createTerrainTexture: surfaceRenderer.createTerrainTexture,
-      createSurfaceDetail: surfaceRenderer.createSurfaceDetail,
-      cancelSurfaceDetail: surfaceRenderer.cancelSurfaceDetail,
-      getResourceRenderStyle: surfaceRenderer.getResourceRenderStyle,
-      releaseSurfaceDetail: surfaceRenderer.releaseDetail
+      getResourceRenderStyle: surfaceRenderer.getResourceRenderStyle
     });
   }
   root.OrbitRenderer = Object.freeze({ create });

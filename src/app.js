@@ -127,9 +127,7 @@
   function prepareTerrain(planet, context = state.context) {
     if (!context.terrains.has(planet.id)) {
       terrainData = World.createTerrain(planet.seed, Config.terrain.width, Config.terrain.height, planet);
-      terrainTexture = renderer.createTerrainTexture(planet, terrainData, {
-        retainMaterialMasks: true
-      });
+      terrainTexture = renderer.createTerrainTexture(planet, terrainData);
       context.terrains.set(planet.id, { data: terrainData, texture: terrainTexture, roadCostField: null });
     }
     const record = context.terrains.get(planet.id);
@@ -156,71 +154,6 @@
       if (changed && state.level === 'surface' && state.planet?.id === planet.id) persist();
     }
     return record;
-  }
-  function prepareSurfaceDetail(planet, context = state.context) {
-    const record = prepareTerrain(planet, context);
-    // The flat neon map traces its coast from the canonical terrain and has no
-    // material layer, so it never needs the high-resolution terrain.
-    if (SurfaceStyle.terrain.renderMode === 'neon') return record;
-    if (!record.detailTexture && !record.detailPending && !record.detailFailed) {
-      const detailFactor = Config.terrain.renderDetailFactor;
-      const detailedWidth = record.data.width * detailFactor;
-      const detailedHeight = record.data.height * detailFactor;
-      const textureScale = (record.texture.logicalWidth || record.texture.width) *
-        Config.terrain.renderTexturePixelRatio / detailedWidth;
-      const request = (record.detailRequest || 0) + 1;
-      record.detailRequest = request;
-      record.detailPending = true;
-      const startWhenIdle = () => {
-        if (record.detailRequest !== request) return;
-        if (cameraMoving()) {
-          requestAnimationFrame(startWhenIdle);
-          return;
-        }
-        renderer.createSurfaceDetail(planet, planet.seed, detailedWidth, detailedHeight, record.texture, {
-          textureScale,
-          logicalWidth: record.texture.logicalWidth || record.texture.width,
-          logicalHeight: record.texture.logicalHeight || record.texture.height
-        }).then(result => {
-          if (record.detailRequest !== request) return;
-          record.detailTerrain = result.terrain;
-          record.detailTexture = result.texture;
-          record.detailPending = false;
-        }).catch(error => {
-          if (record.detailRequest !== request) return;
-          record.detailPending = false;
-          if (error?.name === 'AbortError') return;
-          record.detailFailed = true;
-          console.warn('Le relief détaillé reste indisponible; la carte de base reste affichée.', error);
-        });
-      };
-      requestAnimationFrame(startWhenIdle);
-    }
-    return record;
-  }
-  function releaseSurfaceDetail(planet = state.planet, context = state.context) {
-    renderer.cancelSurfaceDetail();
-    renderer.releaseSurfaceDetail();
-    const record = planet && context?.terrains.get(planet.id);
-    if (record) {
-      record.detailRequest = (record.detailRequest || 0) + 1;
-      record.detailPending = false;
-      record.detailTexture = null;
-      record.detailTerrain = null;
-    }
-  }
-  function surfacePreviewRadius(planet, context) {
-    if (!planet || !context) return 0;
-    return planet.radius * context.frame.scale * state.camera.zoom;
-  }
-  function shouldRetainSurfaceDetailPreview(planet, context) {
-    return state.level === 'system' && state.context === context && state.planet?.id === planet?.id &&
-      state.focusPlanet?.id === planet?.id && surfacePreviewRadius(planet, context) >
-        Config.terrain.materialPreviewReleaseRadiusPx;
-  }
-  function shouldKeepSurfaceDetail(planet, context) {
-    if (!planet || state.context !== context || state.planet?.id !== planet.id) return false;
-    return state.level === 'surface' || shouldRetainSurfaceDetailPreview(planet, context);
   }
   function refreshSettlements(planetId) {
     const network = state.roadNetworks[planetId];
@@ -329,7 +262,7 @@
 
   function updateSceneContext() {
     if (!galaxy) return;
-    const previousLevel = state.level, previousContext = state.context, previousPlanet = state.planet;
+    const previousLevel = state.level, previousContext = state.context;
     if (state.tracking) state.context = state.tracking.context;
     if (state.camera.zoom >= .7 && !state.tracking && !cameraMoving()) {
       const known = galaxy.systems.filter(s => s.discovered || state.reveal);
@@ -364,7 +297,7 @@
             if (r > 45) followPlanet(planet, context);
             if (r >= 80) {
               state.level = 'surface'; state.planet = planet;
-              const record = prepareSurfaceDetail(planet, context); terrainTexture = record.texture; terrainData = record.data;
+              const record = prepareTerrain(planet, context); terrainTexture = record.texture; terrainData = record.data;
             }
           }
         }
@@ -379,17 +312,6 @@
       cancelRoadDrag();
       if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
-    }
-    const surfaceChanged = previousLevel === 'surface' &&
-      (state.level !== 'surface' || previousPlanet?.id !== state.planet?.id);
-    if (surfaceChanged && !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
-      releaseSurfaceDetail(previousPlanet, previousContext);
-    } else if (previousLevel !== 'surface' && previousPlanet &&
-        !shouldKeepSurfaceDetail(previousPlanet, previousContext)) {
-      const previousRecord = previousContext?.terrains.get(previousPlanet.id);
-      if (previousRecord?.detailTexture || previousRecord?.detailTerrain) {
-        releaseSurfaceDetail(previousPlanet, previousContext);
-      }
     }
   }
 
@@ -699,7 +621,7 @@
     const planet = selectedPlanet || state.system.planets.find(p => p.kind !== 'gazeuse');
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
-    prepareSurfaceDetail(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
+    prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
     refreshSettlements(planet.id);
     clearSelection();
     const camera = surfaceCamera(planet);
@@ -708,7 +630,6 @@
   }
   function back() {
     if (state.level === 'surface') {
-      releaseSurfaceDetail();
       clearSelection(); state.tracking = null; state.focusPlanet = null;
       const camera = systemCamera();
       focusCamera(camera.x, camera.y, camera.zoom);
@@ -810,7 +731,7 @@
       const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
       const nearest = terrainData.resources.find(resource => Math.hypot(resource.x - tx, resource.y - ty) < 10);
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
-        info: nearest ? `Gisement détecté : ${nearest.type}. Les courbes de niveau indiquent la pente du terrain.` : 'Le relief, les côtes et les ressources composent une surface générée pour ce monde.' });
+        info: nearest ? `Gisement détecté : ${nearest.type}.` : 'Le relief, les côtes et les ressources composent une surface générée pour ce monde.' });
     }
   }
   function zoomAt(factor, x = W / 2, y = H / 2) {
@@ -1105,7 +1026,6 @@
     completeMissions(now);
     state.camera = Camera.smooth(state.camera, state.target, dt, Config.camera.easingRate);
     updateSceneContext();
-    if (state.level === 'surface' && cameraMoving()) renderer.cancelSurfaceDetail();
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
@@ -1120,15 +1040,6 @@
       planetCount: state.system?.planets.length || 0, zoom: state.camera.zoom, time: state.simulation.time,
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
       planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
-    getSurfaceDetailMetrics: () => {
-      const record = state.planet && state.context?.terrains.get(state.planet.id);
-      if (!record?.detailTerrain || !record.detailTexture) return null;
-      return { baseWidth: record.data.width, baseHeight: record.data.height,
-        detailWidth: record.detailTerrain.width, detailHeight: record.detailTerrain.height,
-        textureWidth: record.detailTexture.width, textureHeight: record.detailTexture.height,
-        logicalWidth: record.detailTexture.logicalWidth, logicalHeight: record.detailTexture.logicalHeight,
-        surfaceZoom: localCamera(surfaceFrame(state.planet), state.camera).zoom };
-    },
     getSurfaceZoom: () => state.planet ? localCamera(surfaceFrame(state.planet), state.camera).zoom : null,
     getSurfaceResourceMetrics: () => {
       const record = state.planet && state.context?.terrains.get(state.planet.id);

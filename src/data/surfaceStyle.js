@@ -19,14 +19,8 @@
       labelSizePx: 8
     }),
     terrain: Object.freeze({
-      // 'neon' draws flat magenta land, a dark gridded ocean and a glowing
-      // coastline; 'realistic' keeps the climate biomes and material textures.
-      renderMode: 'neon',
       edgeColor: '#a9b9ad40',
       edgeWidthPx: 1,
-      shelfDepthCells: 72,
-      shelfDistanceCells: 26,
-      temperatureLapsePerElevation: .17,
       globeRevealStartRadiusPx: 50,
       globeRevealEndRadiusPx: 150
     }),
@@ -49,22 +43,6 @@
       coastLineMaxZoomScale: 2.2,
       coastGlowBlurPx: 4.5,
       coastGlowOpacity: .7
-    }),
-    climate: Object.freeze({
-      temperatureBands: Object.freeze([
-        { temperature: -60, sea: '#294e68', shore: '#c6d6d2', lowland: '#637b78', upland: '#82928a', highland: '#aeb9b5', snow: '#f2f5f1', dry: '#a49b88' },
-        { temperature: -20, sea: '#174462', shore: '#c9c8a8', lowland: '#496b54', upland: '#70816e', highland: '#a0aaa0', snow: '#f1f3eb', dry: '#ad9a70' },
-        { temperature: 5, sea: '#0d3450', shore: '#d8bd86', lowland: '#37643f', upland: '#6b714c', highland: '#8e8b7a', snow: '#eff2eb', dry: '#b49360' },
-        { temperature: 20, sea: '#071f3b', shore: '#d7b879', lowland: '#30623a', upland: '#687146', highland: '#888374', snow: '#f4f5ef', dry: '#b2844f' },
-        { temperature: 35, sea: '#09243e', shore: '#d1aa6e', lowland: '#5e6938', upland: '#77704a', highland: '#93836e', snow: '#f0eee5', dry: '#b88a52' },
-        { temperature: 55, sea: '#102c43', shore: '#c99966', lowland: '#816447', upland: '#92704f', highland: '#a78b6d', snow: '#eee5d3', dry: '#bd8956' },
-        { temperature: 100, sea: '#1a2c40', shore: '#b87955', lowland: '#966044', upland: '#a47655', highland: '#b89472', snow: '#ead9c0', dry: '#c17d4e' },
-        { temperature: 180, sea: '#242d3a', shore: '#945342', lowland: '#70453c', upland: '#8e5e50', highland: '#ad8870', snow: '#ddcbb5', dry: '#a25a41' }
-      ]),
-      vegetationTemperatureRange: [-8, 42],
-      drySoilBlend: .52,
-      snowlineStartTemperature: 4,
-      snowlineRange: 18
     }),
     resources: Object.freeze({
       markerRadiusWorldScale: .45,

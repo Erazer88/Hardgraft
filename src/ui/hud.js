@@ -320,7 +320,7 @@
       $('secondary-value').textContent = level === 'galaxy' ? (known / galaxy.systems.length * 100).toFixed(1) + ' %' :
         level === 'system' ? 'CLASSE ' + state.system.star.type : state.planet.kind.toUpperCase();
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
-        level === 'system' ? 'NAVIGATION ORBITALE' : 'RELEVÉ TOPOGRAPHIQUE';
+        level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';
       $('view-title').textContent = level === 'galaxy' ? 'Secteur Néréide' : level === 'system' ? state.system.name : state.planet.name;
       $('system-crumb-wrap').hidden = level === 'galaxy';
       $('surface-crumb-wrap').hidden = level !== 'surface';
@@ -368,7 +368,7 @@
             'Glisser · Bâtiment ou route → bâtiment ou route' : state.tool === 'build' ?
             `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
               'Choisir une infrastructure à poser' :
-              'Glisser · Inspecter le relief · Pincer pour zoomer';
+              'Glisser · Inspecter le terrain · Pincer pour zoomer';
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;

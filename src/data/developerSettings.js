@@ -4,16 +4,6 @@
   const storageKey = 'nereide-atlas-dev-settings-v1';
   const definitions = Object.freeze([
     Object.freeze({
-      id: 'overviewContourColor', type: 'color', group: 'Courbes de relief',
-      label: 'Couleur des courbes', help: 'Teinte des lignes de relief à toutes les échelles.',
-      defaultValue: '#ffffff'
-    }),
-    Object.freeze({
-      id: 'overviewContourOpacity', type: 'range', group: 'Courbes de relief',
-      label: 'Opacité', help: 'Intensité des lignes de relief à toutes les échelles. La carte néon est plate : 0 % par défaut.',
-      defaultValue: 0, min: 0, max: 100, step: 1, unit: '%'
-    }),
-    Object.freeze({
       id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',
       label: 'Routes', help: 'Affiche les routes posées manuellement. Les rues secondaires des quartiers sont temporairement masquées.',
       defaultValue: true

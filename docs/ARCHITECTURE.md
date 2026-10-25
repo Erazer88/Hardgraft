@@ -14,7 +14,7 @@ minimales par tâche sont dans [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 | `src/gameplay/` | Raccord des règles aux bâtiments, à l'exploration, aux exports orbitaux et aux interactions de placement |
 | `src/navigation/` | Projection, caméra, zoom et transitions de repère |
 | `src/storage/`, `src/state.js` | État de session et sauvegarde/restauration locale |
-| `src/rendering/` | Dessin Canvas/WebGL et orchestration des couches visuelles |
+| `src/rendering/` | Dessin Canvas 2D et orchestration des couches visuelles |
 | `src/ui/` | HUD, vues interactives et outils développeur |
 | `src/app.js` | Initialisation, état partagé, événements globaux, boucle et raccord entre modules |
 
@@ -53,12 +53,11 @@ scripts, CSS et ressources dans les exports de `dist/`. Cette simplicité est
 volontaire pour le prototype ; aucune migration globale vers ESM ou npm n'est
 prévue dans une tâche locale.
 
-Le rendu de surface utilise par défaut le style néon (`OrbitSurfaceStyle.terrain.renderMode`
-et la palette `OrbitSurfaceStyle.neon`) : océan sombre quadrillé, terres magenta plates et
-littoral lumineux, cuits dans une texture Canvas à partir de `terrain.elevation`. Le trait
-de côte net est retracé en vecteur depuis ce même terrain canonique ; ce mode ne calcule
-ni terrain haute résolution ni couche WebGL. Le mode `realistic` conserve l'ancien rendu
-Canvas + WebGL2 des matières détaillées, avec la texture intégrée comme repli.
+Le rendu de surface est entièrement Canvas 2D, au style néon (palette
+`OrbitSurfaceStyle.neon`) : océan sombre quadrillé, terres magenta plates et littoral
+lumineux, cuits dans une texture à partir de `terrain.elevation`. Sur la surface active,
+le trait de côte est retracé en vecteur depuis ce même terrain canonique pour rester net
+au zoom. Il n'y a ni terrain haute résolution, ni worker, ni couche WebGL.
 
 ## Modules denses et limites de refactorisation
 
@@ -69,10 +68,9 @@ Canvas + WebGL2 des matières détaillées, avec la texture intégrée comme rep
 - `src/ui/factoryEditor.js` rend les cartes, ports et connexions. Les gestes de la vue
   industrielle sont isolés dans `src/ui/factoryViewport.js` ; le graphe et sa simulation
   restent indépendants du DOM.
-- `src/rendering/surfaceRenderer.js` gère rendu, caches de détails et contours ; le
-  rendu WebGL des matières est déjà isolé dans `surfaceMaterialRenderer.js`. C'est le
-  prochain candidat d'extraction si les contours ou la préparation des détails
-  évoluent indépendamment.
+- `src/rendering/surfaceRenderer.js` gère la texture néon, le trait de côte vectoriel
+  et les couches de surface. Le tracé du littoral est le prochain candidat d'extraction
+  s'il évolue indépendamment.
 - `src/simulation/settlements.js` et `roadNetwork.js` sont volumineux mais portent
   chacun un modèle cohérent (croissance urbaine décorative, topologie et migration du
   réseau). Une extraction doit suivre une responsabilité modifiée, pas un seuil de lignes.

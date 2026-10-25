@@ -2,7 +2,7 @@
 
 Prototype mobile de navigation spatiale et d'industrie, optimisé pour le paysage. Explorez une galaxie procédurale, examinez les cartes topographiques et construisez des chaînes de processus à l'intérieur des bâtiments.
 
-Les captures de contrôle temporaires ne sont pas versionnées. Les textures et modèles utilisés en jeu restent dans `assets/`. Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
+Les captures de contrôle temporaires ne sont pas versionnées. Les images des bâtiments et des quartiers utilisées en jeu restent dans `assets/`. Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
 
 ## Développement
 
@@ -26,17 +26,17 @@ cd /workspace/Hardgraft
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS, Canvas 2D et WebGL2 pour le rendu détaillé des surfaces ; aucune installation npm n'est requise. Les navigateurs sans WebGL2 conservent le rendu de carte intégré.
+Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Canvas 2D ; aucune installation npm n'est requise.
 
 ## Navigation
 
 - Glisser pour déplacer la caméra. Pincer, tourner la molette ou utiliser + et − pour zoomer autour du point visé.
-- Zoomer sur une étoile pour voir son système, puis sur une planète pour afficher son relief dans la même scène.
+- Zoomer sur une étoile pour voir son système, puis sur une planète pour afficher sa carte dans la même scène.
 - Toucher une étoile puis **Zoomer sur le système**, ou double-toucher, pour recentrer la vue.
 - Toucher une planète puis **Zoomer sur la surface** pour la centrer. Les géantes gazeuses n'ont pas de surface solide.
 - Le retour et le fil d'Ariane remontent d'un niveau. Sur une planète, le bouton de cadrage remplit l'écran avec le terrain, sans bandes vides sur les côtés ; glisser permet d'explorer le reste de la carte. La cible recentre la vue.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
-- Sur la surface, toucher le terrain pour lire le relief, les coordonnées et l'altitude. Un Extracteur posé sur un gisement de fer, cuivre, silice ou carbone peut recevoir une Foreuse dans son éditeur ; la sortie suit le gisement.
+- Sur la surface, toucher le terrain pour lire le type de terrain, les coordonnées et l'altitude. Un Extracteur posé sur un gisement de fer, cuivre, silice ou carbone peut recevoir une Foreuse dans son éditeur ; la sortie suit le gisement.
 - Le catalogue affiche les coûts et l'assemblage des infrastructures. Le prototype utilise temporairement une réserve de colonie infinie et une puissance illimitée par éolienne terminée ; le modèle final prévoit des stocks limités par réseau logistique local. Les modes temporaires sont déclarés dans `src/data/processes.js`.
 - Une Plateforme de lancement peut être construite à tout moment, et plusieurs peuvent coexister sur la même planète. Chaque Dock route ses ressources vers une usine équipée d'un Quai d'entrée ou une Plateforme de lancement ; un chemin routier entièrement construit est requis. Dans l’usine, le Quai d’entrée affiche le stock reçu et alimente les machines par son port de sortie droit, à 2 unités entières/s. Les ressources attendent sur la plateforme, puis partent en lots entiers vers l’Arche du système primaire et apparaissent dans son stock après le transit. L’Arche est distincte de l’épave du système. Détails : [docs/ORBITAL_LOGISTICS.md](docs/ORBITAL_LOGISTICS.md).
 - Le bouton construction active un aperçu de placement. **Modifier** ouvre une usine configurée selon le gisement : Foreuse, Concasseur et Broyeur communs, puis séparateur ou traitement adapté. Le Terril stocke toute ressource sans limite ni débit et accepte plusieurs connexions. Les machines de traitement ont un débit nominal de 2 u/s ; la Foreuse n'a pas de plafond nominal. Les connexions n'ont pas de débit propre et ne transfèrent que des unités entières. Glissez une sortie vers une entrée ; glissez le fond pour naviguer, ou utilisez le pinch et la molette pour zoomer autour du point visé.
@@ -55,7 +55,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - 2 560 systèmes répartis dans quatre bras et un noyau. Le brouillard masque les secteurs non découverts.
 - Des systèmes générés avec des compositions variées, des planètes solides ou gazeuses, des ceintures de débris et des épaves occasionnelles.
 - Des vitesses orbitales relatives qui suivent la troisième loi de Kepler, avec des durées adaptées à la navigation du prototype.
-- Des cartes planétaires reproductibles avec archipels, côtes détaillées, hauts fonds turquoise, relief ombré, textures de terrain CC0, courbes de niveau et gisements naturels.
+- Des cartes planétaires reproductibles au style néon : océan sombre quadrillé, continents et archipels magenta plats, littoral lumineux et gisements naturels.
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
 Les coûts, délais et remboursements restent déclaratifs. Les filières industrielles sont simulées par cycles et buffers entiers ; les routes alimentent la logistique planétaire et les exports orbitaux temporisés. Les flux du Hub vers les planètes restent à implémenter. Le contrat du moteur est décrit dans [docs/PROCESS_SYSTEM.md](docs/PROCESS_SYSTEM.md), et l'architecture du réseau de surface dans [docs/ROAD_SYSTEM.md](docs/ROAD_SYSTEM.md).

@@ -15,10 +15,16 @@ function loadSettings(initialValue = null) {
   return { settings: context.OrbitDeveloperSettings, readStored: () => JSON.parse(stored) };
 }
 
-test('developer settings add deposit controls without discarding saved contour preferences', () => {
-  const { settings } = loadSettings('{"overviewContourColor":"#abcdef","overviewContourOpacity":42}');
-  assert.equal(settings.get('overviewContourColor'), '#abcdef');
-  assert.equal(settings.get('overviewContourOpacity'), 42);
+test('developer settings drop the removed relief contour preferences', () => {
+  const { settings } = loadSettings('{"overviewContourColor":"#abcdef","overviewContourOpacity":42,"showSurfaceRoads":false}');
+  assert.equal(settings.get('overviewContourColor'), undefined);
+  assert.equal(settings.get('overviewContourOpacity'), undefined);
+  assert.equal(settings.get('showSurfaceRoads'), false);
+  assert.equal(settings.definitions.some(definition => definition.group === 'Courbes de relief'), false);
+});
+
+test('developer settings expose deposit and terrain display controls', () => {
+  const { settings } = loadSettings();
   assert.equal(settings.get('showSurfaceRoads'), true);
   assert.equal(settings.get('showSurfaceHouses'), true);
   assert.equal(settings.get('depositMarkerSizePercent'), 100);
@@ -31,18 +37,6 @@ test('developer settings add deposit controls without discarding saved contour p
     .map(definition => definition.id).sort(), [
     'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositOilColor', 'depositSiliconColor'
   ]);
-});
-
-test('contour color and opacity controls are described for every zoom level', () => {
-  const { settings } = loadSettings();
-  const color = settings.definitions.find(definition => definition.id === 'overviewContourColor');
-  const opacity = settings.definitions.find(definition => definition.id === 'overviewContourOpacity');
-  assert.equal(settings.get('overviewContourColor'), '#ffffff');
-  assert.equal(settings.get('overviewContourOpacity'), 0);
-  assert.equal(color.group, 'Courbes de relief');
-  assert.equal(opacity.group, color.group);
-  assert.match(color.help, /toutes les échelles/);
-  assert.match(opacity.help, /toutes les échelles/);
 });
 
 test('simulation speed offers deterministic x1, x2, x5 and x10 values and resets to normal', () => {
@@ -89,9 +83,8 @@ test('deposit size and colors validate, persist, notify controls, and reset to d
   assert.equal(readStored().infiniteMinerals, false);
   assert.equal(readStored().showSurfaceRoads, true);
   assert.equal(readStored().showSurfaceHouses, true);
-  assert.deepEqual(changes.slice(-12).map(([id]) => id).sort(), [
+  assert.deepEqual(changes.slice(-10).map(([id]) => id).sort(), [
     'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePercent', 'depositOilColor',
-    'depositSiliconColor', 'infiniteMinerals', 'overviewContourColor', 'overviewContourOpacity',
-    'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
+    'depositSiliconColor', 'infiniteMinerals', 'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
   ].sort());
 });

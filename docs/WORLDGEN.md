@@ -73,16 +73,10 @@ marins de pétrole sont également générés en eau profonde, et les plateforme
 pétrolières doivent être posées dans leur zone. Les marqueurs de ressource sont
 dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 
-Le rendu interpole une palette de couleurs par température, altitude et
-humidité. L'éclairage directionnel est calculé depuis les pentes et la
-courbure du terrain ; un bruit albédo déterministe varie selon la graine du
-monde. Neuf textures aériennes WebP, créées pour le projet, détaillent les
-plaines boisées et marécageuses, les déserts, les plages, les montagnes et les
-glaciers, les terrains volcaniques, les hauts fonds coralliens et les océans
-profonds. Le rendu les masque selon l'altitude, la température, la neige,
-l'humidité et la profondeur, puis les multiplie à faible opacité pour garder les
-couleurs du biome sans voile. La palette climatique couvre aussi les surfaces
-au-delà de 180 °C.
+Le rendu est plat, au style néon : seule la limite terre/mer de
+`terrain.elevation` est dessinée, sans relief, biome ni texture de matière. Une
+variation de pigment déterministe par graine nuance les terres. La palette se
+règle dans `OrbitSurfaceStyle.neon` (`src/data/surfaceStyle.js`).
 
 ## Départ viable et sauvegardes
 
