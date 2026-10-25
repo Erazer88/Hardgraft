@@ -9,16 +9,19 @@
       minSpacingPx: 45,
       maxSpacingPx: 180,
       lineWidthPx: 1,
-      lineColor: '#d5d9b713',
+      lineColor: '#75a4c413',
       tickSpacingThresholdPx: 65,
       tickHalfLengthPx: 2.5,
-      tickColor: '#dde1c025',
+      tickColor: '#8ab0c930',
       labelOffsetXPx: 6,
       labelOffsetBottomPx: 97,
-      labelColor: '#557184',
+      labelColor: '#6f8ea6',
       labelSizePx: 8
     }),
     terrain: Object.freeze({
+      // 'neon' draws flat magenta land, a dark gridded ocean and a glowing
+      // coastline; 'realistic' keeps the climate biomes and material textures.
+      renderMode: 'neon',
       edgeColor: '#a9b9ad40',
       edgeWidthPx: 1,
       shelfDepthCells: 72,
@@ -26,6 +29,26 @@
       temperatureLapsePerElevation: .17,
       globeRevealStartRadiusPx: 50,
       globeRevealEndRadiusPx: 150
+    }),
+    // Neon map palette, ported from the neon-map prototype. Land remains flat:
+    // no relief lighting, shadows or contour cues, only a low pigment variation.
+    neon: Object.freeze({
+      oceanColor: '#07182b',
+      landColor: '#bd4d89',
+      coastColor: '#ff87b7',
+      glow: .42,
+      oceanGridStepWorld: 100,
+      oceanGridMajorEvery: 4,
+      oceanGridMinorColor: '#75a4c413',
+      oceanGridMajorColor: '#8ab0c91d',
+      oceanGridLineWidth: 1,
+      // Glow radii are tuned for a map about this wide on screen.
+      glowReferenceWidthPx: 1600,
+      pigmentFrequencies: Object.freeze([3, 10.5, 30, 83]),
+      coastLineWidthPx: 1.15,
+      coastLineMaxZoomScale: 2.2,
+      coastGlowBlurPx: 4.5,
+      coastGlowOpacity: .7
     }),
     climate: Object.freeze({
       temperatureBands: Object.freeze([

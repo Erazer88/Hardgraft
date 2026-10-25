@@ -42,7 +42,12 @@
 
   function create(canvasContext, dependencies) {
     const { project, localCamera, surfaceFrame, getState, getViewport, isCameraInteracting, layers } = dependencies;
-    const materialRenderer = root.OrbitSurfaceMaterialRenderer.create();
+    const neonTerrain = SurfaceStyle.terrain.renderMode === 'neon';
+    // The neon map is flat: it needs neither the WebGL material layer nor the
+    // realistic biome textures, so skip their GPU context and downloads.
+    const materialRenderer = neonTerrain
+      ? Object.freeze({ setMaterials() {}, draw() { return false; }, release() {} })
+      : root.OrbitSurfaceMaterialRenderer.create();
     const materialDefinitions = [
       { id: 'lowlands', src: 'assets/textures/terrain-lowlands.webp', opacity: 1 },
       { id: 'wetlands', src: 'assets/textures/terrain-wetlands.webp', opacity: 1 },
@@ -295,7 +300,7 @@
       pendingMaterialTextures.delete(record);
     }
 
-    if (typeof root.Image === 'function') {
+    if (!neonTerrain && typeof root.Image === 'function') {
       let pending = materialDefinitions.length;
       const settle = () => {
         pending -= 1;
@@ -342,7 +347,169 @@
       context.fillStyle = color; context.beginPath(); context.arc(x, y, Math.max(.1, radius), 0, TAU); context.fill();
     }
 
+    function rgba(hex, alpha) {
+      const [red, green, blue] = hexRGB(hex);
+      return `rgba(${red},${green},${blue},${alpha})`;
+    }
+
+    function createNeonCoast(terrainData, textureWidth, textureHeight, textureScale, coastColor) {
+      // Upscale a signed sea-level field with bilinear smoothing. Dividing by
+      // its local gradient estimates the distance to the shore in texels, which
+      // gives an antialiased land mask and a smooth coast line that follow the
+      // same interpolated shoreline as the contours, not the terrain cells.
+      const { width, height, elevation, seaLevel } = terrainData;
+      const field = makeCanvas(width + 1, height + 1), fieldContext = field.getContext('2d');
+      const fieldImage = fieldContext.createImageData(width + 1, height + 1);
+      for (let y = 0; y <= height; y += 1) for (let x = 0; x <= width; x += 1) {
+        const value = elevation[Math.min(y, height - 1) * width + Math.min(x, width - 1)];
+        const pixel = (y * (width + 1) + x) * 4;
+        const signed = clamp(Math.round(128 + (value - seaLevel - .5) * 2), 0, 255);
+        fieldImage.data[pixel] = fieldImage.data[pixel + 1] = fieldImage.data[pixel + 2] = signed;
+        fieldImage.data[pixel + 3] = 255;
+      }
+      fieldContext.putImageData(fieldImage, 0, 0);
+      const mask = makeCanvas(textureWidth, textureHeight);
+      const maskContext = mask.getContext('2d', { willReadFrequently: true });
+      maskContext.imageSmoothingEnabled = true;
+      // Cell corners sit on world multiples of textureScale, as in the contours.
+      maskContext.drawImage(field, -textureScale / 2, -textureScale / 2,
+        (width + 1) * textureScale, (height + 1) * textureScale);
+      field.width = 0; field.height = 0;
+      const image = maskContext.getImageData(0, 0, textureWidth, textureHeight), pixels = image.data;
+      const signedField = new Float32Array(textureWidth * textureHeight);
+      for (let i = 0; i < signedField.length; i += 1) signedField[i] = pixels[i * 4] - 127.5;
+      const edge = makeCanvas(textureWidth, textureHeight), edgeContext = edge.getContext('2d');
+      const edgeImage = edgeContext.createImageData(textureWidth, textureHeight), edgePixels = edgeImage.data;
+      const [red, green, blue] = hexRGB(coastColor);
+      for (let y = 0; y < textureHeight; y += 1) for (let x = 0; x < textureWidth; x += 1) {
+        const index = y * textureWidth + x, value = signedField[index];
+        const left = signedField[index - (x > 0 ? 1 : 0)], right = signedField[index + (x + 1 < textureWidth ? 1 : 0)];
+        const up = signedField[index - (y > 0 ? textureWidth : 0)];
+        const down = signedField[index + (y + 1 < textureHeight ? textureWidth : 0)];
+        const gradient = Math.max(.25, Math.hypot(right - left, down - up) * .5);
+        const distance = value / gradient, pixel = index * 4;
+        pixels[pixel] = pixels[pixel + 1] = pixels[pixel + 2] = 255;
+        pixels[pixel + 3] = Math.round(clamp(distance + .5, 0, 1) * 255);
+        // A line about two texels wide straddles the shore: the only part that emits light.
+        const line = clamp(1.25 - Math.abs(distance), 0, 1);
+        if (line <= 0) continue;
+        edgePixels[pixel] = red; edgePixels[pixel + 1] = green; edgePixels[pixel + 2] = blue;
+        edgePixels[pixel + 3] = Math.round(line * 235);
+      }
+      maskContext.putImageData(image, 0, 0);
+      edgeContext.putImageData(edgeImage, 0, 0);
+      return { mask, edge };
+    }
+
+    function createNeonPigment(planet, terrainData, color) {
+      // Low-amplitude pigment variation breaks the single-color sticker look
+      // while keeping the land flat.
+      const { width, height } = terrainData;
+      const pigment = makeCanvas(width, height), pigmentContext = pigment.getContext('2d');
+      const image = pigmentContext.createImageData(width, height), pixels = image.data;
+      const [red, green, blue] = hexRGB(color);
+      const [macroScale, mesoScale, fineScale, grainScale] = SurfaceStyle.neon.pigmentFrequencies;
+      const seed = World.hashSeed(String(planet.seed) + ':neon-pigment:v1');
+      for (let y = 0; y < height; y += 1) {
+        const v = y / height;
+        for (let x = 0; x < width; x += 1) {
+          const u = x / height;
+          const macro = valueNoise(u * macroScale + 2.1, v * macroScale - 6.4, seed) - .5;
+          const meso = valueNoise(u * mesoScale - 9.2, v * mesoScale + 3.7, seed ^ 0x9e3779b9) - .5;
+          const fine = valueNoise(u * fineScale + 12.8, v * fineScale - 1.5, seed ^ 0x243f6a88) - .5;
+          const grain = valueNoise(u * grainScale - 4.3, v * grainScale + 8.2, seed ^ 0xbb67ae85) - .5;
+          const pixel = (y * width + x) * 4;
+          pixels[pixel] = clamp(Math.round(red * (1 + macro * .32 + meso * .16 + fine * .07)), 0, 255);
+          pixels[pixel + 1] = clamp(Math.round(green * (1 + macro * .27 + meso * .14 + fine * .06 - grain * .06)), 0, 255);
+          pixels[pixel + 2] = clamp(Math.round(blue * (1 + macro * .32 + meso * .16 + fine * .07 + grain * .08)), 0, 255);
+          pixels[pixel + 3] = 255;
+        }
+      }
+      pigmentContext.putImageData(image, 0, 0);
+      return pigment;
+    }
+
+    function drawNeonOcean(context, width, height, color) {
+      const style = SurfaceStyle.neon;
+      const base = hexRGB(color);
+      const shade = amount => `rgb(${base.map(channel => clamp(Math.round(channel * amount), 0, 255)).join(',')})`;
+      const gradient = context.createLinearGradient(0, 0, width * .2, height);
+      gradient.addColorStop(0, shade(1.13));
+      gradient.addColorStop(.52, color);
+      gradient.addColorStop(1, shade(.78));
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+      // The chart grid stays under the land and on world multiples of the
+      // surface grid step, so the screen-space grid overlay lines up with it.
+      context.lineWidth = style.oceanGridLineWidth;
+      const step = style.oceanGridStepWorld;
+      for (const major of [false, true]) {
+        context.strokeStyle = major ? style.oceanGridMajorColor : style.oceanGridMinorColor;
+        context.beginPath();
+        for (let column = 1; column * step < width; column += 1) {
+          if ((column % style.oceanGridMajorEvery === 0) !== major) continue;
+          context.moveTo(column * step, 0); context.lineTo(column * step, height);
+        }
+        for (let row = 1; row * step < height; row += 1) {
+          if ((row % style.oceanGridMajorEvery === 0) !== major) continue;
+          context.moveTo(0, row * step); context.lineTo(width, row * step);
+        }
+        context.stroke();
+      }
+    }
+
+    function createNeonTerrainTexture(planet, terrainData, options = {}) {
+      const style = SurfaceStyle.neon;
+      const textureScale = options.textureScale || Config.terrain.textureScale;
+      const textureWidth = terrainData.width * textureScale, textureHeight = terrainData.height * textureScale;
+      const terrainTexture = makeCanvas(textureWidth, textureHeight);
+      terrainTexture.logicalWidth = options.logicalWidth || textureWidth;
+      terrainTexture.logicalHeight = options.logicalHeight || textureHeight;
+      terrainTexture.materialMasks = null;
+      const context = terrainTexture.getContext('2d');
+      const glow = style.glow, blurScale = textureWidth / style.glowReferenceWidthPx;
+      const { mask, edge } = createNeonCoast(terrainData, textureWidth, textureHeight, textureScale, style.coastColor);
+      drawNeonOcean(context, textureWidth, textureHeight, style.oceanColor);
+
+      // A single union mask means only the actual coastline emits light.
+      const layer = makeCanvas(textureWidth, textureHeight), layerContext = layer.getContext('2d');
+      layerContext.fillStyle = style.coastColor;
+      layerContext.fillRect(0, 0, textureWidth, textureHeight);
+      layerContext.globalCompositeOperation = 'destination-in';
+      layerContext.drawImage(mask, 0, 0);
+      context.save();
+      context.globalCompositeOperation = 'screen';
+      context.globalAlpha = .14 + glow * .44;
+      context.shadowColor = rgba(style.coastColor, .92);
+      context.shadowBlur = (2 + glow * 13) * blurScale;
+      context.drawImage(layer, 0, 0);
+      context.restore();
+
+      const pigment = createNeonPigment(planet, terrainData, style.landColor);
+      layerContext.globalCompositeOperation = 'copy';
+      layerContext.imageSmoothingEnabled = true;
+      layerContext.drawImage(pigment, 0, 0, textureWidth, textureHeight);
+      layerContext.globalCompositeOperation = 'destination-in';
+      layerContext.drawImage(mask, 0, 0);
+      context.drawImage(layer, 0, 0);
+
+      context.save();
+      context.globalCompositeOperation = 'screen';
+      context.globalAlpha = .54 + glow * .34;
+      context.shadowColor = rgba(style.coastColor, .95);
+      context.shadowBlur = (1.5 + glow * 5.5) * blurScale;
+      context.drawImage(edge, 0, 0);
+      context.restore();
+      context.save();
+      context.globalAlpha = .62 + glow * .30;
+      context.drawImage(edge, 0, 0);
+      context.restore();
+      for (const canvas of [mask, edge, layer, pigment]) { canvas.width = 0; canvas.height = 0; }
+      return terrainTexture;
+    }
+
     function createTerrainTexture(planet, terrainData, options = {}) {
+      if (neonTerrain) return createNeonTerrainTexture(planet, terrainData, options);
       const { width, height, elevation, moisture, seaLevel } = terrainData;
       const textureScale = options.textureScale || Config.terrain.textureScale;
       const coastDistance = createWaterDistanceField(terrainData);
@@ -453,7 +620,9 @@
         const coastline = level === 103;
         if (!coastline && index % 2 !== 0) continue;
         const major = index % 4 === 0;
-        const contour = { level, path: new root.Path2D(), major, coastline,
+        // The neon land mask is cut halfway between water (102) and land (103).
+        const contour = { level: coastline && neonTerrain ? level - .5 : level,
+          path: new root.Path2D(), major, coastline,
           width: coastline ? 1.05 : major ? .82 : .58 };
         contourByIndex[index] = contour;
         contours.push(contour);
@@ -513,9 +682,11 @@
       };
       const majorLayer = createLayer(reusableRaster?.major);
       const detailLayer = createLayer(reusableRaster?.detail);
-      job.rasterContexts = { major: majorLayer.context, detail: detailLayer.context };
+      const coastLayer = neonTerrain ? createLayer(reusableRaster?.coast) : null;
+      job.rasterContexts = { major: majorLayer.context, detail: detailLayer.context, coast: coastLayer?.context };
       job.rasterContourIndex = 0;
-      job.raster = { major: majorLayer.canvas, detail: detailLayer.canvas, x: worldX, y: worldY,
+      job.raster = { major: majorLayer.canvas, detail: detailLayer.canvas, coast: coastLayer?.canvas,
+        x: worldX, y: worldY,
         width: worldWidth, height: worldHeight, zoom: job.zoom,
         pixelRatio: job.pixelRatio, color: job.color };
       job.phase = 'rasterize';
@@ -562,6 +733,25 @@
     }
 
     function strokeContour(job, contour) {
+      if (neonTerrain && contour.coastline) {
+        // Neon shoreline: a soft glow stroke under a crisp line. Shadow blur is
+        // in device pixels, independent of the world transform. The line
+        // thickens slightly with zoom to cover the texel steps of the magnified
+        // base texture.
+        const style = SurfaceStyle.neon, context = job.rasterContexts.coast;
+        const lineWidth = style.coastLineWidthPx * clamp(job.zoom, 1, style.coastLineMaxZoomScale) / job.zoom;
+        context.save();
+        context.lineWidth = lineWidth;
+        context.strokeStyle = rgba(style.coastColor, style.coastGlowOpacity);
+        context.shadowColor = rgba(style.coastColor, .95);
+        context.shadowBlur = style.coastGlowBlurPx * job.pixelRatio;
+        context.stroke(contour.path);
+        context.restore();
+        context.lineWidth = lineWidth;
+        context.strokeStyle = style.coastColor;
+        context.stroke(contour.path);
+        return;
+      }
       const context = contour.major || contour.coastline
         ? job.rasterContexts.major : job.rasterContexts.detail;
       context.lineWidth = contour.width / job.zoom;
@@ -702,7 +892,7 @@
       const cameraInteracting = isCameraInteracting && isCameraInteracting();
       const developerSettings = root.OrbitDeveloperSettings;
       const contourColor = developerSettings?.get('overviewContourColor') || '#ffffff';
-      const contourOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 67) / 100, 0, 1);
+      const contourOpacity = clamp(Number(developerSettings?.get('overviewContourOpacity') ?? 0) / 100, 0, 1);
       const pixelRatio = canvasContext.canvas.width / viewport.width;
       const now = contourClock();
       const canRefreshDuringGesture = !cameraInteracting || now - lastContourBuildAt >= 150;
@@ -713,7 +903,7 @@
       }
       if (!detailContourCache || detailContourCache.planetId !== frame.planet.id ||
           detailContourCache.terrain !== terrain || !detailContourCache.raster) return;
-      if (contourOpacity === 0) return;
+      if (contourOpacity === 0 && !detailContourCache.raster.coast) return;
       const rasterColor = contourColor;
       const raster = detailContourCache.raster;
       const viewWorldWidth = viewport.width / frame.zoom, viewWorldHeight = viewport.height / frame.zoom;
@@ -737,11 +927,18 @@
       canvasContext.globalAlpha = contourOpacity;
       canvasContext.translate(top.x, top.y);
       canvasContext.scale(frame.zoom, frame.zoom);
-      canvasContext.drawImage(raster.major, raster.x, raster.y, raster.width, raster.height);
-      const detailMix = ease(clamp((frame.zoom - .4) / 1.4, 0, 1));
-      if (detailMix > .001) {
-        canvasContext.globalAlpha = contourOpacity * detailMix;
-        canvasContext.drawImage(raster.detail, raster.x, raster.y, raster.width, raster.height);
+      if (contourOpacity > 0) {
+        canvasContext.drawImage(raster.major, raster.x, raster.y, raster.width, raster.height);
+        const detailMix = ease(clamp((frame.zoom - .4) / 1.4, 0, 1));
+        if (detailMix > .001) {
+          canvasContext.globalAlpha = contourOpacity * detailMix;
+          canvasContext.drawImage(raster.detail, raster.x, raster.y, raster.width, raster.height);
+        }
+      }
+      // The neon coastline belongs to the map style, not to the relief setting.
+      if (raster.coast) {
+        canvasContext.globalAlpha = 1;
+        canvasContext.drawImage(raster.coast, raster.x, raster.y, raster.width, raster.height);
       }
       canvasContext.restore();
     }
@@ -812,7 +1009,7 @@
       const blendEnd = Math.max(blendStart + .001, Config.terrain.materialTextureDetailBlendEndZoom);
       const detailBlend = ease(clamp((frame.zoom - blendStart) / (blendEnd - blendStart), 0, 1)) *
         Config.terrain.materialTextureMaxBlend;
-      const gpuRendered = frame.surfaceDetail &&
+      const gpuRendered = !neonTerrain && frame.surfaceDetail &&
         materialRenderer.draw({
           detailTexture: terrainTexture,
           baseCanvas: terrainTexture.baseColorCanvas,

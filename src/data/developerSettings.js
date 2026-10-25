@@ -10,8 +10,8 @@
     }),
     Object.freeze({
       id: 'overviewContourOpacity', type: 'range', group: 'Courbes de relief',
-      label: 'Opacité', help: 'Intensité des lignes de relief à toutes les échelles.',
-      defaultValue: 67, min: 0, max: 100, step: 1, unit: '%'
+      label: 'Opacité', help: 'Intensité des lignes de relief à toutes les échelles. La carte néon est plate : 0 % par défaut.',
+      defaultValue: 0, min: 0, max: 100, step: 1, unit: '%'
     }),
     Object.freeze({
       id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',

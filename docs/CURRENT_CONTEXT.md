@@ -27,6 +27,10 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   lorsqu'une route construite les relie. Les routes n'ont pas de capacité ni de durée.
   Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
+- La carte planétaire adopte la couche visuelle néon issue de la branche `neon-style`
+  (terres plates, côtes lumineuses, sans courbes de relief par défaut). Seul le rendu
+  change : les formes restent celles de la génération par graine. Réglages dans
+  `src/data/surfaceStyle.js`.
 - La génération de planète conserve `terrain.elevation` comme hauteur canonique et
   utilise des champs géologiques supplémentaires pour le rendu. Voir
   [`WORLDGEN.md`](WORLDGEN.md).

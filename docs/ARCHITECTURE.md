@@ -53,9 +53,12 @@ scripts, CSS et ressources dans les exports de `dist/`. Cette simplicité est
 volontaire pour le prototype ; aucune migration globale vers ESM ou npm n'est
 prévue dans une tâche locale.
 
-Le rendu de surface combine Canvas pour terrain, relief et couches interactives
-avec un renderer WebGL2 pour les matières détaillées ; la texture intégrée reste
-le repli lorsque WebGL2 est indisponible.
+Le rendu de surface utilise par défaut le style néon (`OrbitSurfaceStyle.terrain.renderMode`
+et la palette `OrbitSurfaceStyle.neon`) : océan sombre quadrillé, terres magenta plates et
+littoral lumineux, cuits dans une texture Canvas à partir de `terrain.elevation`. Le trait
+de côte net est retracé en vecteur depuis ce même terrain canonique ; ce mode ne calcule
+ni terrain haute résolution ni couche WebGL. Le mode `realistic` conserve l'ancien rendu
+Canvas + WebGL2 des matières détaillées, avec la texture intégrée comme repli.
 
 ## Modules denses et limites de refactorisation
 

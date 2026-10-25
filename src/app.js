@@ -159,6 +159,9 @@
   }
   function prepareSurfaceDetail(planet, context = state.context) {
     const record = prepareTerrain(planet, context);
+    // The flat neon map traces its coast from the canonical terrain and has no
+    // material layer, so it never needs the high-resolution terrain.
+    if (SurfaceStyle.terrain.renderMode === 'neon') return record;
     if (!record.detailTexture && !record.detailPending && !record.detailFailed) {
       const detailFactor = Config.terrain.renderDetailFactor;
       const detailedWidth = record.data.width * detailFactor;
@@ -1126,6 +1129,7 @@
         logicalWidth: record.detailTexture.logicalWidth, logicalHeight: record.detailTexture.logicalHeight,
         surfaceZoom: localCamera(surfaceFrame(state.planet), state.camera).zoom };
     },
+    getSurfaceZoom: () => state.planet ? localCamera(surfaceFrame(state.planet), state.camera).zoom : null,
     getSurfaceResourceMetrics: () => {
       const record = state.planet && state.context?.terrains.get(state.planet.id);
       return record?.data?.resources?.map(resource => ({ id: resource.id, x: resource.x, y: resource.y,

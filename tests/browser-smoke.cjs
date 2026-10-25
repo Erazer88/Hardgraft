@@ -302,6 +302,26 @@ async function checkTerrainZoomLimit(cdp, name) {
   process.stdout.write(`PASS ${name}: terrain detail limit, fixed focal point, reversible camera\n`);
 }
 
+async function checkNeonSurface(cdp, name, planetPoint, gpuDrawsBefore) {
+  assert.equal(await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()'), null,
+    `${name} flat neon surface skips the high-resolution material terrain`);
+  const surfaceZoom = await cdp.evaluate('window.OrbitalDebug.getSurfaceZoom()');
+  await zoomStep(cdp, Math.max(1.01, 2.6 / surfaceZoom), planetPoint);
+  assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} close terrain keeps the surface`);
+  const zoomed = await cdp.evaluate('window.OrbitalDebug.getSurfaceZoom()');
+  assert.ok(zoomed >= 2, `${name} screenshot reaches the close neon coastline`);
+  const logicalHeight = await cdp.evaluate('window.OrbitConfig.terrain.height * window.OrbitConfig.terrain.textureScale');
+  const previewZoom = 90 / logicalHeight;
+  await zoomStep(cdp, previewZoom / zoomed, planetPoint);
+  assert.equal((await cdp.evaluate(stateExpression)).level, 'system', `${name} zooms out into the system preview`);
+  await cdp.screenshot(`${name}-terrain-transition.png`);
+  await zoomStep(cdp, zoomed / previewZoom, planetPoint);
+  assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} zooming back re-enters the same surface`);
+  await cdp.screenshot(`${name}-terrain-close.png`);
+  assert.equal(await cdp.evaluate('window.__terrainGpuStats.draws'), gpuDrawsBefore,
+    `${name} flat neon terrain never draws through the WebGL material layer`);
+}
+
 async function checkContinuousZoom(cdp, name, mobile) {
   const gpuBaseline = await cdp.evaluate(`({ draws: window.__terrainGpuStats.draws,
     uploads: window.__terrainGpuStats.storage.length,
@@ -332,6 +352,17 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await cdp.tapAt(planetPoint, mobile);
   await cdp.evaluate('window.OrbitalDebug.enterPlanet()');
   await settle(cdp, `${name} surface camera settles before close terrain zoom`);
+  if (await cdp.evaluate("window.OrbitSurfaceStyle.terrain.renderMode === 'neon'")) {
+    await checkNeonSurface(cdp, name, planetPoint, gpuBaseline.draws);
+  } else await checkMaterialSurface(cdp, name, planetPoint, gpuBaseline);
+  await checkTerrainZoomLimit(cdp, name);
+  assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
+    `${name} orbital rendezvous API is removed`);
+  assert.equal(await cdp.evaluate('/rendez[ -]?vous/i.test(document.body.textContent)'), false,
+    `${name} orbital rendezvous interface is removed`);
+}
+
+async function checkMaterialSurface(cdp, name, planetPoint, gpuBaseline) {
   await cdp.until('window.OrbitalDebug.getSurfaceDetailMetrics()',
     `${name} background worker finishes the high-resolution terrain`, 15000);
   const detail = await cdp.evaluate('window.OrbitalDebug.getSurfaceDetailMetrics()');
@@ -404,11 +435,6 @@ async function checkContinuousZoom(cdp, name, mobile) {
   await zoomStep(cdp, zoomedDetail.surfaceZoom / previewZoom, { x: planetPoint.x, y: planetPoint.y });
   assert.equal((await cdp.evaluate(stateExpression)).level, 'surface', `${name} zooming back re-enters the same surface`);
   await cdp.screenshot(`${name}-terrain-close.png`);
-  await checkTerrainZoomLimit(cdp, name);
-  assert.equal(await cdp.evaluate('typeof window.OrbitalDebug.getTransferMinRadius'), 'undefined',
-    `${name} orbital rendezvous API is removed`);
-  assert.equal(await cdp.evaluate('/rendez[ -]?vous/i.test(document.body.textContent)'), false,
-    `${name} orbital rendezvous interface is removed`);
 }
 
 async function checkSystemVariety(cdp, name, mobile) {

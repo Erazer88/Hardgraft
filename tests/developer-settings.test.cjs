@@ -38,7 +38,7 @@ test('contour color and opacity controls are described for every zoom level', ()
   const color = settings.definitions.find(definition => definition.id === 'overviewContourColor');
   const opacity = settings.definitions.find(definition => definition.id === 'overviewContourOpacity');
   assert.equal(settings.get('overviewContourColor'), '#ffffff');
-  assert.equal(settings.get('overviewContourOpacity'), 67);
+  assert.equal(settings.get('overviewContourOpacity'), 0);
   assert.equal(color.group, 'Courbes de relief');
   assert.equal(opacity.group, color.group);
   assert.match(color.help, /toutes les échelles/);
