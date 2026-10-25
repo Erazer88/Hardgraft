@@ -148,7 +148,10 @@
           path.push(p); if (mainland(p.x, p.y) > -.014) valid = false;
         }
         if (!valid) continue;
-        const start = path[0], end = path[path.length - 1], size = clamp(-mainland(center.x, center.y) * .95, .042, .16);
+        const start = path[0], end = path[path.length - 1];
+        // Keep the painted massif footprint consistent across seeds. A narrow
+        // variation prevents repeated stamps while staying below a 20% spread.
+        const size = .10 * (.92 + mr() * .16);
         const chain = {id: index, ...center, start, end, path, direction, length: span,
           size, variant: Math.floor(mr() * 24), peaks: []};
         const count = 12 + Math.round(options.mountains * .12);

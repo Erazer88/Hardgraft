@@ -70,7 +70,7 @@
         distance[i] = d;
       }
 
-      const feather = Math.min(width, height) * .065;
+      const feather = Math.min(width, height) * .09;
       for (let i = 0; i < count; i++) {
         const alpha = largest[i] ? smoothstep(0, feather, distance[i]) : 0;
         pixels[i * 4 + 3] = Math.round(pixels[i * 4 + 3] * alpha);

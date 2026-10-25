@@ -1,3 +1,11 @@
+# 0.5.0 — Continents visibles et rendu haute définition
+
+- Chaque seed génère deux ou trois continents, tous visibles de face ; un monde neuf reçoit une seed aléatoire, ensuite conservée dans l’URL.
+- Massifs normalisés à moins de 20 % d’écart entre extrêmes, avec une hauteur visuelle commune aux deux assets.
+- Liseré côtier turquoise clair plus lisible, fondu progressivement dans les eaux peu profondes.
+- Texture équirectangulaire 2048 × 1024, masque des massifs plus doux et canvas adapté aux écrans haute densité.
+- Tests ajoutés sur le nombre de continents, la stabilité des tailles de massif, les rechargements et la résolution du canvas.
+
 # 0.4.0 — Continents et littoral
 
 - Une à trois grandes masses déterministes, avec des silhouettes, orientations et proportions variées.

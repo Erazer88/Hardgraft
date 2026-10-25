@@ -1,6 +1,13 @@
-# Validation — démo Néréide 0.4.0
+# Validation — démo Néréide 0.5.0
 
-Livraison du 24 octobre 2026. La démo demeure séparée du jeu Hardgraft.
+Livraison du 25 octobre 2026. La démo demeure séparée du jeu Hardgraft.
+
+- Chaque seed produit deux ou trois continents visibles ; un monde neuf reçoit une seed aléatoire, puis son URL garantit des rechargements identiques.
+- Les massifs gardent une emprise à moins de 20 % d’écart entre tailles extrêmes et une hauteur normalisée entre les deux assets.
+- Le littoral reçoit un liseré bleu clair fondu ; la texture PNG passe à 2048 × 1024 et le globe adapte son canvas aux écrans haute densité.
+- Résultats des tests Node, Chromium et Firefox à ajouter après vérification de cette version.
+
+## Historique v0.4.0
 
 - Le build produit un HTML autonome de 1,1 Mo avec uniquement les trois images fournies embarquées.
 - 21 contrôles Chromium et 24 contrôles Firefox réussis après l’orientation des massifs et le verrouillage de la caméra : assets, déterminisme des pixels, vue fixe de face, grille, vue carte, sliders, téléchargements, couture 2:1 et erreurs JavaScript.

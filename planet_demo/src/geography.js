@@ -29,7 +29,7 @@
   }
 
   function createGeography(seed, options) {
-    const rng = random(seed, 'geography-v4'), count = 1 + Math.floor(rng() * 3);
+    const rng = random(seed, 'geography-v5'), count = 2 + Math.floor(rng() * 2);
     const scale = .82 + options.continentSize * .0032, rough = options.roughness / 100;
     // Coordinates use x, y/2 so shapes have the same scale in both map axes.
     // Separate envelopes keep the major landmasses apart at every slider value.

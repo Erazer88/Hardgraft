@@ -34,7 +34,7 @@
     draw(fast) {
       if (!this.pixels || !this.canvas.clientWidth) return;
       const displaySize = this.canvas.clientWidth;
-      const size = Math.round(Math.min(fast ? 380 : 880, displaySize * Math.min(devicePixelRatio || 1, 1.5)));
+      const size = Math.round(Math.min(fast ? 640 : 1440, displaySize * Math.min(devicePixelRatio || 1, 2)));
       if (this.canvas.width !== size) {this.canvas.width = size; this.canvas.height = size; this.buffer.width = size; this.buffer.height = size;}
       const ctx = this.ctx, radius = size * .438 * this.zoom, center = size / 2;
       const image = ctx.createImageData(size, size), out = image.data, source = this.pixels;

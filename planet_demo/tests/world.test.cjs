@@ -99,7 +99,7 @@ function coastlineStats(world, width = 384) {
   }
   return {area, perimeter, continents: components.filter(size => size > width * height * .004).length};
 }
-test('1–3 separate continents survive low, default and extreme coastal settings', () => {
+test('2–3 separate continents survive low, default and extreme coastal settings', () => {
   const counts = new Set();
   for (let seed = 0; seed < 16; seed++) {
     for (const settings of [{}, {continentSize: 0, roughness: 0}, {continentSize: 100, roughness: 100}]) {
@@ -111,7 +111,7 @@ test('1–3 separate continents survive low, default and extreme coastal setting
       }
     }
   }
-  assert.deepEqual([...counts].sort(), [1, 2, 3]);
+  assert.deepEqual([...counts].sort(), [2, 3]);
 });
 test('the center of every generated continent stays on the visible front hemisphere', () => {
   for (let seed = 0; seed < 48; seed++) {
@@ -145,5 +145,15 @@ test('nearby archipelagos have varying sizes and no overlap with the mainland', 
         assert.ok(world.mainland(island.x + Math.cos(a) * island.bound, island.y + Math.sin(a) * island.bound * 2) > 0);
       }
     }
+  }
+});
+
+test('painted mountain massifs keep a consistent footprint within twenty percent', () => {
+  for (let seed = 0; seed < 32; seed++) {
+    const world = A.createWorld(seed);
+    assert.ok(world.chains.length >= 1, `seed ${seed} should place a massif`);
+    const sizes = world.chains.map(chain => chain.size);
+    assert.ok(Math.min(...sizes) >= .092 && Math.max(...sizes) <= .108);
+    assert.ok(Math.max(...sizes) / Math.min(...sizes) < 1.2, `seed ${seed}: ${sizes}`);
   }
 });

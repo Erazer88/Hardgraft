@@ -7,7 +7,13 @@
   const parameters = new URLSearchParams(location.search);
   let initial = {};
   try {initial = JSON.parse(byId('initial-state').textContent);} catch (_) { /* A damaged preset uses defaults. */ }
-  byId('seed').value = parameters.get('seed') ?? initial.seed ?? '4E455245';
+  function freshSeed() {
+    const value = new Uint32Array(1);
+    if (globalThis.crypto && globalThis.crypto.getRandomValues) globalThis.crypto.getRandomValues(value);
+    else value[0] = Math.floor(Math.random() * 0x100000000);
+    return A.formatSeed(value[0]);
+  }
+  byId('seed').value = parameters.get('seed') ?? initial.seed ?? freshSeed();
   for (const key of keys) {
     const value = parameters.get(queryKeys[key]) ?? initial[key] ?? A.defaults[key];
     byId(key).value = A.clamp(Number.isFinite(Number(value)) ? Number(value) : A.defaults[key], 0, 100);
@@ -112,7 +118,7 @@
     const config = texture ? {seed: A.formatSeed(texture.world.seed), ...texture.world.options} : {seed: byId('seed').value};
     copy.querySelector('#initial-state').textContent = JSON.stringify(config);
     copy.querySelector('#message').textContent = '';
-    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.4.html');
+    download(new Blob(['<!doctype html>\n' + copy.outerHTML], {type: 'text/html;charset=utf-8'}), 'nereide-atlas-v0.5.html');
     message('Démo autonome téléchargée avec la seed et les réglages actuels.');
   });
   globalThis.NereideDemo = {globe, regenerate, get texture() {return texture;}, get mapMode() {return mapMode;}};

@@ -3,7 +3,7 @@
   const A = root.NereideAtlas, {clamp, lerp, noise, smoothstep} = A;
   const mix = (a, b, t) => a.map((n, i) => lerp(n, b[i], clamp(t, 0, 1)));
   const palette = {
-    ocean: [6, 43, 83], deep: [7, 51, 91], shallow: [10, 62, 101], coast: [48, 183, 184],
+    ocean: [6, 43, 83], deep: [7, 51, 91], shallow: [13, 91, 143], coast: [79, 217, 245],
     sand: [236, 219, 151], plain: [174, 197, 100], light: [198, 210, 123],
     warm: [170, 188, 93], dark: [147, 178, 84], forest: [78, 130, 68], ice: [217, 232, 237]
   };
@@ -83,7 +83,7 @@
     ctx.restore();
   }
   async function generatePlanetTexture(config) {
-    const settings = config || {}, width = settings.width ?? 1536, height = settings.height ?? width / 2;
+    const settings = config || {}, width = settings.width ?? 2048, height = settings.height ?? width / 2;
     if (!Number.isInteger(width) || width % 2 || width < 256 || width > 4096 || height !== width / 2) {
       throw new Error('La texture doit avoir un ratio 2:1, entre 256 et 4096 pixels de large.');
     }
@@ -102,9 +102,11 @@
         const water = d > 0, variation = interpolated(grid.variation, grid.width, grid.height, u, v);
         let color, beachAlpha = 0, forestAlpha = 0;
         if (water) {
-          color = mix(palette.coast, palette.shallow, smoothstep(.0005, .0027, d));
-          color = mix(color, palette.deep, smoothstep(.0027, .012, d));
-          color = mix(color, palette.ocean, smoothstep(.012, .04, d));
+          // A bright, narrow turquoise ribbon follows every shore, then fades
+          // smoothly into shallow water and the deeper ocean.
+          color = mix(palette.coast, palette.shallow, smoothstep(.0007, .0045, d));
+          color = mix(color, palette.deep, smoothstep(.0045, .017, d));
+          color = mix(color, palette.ocean, smoothstep(.017, .045, d));
           const polar = smoothstep(.86, .99, Math.abs(mapY));
           const iceNoise = interpolated(grid.polar, grid.width, grid.height, u, v);
           const ice = polar * smoothstep(.35, .77, iceNoise);
@@ -133,6 +135,7 @@
     ctx.putImageData(image, 0, 0); lctx.putImageData(landImage, 0, 0); octx.putImageData(oceanImage, 0, 0);
     if (library.ground) {
       const groundLayer = A.surface(width, height), groundCtx = groundLayer.getContext('2d');
+      groundCtx.imageSmoothingEnabled = true; groundCtx.imageSmoothingQuality = 'high';
       groundCtx.drawImage(library.ground, 0, 0, width, height);
       groundCtx.globalCompositeOperation = 'destination-in'; groundCtx.drawImage(landMask, 0, 0);
       groundCtx.globalCompositeOperation = 'source-over'; ctx.drawImage(groundLayer, 0, 0);
@@ -153,7 +156,11 @@
       if (!library.mountains.length) break;
       const variant = (i + (world.seed & 1)) % library.mountains.length;
       const mountain = library.mountains[variant];
-      sprite(dctx, mountain, {...chain, size: chain.size * 1.12, heightScale: 1.75, angle: chain.direction,
+      dctx.imageSmoothingEnabled = true; dctx.imageSmoothingQuality = 'high';
+      // Both provided sprites use a common visual height despite their
+      // different source aspect ratios.
+      const heightScale = .72 * mountain.width / mountain.height;
+      sprite(dctx, mountain, {...chain, size: chain.size, heightScale, angle: chain.direction,
         anchor: .72, mirror: ((chain.variant || i) & 1) === 1}, width, height, 1, .98);
     }
     dctx.globalCompositeOperation = 'destination-in'; dctx.drawImage(landMask, 0, 0); dctx.globalCompositeOperation = 'source-over';
