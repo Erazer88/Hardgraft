@@ -58,6 +58,11 @@ commande la couverture liquide des cartes. Une géante gazeuse n'a ni surface
 liquide jouable ni habitabilité de surface. `resources` contient des indices
 d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
+La carte d'une planète est un rectangle 4:3 de 640 × 480 cellules
+(`OrbitConfig.terrain`), soit 1920 × 1440 km. En arrivant sur une planète, la caméra
+la cadre pour couvrir exactement l'écran, en portrait comme en paysage. Les ratios de
+gisements sont relatifs au plus petit côté de la carte.
+
 `createTerrain(seed, width, height, planet)` utilise la couverture d'eau du
 profil, ou la couverture totale eau/glace dans `terrainWater` pour les mondes
 froids. Le terrain v2 déforme les masses continentales avec un bruit basse

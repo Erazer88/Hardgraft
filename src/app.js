@@ -202,9 +202,10 @@
     const record = prepareTerrain(planet);
     const width = record.texture.logicalWidth || record.texture.width;
     const height = record.texture.logicalHeight || record.texture.height;
-    // Fill both screen dimensions, including wide mobile landscape displays.
-    // Keep world proportions intact; pan and pinch reach the rest of the map.
-    const zoom = Math.max(W / width, H / height) * 1.08;
+    // Arriving on a planet, the 4:3 map exactly covers the screen in both
+    // dimensions, portrait or landscape. Keep world proportions intact; pan
+    // and pinch reach the part of the map cropped by the screen shape.
+    const zoom = Math.max(W / width, H / height);
     return worldCamera(surfaceFrame(planet), { x: width / 2, y: height / 2, zoom });
   }
   function resetCamera(immediate = false) { const cam = homeCamera(); focusCamera(cam.x, cam.y, cam.zoom, immediate); }

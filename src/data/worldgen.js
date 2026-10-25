@@ -39,9 +39,9 @@
       relief: { warpScale: 2.2, warpStrength: .035, fineScale: 40, fineAmplitude: 8,
         microScale: 92, microAmplitude: 3.8, ridgeScale: 7, ridgePower: 3.2, ridgeAmplitude: 94 },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
-        startingCandidateCount: 4, spacingRatio: .21, radiusRatio: [.06, .09] },
+        startingCandidateCount: 4, spacingRatio: .1575, radiusRatio: [.045, .0675] },
       offshoreOil: { planetChance: 1 / 3, temperatureRange: [-10, 40], minimumWater: .18,
-        depthBelowSea: 12, radiusRatio: [.075, .10] }
+        depthBelowSea: 12, radiusRatio: [.05625, .075] }
     },
     colors: { tellurique: '#90a58b', océanique: '#6097ad', aride: '#bd9c77',
       glacée: '#99b5c6', volcanique: '#b9846d', gazeuse: '#b4aa92' },
