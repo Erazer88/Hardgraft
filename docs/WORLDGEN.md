@@ -145,9 +145,11 @@ au zoom, des points de taille constante prennent le relais. Le réglage dévelop
 Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
 (`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta
 sombre aux sommets presque blancs, séparée de la suivante par une ligne d'altitude
-(une ligne maîtresse toutes les `majorEvery` strates). Les pentes fortes (falaises,
-parois de canyon) sont ombrées, les marais portent un motif de touffes, rivières et
-lacs reprennent l'eau sombre et le liseré lumineux de la mer. Au zoom, lignes
+fine et discrète, toutes identiques. Les pentes fortes (falaises, parois de canyon) sont
+légèrement ombrées, les marais portent un motif de touffes discret. Les rivières
+reprennent l'eau sombre de la mer avec un liseré léger ; seules celles qui drainent un
+bassin assez grand sont dessinées (`water.riverMinFlow`). Le rendu reste volontairement
+sobre pour laisser la place aux éléments de jeu. Au zoom, lignes
 d'altitude, rivières et côte sont retracées en vecteurs. La palette se règle dans
 `OrbitSurfaceStyle.neon` (`src/data/surfaceStyle.js`).
 

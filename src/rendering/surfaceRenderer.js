@@ -217,7 +217,9 @@
           ys[ys.length - 1] = (river.points[last + 1] + river.points[last - 1]) / 2;
         }
         for (let i = 0; i + 1 < xs.length; i += 1) {
-          const width = Math.round(riverWidthKm((fs[i] + fs[i + 1]) / 2) * 2) / 2;
+          // Small headwaters stay in the data but are not drawn, to keep the map light.
+          if ((fs[i] + fs[i + 1]) / 2 < SurfaceStyle.neon.water.riverMinFlow) continue;
+          const width = Math.round(riverWidthKm((fs[i] + fs[i + 1]) / 2) * 4) / 4;
           if (!groups.has(width)) groups.set(width, new root.Path2D());
           const path = groups.get(width);
           path.moveTo(xs[i] * cellSize, ys[i] * cellSize);
@@ -291,8 +293,15 @@
           const value = top + (bottom - top) * sy;
           const gx = ((relief[i10] - relief[i00]) * (1 - sy) + (relief[i11] - relief[i01]) * sy) / textureScale;
           const gy = (bottom - top) / textureScale;
-          const strata = (value - base) / step;
-          const band = bands[clamp(Math.floor(strata) + 1, 0, bandCount - 1)];
+          const strata = (value - base) / step, nearest = Math.round(strata);
+          // Signed distance to the nearest stratum limit, in texels: within a
+          // texel of it, the two tints blend so limits stay smooth close up.
+          const gradient = Math.max(.08, Math.hypot(gx, gy)), signed = (value - (base + nearest * step)) / gradient;
+          let band = bands[clamp(Math.floor(strata) + 1, 0, bandCount - 1)];
+          if (nearest >= 1 && Math.abs(signed) < 1) {
+            const below = bands[clamp(nearest, 0, bandCount - 1)], above = bands[clamp(nearest + 1, 0, bandCount - 1)];
+            band = mixRGB(below, above, smoothstep(.5 + signed * .5));
+          }
           const topSlope = slope[i00] + (slope[i10] - slope[i00]) * sx;
           const slopeHere = topSlope + (slope[i01] + (slope[i11] - slope[i01]) * sx - topSlope) * sy;
           const light = (1 + (pigment[i00] + (pigment[i10] - pigment[i00]) * sx) * style.pigment) *
@@ -312,12 +321,10 @@
               }
             }
           }
-          const nearest = Math.round(strata);
           if (nearest >= 1) {
-            const distance = Math.abs(value - (base + nearest * step)) / Math.max(.08, Math.hypot(gx, gy));
-            const coverage = clamp(1.1 - distance / .75, 0, 1);
+            const coverage = clamp(1 - Math.abs(signed) / .6, 0, 1);
             if (coverage > 0) {
-              const amount = coverage * (nearest % style.majorEvery === 0 ? style.majorLineOpacity : style.lineOpacity);
+              const amount = coverage * style.lineOpacity;
               red += (line[0] - red) * amount; green += (line[1] - green) * amount; blue += (line[2] - blue) * amount;
             }
           }
@@ -505,12 +512,11 @@
       context.clearRect(0, 0, rasterWidth, rasterHeight);
       context.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
       context.lineCap = 'round'; context.lineJoin = 'round';
-      // Contour lines first, every majorEvery-th one stronger, then rivers.
+      // Contour lines first, all alike.
       const reliefStyle = SurfaceStyle.neon.relief;
-      for (const [index, path] of cache.levelPaths.entries()) {
-        const major = (index + 1) % reliefStyle.majorEvery === 0;
-        context.lineWidth = (major ? reliefStyle.majorLineWidthPx : reliefStyle.lineWidthPx) / job.zoom;
-        context.strokeStyle = rgba(reliefStyle.lineColor, major ? reliefStyle.majorLineOpacity : reliefStyle.lineOpacity);
+      for (const path of cache.levelPaths) {
+        context.lineWidth = reliefStyle.lineWidthPx / job.zoom;
+        context.strokeStyle = rgba(reliefStyle.lineColor, reliefStyle.lineOpacity);
         context.stroke(path);
       }
       const closeDots = materialsVisible() ? closeUpDotsAlpha(job.zoom) : 0;

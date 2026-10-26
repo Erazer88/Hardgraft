@@ -42,24 +42,22 @@
       coastGlowBlurPx: 4.5,
       coastGlowOpacity: .7,
       // Relief strata: one tint per elevation band, darker lowlands to pale
-      // summits, separated by contour lines like a hypsometric map.
+      // summits, separated by thin, identical contour lines. Kept discreet so
+      // gameplay elements stand out.
       relief: Object.freeze({
-        bandStep: 12,
+        bandStep: 16,
         // Texels per terrain cell for the baked strata; the map texture has 3.
         layerScale: 2,
-        majorEvery: 4,
         colors: Object.freeze(['#6e2153', '#8c2e69', '#ab3f80', '#c75594', '#de72aa', '#ee96c2', '#f8bdd9', '#ffe6f2']),
-        pigment: .1,
+        pigment: .06,
         lineColor: '#ffd3e8',
-        lineOpacity: .3,
-        majorLineOpacity: .58,
-        lineWidthPx: .7,
-        majorLineWidthPx: 1.15,
+        lineOpacity: .16,
+        lineWidthPx: .6,
         // Steep ground (cliffs, canyon walls) is shaded darker, up to this share.
-        slopeShade: .38,
-        slopeShadeFull: 5
+        slopeShade: .18,
+        slopeShadeFull: 6
       }),
-      marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .45, mark: '#86e6d2', markOpacity: .7 }),
+      marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .3, mark: '#86e6d2', markOpacity: .35 }),
       // Ground materials: sparse glowing dots colored by the dominant material.
       // A cell starts showing a dot from minShare and is at full chance and
       // brightness at fullShare; density caps the share of cells with a dot.
@@ -84,11 +82,13 @@
         lakeColor: '#0d2742',
         riverColor: '#0d2742',
         riverEdgeColor: '#ff9cc6',
-        riverEdgeOpacity: .85,
-        riverEdgePx: 2.2,
-        riverMinWidthKm: .8,
-        riverWidthPerFlowKm: .6,
-        riverMaxWidthKm: 4.5,
+        riverEdgeOpacity: .3,
+        riverEdgePx: 1.2,
+        riverMinWidthKm: .6,
+        riverWidthPerFlowKm: .4,
+        riverMaxWidthKm: 3,
+        // Only rivers draining at least this many times the source threshold are drawn.
+        riverMinFlow: 2,
         // Visual meanders, in cells, so courses never run as straight grid lines.
         meanderAmplitude: .9,
         meanderWavelength: 7
