@@ -286,6 +286,14 @@ test('ore veins branch from rich nodes over land and enrich the ground they cros
     for (let kind = 0; kind < ids.length; kind += 1) if (ids[kind] !== 'oil') { ground += shares[cell * ids.length + kind] / 255; groundCount += 1; }
   }
   assert.ok(onVein / onVeinCount > ground / groundCount * 3, 'ground along a vein is far richer in its material');
+  // The ground changes over kilometers: neighbouring land cells differ little.
+  let jump = 0;
+  for (let y = 0; y < height; y += 1) for (let x = 0; x + 1 < width; x += 1) {
+    const cell = y * width + x;
+    if (elevation[cell] <= seaLevel || elevation[cell + 1] <= seaLevel) continue;
+    for (let kind = 0; kind < ids.length; kind += 1) jump = Math.max(jump, Math.abs(shares[cell * ids.length + kind] - shares[(cell + 1) * ids.length + kind]) / 255);
+  }
+  assert.ok(jump < .1, 'shares change smoothly from one cell to the next');
 });
 
 test('telluric maps keep their continents inside an open-sea border', () => {

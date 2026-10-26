@@ -145,6 +145,14 @@ vers les courbes de niveau, comme une strate ou une faille, s'affine vers sa poi
 se ramifie rarement, sur deux niveaux au plus. Le sol traversé est enrichi dans le matériau du filon (la part des autres est
 réduite pour rester sous le plafond de minerai). `terrain.materials.veins` (tracés en
 cellules, force par point) et `terrain.materials.nodes` sont déterministes par graine.
+Autour d'un filon, le sol s'enrichit sur environ 3,5 cellules de part et d'autre.
+
+Enfin, toutes les parts sont lissées (`materials.smoothing` : deux flous de rayon 2
+cellules, chacun ne moyennant que des cellules du même milieu, terre ou mer) : le sol
+change sur des kilomètres, jamais brutalement d'une cellule de 3 km à la suivante.
+Une foreuse moyenne en plus sa zone de captage (voir
+[`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md)), et l'inspection d'un point du sol affiche
+cette même moyenne, arrondie.
 
 À l'écran, les matériaux apparaissent en points lumineux de la couleur du matériau
 dominant, plus fréquents et plus vifs là où il est concentré

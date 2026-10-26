@@ -58,9 +58,13 @@ quantités de séchage sont conservées à 1:1. La séparation du pétrole garde
 ports, recettes, débits et consommations se trouvent dans `src/data/processes.js`.
 
 Il n'y a plus de gisements : un Extracteur se pose librement sur la terre ferme et
-enregistre la composition moyenne du sol sous son emprise (`composition`), puis le
+enregistre la composition moyenne du sol qu'il draine (`composition`) : une moyenne
+pondérée (gaussienne) sur sa zone de captage (`catchmentRadius`, 24 km ; 30 km pour une
+plateforme), si bien que le déplacer de quelques kilomètres change à peine son rendement.
+Il en déduit le
 matériau exploitable le plus présent (`resourceId` : fer, cuivre, silice ou carbone) et
-sa part (`resourceShare`). La Foreuse lit ce `resourceId`. Une Plateforme pétrolière se
+sa part (`resourceShare`). L'interface n'affiche que des estimations (« ≈ 15 % », par pas
+de 5 % au-dessus de 10 %, de 1 % en dessous). La Foreuse lit ce `resourceId`. Une Plateforme pétrolière se
 pose librement en mer profonde, enregistre la part de pétrole du fond et utilise une
 Pompe pétrolière dédiée et son séparateur triphasé. La part ne modifie pas encore le
 débit : les rendements seront calibrés plus tard. La carte de Réserve d'eau ne mine pas le sol : elle fournit

@@ -835,7 +835,55 @@
       }
     }
     const veins = buildVeins({ width, height, minSide, land, features, relief, shares, list, table, terrainSeed, richness });
+    smoothShares({ width, height, land, features, shares, list, passes: table.smoothing.passes, radius: table.smoothing.radius });
     return { ids: list.map(material => material.id), shares, veins: veins.veins, nodes: veins.nodes };
+  }
+
+  // Ground varies over kilometers, not from one cell to the next: box blurs of
+  // every material share, each averaging only cells of its own medium (dry
+  // land for land materials, sea for marine ones; lakes and coves hold none).
+  // Averages of capped cells stay under the ore cap.
+  function smoothShares(options) {
+    const { width, height, land, features, shares, list, passes, radius } = options;
+    const kinds = list.length, count = width * height;
+    const medium = new Uint8Array(count);
+    for (let cell = 0; cell < count; cell += 1) {
+      const feature = features[cell];
+      medium[cell] = feature === TERRAIN_FEATURES.lake || feature === TERRAIN_FEATURES.cove ? 0 : land[cell] ? 1 : 2;
+    }
+    const values = new Float32Array(count), weights = new Float32Array(count);
+    const rowValues = new Float32Array(count), rowWeights = new Float32Array(count);
+    for (let kind = 0; kind < kinds; kind += 1) {
+      const own = list[kind].marine ? 2 : 1;
+      for (let cell = 0; cell < count; cell += 1) {
+        values[cell] = medium[cell] === own ? shares[cell * kinds + kind] : 0;
+        weights[cell] = medium[cell] === own ? 1 : 0;
+      }
+      for (let pass = 0; pass < passes; pass += 1) {
+        for (let y = 0; y < height; y += 1) {
+          let value = 0, weight = 0;
+          for (let x = -radius; x < width; x += 1) {
+            const enter = x + radius, leave = x - radius - 1;
+            if (enter < width) { value += values[y * width + enter]; weight += weights[y * width + enter]; }
+            if (leave >= 0) { value -= values[y * width + leave]; weight -= weights[y * width + leave]; }
+            if (x >= 0) { rowValues[y * width + x] = value; rowWeights[y * width + x] = weight; }
+          }
+        }
+        for (let x = 0; x < width; x += 1) {
+          let value = 0, weight = 0;
+          for (let y = -radius; y < height; y += 1) {
+            const enter = y + radius, leave = y - radius - 1;
+            if (enter < height) { value += rowValues[enter * width + x]; weight += rowWeights[enter * width + x]; }
+            if (leave >= 0) { value -= rowValues[leave * width + x]; weight -= rowWeights[leave * width + x]; }
+            if (y < 0) continue;
+            const cell = y * width + x, mine = medium[cell] === own;
+            values[cell] = mine && weight > .5 ? value / weight : 0;
+          }
+        }
+        for (let cell = 0; cell < count; cell += 1) weights[cell] = medium[cell] === own ? 1 : 0;
+      }
+      for (let cell = 0; cell < count; cell += 1) shares[cell * kinds + kind] = Math.round(values[cell]);
+    }
   }
 
   // Ore veins: from the richest spots of each land material, a few fractures

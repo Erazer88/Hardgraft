@@ -738,9 +738,12 @@
         [World.TERRAIN_FEATURES.cove]: 'Crique' };
       const names = featureNames[terrainData.features?.[cell]] || (height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' :
         height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : height < 225 ? 'Massif montagneux' : 'Sommet');
-      const composition = terrainData.materials ? World.materialsAt(terrainData, cell) : null;
+      // Report what a drill set here would drain, not the single cell under the cursor.
+      const drill = BuildingData.get(height <= terrainData.seaLevel ? 'oil_platform' : 'extractor');
+      const composition = terrainData.materials ? BuildingPlacement.groundComposition(terrainData,
+        Config.terrain.textureScale, { x: terrainPoint.x, y: terrainPoint.y }, drill) : null;
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
-        info: composition ? `Sol : ${hud.compositionText(composition)}.` : 'Composition du sol inconnue.' });
+        info: composition ? `Sol, moyenne sur ${drill.catchmentRadius} km : ${hud.compositionText(composition)}.` : 'Composition du sol inconnue.' });
     }
   }
   function zoomAt(factor, x = W / 2, y = H / 2) {

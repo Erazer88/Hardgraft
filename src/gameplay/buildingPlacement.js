@@ -156,31 +156,38 @@
     return null;
   }
 
-  // Average ground composition under a footprint, one sample per terrain
+  // Average ground composition an extractor drains, one sample per terrain
   // cell (cell values sit on world multiples of textureScale); rock fills the
-  // rest. Extractors can stand anywhere: this only tells what they extract.
+  // rest. With a catchment radius, cells within it count with a Gaussian
+  // weight around the center, so moving a drill by a few kilometers barely
+  // changes its yield; otherwise the footprint is averaged evenly.
+  // Extractors can stand anywhere: this only tells what they extract.
   function groundComposition(terrain, textureScale, position, definition) {
     const materials = terrain.materials;
     if (!materials) return null;
     const kinds = materials.ids.length, totals = new Float64Array(kinds);
-    const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+    const radius = definition.catchmentRadius;
+    const halfWidth = radius || definition.footprint.width / 2, halfHeight = radius || definition.footprint.height / 2;
     const cos = Math.cos(position.rotation || 0), sin = Math.sin(position.rotation || 0);
-    let samples = 0;
+    let weights = 0;
     for (let localY = -halfHeight; localY <= halfHeight; localY += textureScale) {
       for (let localX = -halfWidth; localX <= halfWidth; localX += textureScale) {
+        const distance = Math.hypot(localX, localY);
+        if (radius && distance > radius) continue;
+        const weight = radius ? Math.exp(-2 * (distance / radius) ** 2) : 1;
         const cellX = Math.round((position.x + localX * cos - localY * sin) / textureScale);
         const cellY = Math.round((position.y + localX * sin + localY * cos) / textureScale);
         if (cellX < 0 || cellY < 0 || cellX >= terrain.width || cellY >= terrain.height) continue;
         const cell = cellY * terrain.width + cellX;
-        for (let kind = 0; kind < kinds; kind += 1) totals[kind] += materials.shares[cell * kinds + kind];
-        samples += 1;
+        for (let kind = 0; kind < kinds; kind += 1) totals[kind] += materials.shares[cell * kinds + kind] * weight;
+        weights += weight;
       }
     }
-    if (!samples) return null;
+    if (!weights) return null;
     const composition = {};
     let ore = 0;
     materials.ids.forEach((id, kind) => {
-      composition[id] = Math.round(totals[kind] / samples / 255 * 1e4) / 1e4;
+      composition[id] = Math.round(totals[kind] / weights / 255 * 1e4) / 1e4;
       ore += composition[id];
     });
     composition.rock = Math.round(Math.max(0, 1 - ore) * 1e4) / 1e4;

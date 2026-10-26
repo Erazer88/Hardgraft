@@ -19,6 +19,8 @@
       sprite: 'assets/buildings/extractor.webp',
       description: 'Fore le sol où il est posé et en extrait la matière la plus présente.',
       functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
+      // Drains the ground around it: a weighted average over this radius (km).
+      catchmentRadius: 24,
       cost: { iron: 18, copper: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
@@ -41,6 +43,7 @@
       sprite: 'assets/buildings/oil-platform.webp',
       description: 'Pompe le pétrole des fonds marins sous la plateforme.',
       functions: { extractsOffshoreResources: true }, extracts: ['oil'],
+      catchmentRadius: 30,
       cost: { iron: 40, copper: 20, silicon: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 46, height: 38 }, roadRequired: false,
       marinePortOffset: { x: 0, y: -24 },

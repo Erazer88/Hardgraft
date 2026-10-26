@@ -39,8 +39,9 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   [`WORLDGEN.md`](WORLDGEN.md).
 - Plus de gisements ni de champ de pétrole : chaque zone du sol a sa composition
   (roche + fer, cuivre, silice, carbone ; pétrole en mer), plus concentrée selon le
-  terrain. Extracteurs et plateformes se posent librement et extraient le matériau
-  le plus présent sous eux. Les minerais suivent des veines ramifiées issues de nœuds
+  terrain, lissée sur quelques kilomètres. Extracteurs et plateformes se posent
+  librement et extraient le matériau le plus présent dans leur zone de captage
+  (moyenne sur 24 à 30 km, affichée en « ≈ »), sans placement au pixel près. Les minerais suivent des veines ramifiées issues de nœuds
   riches. Les points et veines colorés du sol seront plus tard révélés par
   un scan progressif ; les ratios et rendements restent à calibrer.
 - Le prototype garde encore des modes de test : réserve de colonie infinie et énergie

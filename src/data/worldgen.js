@@ -121,14 +121,18 @@
         natalMinimumPeak: .14,
         // Veins: branching fractures that radiate from a rich node and carry
         // the material. Lengths are fractions of the map side, steps in cells.
-        // A cell on a vein holds up to `share` of its material.
+        // A cell on a vein holds up to `share` of its material, fading out over
+        // `width` cells on each side.
         veins: {
           nodes: [2, 4], nodeSpacing: .1, minNodeShare: .07,
           branches: [2, 4], branchSpread: .45, length: [.05, .12], step: 1.2, turn: .22,
           followContour: .35, contourReach: 3, minContourSlope: 4,
           splitChance: .07, splitAngle: [.25, .6], splitLength: [.3, .55], maxDepth: 2,
-          width: 1.3, share: .42
-        }
+          width: 3.5, share: .4
+        },
+        // Final smoothing of every share: box blurs of this radius in cells
+        // (a cell is 3 km), so the ground changes over kilometers.
+        smoothing: { radius: 2, passes: 2 }
       }
     },
     colors: { tellurique: '#90a58b', océanique: '#6097ad', aride: '#bd9c77',
