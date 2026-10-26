@@ -164,9 +164,10 @@ intérieur, une ombre diffuse qui s'estompe au pied de chaque marche du côté o
 la lumière et un liseré clair et doux sur l'arête éclairée, plus un ombrage directionnel doux des pentes
 (lumière venant du nord-ouest). Une couche de micro-relief, purement visuelle
 (`relief.detail`), sème par endroits de petits îlots qui surélèvent ou creusent
-légèrement le terrain : à peine plus clairs ou plus sombres, très peu ombrés et
-cernés d'une fine ligne de contour. Ils restent groupés en zones éparses, à l'écart
-des limites de strates pour ne jamais en chevaucher deux, et ne changent pas
+légèrement le terrain : un peu plus clairs ou plus sombres, peu ombrés et cernés
+d'une fine ligne de contour, retracée en vecteur au zoom pour rester nette. Chaque
+îlot est gardé entier ou écarté : il doit tenir dans une zone éparse, sur la terre
+ferme, dans une seule strate et à l'écart de ses limites. Ils ne changent pas
 l'altitude du jeu. La mer porte quelques isobathes discrètes. Le trait de
 côte suit un champ lissé qui arrondit l'escalier des cellules (`neon.shoreSmoothing`)
 sans faire disparaître les îlots d'une cellule. Les marais portent un motif de touffes discret. Les rivières

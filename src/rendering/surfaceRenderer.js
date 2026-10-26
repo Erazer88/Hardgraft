@@ -352,6 +352,76 @@
       context.restore();
     }
 
+    // Micro-relief knolls and hollows, a render-only detail layer. A fine
+    // two-octave noise is cut into blobs past a threshold; a blob is kept whole
+    // or dropped: it must lie in one of the scattered patches, on dry land, in a
+    // single stratum and clear of its limits. The kept blobs and the ring of
+    // cells around them keep their noise, everything else is zero, so the
+    // texture and the vector contours draw the same closed outlines.
+    const reliefDetailCache = new WeakMap();
+    function reliefDetail(planet, terrain) {
+      if (reliefDetailCache.has(terrain)) return reliefDetailCache.get(terrain);
+      const style = SurfaceStyle.neon.relief, detailStyle = style.detail, step = style.bandStep;
+      const { width, height, seaLevel, elevation } = terrain, count = width * height;
+      const relief = terrain.relief || elevation, cellFeatures = terrain.features, { base } = reliefLevels(seaLevel, step);
+      const seed = World.hashSeed(String(planet.seed) + ':neon-detail:v1'), scale = detailStyle.scaleCells;
+      const raw = new Float32Array(count), fits = new Uint8Array(count), stratum = new Int16Array(count);
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const cell = y * width + x;
+        raw[cell] = (valueNoise(x / scale, y / scale, seed) - .5) * 1.6 +
+          (valueNoise(x / scale * 2.3 + 17.3, y / scale * 2.3 - 5.1, seed ^ 0x5bd1e995) - .5) * .3;
+        const patch = valueNoise(x / detailStyle.patchCells, y / detailStyle.patchCells, seed ^ 0x27d4eb2f);
+        const slope = Math.max(.5, Math.hypot(
+          relief[y * width + Math.min(width - 1, x + 1)] - relief[y * width + Math.max(0, x - 1)],
+          relief[Math.min(height - 1, y + 1) * width + x] - relief[Math.max(0, y - 1) * width + x]) * .5);
+        const strata = (relief[cell] - base) / step;
+        stratum[cell] = Math.floor(strata);
+        const clearance = Math.abs(strata - Math.round(strata)) * step / slope;
+        fits[cell] = elevation[cell] > seaLevel && patch >= detailStyle.patchThreshold &&
+          clearance >= detailStyle.marginCells && (!cellFeatures || cellFeatures[cell] === World.TERRAIN_FEATURES.none) ? 1 : 0;
+      }
+      const kept = new Uint8Array(count), seen = new Uint8Array(count), blob = [], stack = [];
+      for (let start = 0; start < count; start += 1) {
+        if (seen[start] || Math.abs(raw[start]) <= detailStyle.threshold) continue;
+        const sign = Math.sign(raw[start]);
+        blob.length = 0; seen[start] = 1; stack.push(start);
+        while (stack.length) {
+          const cell = stack.pop(), cx = cell % width, cy = (cell - cx) / width;
+          blob.push(cell);
+          for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = cx + dx, ny = cy + dy, next = ny * width + nx;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height || seen[next] || raw[next] * sign <= detailStyle.threshold) continue;
+            seen[next] = 1; stack.push(next);
+          }
+        }
+        if (blob.length > detailStyle.maxCells) continue;
+        // The blob and its ring must all fit, in the blob's stratum.
+        let fitsWhole = true;
+        for (const cell of blob) {
+          const cx = cell % width, cy = (cell - cx) / width;
+          for (let dy = -1; dy <= 1 && fitsWhole; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = cx + dx, ny = cy + dy, next = ny * width + nx;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height || !fits[next] || stratum[next] !== stratum[blob[0]]) { fitsWhole = false; break; }
+          }
+          if (!fitsWhole) break;
+        }
+        if (!fitsWhole) continue;
+        for (const cell of blob) {
+          const cx = cell % width, cy = (cell - cx) / width;
+          for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) kept[(cy + dy) * width + cx + dx] = 1;
+        }
+      }
+      const field = Float32Array.from(raw, (value, cell) => kept[cell] ? value : 0);
+      const slopeX = new Float32Array(count), slopeY = new Float32Array(count);
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        slopeX[y * width + x] = (field[y * width + Math.min(width - 1, x + 1)] - field[y * width + Math.max(0, x - 1)]) * .5;
+        slopeY[y * width + x] = (field[Math.min(height - 1, y + 1) * width + x] - field[Math.max(0, y - 1) * width + x]) * .5;
+      }
+      const detail = { field, slopeX, slopeY, edge: detailStyle.threshold + detailStyle.softness / 2 };
+      reliefDetailCache.set(terrain, detail);
+      return detail;
+    }
+
     // Hypsometric land layer, lit like stacked paper: each texel samples the
     // relief bilinearly (cell values sit on multiples of the layer scale, as
     // for the contours) and takes its stratum tint, brightening toward the next
@@ -380,22 +450,7 @@
         pigment[y * width + x] = (valueNoise(u * 3 + 2.1, v * 3 - 6.4, seed) - .5) * 1.4 +
           (valueNoise(u * 10.5 - 9.2, v * 10.5 + 3.7, seed ^ 0x9e3779b9) - .5) * .6;
       }
-      // Micro-relief: a fine two-octave noise draws small knolls and hollows, a
-      // detail layer below the strata that only textures the render. A broad
-      // patch noise keeps them to scattered areas.
-      const detailStyle = style.detail, detail = new Float32Array(width * height), detailPatch = new Float32Array(width * height);
-      const detailSeed = World.hashSeed(String(planet.seed) + ':neon-detail:v1'), detailScale = detailStyle.scaleCells;
-      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-        detail[y * width + x] = (valueNoise(x / detailScale, y / detailScale, detailSeed) - .5) * 1.4 +
-          (valueNoise(x / detailScale * 2.3 + 17.3, y / detailScale * 2.3 - 5.1, detailSeed ^ 0x5bd1e995) - .5) * .6;
-        detailPatch[y * width + x] = smoothstep((valueNoise(x / detailStyle.patchCells, y / detailStyle.patchCells,
-          detailSeed ^ 0x27d4eb2f) - detailStyle.patchThreshold) / .12);
-      }
-      const detailX = new Float32Array(width * height), detailY = new Float32Array(width * height);
-      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-        detailX[y * width + x] = (detail[y * width + Math.min(width - 1, x + 1)] - detail[y * width + Math.max(0, x - 1)]) * .5;
-        detailY[y * width + x] = (detail[Math.min(height - 1, y + 1) * width + x] - detail[Math.max(0, y - 1) * width + x]) * .5;
-      }
+      const detailStyle = style.detail, { field: detail, slopeX: detailX, slopeY: detailY, edge: detailEdge } = reliefDetail(planet, terrainData);
       const line = hexRGB(style.lineColor), marshTint = hexRGB(marsh.tint), marshMark = hexRGB(marsh.mark);
       const marshField = cellFeatures ? Uint8Array.from(cellFeatures, feature => feature === features.marsh ? 1 : 0) : null;
       // Per-cell gradient from central differences, interpolated per texel, so
@@ -471,14 +526,12 @@
             light *= 1 - shadow * (style.stepAmbient + style.stepShadow * Math.max(0, facing));
             light *= 1 + rim * style.stepHighlight * Math.max(0, -facing);
           }
-          // Knolls rise where the detail noise passes a threshold, hollows sink
-          // where it falls below its opposite: slightly lighter or darker, barely
-          // shaded by their own slope toward or away from the light.
+          // Knolls rise where the kept detail passes the threshold, hollows sink
+          // below its opposite: lighter or darker, lightly shaded by their own
+          // slope toward or away from the light.
           const knollValue = bilinear(detail), knollSlopeX = bilinear(detailX), knollSlopeY = bilinear(detailY);
-          // Only inside a patch, and away from stratum limits so no knoll straddles two strata.
-          const presence = bilinear(detailPatch) * smoothstep((Math.abs(signed) - detailStyle.marginTexels) / detailStyle.fadeTexels);
-          const knoll = presence * smoothstep((knollValue - detailStyle.threshold) / detailStyle.softness);
-          const hollow = presence * smoothstep((-knollValue - detailStyle.threshold) / detailStyle.softness);
+          const knoll = smoothstep((knollValue - detailStyle.threshold) / detailStyle.softness);
+          const hollow = smoothstep((-knollValue - detailStyle.threshold) / detailStyle.softness);
           light *= (1 + (knoll - hollow) * detailStyle.lift) *
             (1 - (knollSlopeX * towardX + knollSlopeY * towardY) * detailStyle.shade * (knoll + hollow));
           let red = band[0] * light, green = band[1] * light, blue = band[2] * light;
@@ -507,9 +560,8 @@
             }
           }
           // A fine contour around each knoll and hollow.
-          const knollEdge = (Math.abs(knollValue) - detailStyle.threshold - detailStyle.softness / 2) /
-            Math.max(.004, Math.hypot(knollSlopeX, knollSlopeY) / textureScale);
-          const knollLine = presence * clamp(1 - Math.abs(knollEdge) / .6, 0, 1) * detailStyle.lineOpacity;
+          const knollEdge = (Math.abs(knollValue) - detailEdge) / Math.max(.004, Math.hypot(knollSlopeX, knollSlopeY) / textureScale);
+          const knollLine = clamp(1 - Math.abs(knollEdge) / .7, 0, 1) * detailStyle.lineOpacity;
           if (knollLine > 0) {
             red += (line[0] - red) * knollLine; green += (line[1] - green) * knollLine; blue += (line[2] - blue) * knollLine;
           }
@@ -681,6 +733,13 @@
       for (let level = first; level <= last; level += 1) {
         traceLevel(cache.levelPaths[level - 1], cache.levelBase + level * step, a, b, d, e, x, y, cellSize);
       }
+      // Knoll and hollow outlines, once the baked texture has built the detail.
+      const detail = reliefDetailCache.get(job.terrain);
+      if (detail) {
+        const field = detail.field;
+        traceLevel(cache.knollPath, detail.edge, Math.abs(field[index]), Math.abs(field[index + 1]),
+          Math.abs(field[index + width]), Math.abs(field[index + width + 1]), x, y, cellSize);
+      }
     }
 
     function rasterizeCoast(job) {
@@ -710,6 +769,9 @@
         context.strokeStyle = rgba(reliefStyle.lineColor, reliefStyle.lineOpacity);
         context.stroke(path);
       }
+      context.lineWidth = reliefStyle.lineWidthPx / job.zoom;
+      context.strokeStyle = rgba(reliefStyle.lineColor, reliefStyle.detail.vectorLineOpacity);
+      context.stroke(cache.knollPath);
       const closeDots = materialsVisible() ? closeUpDotsAlpha(job.zoom) : 0;
       if (closeDots > .001) {
         const dotStyle = SurfaceStyle.neon.materials, margin = 2;
@@ -784,7 +846,7 @@
       stopCoastJob();
       candidate.cache = { planetId: request.planetId, terrain: request.terrain, minX: request.minX,
         maxX: request.maxX, minY: request.minY, maxY: request.maxY,
-        path: new root.Path2D(), raster: null,
+        path: new root.Path2D(), knollPath: new root.Path2D(), raster: null,
         levelBase: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).base,
         levelPaths: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).levels.map(() => new root.Path2D()) };
       candidate.x = candidate.minX; candidate.y = candidate.minY; candidate.phase = 'trace';

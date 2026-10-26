@@ -76,11 +76,13 @@
         // Small knolls and hollows of micro-relief over the strata (render only):
         // noise feature size in cells, the noise level past which ground rises
         // (or sinks below its opposite), and how much they lighten or darken,
-        // self-shade and outline. They appear only in scattered patches (patch
-        // noise size in cells and threshold) and keep marginTexels, fading over
-        // fadeTexels, away from stratum limits.
-        detail: Object.freeze({ scaleCells: 3.6, threshold: .3, softness: .16, lift: .02, shade: .12, lineOpacity: .12,
-          patchCells: 30, patchThreshold: .54, marginTexels: 7, fadeTexels: 4 })
+        // self-shade and outline (baked texture, then vector lines close up).
+        // A blob is kept whole only inside a patch (patch noise size in cells
+        // and threshold), within one stratum, marginCells clear of its limits
+        // and no larger than maxCells.
+        detail: Object.freeze({ scaleCells: 3.4, threshold: .26, softness: .12, lift: .05, shade: .16,
+          lineOpacity: .22, vectorLineOpacity: .14,
+          patchCells: 30, patchThreshold: .5, marginCells: 1.2, maxCells: 40 })
       }),
       // Faint depth lines offshore, at these elevations (sea level is 102).
       bathymetry: Object.freeze({ levels: Object.freeze([94, 80, 62]), color: '#6fa3cc', opacity: .16 }),
