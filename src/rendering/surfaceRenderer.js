@@ -380,6 +380,22 @@
         pigment[y * width + x] = (valueNoise(u * 3 + 2.1, v * 3 - 6.4, seed) - .5) * 1.4 +
           (valueNoise(u * 10.5 - 9.2, v * 10.5 + 3.7, seed ^ 0x9e3779b9) - .5) * .6;
       }
+      // Micro-relief: a fine two-octave noise draws small knolls and hollows, a
+      // detail layer below the strata that only textures the render. A broad
+      // patch noise keeps them to scattered areas.
+      const detailStyle = style.detail, detail = new Float32Array(width * height), detailPatch = new Float32Array(width * height);
+      const detailSeed = World.hashSeed(String(planet.seed) + ':neon-detail:v1'), detailScale = detailStyle.scaleCells;
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        detail[y * width + x] = (valueNoise(x / detailScale, y / detailScale, detailSeed) - .5) * 1.4 +
+          (valueNoise(x / detailScale * 2.3 + 17.3, y / detailScale * 2.3 - 5.1, detailSeed ^ 0x5bd1e995) - .5) * .6;
+        detailPatch[y * width + x] = smoothstep((valueNoise(x / detailStyle.patchCells, y / detailStyle.patchCells,
+          detailSeed ^ 0x27d4eb2f) - detailStyle.patchThreshold) / .12);
+      }
+      const detailX = new Float32Array(width * height), detailY = new Float32Array(width * height);
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        detailX[y * width + x] = (detail[y * width + Math.min(width - 1, x + 1)] - detail[y * width + Math.max(0, x - 1)]) * .5;
+        detailY[y * width + x] = (detail[Math.min(height - 1, y + 1) * width + x] - detail[Math.max(0, y - 1) * width + x]) * .5;
+      }
       const line = hexRGB(style.lineColor), marshTint = hexRGB(marsh.tint), marshMark = hexRGB(marsh.mark);
       const marshField = cellFeatures ? Uint8Array.from(cellFeatures, feature => feature === features.marsh ? 1 : 0) : null;
       // Per-cell gradient from central differences, interpolated per texel, so
@@ -455,6 +471,16 @@
             light *= 1 - shadow * (style.stepAmbient + style.stepShadow * Math.max(0, facing));
             light *= 1 + rim * style.stepHighlight * Math.max(0, -facing);
           }
+          // Knolls rise where the detail noise passes a threshold, hollows sink
+          // where it falls below its opposite: slightly lighter or darker, barely
+          // shaded by their own slope toward or away from the light.
+          const knollValue = bilinear(detail), knollSlopeX = bilinear(detailX), knollSlopeY = bilinear(detailY);
+          // Only inside a patch, and away from stratum limits so no knoll straddles two strata.
+          const presence = bilinear(detailPatch) * smoothstep((Math.abs(signed) - detailStyle.marginTexels) / detailStyle.fadeTexels);
+          const knoll = presence * smoothstep((knollValue - detailStyle.threshold) / detailStyle.softness);
+          const hollow = presence * smoothstep((-knollValue - detailStyle.threshold) / detailStyle.softness);
+          light *= (1 + (knoll - hollow) * detailStyle.lift) *
+            (1 - (knollSlopeX * towardX + knollSlopeY * towardY) * detailStyle.shade * (knoll + hollow));
           let red = band[0] * light, green = band[1] * light, blue = band[2] * light;
           if (marshField) {
             // Marsh cells blend bilinearly into soft patches with a map symbol:
@@ -479,6 +505,13 @@
               const amount = coverage * (major ? style.lineOpacity : style.minorLineOpacity);
               red += (line[0] - red) * amount; green += (line[1] - green) * amount; blue += (line[2] - blue) * amount;
             }
+          }
+          // A fine contour around each knoll and hollow.
+          const knollEdge = (Math.abs(knollValue) - detailStyle.threshold - detailStyle.softness / 2) /
+            Math.max(.004, Math.hypot(knollSlopeX, knollSlopeY) / textureScale);
+          const knollLine = presence * clamp(1 - Math.abs(knollEdge) / .6, 0, 1) * detailStyle.lineOpacity;
+          if (knollLine > 0) {
+            red += (line[0] - red) * knollLine; green += (line[1] - green) * knollLine; blue += (line[2] - blue) * knollLine;
           }
           pixels[pixel] = red; pixels[pixel + 1] = green; pixels[pixel + 2] = blue; pixels[pixel + 3] = 255;
         }
