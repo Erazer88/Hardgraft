@@ -37,6 +37,11 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   gameplay ; les rivières ne bloquent rien. Sur les planètes telluriques et
   océaniques, les terres ne touchent jamais le bord de la carte. Voir
   [`WORLDGEN.md`](WORLDGEN.md).
+- Plus de gisements ni de champ de pétrole : chaque zone du sol a sa composition
+  (roche + fer, cuivre, silice, carbone ; pétrole en mer), plus concentrée selon le
+  terrain. Extracteurs et plateformes se posent librement et extraient le matériau
+  le plus présent sous eux. Les points colorés du sol seront plus tard révélés par
+  un scan progressif ; les ratios et rendements restent à calibrer.
 - Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
   illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques
   finales ; leurs réglages se trouvent dans `src/data/processes.js`.

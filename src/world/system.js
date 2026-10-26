@@ -84,24 +84,21 @@
         climate.temperature > 180 && traits.geology > .65 ? 'volcanique' :
           climate.surfaceWater > .65 ? 'océanique' :
             climate.surfaceWater < .08 || climate.temperature > 80 ? 'aride' : 'tellurique';
-      const oilSettings = settings.terrain.offshoreOil;
-      const moderateTelluric = kind === 'tellurique' && climate.temperature >= oilSettings.temperatureRange[0] &&
-        climate.temperature <= oilSettings.temperatureRange[1];
       const planetSeed = World.hashSeed(String(seed) + ':' + systemId + ':terrain:' + i);
-      const hasOilDeposit = moderateTelluric &&
-        World.hashSeed(String(planetSeed) + ':offshore-oil:v' + settings.version) / 4294967296 < oilSettings.planetChance;
       const resources = { water: traits.water };
-      for (const deposit of settings.deposits) {
+      for (const material of settings.planetMaterials) {
         const abundance = .1 + random() * (.45 + traits.geology * .45);
-        resources[deposit.id] = candidate ? Math.max(settings.home.minResource, abundance) : abundance;
+        resources[material] = candidate ? Math.max(settings.home.minResource, abundance) : abundance;
       }
+      // Hashed rather than drawn, so adding it leaves every other planet unchanged.
+      resources.oil = .2 + World.hashSeed(String(planetSeed) + ':oil') / 4294967296 * .7;
       return { id: systemId + ':p-' + i, name: source.name + ' ' + roman(i + 1),
         orbit, distanceAU, radius: range(random, gas ? settings.planets.gasRadius : settings.planets.solidRadius),
         phase: random() * TAU, speed: .05 * Math.sqrt(star.mass) * Math.pow(220 / orbit, 1.5),
         kind, color: settings.colors[kind], ...climate,
         surfaceWater: gas ? 0 : climate.surfaceWater, habitability: gas ? 0 : climate.habitability,
         terrainWater,
-        resources, startingCandidate: candidate, hasOilDeposit, seed: planetSeed };
+        resources, startingCandidate: candidate, seed: planetSeed };
     });
 
     let beltCount = weightedIndex(random, settings.beltCounts);

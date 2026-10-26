@@ -5,7 +5,7 @@
     ({ id, label, phase: 'solid', family: tags.includes('waste') ? 'waste' : tags.includes('metal') ? 'metal' : 'mineral',
       tags, composition, quality, particleSize, transportable: true });
   const definitions = [
-    // Legacy construction/deposit identifiers remain valid at the boundary.
+    // Legacy construction identifiers remain valid at the boundary.
     { id: 'iron', label: 'Fer', canonicalId: 'standard_iron' },
     { id: 'copper', label: 'Cuivre', canonicalId: 'standard_copper' },
     { id: 'silicon', label: 'Silice', canonicalId: 'standard_silicon' },

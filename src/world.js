@@ -36,16 +36,6 @@
     return Math.min(upper, Math.max(lower, value));
   }
 
-  function weightedCount(random, weights) {
-    const total = weights.reduce((sum, weight) => sum + weight, 0);
-    let value = random() * total;
-    for (let count = 0; count < weights.length; count += 1) {
-      value -= weights[count];
-      if (value < 0) return count;
-    }
-    return Math.max(0, weights.length - 1);
-  }
-
   const STAR_CLASSES = root.OrbitWorldgenData.stars;
   const NAME_STARTS = ['Al', 'Er', 'Ves', 'Cor', 'Is', 'Tau', 'Hel', 'Ori', 'Cal', 'Mer', 'Sol', 'Vir', 'Nae', 'Eri', 'Ant', 'Aster', 'Lyr', 'Cass', 'Thal', 'Nox'];
   const NAME_ENDS = ['ara', 'ion', 'éa', 'aris', 'ora', 'is', 'ède', 'arae', 'ène', 'os', 'ys', 'onia', 'ius', 'ande', 'ine', 'ea'];
@@ -712,6 +702,153 @@
     return { moisture, relief: reliefHeight, features, rivers };
   }
 
+  // Ground composition. Each cell gets a share of every material, rock filling
+  // the rest. Terrain traits set where a material tends to gather, warped
+  // Voronoi zones give every area its own mix, and noise pockets concentrate
+  // it. Shares are stored per cell and material as bytes (255 = 100 %).
+  function buildMaterials(options) {
+    const { width, height, minSide, land, toWater, elevation, relief, features, moisture, seaLevel,
+      offsetX, offsetY, terrainSeed, planet, settings } = options;
+    const table = settings.materials, list = table.list, count = width * height, kinds = list.length;
+
+    // Landmass sizes: small islands hold richer and more varied pockets.
+    const landmass = new Float32Array(count), seen = new Uint8Array(count), stack = [];
+    for (let start = 0; start < count; start += 1) {
+      if (!land[start] || seen[start]) continue;
+      const component = [];
+      seen[start] = 1; stack.push(start);
+      while (stack.length) {
+        const cell = stack.pop(), cx = cell % width, cy = (cell - cx) / width;
+        component.push(cell);
+        for (let n = 0; n < 8; n += 1) {
+          const x = cx + NEIGHBOR_DX[n], y = cy + NEIGHBOR_DY[n], next = y * width + x;
+          if (x < 0 || y < 0 || x >= width || y >= height || seen[next] || !land[next]) continue;
+          seen[next] = 1; stack.push(next);
+        }
+      }
+      for (const cell of component) landmass[cell] = component.length / count;
+    }
+
+    // Zones: a jittered grid of seeds; every zone scales each material by its
+    // own factor and boosts one signature material.
+    const spacing = Math.max(2, table.zoneSize * minSide);
+    const columns = Math.ceil(width / spacing) + 1, rows = Math.ceil(height / spacing) + 1;
+    const zoneRandom = rng(terrainSeed ^ 0x5bd1e995);
+    const seedX = new Float32Array(columns * rows), seedY = new Float32Array(columns * rows);
+    const zoneFactor = new Float32Array(columns * rows * kinds);
+    const [lowVariation, highVariation] = table.zoneVariation.map(Math.log);
+    for (let zone = 0; zone < columns * rows; zone += 1) {
+      seedX[zone] = (zone % columns + .5 + (zoneRandom() - .5) * .9) * spacing;
+      seedY[zone] = (Math.floor(zone / columns) + .5 + (zoneRandom() - .5) * .9) * spacing;
+      const signature = Math.floor(zoneRandom() * kinds);
+      for (let kind = 0; kind < kinds; kind += 1) {
+        zoneFactor[zone * kinds + kind] = Math.exp(lowVariation + zoneRandom() * (highVariation - lowVariation)) *
+          (kind === signature ? table.signatureBoost : 1);
+      }
+    }
+    const coarse = (step, evaluate) => coarseField(width, height, minSide, step, evaluate);
+    const zoneWarpX = coarse(4, (u, v) => fbm(offsetX + 211 + u * 3, offsetY - 7 + v * 3, terrainSeed ^ 0x27d4eb2f, 2));
+    const zoneWarpY = coarse(4, (u, v) => fbm(offsetX - 59 + u * 3, offsetY + 151 + v * 3, terrainSeed ^ 0x165667b1, 2));
+    const hotspots = list.map((material, kind) => coarse(2, (u, v) => fbm(offsetX + 37 * (kind + 1) + u * table.hotspotScale,
+      offsetY - 23 * (kind + 1) + v * table.hotspotScale, (terrainSeed ^ 0x68e31da4) + kind * 0x9e3779b9 >>> 0, 3)));
+    const richness = list.map(material => .5 + (planet?.resources?.[material.id] ?? .5));
+
+    const shares = new Uint8Array(count * kinds), share = new Float32Array(kinds);
+    const natal = Boolean(planet?.startingCandidate);
+    const best = list.map(() => ({ cell: -1, score: -1 }));
+    const heightAt = (x, y) => relief[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
+    const traits = {};
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const cell = y * width + x, onLand = land[cell] === 1;
+      // Terrain traits, each between 0 and 1.
+      const above = relief[cell] - seaLevel;
+      const slope = Math.hypot(heightAt(x + 1, y) - heightAt(x - 1, y), heightAt(x, y + 1) - heightAt(x, y - 1)) * .5;
+      const feature = features[cell];
+      traits.mountain = onLand ? smoothstep((above - 65) / 55) : 0;
+      traits.upland = onLand ? smoothstep((above - 22) / 35) * (1 - traits.mountain) : 0;
+      traits.plain = onLand ? 1 - smoothstep((above - 6) / 34) : 0;
+      traits.coast = onLand ? 1 - smoothstep(toWater[cell] / (.025 * minSide)) : 0;
+      traits.river = feature === TERRAIN_FEATURES.river || feature === TERRAIN_FEATURES.lake ? 1 : 0;
+      traits.marsh = feature === TERRAIN_FEATURES.marsh ? 1 : 0;
+      traits.dry = onLand ? smoothstep((.55 - moisture[cell] / 255) / .35) : 0;
+      traits.rugged = onLand ? Math.max(smoothstep((slope - 2) / 6), feature === TERRAIN_FEATURES.canyon ? 1 : 0) : 0;
+      traits.remote = onLand ? smoothstep(toWater[cell] / (.16 * minSide)) : 0;
+      traits.island = onLand ? 1 - smoothstep((landmass[cell] - .002) / .03) : 0;
+      const depth = seaLevel - elevation[cell];
+      traits.shelf = onLand ? 0 : 1 - smoothstep((depth - 8) / 22);
+      traits.deep = onLand ? 0 : smoothstep((depth - 20) / 25);
+      const difficulty = Math.max(traits.rugged, traits.mountain * .8, traits.remote * .6, traits.island * .7);
+
+      // Nearest zone seed, on warped coordinates for organic zone borders.
+      const wx = x + zoneWarpX[cell] * spacing * 1.2, wy = y + zoneWarpY[cell] * spacing * 1.2;
+      const gx = Math.floor(wx / spacing), gy = Math.floor(wy / spacing);
+      let zone = 0, nearest = Infinity, other = 0, second = Infinity;
+      for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
+        const column = clamp(gx + dx, 0, columns - 1), row = clamp(gy + dy, 0, rows - 1), candidate = row * columns + column;
+        if (candidate === zone && nearest < Infinity) continue;
+        const distance = (seedX[candidate] - wx) ** 2 + (seedY[candidate] - wy) ** 2;
+        if (distance < nearest) { other = zone; second = nearest; nearest = distance; zone = candidate; }
+        else if (distance < second && candidate !== zone) { second = distance; other = candidate; }
+      }
+      // Soft borders: near the edge between two zones, their factors blend.
+      const own = .5 + .5 * smoothstep((Math.sqrt(second) - Math.sqrt(nearest)) / (spacing * table.zoneBlend));
+
+      // Lakes and coves hold neither land materials nor offshore ones.
+      const inlandWater = feature === TERRAIN_FEATURES.lake || feature === TERRAIN_FEATURES.cove;
+      let ore = 0;
+      for (let kind = 0; kind < kinds; kind += 1) {
+        const material = list[kind];
+        if (inlandWater || Boolean(material.marine) === onLand) { share[kind] = 0; continue; }
+        let affinity = 0;
+        for (const trait in material.affinity) affinity += material.affinity[trait] * traits[trait];
+        affinity = clamp(affinity, 0, 1);
+        const pocket = Math.pow(smoothstep((hotspots[kind][cell] + .35 - (material.pocketThreshold ?? .25)) / .5),
+          table.hotspotSharpness);
+        const bonus = (1 + table.difficultyBonus * difficulty * (material.rarity ? 1 : .35)) *
+          (1 + table.islandBonus * traits.island);
+        const factor = zoneFactor[zone * kinds + kind] * own + zoneFactor[other * kinds + kind] * (1 - own);
+        share[kind] = material.base * factor + (material.peak - material.base) * affinity * factor * pocket * richness[kind] * bonus;
+        ore += share[kind];
+        if (natal && affinity * pocket > best[kind].score) best[kind] = { cell, score: affinity * pocket };
+      }
+      const scale = ore > table.maxOreShare ? table.maxOreShare / ore : 1;
+      for (let kind = 0; kind < kinds; kind += 1) shares[cell * kinds + kind] = Math.round(clamp(share[kind] * scale, 0, 1) * 255);
+    }
+
+    // The natal world always offers at least one rich pocket of each land material.
+    if (natal) {
+      const target = Math.round(table.natalMinimumPeak * 255), sigma = Math.max(1.5, .02 * minSide);
+      for (let kind = 0; kind < kinds; kind += 1) {
+        if (list[kind].marine || best[kind].cell < 0) continue;
+        let peak = 0;
+        for (let cell = 0; cell < count; cell += 1) peak = Math.max(peak, shares[cell * kinds + kind]);
+        if (peak >= target) continue;
+        const cx = best[kind].cell % width, cy = Math.floor(best[kind].cell / width), reach = Math.ceil(sigma * 3);
+        for (let y = Math.max(0, cy - reach); y <= Math.min(height - 1, cy + reach); y += 1) {
+          for (let x = Math.max(0, cx - reach); x <= Math.min(width - 1, cx + reach); x += 1) {
+            const cell = y * width + x;
+            if (!land[cell]) continue;
+            const boost = (target + 10) * Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma * sigma));
+            shares[cell * kinds + kind] = Math.min(255, Math.max(shares[cell * kinds + kind], Math.round(boost)));
+          }
+        }
+      }
+    }
+    return { ids: list.map(material => material.id), shares };
+  }
+
+  // Shares of every material in one cell, rock included, as fractions.
+  function materialsAt(terrain, cell) {
+    const { ids, shares } = terrain.materials, kinds = ids.length, result = {};
+    let ore = 0;
+    for (let kind = 0; kind < kinds; kind += 1) {
+      result[ids[kind]] = shares[cell * kinds + kind] / 255;
+      ore += result[ids[kind]];
+    }
+    result.rock = Math.max(0, 1 - ore);
+    return result;
+  }
+
   function createTerrain(seed, width = 320, height = 240, planet = null) {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
@@ -812,59 +949,12 @@
       }
     }
 
-    const resources = [];
-    const resourceTypes = root.OrbitWorldgenData.deposits;
-    const depositSettings = settings.deposits;
-    const oilSettings = settings.offshoreOil;
-    const temperature = planet?.temperature;
-    const temperatureRange = oilSettings.temperatureRange;
-    const eligibleForOil = planet?.kind === 'tellurique' && Number.isFinite(temperature) &&
-      temperature >= temperatureRange[0] && temperature <= temperatureRange[1];
-    const oilPresenceRoll = hashSeed(String(planet?.seed ?? seed) + ':offshore-oil:v' + root.OrbitWorldgenData.version) /
-      4294967296;
-    const hasOilDeposit = typeof planet?.hasOilDeposit === 'boolean' ? planet.hasOilDeposit :
-      eligibleForOil && oilPresenceRoll < oilSettings.planetChance;
-    const requestedTotal = planet?.startingCandidate ? depositSettings.startingCandidateCount :
-      weightedCount(random, depositSettings.countWeights);
-    const requestedResources = planet?.startingCandidate ? requestedTotal :
-      Math.max(0, requestedTotal - (hasOilDeposit ? 1 : 0));
-    let attempts = 0;
-    const depositSpacing = Math.min(width, height) * depositSettings.spacingRatio;
-    while (resources.length < requestedResources && attempts < 800) {
-      attempts += 1;
-      const x = Math.floor(random() * width), y = Math.floor(random() * height);
-      const altitude = elevation[y * width + x];
-      if (altitude <= seaLevel + 10) continue;
-      if (resources.some(resource => !resource.marine &&
-          Math.hypot(resource.x - x, resource.y - y) < depositSpacing)) continue;
-      // A natal candidate has at least one accessible deposit of each basic
-      // solid resource. Water is represented by its sea and water abundance.
-      const landResourceCount = resources.length;
-      const definition = planet?.startingCandidate && landResourceCount < resourceTypes.length ? resourceTypes[landResourceCount] :
-        resourceTypes[Math.floor(random() * resourceTypes.length)];
-      const radius = Math.max(5, Math.min(width, height) * (depositSettings.radiusRatio[0] +
-        random() * (depositSettings.radiusRatio[1] - depositSettings.radiusRatio[0])));
-      resources.push({ ...definition, x, y, radius, marine: false,
-        abundance: planet?.resources?.[definition.id] ?? .5 });
-    }
-
-    if (hasOilDeposit && waterFraction >= oilSettings.minimumWater) {
-      const oilDefinition = root.OrbitWorldgenData.marineDeposits[0];
-      let oilAttempts = 0;
-      while (!resources.some(resource => resource.marine) && oilAttempts < 1800) {
-        oilAttempts += 1;
-        const x = Math.floor(random() * width), y = Math.floor(random() * height);
-        if (elevation[y * width + x] > seaLevel - oilSettings.depthBelowSea) continue;
-        const radius = Math.max(7, Math.min(width, height) * (oilSettings.radiusRatio[0] +
-          random() * (oilSettings.radiusRatio[1] - oilSettings.radiusRatio[0])));
-        resources.push({ ...oilDefinition, x, y, radius, marine: true,
-          abundance: planet?.resources?.oil ?? (0.55 + random() * 0.4) });
-      }
-    }
-    return { width, height, elevation, relief: reliefHeight, features, rivers, moisture, seaLevel, resources };
+    const materials = buildMaterials({ width, height, minSide, land, toWater, elevation, relief: reliefHeight, features,
+      moisture, seaLevel, offsetX, offsetY, terrainSeed, planet, settings });
+    return { width, height, elevation, relief: reliefHeight, features, rivers, moisture, seaLevel, materials };
   }
 
   root.OrbitWorld = Object.freeze({
-    hashSeed, rng, createGalaxy, createSystem, planetPosition, createTerrain, TERRAIN_FEATURES
+    hashSeed, rng, createGalaxy, createSystem, planetPosition, createTerrain, materialsAt, TERRAIN_FEATURES
   });
 })(globalThis);

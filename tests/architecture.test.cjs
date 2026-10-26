@@ -346,3 +346,39 @@ test('overlapping probe completions do not double count discoveries or repeat re
   assert.equal(Exploration.advance(exploration, world, 5000).length, 0);
   assert.equal(exploration.scans.length, 3);
 });
+
+test('extractors stand anywhere on land and record the richest material of the ground below', () => {
+  const placementContext = vm.createContext({});
+  for (const relative of ['data/resources.js', 'data/buildings.js', 'data/roads.js', 'simulation/buildings.js',
+    'simulation/roadGeometry.js', 'gameplay/buildingPlacement.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), placementContext);
+  }
+  const { OrbitBuildingPlacement: Placement, OrbitBuildingData: Buildings } = placementContext;
+  // An 80 × 20 map: land on the left quarter, deep sea beyond. The ground is
+  // copper-rich in its top half and iron-rich below; oil lies offshore.
+  const width = 80, height = 20, ids = ['iron', 'copper', 'silicon', 'carbon', 'oil'];
+  const elevation = new Uint8Array(width * height), shares = new Uint8Array(width * height * ids.length);
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const cell = y * width + x, land = x < 20;
+    elevation[cell] = land ? 130 : 60;
+    if (!land) shares[cell * 5 + 4] = 51;
+    else if (y < 10) { shares[cell * 5 + 1] = 38; shares[cell * 5] = 13; } else shares[cell * 5] = 64;
+  }
+  const terrain = { width, height, elevation, seaLevel: 102, materials: { ids, shares } };
+  const validate = (type, x, y) => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get(type),
+    position: { x, y }, planetId: 'p', buildings: [] });
+
+  const copperGround = validate('extractor', 24, 12);
+  assert.equal(copperGround.valid, true);
+  assert.equal(copperGround.resourceId, 'copper');
+  assert.ok(Math.abs(copperGround.resourceShare - .15) < .01);
+  assert.ok(copperGround.composition.rock > .7 && copperGround.composition.iron > 0);
+  const ironGround = validate('extractor', 24, 45);
+  assert.equal(ironGround.valid, true);
+  assert.equal(ironGround.resourceId, 'iron');
+  assert.equal(validate('extractor', 90, 30).valid, false, 'extractors still need dry land');
+  const platform = validate('oil_platform', 180, 40);
+  assert.equal(platform.valid, true);
+  assert.equal(platform.resourceId, 'oil');
+  assert.ok(Math.abs(platform.resourceShare - .2) < .01);
+});

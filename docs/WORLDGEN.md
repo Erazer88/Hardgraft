@@ -60,8 +60,7 @@ d'abondance, pas un inventaire de matériaux ni des quantités extraites.
 
 La carte d'une planète est un rectangle 4:3 de 640 × 480 cellules
 (`OrbitConfig.terrain`), soit 1920 × 1440 km. En arrivant sur une planète, la caméra
-la cadre pour couvrir exactement l'écran, en portrait comme en paysage. Les ratios de
-gisements sont relatifs au plus petit côté de la carte.
+la cadre pour couvrir exactement l'écran, en portrait comme en paysage.
 
 `createTerrain(seed, width, height, planet)` (terrain v5) dessine d'abord les terres,
 puis en déduit le relief. Les réglages sont dans `OrbitWorldgenData.terrain`.
@@ -113,11 +112,35 @@ le bord. `terrain.elevation` reste la hauteur canonique, avec la mer à 102. Un
 changement de version du terrain conserve la graine, mais régénère la géographie
 des sauvegardes.
 
-Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont moins nombreux
-qu'avant et possèdent un rayon déterministe en cellules de terrain. Les champs
-marins de pétrole sont également générés en eau profonde, et les plateformes
-pétrolières doivent être posées dans leur zone. Les marqueurs de ressource sont
-dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
+## Matériaux du sol
+
+Il n'y a pas de gisements localisés : chaque cellule mélange de la roche avec du fer,
+du cuivre, de la silice, du carbone et, sous la mer, du pétrole (`terrain.materials` :
+une part par cellule et par matériau, en octets ; la roche complète le reste ;
+`OrbitWorld.materialsAt` renvoie les fractions d'une cellule). La table déclarative
+`OrbitWorldgenData.terrain.materials` fixe pour chaque matériau une part de fond, une
+part maximale et ses affinités avec le terrain :
+
+- le **fer** se concentre dans les montagnes et les hautes terres ;
+- le **carbone** dans les marais, les plaines et le long des rivières ;
+- la **silice** sur les côtes, dans les régions sèches et les sables de rivière ;
+- le **cuivre**, plus rare, sur les reliefs escarpés, les canyons, l'intérieur reculé
+  et les îles ;
+- le **pétrole** sur les plateaux continentaux, plus rarement en mer profonde.
+
+La carte est découpée en zones (cellules de Voronoï déformées, environ 36 cellules de
+large) : chaque zone multiplie chaque matériau par son propre facteur et favorise un
+matériau signature, avec des frontières fondues. Des poches de bruit concentrent les
+matériaux. Les lieux difficiles d'accès (pentes, sommets, intérieur reculé) et les
+petites îles portent des poches plus riches. L'indice de richesse de chaque planète
+(`planet.resources`) module l'ensemble. La planète natale garantit au moins une poche
+riche de chaque matériau terrestre. Les ratios sont des premiers jets.
+
+À l'écran, les matériaux apparaissent en points lumineux de la couleur du matériau
+dominant, plus fréquents et plus vifs là où il est concentré
+(`OrbitSurfaceStyle.neon.materials`). Une couche cuite les montre en vue d'ensemble ;
+au zoom, des points de taille constante prennent le relais. Le réglage développeur
+**Ressources du sol** les masque, en attendant l'affichage par scan.
 
 Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
 (`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta
@@ -133,8 +156,8 @@ d'altitude, rivières et côte sont retracées en vecteurs. La palette se règle
 Le système natal conserve une étoile G, quatre à six planètes, au moins une
 ceinture et une géante gazeuse. Sa deuxième planète est un candidat tempéré :
 pression de 0,9 à 1,1 bar, gravité de 0,85 à 1,15 g, réserves d'eau et de
-matières de base. Le générateur place au moins un gisement de chaque solide
-fondamental sur sa carte. `startingPlanetId` identifie ce candidat.
+matières de base. Sa carte offre au moins une poche riche de fer, cuivre, silice et
+carbone. `startingPlanetId` identifie ce candidat.
 
 La galaxie garde ses 2 560 identifiants et positions. Les graines, scans et
 visites des sauvegardes précédentes sont donc réutilisés. Les systèmes et les surfaces sont recalculés avec les nouveaux paramètres : leur ancien contenu

@@ -54,7 +54,7 @@ alternent le long des rues ; six sprites de rues représentent les formes en lig
 en T et en croix, en version village ou ville. Cette croissance ne simule pas de
 population et reste séparée du réseau manuel.
 
-L'ordre visuel de surface est : terrain, gisements, routes, bâtiments physiques,
+L'ordre visuel de surface est : terrain et matériaux du sol, routes, bâtiments physiques,
 véhicules, ancres et cartes des bâtiments, sélection, labels. `developerSettings.js`
 permet de masquer routes et maisons pendant les ajustements visuels sans effacer
 leurs données.

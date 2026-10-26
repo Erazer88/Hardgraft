@@ -60,6 +60,25 @@
         slopeShadeFull: 5
       }),
       marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .45, mark: '#86e6d2', markOpacity: .7 }),
+      // Ground materials: sparse glowing dots colored by the dominant material.
+      // A cell starts showing a dot from minShare and is at full chance and
+      // brightness at fullShare; density caps the share of cells with a dot.
+      materials: Object.freeze({
+        colors: Object.freeze({ iron: '#ffad42', copper: '#3ee8c6', silicon: '#79c8ff', carbon: '#c9a3ff', oil: '#d4ff5c' }),
+        minShare: .08,
+        fullShare: .3,
+        density: .34,
+        coreOpacity: .75,
+        haloOpacity: .14,
+        // Baked overview layer: texels per terrain cell and dot sizes in texels.
+        layerScale: 1.5,
+        coreTexels: 1.1,
+        haloTexels: 3,
+        // Close up, dots are drawn at a constant screen size instead.
+        corePx: 1.8,
+        haloPx: 5,
+        closeUpZoom: Object.freeze([1.1, 1.7])
+      }),
       // Lakes and rivers share the sea's dark water and its neon shoreline.
       water: Object.freeze({
         lakeColor: '#0d2742',
@@ -74,26 +93,6 @@
         meanderAmplitude: .9,
         meanderWavelength: 7
       })
-    }),
-    resources: Object.freeze({
-      markerRadiusWorldScale: .45,
-      ellipseXRatio: 1.28,
-      ellipseYRatio: .78,
-      ellipseAngleRadians: -.45,
-      hatchSpacingPx: 5,
-      hatchWidthPx: 1.25,
-      outlineWidthPx: 1.25,
-      outlineDashPx: Object.freeze([4, 3]),
-      glowBlurPx: 5,
-      deposits: Object.freeze({
-        iron: Object.freeze({ fill: '#ffd72c26', hatch: '#ffdb45f2', outline: '#fff0a0', glow: '#f1c623', label: '#ffe575' }),
-        copper: Object.freeze({ fill: '#ff943326', hatch: '#ff9d3df2', outline: '#ffd1a0', glow: '#ff832f', label: '#ffc07a' }),
-        silicon: Object.freeze({ fill: '#45dff126', hatch: '#58effff2', outline: '#b5faff', glow: '#32dcea', label: '#8bf5ff' }),
-        carbon: Object.freeze({ fill: '#b9eb3226', hatch: '#c6f34af2', outline: '#edff9e', glow: '#a7d92c', label: '#d7f776' }),
-        oil: Object.freeze({ fill: '#ffad3026', hatch: '#ffbd43f2', outline: '#ffe0a1', glow: '#ff9f22', label: '#ffd079' })
-      }),
-      labelOffsetXPx: 6,
-      labelSizePx: 8
     }),
     selection: Object.freeze({
       radiusPx: 7,
@@ -158,7 +157,6 @@
     lod: Object.freeze({
       surfaceGridZoom: .06,
       terrainDetailsZoom: .15,
-      resourceLabelZoom: .28,
       buildingFullZoom: .65,
       buildingCompactZoom: .22,
       buildingSymbolZoom: .08

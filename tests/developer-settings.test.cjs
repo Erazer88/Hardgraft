@@ -23,20 +23,18 @@ test('developer settings drop the removed relief contour preferences', () => {
   assert.equal(settings.definitions.some(definition => definition.group === 'Courbes de relief'), false);
 });
 
-test('developer settings expose deposit and terrain display controls', () => {
-  const { settings } = loadSettings();
+test('developer settings expose terrain display controls and drop the removed deposit settings', () => {
+  const { settings } = loadSettings('{"depositMarkerSizePercent":150,"depositIronColor":"#abcdef"}');
   assert.equal(settings.get('showSurfaceRoads'), true);
   assert.equal(settings.get('showSurfaceHouses'), true);
-  assert.equal(settings.get('depositMarkerSizePercent'), 100);
+  assert.equal(settings.get('showGroundMaterials'), true);
   assert.equal(settings.get('infiniteMinerals'), false);
-  assert.equal(settings.definitions.find(definition => definition.id === 'showSurfaceRoads').type, 'checkbox');
-  assert.equal(settings.definitions.find(definition => definition.id === 'showSurfaceHouses').type, 'checkbox');
-  assert.equal(settings.definitions.find(definition => definition.id === 'infiniteMinerals').type, 'checkbox');
-  assert.deepEqual(Array.from(settings.definitions)
-    .filter(definition => definition.id.endsWith('Color') && definition.id.startsWith('deposit'))
-    .map(definition => definition.id).sort(), [
-    'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositOilColor', 'depositSiliconColor'
-  ]);
+  assert.equal(settings.get('depositMarkerSizePercent'), undefined);
+  assert.equal(settings.get('depositIronColor'), undefined);
+  for (const id of ['showSurfaceRoads', 'showSurfaceHouses', 'showGroundMaterials', 'infiniteMinerals']) {
+    assert.equal(settings.definitions.find(definition => definition.id === id).type, 'checkbox');
+  }
+  assert.equal(settings.definitions.some(definition => definition.id.startsWith('deposit')), false);
 });
 
 test('simulation speed offers deterministic x1, x2, x5 and x10 values and resets to normal', () => {
@@ -54,37 +52,30 @@ test('simulation speed offers deterministic x1, x2, x5 and x10 values and resets
   assert.equal(settings.get('simulationSpeed'), 1);
 });
 
-test('deposit size and colors validate, persist, notify controls, and reset to defaults', () => {
+test('display and resource settings validate, persist, notify controls, and reset to defaults', () => {
   const { settings, readStored } = loadSettings();
   const changes = [];
   settings.subscribe((id, value) => changes.push([id, value]));
 
-  assert.equal(settings.set('depositMarkerSizePercent', 300), 200);
-  assert.equal(settings.set('depositIronColor', '#F012aB'), '#f012ab');
-  assert.equal(settings.set('depositSiliconColor', 'blue'), '#58efff');
+  assert.equal(settings.set('showGroundMaterials', false), false);
   assert.equal(settings.set('infiniteMinerals', true), true);
   assert.equal(settings.set('showSurfaceRoads', false), false);
   assert.equal(settings.set('showSurfaceHouses', false), false);
-  assert.deepEqual(changes, [['depositMarkerSizePercent', 200], ['depositIronColor', '#f012ab'],
-    ['infiniteMinerals', true], ['showSurfaceRoads', false], ['showSurfaceHouses', false]]);
-  assert.equal(readStored().depositMarkerSizePercent, 200);
-  assert.equal(readStored().depositIronColor, '#f012ab');
+  assert.deepEqual(changes, [['showGroundMaterials', false], ['infiniteMinerals', true],
+    ['showSurfaceRoads', false], ['showSurfaceHouses', false]]);
+  assert.equal(readStored().showGroundMaterials, false);
   assert.equal(readStored().infiniteMinerals, true);
   assert.equal(readStored().showSurfaceRoads, false);
   assert.equal(readStored().showSurfaceHouses, false);
 
   settings.reset();
-  assert.equal(settings.get('depositMarkerSizePercent'), 100);
-  assert.equal(settings.get('depositIronColor'), '#ffdb45');
+  assert.equal(settings.get('showGroundMaterials'), true);
   assert.equal(settings.get('infiniteMinerals'), false);
   assert.equal(settings.get('showSurfaceRoads'), true);
   assert.equal(settings.get('showSurfaceHouses'), true);
-  assert.equal(readStored().depositMarkerSizePercent, 100);
+  assert.equal(readStored().showGroundMaterials, true);
   assert.equal(readStored().infiniteMinerals, false);
-  assert.equal(readStored().showSurfaceRoads, true);
-  assert.equal(readStored().showSurfaceHouses, true);
-  assert.deepEqual(changes.slice(-10).map(([id]) => id).sort(), [
-    'depositCarbonColor', 'depositCopperColor', 'depositIronColor', 'depositMarkerSizePercent', 'depositOilColor',
-    'depositSiliconColor', 'infiniteMinerals', 'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
+  assert.deepEqual(changes.slice(-5).map(([id]) => id).sort(), [
+    'infiniteMinerals', 'showGroundMaterials', 'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
   ].sort());
 });

@@ -403,21 +403,20 @@ async function checkSystemVariety(cdp, name, mobile) {
   process.stdout.write(`PASS ${name}: empty, single-planet, gas-only and rich systems, overview and return\n`);
 }
 
-async function checkDeveloperDepositSettings(cdp, name) {
+async function checkDeveloperSettings(cdp, name) {
   await cdp.click('#menu-button');
   await cdp.click('#developer-tools-button');
   await cdp.until('document.querySelector("#developer-dialog").open', `${name} developer settings open`);
   const controls = await cdp.evaluate(`(() => ({
-    size: document.querySelector('#developer-setting-depositMarkerSizePercent')?.value,
-    iron: document.querySelector('#developer-setting-depositIronColor')?.value,
-    oil: document.querySelector('#developer-setting-depositOilColor')?.value,
+    deposits: Boolean(document.querySelector('[id^="developer-setting-deposit"]')),
+    groundMaterials: document.querySelector('#developer-setting-showGroundMaterials')?.checked,
     infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked,
     showSurfaceRoads: document.querySelector('#developer-setting-showSurfaceRoads')?.checked,
     showSurfaceHouses: document.querySelector('#developer-setting-showSurfaceHouses')?.checked
   }))()`);
-  assert.deepEqual(controls, { size: '100', iron: '#ffdb45', oil: '#ffbd43', infiniteMinerals: false,
+  assert.deepEqual(controls, { deposits: false, groundMaterials: true, infiniteMinerals: false,
     showSurfaceRoads: true, showSurfaceHouses: true },
-    `${name} developer panel exposes deposit and visibility controls with roads and houses enabled by default`);
+    `${name} developer panel shows ground materials, roads and houses by default, without deposit settings`);
 
   const visibility = await cdp.evaluate(`(() => {
     for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
@@ -450,29 +449,7 @@ async function checkDeveloperDepositSettings(cdp, name) {
   await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
     `${name} prototype colony reserve display`);
 
-  const scalesWithZoom = await cdp.evaluate(`(() => ({
-    zoomedOut: window.OrbitalDebug.getResourceRenderStyle('iron', 40, .5),
-    zoomedIn: window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2)
-  }))()`);
-  assert.deepEqual(scalesWithZoom, {
-    zoomedOut: { radiusWorldKm: 54, radiusPx: 27, hatchColor: '#ffdb45f2' },
-    zoomedIn: { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' }
-  }, `${name} deposit map size stays fixed while its screen size follows the zoom`);
-
-  const updated = await cdp.evaluate(`(() => {
-    const size = document.querySelector('#developer-setting-depositMarkerSizePercent');
-    size.value = '150'; size.dispatchEvent(new Event('input', { bubbles: true }));
-    const color = document.querySelector('#developer-setting-depositIronColor');
-    color.value = '#7c2eea'; color.dispatchEvent(new Event('input', { bubbles: true }));
-    return window.OrbitalDebug.getResourceRenderStyle('iron', 40, 2);
-  })()`);
-  assert.deepEqual(updated, { radiusWorldKm: 81, radiusPx: 162, hatchColor: '#7c2eeaf2' },
-    `${name} deposit size and color settings update their map appearance immediately`);
-
   await cdp.click('#developer-reset');
-  assert.deepEqual(await cdp.evaluate('window.OrbitalDebug.getResourceRenderStyle("iron", 40, 2)'),
-    { radiusWorldKm: 54, radiusPx: 108, hatchColor: '#ffdb45f2' },
-    `${name} reset restores the default deposit appearance`);
   assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
     `${name} developer reset disables infinite minerals`);
   await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
@@ -490,7 +467,7 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await cdp.until('window.OrbitalDebug.getState().systemCount > 0', `${name} galaxy generation`);
   if (await cdp.evaluate(menuVisibleExpression)) await cdp.click('#continue-button');
   await cdp.until(`!(${menuVisibleExpression})`, `${name} initial menu closed`);
-  await checkDeveloperDepositSettings(cdp, name);
+  await checkDeveloperSettings(cdp, name);
   await checkLayout(cdp, width, height);
   if (mobile) await cdp.screenshot('mobile-startup.png');
 
@@ -565,12 +542,11 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   await cdp.click('#enter-button');
   await cdp.until('["surface", "planet"].includes(window.OrbitalDebug.getState().level) && !window.OrbitalDebug.getState().moving', `${name} surface navigation`);
   await checkLayout(cdp, width, height);
-  const resourceMetrics = await cdp.evaluate('window.OrbitalDebug.getSurfaceResourceMetrics()');
-  assert.ok(resourceMetrics.length >= 4 && resourceMetrics.length <= 5,
-    `${name} starting surface contains four or five resource fields`);
-  assert.deepEqual(resourceMetrics.filter(resource => !resource.marine).map(resource => resource.id).sort(),
-    ['carbon', 'copper', 'iron', 'silicon'], `${name} starting surface keeps all four basic mineral deposits`);
-  assert.ok(resourceMetrics.every(resource => resource.radius > 0), `${name} resource fields have visible areas`);
+  const materialMetrics = await cdp.evaluate('window.OrbitalDebug.getSurfaceMaterialMetrics()');
+  for (const id of ['iron', 'copper', 'silicon', 'carbon']) {
+    assert.ok(materialMetrics[id].dominantCells > 0 && materialMetrics[id].peak >= .13,
+      `${name} starting surface offers rich ground for ${id}`);
+  }
   await cdp.screenshot(`${name}-surface.png`);
 
   const fixture = await cdp.evaluate('window.OrbitalDebug.createOrbitalLogisticsFixture()');

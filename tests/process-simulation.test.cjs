@@ -125,7 +125,7 @@ test('crusher level 1 processes exactly two whole units per second', () => {
   assert.equal(Number.isInteger(crusher.outputBuffer.crushed_ore), true);
 });
 
-test('the same crusher and grinder cards expose the matching deposit material', () => {
+test('the same crusher and grinder cards expose the matching ground material', () => {
   const variants = {
     iron: ['iron_ore_raw', 'iron_ore_crushed', 'iron_ore_ground'],
     copper: ['copper_ore_raw', 'copper_ore_crushed', 'copper_ore_ground'],
@@ -289,7 +289,7 @@ test('graph snapshots retain port connections and integer buffers', () => {
   assert.equal(restored.machines.length, 5);
 });
 
-test('foreuse mines the resource named by its deposit and still needs a receiver and power', () => {
+test('foreuse mines the material recorded for its ground and still needs a receiver and power', () => {
   const copperDeposit = Graph.create({ geology: { resourceId: 'copper' } });
   machine(copperDeposit, 'drill', 'drill');
   machine(copperDeposit, 'crusher', 'crusher');
@@ -334,7 +334,7 @@ test('a saturated first processor pauses the foreuse without discarding ore', ()
   assert.equal(crusher.inputBuffer.raw_ore, 0);
 });
 
-test('extractor geology configures the foreuse and shared processor for the local deposit', () => {
+test('extractor geology configures the foreuse and shared processor for the local ground', () => {
   const extractor = { id: 'extractor-1', type: 'extractor', resourceId: 'copper', planetId: 'planet-1',
     x: 25, y: 30, constructionState: 'complete' };
   const wind = { id: 'wind-1', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };

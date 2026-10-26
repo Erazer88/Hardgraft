@@ -93,17 +93,37 @@
         // Criques: estuaries cut at the mouths of large rivers through high coasts.
         coves: { minFlow: 4, minCoastHeight: 14, length: [3, 9] }
       },
-      deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
-        startingCandidateCount: 4, spacingRatio: .1575, radiusRatio: [.045, .0675] },
-      offshoreOil: { planetChance: 1 / 3, temperatureRange: [-10, 40], minimumWater: .18,
-        depthBelowSea: 12, radiusRatio: [.05625, .075] }
+      // Ground composition: every cell mixes plain rock with these materials,
+      // and the rest of the cell is rock. Shares are first drafts.
+      // `affinity` weighs terrain traits, each between 0 and 1, where a
+      // material concentrates: mountain, upland, plain, coast, river, marsh,
+      // dry, rugged, remote, island, shelf, deep. `rarity` favors ground that is
+      // hard to reach. Marine materials only exist under the sea.
+      materials: {
+        list: [
+          { id: 'iron', base: .02, peak: .3, affinity: { mountain: 1, upland: .55, rugged: .3, island: .35 } },
+          { id: 'copper', base: .004, peak: .14, rarity: 1,
+            affinity: { rugged: .7, mountain: .45, remote: .45, island: .65 } },
+          { id: 'silicon', base: .02, peak: .28, affinity: { coast: .85, dry: .7, river: .35, plain: .2 } },
+          { id: 'carbon', base: .01, peak: .3, affinity: { marsh: 1, plain: .45, river: .3 } },
+          { id: 'oil', base: 0, peak: .3, marine: true, pocketThreshold: .25, affinity: { shelf: .8, deep: .15 } }
+        ],
+        // Each zone (a warped Voronoi cell about this wide) scales every material
+        // by its own factor, and favors one signature material. Factors blend
+        // across this share of the zone size at borders.
+        zoneSize: .075, zoneVariation: [.25, 1.9], signatureBoost: 1.7, zoneBlend: .35,
+        // Pockets where materials concentrate, as a noise frequency per map side.
+        hotspotScale: 9, hotspotSharpness: 2,
+        // Hard-to-reach ground and small islands hold richer pockets.
+        difficultyBonus: .8, islandBonus: .6,
+        maxOreShare: .72,
+        // The natal world always offers a rich pocket of each land material.
+        natalMinimumPeak: .14
+      }
     },
     colors: { tellurique: '#90a58b', océanique: '#6097ad', aride: '#bd9c77',
       glacée: '#99b5c6', volcanique: '#b9846d', gazeuse: '#b4aa92' },
-    deposits: [
-      { id: 'iron', type: 'fer' }, { id: 'copper', type: 'cuivre' },
-      { id: 'silicon', type: 'silice' }, { id: 'carbon', type: 'carbone' }
-    ],
-    marineDeposits: [{ id: 'oil', type: 'pétrole' }]
+    // Planet-wide richness indices of the land materials, drawn per planet.
+    planetMaterials: ['iron', 'copper', 'silicon', 'carbon']
   };
 })(globalThis);

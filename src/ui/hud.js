@@ -49,6 +49,14 @@
       return ResourceData.get(id)?.label || String(id).replace(/[_-]+/g, ' ').replace(/^./, first => first.toUpperCase());
     }
 
+    // Ground composition, richest first: "Roche 81 % · Fer 12 % · Cuivre 3 %".
+    function compositionText(composition, limit = 4) {
+      return Object.entries(composition || {}).filter(([, share]) => share >= .005)
+        .sort((first, second) => second[1] - first[1]).slice(0, limit)
+        .map(([id, share]) => `${id === 'rock' ? 'Roche' : resourceName(id)} ${Math.round(share * 100)} %`)
+        .join(' · ') || 'Inconnue';
+    }
+
     function resourceSummary(amounts) {
       return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Aucun coût';
     }
@@ -157,13 +165,15 @@
         ],
         extractor: [
           ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCE', building.resourceId ? resourceName(building.resourceId) : 'Gisement compatible'],
+          ['RESSOURCE', building.resourceId ? `${resourceName(building.resourceId)}${Number.isFinite(building.resourceShare)
+            ? ` · ${Math.round(building.resourceShare * 100)} %` : ''}` : 'Selon le sol'],
+          ['SOL', compositionText(building.composition)],
           ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
           ['STOCK REÇU', receivedText]
         ],
         oil_platform: [
           ['VITESSE D’EXTRACTION', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCE', 'Hydrocarbures']
+          ['RESSOURCE', `Pétrole${Number.isFinite(building.resourceShare) ? ` · ${Math.round(building.resourceShare * 100)} %` : ''}`]
         ],
         wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
         launch_platform: [['FONCTION', 'Export orbital vers l’Arche']],
@@ -374,7 +384,7 @@
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
     }
 
-    return Object.freeze({ toast, showSelection, update });
+    return Object.freeze({ toast, showSelection, update, compositionText });
   }
 
   root.OrbitHUD = Object.freeze({ create });

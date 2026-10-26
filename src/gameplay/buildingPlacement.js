@@ -156,20 +156,43 @@
     return null;
   }
 
-  function compatibleDeposit(terrain, textureScale, position, definition, rules) {
-    const allowed = new Set(definition.extracts || []), margin = rules.depositMargin || 0;
+  // Average ground composition under a footprint, one sample per terrain
+  // cell (cell values sit on world multiples of textureScale); rock fills the
+  // rest. Extractors can stand anywhere: this only tells what they extract.
+  function groundComposition(terrain, textureScale, position, definition) {
+    const materials = terrain.materials;
+    if (!materials) return null;
+    const kinds = materials.ids.length, totals = new Float64Array(kinds);
     const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
     const cos = Math.cos(position.rotation || 0), sin = Math.sin(position.rotation || 0);
-    return (terrain.resources || []).map(resource => {
-      if (!allowed.has(resource.id)) return false;
-      const dx = resource.x * textureScale - position.x, dy = resource.y * textureScale - position.y;
-      const localX = dx * cos + dy * sin, localY = -dx * sin + dy * cos;
-      const outsideX = Math.max(0, Math.abs(localX) - halfWidth);
-      const outsideY = Math.max(0, Math.abs(localY) - halfHeight);
-      const distance = Math.hypot(outsideX, outsideY);
-      const fieldRadius = Math.max(0, resource.radius || 0) * textureScale;
-      return distance <= margin + fieldRadius ? { resource, distance } : null;
-    }).filter(Boolean).sort((a, b) => a.distance - b.distance)[0]?.resource || null;
+    let samples = 0;
+    for (let localY = -halfHeight; localY <= halfHeight; localY += textureScale) {
+      for (let localX = -halfWidth; localX <= halfWidth; localX += textureScale) {
+        const cellX = Math.round((position.x + localX * cos - localY * sin) / textureScale);
+        const cellY = Math.round((position.y + localX * sin + localY * cos) / textureScale);
+        if (cellX < 0 || cellY < 0 || cellX >= terrain.width || cellY >= terrain.height) continue;
+        const cell = cellY * terrain.width + cellX;
+        for (let kind = 0; kind < kinds; kind += 1) totals[kind] += materials.shares[cell * kinds + kind];
+        samples += 1;
+      }
+    }
+    if (!samples) return null;
+    const composition = {};
+    let ore = 0;
+    materials.ids.forEach((id, kind) => {
+      composition[id] = Math.round(totals[kind] / samples / 255 * 1e4) / 1e4;
+      ore += composition[id];
+    });
+    composition.rock = Math.round(Math.max(0, 1 - ore) * 1e4) / 1e4;
+    return composition;
+  }
+
+  // The richest material this building can extract from the ground below it.
+  function extractedMaterial(composition, definition) {
+    if (!composition || !definition.extracts?.length) return null;
+    const resourceId = definition.extracts.reduce((best, id) =>
+      (composition[id] || 0) > (composition[best] || 0) ? id : best, definition.extracts[0]);
+    return { resourceId, share: composition[resourceId] || 0 };
   }
 
   function validate(options) {
@@ -200,10 +223,6 @@
     if (hasMarineConnector && !marineDock) {
       return { valid: false, reason: 'Aucun point d’amarrage sûr ne rejoint la mer depuis ce côté.', rotation: resolvedRotation };
     }
-    const deposit = rules.requiresDeposit ? compatibleDeposit(terrain, textureScale, candidate, definition, rules) : null;
-    if (rules.requiresDeposit && !deposit) {
-      return { valid: false, reason: 'Placez l’extracteur sur un gisement de minerai compatible.', rotation: resolvedRotation };
-    }
 
     for (const existing of buildings) {
       if (existing.planetId !== planetId) continue;
@@ -212,11 +231,12 @@
         return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.', rotation: resolvedRotation };
       }
     }
-    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: deposit?.id || null,
-      depositAbundance: deposit?.abundance ?? .5,
-      waterPort: marineDock?.point || null };
+    const composition = definition.extracts?.length ? groundComposition(terrain, textureScale, candidate, definition) : null;
+    const material = extractedMaterial(composition, definition);
+    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: material?.resourceId || null,
+      resourceShare: material?.share ?? null, composition, waterPort: marineDock?.point || null };
   }
 
   root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation,
-    marineFacingNormal, resolveMarineDock });
+    marineFacingNormal, resolveMarineDock, groundComposition });
 })(globalThis);

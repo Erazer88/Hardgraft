@@ -136,7 +136,7 @@
       cycleLabel.textContent = def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
-        : def.source ? (def.requiresDeposit ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
+        : def.source ? (def.usesGround ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
         : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
         : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
           : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;

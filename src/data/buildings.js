@@ -17,13 +17,13 @@
     extractor: {
       id: 'extractor', label: 'EXTRACTEUR', shortLabel: 'EX', category: 'resource', icon: 'extractor',
       sprite: 'assets/buildings/extractor.webp',
-      description: 'Extrait les minerais des gisements compatibles.',
+      description: 'Fore le sol où il est posé et en extrait la matière la plus présente.',
       functions: { extractsResources: true }, extracts: ['iron', 'copper', 'silicon', 'carbon'],
       cost: { iron: 18, copper: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
-      placementRules: { landOnly: true, requiresDeposit: true, depositMargin: 12 },
-      preferredTerrain: ['deposit', 'flat']
+      placementRules: { landOnly: true },
+      preferredTerrain: ['flat']
     },
     surface_port: {
       id: 'surface_port', label: 'PORT', shortLabel: 'PO', category: 'logistics', icon: 'surface-port',
@@ -39,12 +39,12 @@
     oil_platform: {
       id: 'oil_platform', label: 'PLATEFORME PÉTROLIÈRE', shortLabel: 'PP', category: 'resource', icon: 'oil-platform',
       sprite: 'assets/buildings/oil-platform.webp',
-      description: 'Extrait les ressources des grands fonds marins.',
+      description: 'Pompe le pétrole des fonds marins sous la plateforme.',
       functions: { extractsOffshoreResources: true }, extracts: ['oil'],
       cost: { iron: 40, copper: 20, silicon: 10 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 46, height: 38 }, roadRequired: false,
       marinePortOffset: { x: 0, y: -24 },
-      placementRules: { deepWaterOnly: true, deepWaterMargin: 10, requiresDeposit: true, depositMargin: 12 },
+      placementRules: { deepWaterOnly: true, deepWaterMargin: 10 },
       preferredTerrain: ['deep-water']
     },
     storage: {

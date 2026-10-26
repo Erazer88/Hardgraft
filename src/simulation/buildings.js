@@ -78,6 +78,12 @@
     if (typeof status !== 'string') throw new TypeError('Building status must be a string');
     const resourceId = properties.resourceId ?? null;
     if (resourceId !== null && typeof resourceId !== 'string') throw new TypeError('Resource id must be a string or null');
+    // Share of the extracted material in the ground below; older saves stored it as depositAbundance.
+    const share = properties.resourceShare ?? properties.depositAbundance;
+    const resourceShare = isFiniteNumber(share) ? clamp(share, 0, 1) : null;
+    const composition = properties.composition && typeof properties.composition === 'object' && !Array.isArray(properties.composition)
+      ? Object.fromEntries(Object.entries(properties.composition)
+        .filter(([, value]) => isFiniteNumber(value)).map(([id, value]) => [id, clamp(value, 0, 1)])) : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
     if (!Number.isInteger(upgradeLevel) || upgradeLevel < 1) throw new RangeError('Upgrade level must be a positive integer');
     const flowPerMinute = properties.flowPerMinute ?? 0;
@@ -112,7 +118,8 @@
       energyOutputUnlimited: properties.energyOutputUnlimited === true,
       flowPerMinute,
       resourceId,
-      depositAbundance: Number.isFinite(properties.depositAbundance) ? clamp(properties.depositAbundance, 0, 1) : .5,
+      resourceShare,
+      composition,
       upgradeLevel,
       status,
       customName,

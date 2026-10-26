@@ -18,19 +18,19 @@
     return { id, planetId: building.planetId, resourceId: building.resourceId,
       hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
         (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]),
-      abundance: Number.isFinite(building.depositAbundance) ? building.depositAbundance : Data.config.geology.depositAbundance };
+      share: Number.isFinite(building.resourceShare) ? building.resourceShare : Data.config.geology.defaultShare };
   }
 
   function ensureGraph(state, building) {
-    const deposit = geology(state, building);
+    const ground = geology(state, building);
     const previous = state.factoryPlans[building.id];
     if (!previous || previous.version !== Data.config.version || !Array.isArray(previous.machines) ||
-        (deposit && previous.geology?.resourceId !== deposit.resourceId)) {
+        (ground && previous.geology?.resourceId !== ground.resourceId)) {
       state.factoryPlans[building.id] = Graph.create({ version: Data.config.version,
-        geology: deposit });
+        geology: ground });
     }
     const graph = state.factoryPlans[building.id];
-    graph.geology ||= deposit;
+    graph.geology ||= ground;
     for (const machine of graph.machines) {
       if (!Graph.definitionOf(machine).externalInput) continue;
       machine.outputBuffer.material ||= 0;

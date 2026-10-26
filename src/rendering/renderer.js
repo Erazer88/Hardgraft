@@ -288,8 +288,7 @@
       resize,
       render,
       prepareGalaxy,
-      createTerrainTexture: surfaceRenderer.createTerrainTexture,
-      getResourceRenderStyle: surfaceRenderer.getResourceRenderStyle
+      createTerrainTexture: surfaceRenderer.createTerrainTexture
     });
   }
   root.OrbitRenderer = Object.freeze({ create });

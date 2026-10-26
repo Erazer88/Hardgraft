@@ -10,6 +10,12 @@ for (const file of ['/data/worldgen.js', '/world.js', '/world/system.js']) {
 }
 const world = context.OrbitWorld;
 const serialize = value => JSON.stringify(value);
+const materialPeak = (terrain, id) => {
+  const { ids, shares } = terrain.materials, kind = ids.indexOf(id);
+  let peak = 0;
+  for (let cell = 0; cell < terrain.elevation.length; cell += 1) peak = Math.max(peak, shares[cell * ids.length + kind] / 255);
+  return peak;
+};
 
 test('the galaxy is deterministic, seeded, and dense in four connected arms', () => {
   const galaxy = world.createGalaxy('NEREIDE-01');
@@ -52,7 +58,7 @@ test('planet positions stay on ordered orbits and obey relative Kepler periods',
 test('system population is deterministic, configurable, and mostly ordinary', () => {
   const galaxy = world.createGalaxy('distribution-v2');
   const counts = new Map(), beltCounts = new Set(), layouts = new Set(), kinds = new Set();
-  let ordinary = 0, wrecks = 0, oilEligible = 0, oilBearing = 0;
+  let ordinary = 0, wrecks = 0;
   for (const star of galaxy.systems) {
     const model = world.createSystem(galaxy.seed, star.id, galaxy);
     assert.equal(serialize(model), serialize(world.createSystem(galaxy.seed, star.id, galaxy)));
@@ -72,14 +78,8 @@ test('system population is deterministic, configurable, and mostly ordinary', ()
       }
       assert.ok(planet.water >= 0 && planet.water <= 1 && planet.surfaceWater <= planet.water);
       assert.ok(planet.habitability >= 0 && planet.habitability <= 1);
-      const oilRange = context.OrbitWorldgenData.terrain.offshoreOil.temperatureRange;
-      const moderateTelluric = planet.kind === 'tellurique' && planet.temperature >= oilRange[0] &&
-        planet.temperature <= oilRange[1];
-      assert.equal(typeof planet.hasOilDeposit, 'boolean');
-      if (moderateTelluric) oilEligible += 1;
-      if (planet.hasOilDeposit) {
-        assert.ok(moderateTelluric, 'oil appears only on temperate telluric planets');
-        oilBearing += 1;
+      for (const id of ['iron', 'copper', 'silicon', 'carbon', 'oil']) {
+        assert.ok(planet.resources[id] > 0 && planet.resources[id] <= 1, id + ' richness index');
       }
       if (planet.kind === 'gazeuse') {
         assert.equal(planet.surfaceWater, 0); assert.equal(planet.terrainWater, 0); assert.equal(planet.habitability, 0);
@@ -103,9 +103,6 @@ test('system population is deterministic, configurable, and mostly ordinary', ()
   for (const kind of ['gazeuse', 'tellurique', 'glacée', 'aride', 'océanique']) assert.ok(kinds.has(kind), kind);
   assert.ok(ordinary / galaxy.systems.length > .5 && ordinary / galaxy.systems.length < .75);
   assert.ok(wrecks > 0 && wrecks < galaxy.systems.length * .25);
-  assert.ok(oilEligible > 200);
-  assert.ok(oilBearing / oilEligible > .29 && oilBearing / oilEligible < .38,
-    'about one third of temperate telluric planets carry an offshore oil field');
 
   const settings = JSON.parse(serialize(context.OrbitWorldgenData));
   settings.planetCounts = [1]; settings.beltCounts = [1]; settings.wreckChance = 0;
@@ -135,7 +132,7 @@ test('planetary climate changes continuously with luminosity, distance and atmos
   assert.equal(environment(sun, 8, traits).surfaceWater, 0);
 });
 
-test('the natal system always provides a temperate candidate, water and basic deposits', () => {
+test('the natal system always provides a temperate candidate, water and every basic material', () => {
   for (let i = 0; i < 64; i++) {
     const seed = 'natal-' + i, galaxy = world.createGalaxy(seed);
     const model = world.createSystem(seed, galaxy.homeId, galaxy);
@@ -150,16 +147,13 @@ test('the natal system always provides a temperate candidate, water and basic de
     assert.ok(planet.resources.water > .3);
     if (i < 6) {
       const terrain = world.createTerrain(planet.seed, 96, 72, planet);
-      const landResources = terrain.resources.filter(item => !item.marine);
-      const oilFields = terrain.resources.filter(item => item.marine);
-      assert.deepEqual([...new Set(landResources.map(item => item.id))].sort(), ['carbon', 'copper', 'iron', 'silicon']);
-      assert.equal(oilFields.length, planet.hasOilDeposit ? 1 : 0);
-      assert.ok(terrain.resources.length <= 5);
+      const minimum = context.OrbitWorldgenData.terrain.materials.natalMinimumPeak;
+      for (const id of ['iron', 'copper', 'silicon', 'carbon']) {
+        assert.ok(materialPeak(terrain, id) >= minimum * .95, `the natal world offers a rich ${id} pocket`);
+      }
       const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
       const expectedWater = Math.max(planet.surfaceWater, context.OrbitWorldgenData.terrain.oceanBorder.minimumWater);
       assert.ok(Math.abs(water - expectedWater) < .04);
-      assert.ok(landResources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
-      assert.ok(oilFields.every(item => terrain.elevation[item.y * terrain.width + item.x] <= terrain.seaLevel - 12));
     }
   }
 });
@@ -172,7 +166,7 @@ test('surface water follows the planet profile while identical profiles reproduc
   const water = wet.elevation.filter(value => value <= wet.seaLevel).length / wet.elevation.length;
   assert.ok(water > .70 && water < .80);
   assert.deepEqual(Array.from(wet.elevation), Array.from(repeated.elevation));
-  assert.equal(serialize(wet.resources), serialize(repeated.resources));
+  assert.deepEqual(Array.from(wet.materials.shares), Array.from(repeated.materials.shares));
 });
 
 test('terrain contains coherent water, land, and reachable resources for different seeds', () => {
@@ -192,33 +186,67 @@ test('terrain contains coherent water, land, and reachable resources for differe
       }
     }
     assert.ok(totalDifference / terrain.elevation.length < 9, 'terrain should vary smoothly across neighboring cells');
-    assert.ok(terrain.resources.length <= 5, 'each generated terrain has at most five deposits');
-    assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));
-    for (const resource of terrain.resources) {
-      assert.ok(resource.x >= 0 && resource.x < terrain.width && resource.y >= 0 && resource.y < terrain.height);
-      assert.ok(resource.radius > 0);
-      const altitude = terrain.elevation[resource.y * terrain.width + resource.x];
-      if (resource.marine) assert.ok(altitude <= terrain.seaLevel - 12);
-      else assert.ok(altitude > terrain.seaLevel);
+    const { ids, shares } = terrain.materials;
+    assert.deepEqual(Array.from(shares), Array.from(repeated.materials.shares));
+    assert.equal(shares.length, terrain.elevation.length * ids.length);
+    for (let cell = 0; cell < terrain.elevation.length; cell += 1) {
+      const composition = world.materialsAt(terrain, cell);
+      assert.ok(composition.rock >= 0 && composition.rock <= 1, 'rock fills what materials leave');
+      if (terrain.elevation[cell] > terrain.seaLevel) assert.equal(composition.oil, 0, 'oil lies under the sea');
+      else assert.equal(composition.iron + composition.copper + composition.silicon + composition.carbon, 0,
+        'land materials stay on land');
     }
   }
   assert.notDeepEqual(Array.from(world.createTerrain('one', 80, 60).elevation),
     Array.from(world.createTerrain('two', 80, 60).elevation));
 });
 
-test('most planets have two or three large deposits, with some worlds empty or especially rich', () => {
-  const counts = Array(6).fill(0);
-  for (let i = 0; i < 72; i += 1) {
-    const terrain = world.createTerrain('deposit-distribution-' + i, 48, 36,
-      { kind: 'tellurique', temperature: 18, surfaceWater: .34, hasOilDeposit: false });
-    const count = terrain.resources.length;
-    assert.ok(count >= 0 && count <= 5);
-    counts[count] += 1;
-    assert.ok(terrain.resources.every(resource => !resource.marine));
-    assert.ok(terrain.resources.every(resource => resource.radius >= 5));
+test('materials gather where the ground favors them, richer in hard places and on islands', () => {
+  const totals = {};
+  const add = (key, value) => { totals[key] ||= { sum: 0, count: 0 }; totals[key].sum += value; totals[key].count += 1; };
+  for (let index = 0; index < 5; index += 1) {
+    const planet = { kind: 'tellurique', surfaceWater: .4, temperature: 18, seed: 300 + index,
+      resources: { iron: .5, copper: .5, silicon: .5, carbon: .5, oil: .5 } };
+    const terrain = world.createTerrain('materials-' + index, 320, 240, planet);
+    const { width, height, seaLevel, relief, elevation } = terrain;
+    const water = cell => elevation[cell] <= seaLevel;
+    for (let y = 2; y < height - 2; y += 1) for (let x = 2; x < width - 2; x += 1) {
+      const cell = y * width + x, composition = world.materialsAt(terrain, cell);
+      if (water(cell)) {
+        add(seaLevel - elevation[cell] < 12 ? 'oilShelf' : 'oilDeep', composition.oil);
+        continue;
+      }
+      const above = relief[cell] - seaLevel;
+      let nearSea = false;
+      for (let dy = -2; dy <= 2 && !nearSea; dy += 1) for (let dx = -2; dx <= 2; dx += 1) {
+        if (water((y + dy) * width + x + dx) && terrain.features[(y + dy) * width + x + dx] !== world.TERRAIN_FEATURES.lake) nearSea = true;
+      }
+      if (above > 80) { add('ironMountain', composition.iron); add('carbonMountain', composition.carbon); }
+      if (above < 8) { add('ironPlain', composition.iron); add('carbonPlain', composition.carbon); }
+      add(nearSea ? 'siliconCoast' : 'siliconInland', composition.silicon);
+    }
   }
-  assert.ok((counts[2] + counts[3]) / 72 > .5, 'two and three deposits make up most planets');
-  assert.ok(counts[0] > 0 && counts[5] > 0, 'some planets have none and a few have five');
+  const mean = key => totals[key].sum / totals[key].count;
+  assert.ok(mean('ironMountain') > mean('ironPlain') * 2, 'iron favors mountains');
+  assert.ok(mean('carbonPlain') > mean('carbonMountain') * 2, 'carbon favors plains');
+  assert.ok(mean('siliconCoast') > mean('siliconInland') * 1.5, 'silica favors coasts');
+  assert.ok(mean('oilShelf') > mean('oilDeep'), 'oil gathers on continental shelves');
+
+  // Islands: the same ground is richer on a small island than on a continent.
+  const islandWorld = world.createTerrain('materials-islands', 320, 240,
+    { kind: 'océanique', surfaceWater: .82, temperature: 18, seed: 41 });
+  const continentWorld = world.createTerrain('materials-continents', 320, 240,
+    { kind: 'tellurique', surfaceWater: .3, temperature: 18, seed: 41 });
+  const landOre = terrain => {
+    let ore = 0, cells = 0;
+    for (let cell = 0; cell < terrain.elevation.length; cell += 1) {
+      if (terrain.elevation[cell] <= terrain.seaLevel) continue;
+      const composition = world.materialsAt(terrain, cell);
+      ore += 1 - composition.rock; cells += 1;
+    }
+    return ore / cells;
+  };
+  assert.ok(landOre(islandWorld) > landOre(continentWorld), 'island worlds hold richer ground');
 });
 
 test('telluric maps keep their continents inside an open-sea border', () => {
@@ -278,23 +306,6 @@ test('rivers run downhill to the sea, a lake or another river, and lakes keep a 
   assert.equal(dry.rivers.length, 0, 'dry worlds have no rivers');
   assert.ok(!dry.features.includes(features.lake) && !dry.features.includes(features.marsh));
   assert.ok(dry.features.includes(features.canyon), 'dry riverbeds remain as canyons');
-});
-
-test('eligible planets can carry one broad offshore oil field', () => {
-  const planet = { kind: 'tellurique', hasOilDeposit: true, surfaceWater: .74, temperature: 18,
-    seed: 412, resources: { iron: .7 } };
-  const terrain = world.createTerrain('oceanic-world', 640, 480, planet);
-  const repeated = world.createTerrain('oceanic-world', 640, 480, planet);
-  const minerals = terrain.resources.filter(resource => !resource.marine);
-  const oil = terrain.resources.filter(resource => resource.marine);
-  assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));
-  assert.ok(minerals.length <= 4);
-  assert.ok(minerals.every(resource => resource.radius >= 21));
-  assert.equal(oil.length, 1);
-  assert.ok(oil.every(resource => resource.id === 'oil' && resource.radius > 25));
-  assert.ok(terrain.resources.length <= 5);
-  const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
-  assert.ok(water > .70 && water < .78);
 });
 
 test('non-natal planets are biased toward island and ocean coverage without changing the natal world', () => {

@@ -17,7 +17,7 @@
   function primaryInput(machine) { return definition(machine).recipe?.inputs[0] || null; }
   function sourceAvailable(graph, machine) {
     const def = definition(machine);
-    return !def.requiresDeposit || graph.geology?.resourceId === machine.resourceId;
+    return !def.usesGround || graph.geology?.resourceId === machine.resourceId;
   }
   function sourceRateForTarget(graph, source, target, connection, powerRatio) {
     const sourceDef = definition(source), targetDef = definition(target);

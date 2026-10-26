@@ -4,10 +4,6 @@
   const World = root.OrbitWorld, Config = root.OrbitConfig;
   const SurfaceStyle = root.OrbitSurfaceStyle;
   const TAU = Math.PI * 2;
-  const RESOURCE_COLOR_SETTINGS = Object.freeze({
-    iron: 'depositIronColor', copper: 'depositCopperColor', silicon: 'depositSiliconColor',
-    carbon: 'depositCarbonColor', oil: 'depositOilColor'
-  });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
   const smoothstep = t => ease(clamp(t, 0, 1));
@@ -136,6 +132,69 @@
       return { mask, edge };
     }
 
+    // Ground materials as sparse glowing dots, one candidate per terrain cell,
+    // colored by the dominant material. The richer the cell, the likelier and
+    // brighter its dot. Positions are deterministic so every view agrees.
+    const materialDotCache = new WeakMap();
+    function materialDots(terrain) {
+      if (materialDotCache.has(terrain)) return materialDotCache.get(terrain);
+      const style = SurfaceStyle.neon.materials, materials = terrain.materials;
+      const xs = [], ys = [], kinds = [], strengths = [];
+      if (materials) {
+        const count = materials.ids.length, shares = materials.shares;
+        for (let cell = 0; cell < terrain.width * terrain.height; cell += 1) {
+          let kind = 0, best = 0;
+          for (let index = 0; index < count; index += 1) {
+            if (shares[cell * count + index] > best) { best = shares[cell * count + index]; kind = index; }
+          }
+          const strength = smoothstep((best / 255 - style.minShare) / (style.fullShare - style.minShare));
+          if (strength <= 0) continue;
+          let hash = Math.imul(cell ^ 0x9e3779b9, 0x85ebca6b);
+          hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35); hash ^= hash >>> 16;
+          if ((hash >>> 0) / 4294967296 >= strength * style.density) continue;
+          const jitter = Math.imul(hash, 0x27d4eb2d);
+          const x = cell % terrain.width, y = (cell - x) / terrain.width;
+          xs.push(x + ((jitter & 0xffff) / 65536 - .5) * .9);
+          ys.push(y + ((jitter >>> 16) / 65536 - .5) * .9);
+          kinds.push(kind); strengths.push(strength);
+        }
+      }
+      const colors = (materials?.ids || []).map(id => style.colors[id] || '#ffffff');
+      const dots = { xs: Float32Array.from(xs), ys: Float32Array.from(ys), kinds: Uint8Array.from(kinds),
+        strengths: Float32Array.from(strengths), colors };
+      materialDotCache.set(terrain, dots);
+      return dots;
+    }
+
+    // Draws the dots whose cell positions fall in `bounds` (cell units), with a
+    // faint halo under a bright core; sizes are in the context's units.
+    function drawMaterialDots(context, terrain, scale, coreSize, haloSize, bounds = null, alpha = 1) {
+      const style = SurfaceStyle.neon.materials, dots = materialDots(terrain);
+      context.save();
+      context.globalCompositeOperation = 'lighter';
+      for (let pass = 0; pass < 2; pass += 1) {
+        const size = pass ? coreSize : haloSize;
+        for (let i = 0; i < dots.xs.length; i += 1) {
+          const x = dots.xs[i], y = dots.ys[i];
+          if (bounds && (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY)) continue;
+          context.globalAlpha = alpha * (pass ? style.coreOpacity : style.haloOpacity) * (.45 + .55 * dots.strengths[i]);
+          context.fillStyle = dots.colors[dots.kinds[i]];
+          context.fillRect(x * scale - size / 2, y * scale - size / 2, size, size);
+        }
+      }
+      context.restore();
+    }
+
+    function materialsVisible() {
+      return root.OrbitDeveloperSettings?.get('showGroundMaterials') !== false;
+    }
+
+    // Overview dots crossfade into the screen-space dots of the close-up raster.
+    function closeUpDotsAlpha(zoom) {
+      const [start, end] = SurfaceStyle.neon.materials.closeUpZoom;
+      return smoothstep((zoom - start) / (end - start));
+    }
+
     function riverWidthKm(flow) {
       const water = SurfaceStyle.neon.water;
       return clamp(water.riverMinWidthKm + water.riverWidthPerFlowKm * Math.log2(1 + flow),
@@ -150,6 +209,13 @@
       const cellSize = Config.terrain.textureScale, groups = new Map();
       for (const river of terrain.rivers || []) {
         const { xs, ys, fs } = smoothCourse(river.points, river.flows, SurfaceStyle.neon.water);
+        // A course that ends in a sea or lake cell stops on the shore, halfway
+        // between its last land cell and the water, where the coastline runs.
+        const last = river.points.length - 2;
+        if (last >= 2 && terrain.elevation[river.points[last + 1] * terrain.width + river.points[last]] <= terrain.seaLevel) {
+          xs[xs.length - 1] = (river.points[last] + river.points[last - 2]) / 2;
+          ys[ys.length - 1] = (river.points[last + 1] + river.points[last - 1]) / 2;
+        }
         for (let i = 0; i + 1 < xs.length; i += 1) {
           const width = Math.round(riverWidthKm((fs[i] + fs[i + 1]) / 2) * 2) / 2;
           if (!groups.has(width)) groups.set(width, new root.Path2D());
@@ -336,7 +402,6 @@
       layerContext.globalCompositeOperation = 'destination-in';
       layerContext.drawImage(mask, 0, 0);
       context.drawImage(layer, 0, 0);
-      strokeRivers(context, terrainData, textureWidth / SurfaceStyle.neon.glowReferenceWidthPx);
 
       context.save();
       context.globalCompositeOperation = 'screen';
@@ -349,6 +414,13 @@
       context.globalAlpha = .62 + glow * .30;
       context.drawImage(edge, 0, 0);
       context.restore();
+      // Rivers come last: at a mouth their water opens the shoreline.
+      strokeRivers(context, terrainData, textureWidth / SurfaceStyle.neon.glowReferenceWidthPx);
+      // Material dots live on their own layer so they can be hidden or faded out close up.
+      const dotStyle = style.materials, dotScale = dotStyle.layerScale;
+      const materialLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
+      drawMaterialDots(materialLayer.getContext('2d'), terrainData, dotScale, dotStyle.coreTexels, dotStyle.haloTexels);
+      terrainTexture.materialLayer = materialLayer;
       for (const canvas of [mask, edge, layer, reliefLayer]) { canvas.width = 0; canvas.height = 0; }
       return terrainTexture;
     }
@@ -441,7 +513,13 @@
         context.strokeStyle = rgba(reliefStyle.lineColor, major ? reliefStyle.majorLineOpacity : reliefStyle.lineOpacity);
         context.stroke(path);
       }
-      strokeRivers(context, job.terrain, 1 / job.zoom);
+      const closeDots = materialsVisible() ? closeUpDotsAlpha(job.zoom) : 0;
+      if (closeDots > .001) {
+        const dotStyle = SurfaceStyle.neon.materials, margin = 2;
+        drawMaterialDots(context, job.terrain, cellSize, dotStyle.corePx / job.zoom, dotStyle.haloPx / job.zoom, {
+          minX: bounds.x / cellSize - margin, maxX: (bounds.x + bounds.width) / cellSize + margin,
+          minY: bounds.y / cellSize - margin, maxY: (bounds.y + bounds.height) / cellSize + margin }, closeDots);
+      }
       // A soft glow stroke under a crisp line. Shadow blur is in device pixels,
       // independent of the world transform. The line thickens slightly with
       // zoom to cover the texel steps of the magnified base texture.
@@ -457,7 +535,8 @@
       context.lineWidth = lineWidth;
       context.strokeStyle = style.coastColor;
       context.stroke(cache.path);
-      job.raster = { canvas, ...bounds, zoom: job.zoom, pixelRatio: job.pixelRatio };
+      strokeRivers(context, job.terrain, 1 / job.zoom);
+      job.raster = { canvas, ...bounds, zoom: job.zoom, pixelRatio: job.pixelRatio, materials: materialsVisible() };
     }
 
     function processCoastJob(job) {
@@ -567,7 +646,7 @@
         width: viewWorldWidth + panBufferX * 2,
         height: viewWorldHeight + panBufferY * 2
       };
-      const rasterNeedsRefresh = raster.pixelRatio !== pixelRatio ||
+      const rasterNeedsRefresh = raster.pixelRatio !== pixelRatio || raster.materials !== materialsVisible() ||
         Math.abs(Math.log(frame.zoom / raster.zoom)) > .08 ||
         Math.abs((raster.x + raster.width / 2) - (rasterBounds.x + rasterBounds.width / 2)) > rasterBounds.width * .08 ||
         Math.abs((raster.y + raster.height / 2) - (rasterBounds.y + rasterBounds.height / 2)) > rasterBounds.height * .08;
@@ -626,6 +705,14 @@
       const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
       canvasContext.imageSmoothingEnabled = true;
       canvasContext.drawImage(terrainTexture, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+      const overviewDots = materialsVisible() && terrainTexture.materialLayer ? 1 - closeUpDotsAlpha(frame.zoom) : 0;
+      if (overviewDots > .001) {
+        canvasContext.save();
+        canvasContext.globalAlpha = overviewDots;
+        canvasContext.globalCompositeOperation = 'screen';
+        canvasContext.drawImage(terrainTexture.materialLayer, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+        canvasContext.restore();
+      }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       if (drawCoast) drawCoastline(frame);
       else if (getState().level !== 'surface') { coastCache = null; stopCoastJob(); }
@@ -633,89 +720,6 @@
       canvasContext.strokeStyle = SurfaceStyle.terrain.edgeColor;
       canvasContext.lineWidth = SurfaceStyle.terrain.edgeWidthPx;
       canvasContext.strokeRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
-    }
-
-    function resourceMarkerWorldRadius(resource, marker = SurfaceStyle.resources) {
-      const configured = Number(root.OrbitDeveloperSettings?.get('depositMarkerSizePercent'));
-      const sizePercent = Number.isFinite(configured) ? clamp(configured, 25, 200) : 100;
-      return (resource.radius || 10) * Config.terrain.textureScale * marker.markerRadiusWorldScale * sizePercent / 100;
-    }
-
-    function resourceMarkerRadius(resource, frame, marker = SurfaceStyle.resources) {
-      return resourceMarkerWorldRadius(resource, marker) * frame.zoom;
-    }
-
-    function resourceDepositStyle(resource, marker = SurfaceStyle.resources) {
-      const base = marker.deposits[resource.id] || marker.deposits.iron;
-      const setting = RESOURCE_COLOR_SETTINGS[resource.id];
-      const color = setting && root.OrbitDeveloperSettings?.get(setting);
-      if (!color || color === base.hatch.slice(0, 7)) return base;
-      return { fill: `${color}30`, hatch: `${color}f2`, outline: color, glow: color, label: color };
-    }
-
-    function getResourceRenderStyle(resourceId, resourceRadius = 10, zoom = 1) {
-      const resource = { id: resourceId, radius: resourceRadius };
-      const radiusWorldKm = resourceMarkerWorldRadius(resource);
-      return { radiusWorldKm, radiusPx: radiusWorldKm * zoom,
-        hatchColor: resourceDepositStyle(resource).hatch };
-    }
-
-    function traceResourceBoundary(context, center, radius, resource, marker) {
-      const seed = World.hashSeed(`${resource.id}:${resource.x}:${resource.y}`) / 4294967296;
-      const phase = seed * TAU, rotation = marker.ellipseAngleRadians;
-      const points = [];
-      for (let i = 0; i < 24; i += 1) {
-        const angle = phase + i / 24 * TAU;
-        const variation = 1 + Math.sin(angle * 3 + phase) * .1 + Math.cos(angle * 5 - phase) * .045 +
-          Math.sin(angle * 7 + phase * .7) * .025;
-        const x = Math.cos(angle) * radius * marker.ellipseXRatio * variation;
-        const y = Math.sin(angle) * radius * marker.ellipseYRatio * variation;
-        points.push({ x: center.x + x * Math.cos(rotation) - y * Math.sin(rotation),
-          y: center.y + x * Math.sin(rotation) + y * Math.cos(rotation) });
-      }
-      const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-      const start = midpoint(points.at(-1), points[0]);
-      context.beginPath();
-      context.moveTo(start.x, start.y);
-      for (let i = 0; i < points.length; i += 1) {
-        const next = midpoint(points[i], points[(i + 1) % points.length]);
-        context.quadraticCurveTo(points[i].x, points[i].y, next.x, next.y);
-      }
-      context.closePath();
-    }
-
-    function drawGeologicalOverlays(frame) {
-      const marker = SurfaceStyle.resources;
-      for (const resource of frame.terrain.resources) {
-        const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
-        const radius = resourceMarkerRadius(resource, frame, marker);
-        const style = resourceDepositStyle(resource, marker);
-        if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-        canvasContext.save();
-        traceResourceBoundary(canvasContext, p, radius, resource, marker);
-        canvasContext.fillStyle = style.fill;
-        canvasContext.fill();
-        canvasContext.clip();
-        canvasContext.beginPath();
-        for (let i = -radius * 2; i < radius * 2; i += marker.hatchSpacingPx) {
-          canvasContext.moveTo(p.x + i - radius, p.y + radius);
-          canvasContext.lineTo(p.x + i + radius, p.y - radius);
-        }
-        canvasContext.strokeStyle = style.hatch;
-        canvasContext.lineWidth = marker.hatchWidthPx;
-        canvasContext.setLineDash([]);
-        canvasContext.stroke();
-        canvasContext.restore();
-        canvasContext.save();
-        traceResourceBoundary(canvasContext, p, radius, resource, marker);
-        canvasContext.strokeStyle = style.outline;
-        canvasContext.lineWidth = marker.outlineWidthPx;
-        canvasContext.setLineDash(marker.outlineDashPx);
-        canvasContext.shadowColor = style.glow;
-        canvasContext.shadowBlur = marker.glowBlurPx;
-        canvasContext.stroke();
-        canvasContext.restore();
-      }
     }
 
     function drawSelection(frame) {
@@ -732,18 +736,6 @@
 
     function drawLabels(frame) {
       if (frame.zoom < SurfaceStyle.lod.terrainDetailsZoom) return;
-      if (frame.zoom > SurfaceStyle.lod.resourceLabelZoom) {
-        const marker = SurfaceStyle.resources;
-        for (const resource of frame.terrain.resources) {
-          const p = frame.project(resource.x * Config.terrain.textureScale, resource.y * Config.terrain.textureScale);
-          if (p.x < 0 || p.y < 0 || p.x > frame.viewport.width || p.y > frame.viewport.height) continue;
-          const radius = resourceMarkerRadius(resource, frame, marker);
-          dependencies.drawLabel(canvasContext, resource.type.toUpperCase(),
-            p.x + radius * marker.ellipseXRatio + marker.labelOffsetXPx, p.y,
-            resourceDepositStyle(resource, marker).label,
-            marker.labelSizePx);
-        }
-      }
       const top = frame.project(0, 0), bottom = frame.project(frame.terrainWidth, frame.terrainHeight);
       dependencies.drawLabel(canvasContext, frame.planet.name.toUpperCase() + ' / CARTOGRAPHIE',
         top.x + 15, bottom.y - 16, '#c3c9b1', SurfaceStyle.labels.siteDetailSizePx);
@@ -755,7 +747,6 @@
       frame.showSurfaceRoads = developerSettings?.get('showSurfaceRoads') !== false;
       frame.showSurfaceHouses = developerSettings?.get('showSurfaceHouses') !== false;
       drawTerrain(frame, !planetPreview);
-      drawGeologicalOverlays(frame);
       if (frame.showSurfaceRoads) layers.roads.render(frame);
       layers.settlements.render(frame);
       layers.buildings.renderPhysical(frame);
@@ -785,7 +776,6 @@
 
     return Object.freeze({
       createTerrainTexture,
-      getResourceRenderStyle,
       drawPlanetTerrain
     });
   }

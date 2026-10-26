@@ -354,7 +354,8 @@
     const definition = BuildingData.get(preview.type);
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
-      resourceId: preview.resourceId, depositAbundance: preview.depositAbundance, waterPort: preview.waterPort,
+      resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
+      waterPort: preview.waterPort,
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory);
     if (!construction.started) {
@@ -737,9 +738,9 @@
         [World.TERRAIN_FEATURES.cove]: 'Crique' };
       const names = featureNames[terrainData.features?.[cell]] || (height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' :
         height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : height < 225 ? 'Massif montagneux' : 'Sommet');
-      const nearest = terrainData.resources.find(resource => Math.hypot(resource.x - tx, resource.y - ty) < 10);
+      const composition = terrainData.materials ? World.materialsAt(terrainData, cell) : null;
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
-        info: nearest ? `Gisement détecté : ${nearest.type}.` : 'Le relief, les côtes et les ressources composent une surface générée pour ce monde.' });
+        info: composition ? `Sol : ${hud.compositionText(composition)}.` : 'Composition du sol inconnue.' });
     }
   }
   function zoomAt(factor, x = W / 2, y = H / 2) {
@@ -1049,12 +1050,22 @@
       homeId: home.id, transitioning: false, moving: cameraMoving(), tool: state.tool,
       planetKind: state.planet?.kind || null, missions: state.exploration.missions.length }),
     getSurfaceZoom: () => state.planet ? localCamera(surfaceFrame(state.planet), state.camera).zoom : null,
-    getSurfaceResourceMetrics: () => {
-      const record = state.planet && state.context?.terrains.get(state.planet.id);
-      return record?.data?.resources?.map(resource => ({ id: resource.id, x: resource.x, y: resource.y,
-        radius: resource.radius, marine: resource.marine })) || [];
+    // Per material: peak share and the number of cells where it dominates with at least 8 %.
+    getSurfaceMaterialMetrics: () => {
+      const materials = state.planet && state.context?.terrains.get(state.planet.id)?.data?.materials;
+      if (!materials) return null;
+      const kinds = materials.ids.length, metrics = Object.fromEntries(materials.ids.map(id => [id, { peak: 0, dominantCells: 0 }]));
+      for (let cell = 0; cell < materials.shares.length / kinds; cell += 1) {
+        let best = -1, bestShare = 0;
+        for (let kind = 0; kind < kinds; kind += 1) {
+          const share = materials.shares[cell * kinds + kind] / 255;
+          metrics[materials.ids[kind]].peak = Math.max(metrics[materials.ids[kind]].peak, share);
+          if (share > bestShare) { bestShare = share; best = kind; }
+        }
+        if (best >= 0 && bestShare >= .08) metrics[materials.ids[best]].dominantCells += 1;
+      }
+      return metrics;
     },
-    getResourceRenderStyle: (...args) => renderer.getResourceRenderStyle(...args),
     focusHome, enterSystem, enterPlanet, back, regenerate, zoomAt,
     getCamera: () => ({ ...state.camera }),
     getHomeScreenPosition: () => project(home.x, home.y),

@@ -11,7 +11,9 @@
     windPowerUnlimited: true,
     windPowerMW: 32,
     geothermalPowerMW: 80,
-    geology: { hardnessRange: [.8, 1.8], depositAbundance: .52 }
+    // Ground under an extractor: rock hardness, and the share of the extracted
+    // material assumed when a building has none recorded.
+    geology: { hardnessRange: [.8, 1.8], defaultShare: .1 }
   };
 
   const input = (id, label, resourceId, extras = {}) => ({ id, label, resourceId, ...extras });
@@ -35,13 +37,13 @@
   };
 
   const templates = {
-    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la ressource du gisement associé au bâtiment.', source: true, requiresDeposit: true,
+    drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la matière dominante du sol sous le bâtiment.', source: true, usesGround: true,
       inputPorts: [], recipe: null, throughput: null, energyMW: 2.5 },
-    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut d’un gisement sous-marin.', source: true, requiresDeposit: true,
+    oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut des fonds marins.', source: true, usesGround: true,
       inputPorts: [], outputPorts: [output('raw_oil', 'Pétrole brut', 'raw_oil')], recipe: null,
       throughput: 2, energyMW: 2.5 },
     water_supply: { id: 'water_supply', label: 'RÉSERVE D’EAU', mark: 'EA', description: 'Fournit l’eau nécessaire aux procédés de lavage.', source: true,
-      requiresDeposit: false, inputPorts: [], outputPorts: [output('water', 'Eau', 'water')], recipe: null,
+      inputPorts: [], outputPorts: [output('water', 'Eau', 'water')], recipe: null,
       throughput: null, energyMW: 0 },
     crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en minerai concassé, sans séparer les matières.', throughput: 2, energyMW: 2 },
     grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit le minerai concassé en grains plus fins.', throughput: 2, energyMW: 6 },

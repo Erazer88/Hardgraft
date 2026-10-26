@@ -25,34 +25,9 @@
       ])
     }),
     Object.freeze({
-      id: 'depositMarkerSizePercent', type: 'range', group: 'Gisements',
-      label: 'Taille réelle', help: 'Emprise sur la carte. À l’écran, les gisements suivent le zoom comme le terrain.',
-      defaultValue: 100, min: 25, max: 200, step: 5, unit: '%'
-    }),
-    Object.freeze({
-      id: 'depositIronColor', type: 'color', group: 'Gisements',
-      label: 'Fer', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ffdb45'
-    }),
-    Object.freeze({
-      id: 'depositCopperColor', type: 'color', group: 'Gisements',
-      label: 'Cuivre', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ff9d3d'
-    }),
-    Object.freeze({
-      id: 'depositSiliconColor', type: 'color', group: 'Gisements',
-      label: 'Silicium', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#58efff'
-    }),
-    Object.freeze({
-      id: 'depositCarbonColor', type: 'color', group: 'Gisements',
-      label: 'Carbone', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#c6f34a'
-    }),
-    Object.freeze({
-      id: 'depositOilColor', type: 'color', group: 'Gisements',
-      label: 'Pétrole', help: 'Couleur des hachures, du contour lumineux et du nom.',
-      defaultValue: '#ffbd43'
+      id: 'showGroundMaterials', type: 'checkbox', group: 'Affichage du terrain',
+      label: 'Ressources du sol', help: 'Affiche les points colorés des matériaux présents dans le sol.',
+      defaultValue: true
     }),
     Object.freeze({
       id: 'infiniteMinerals', type: 'checkbox', group: 'Ressources',

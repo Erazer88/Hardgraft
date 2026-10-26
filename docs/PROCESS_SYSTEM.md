@@ -1,4 +1,4 @@
-# Processus industriels — filières par gisement
+# Processus industriels — filières par matériau
 
 Cette référence décrit le graphe de processus actuellement chargé. Elle remplace
 l'ancienne usine limitée au fer ; les graphes sauvegardés en version antérieure à 5
@@ -7,11 +7,11 @@ sont réinitialisés, tandis que les bâtiments et sauvegardes générales sont 
 ## Modèle
 
 Chaque bâtiment industriel possède un graphe indépendant. Son contexte géologique
-identifie la matière du gisement ; chaque carte conserve aussi son `resourceId` afin
+identifie le matériau extrait du sol sous le bâtiment ; chaque carte conserve aussi son `resourceId` afin
 que ses ports et sa recette restent cohérents après sauvegarde. `OrbitProcessData.get`
 résout la définition adaptée. Le Concasseur, le Broyeur et le Four de réduction gardent
 les mêmes identifiants et noms dans toutes les filières solides, mais leurs matières
-d'entrée et de sortie suivent le gisement.
+d'entrée et de sortie suivent ce matériau.
 
 Une connexion nomme ses deux machines et ses deux ports :
 
@@ -29,9 +29,9 @@ cartes distinctes pour permettre des retours de matière dans une évolution ult
 
 | Carte | Entrée | Sortie / comportement | Débit N1 | Énergie |
 | --- | --- | --- | ---: | ---: |
-| Foreuse | Gisement terrestre du bâtiment | Roche brute correspondante, sans plafond nominal | Sans plafond | 2,5 MW |
+| Foreuse | Sol sous le bâtiment | Roche brute du matériau dominant, sans plafond nominal | Sans plafond | 2,5 MW |
 | Quai d'entrée | Stock reçu du réseau terrestre | Une matière choisie vers les machines, 1:1 | 2 u/s | 0 MW |
-| Concasseur | Roche brute du gisement | Minerai concassé, 1:1 | 2 u/s | 2 MW |
+| Concasseur | Roche brute du matériau | Minerai concassé, 1:1 | 2 u/s | 2 MW |
 | Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
 | Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
 | Réserve d'eau | Réserve infinie temporaire de la colonie | Eau, sans consommation d'énergie | Sans plafond | 0 MW |
@@ -44,7 +44,7 @@ Les réducteurs métallurgiques du Four sont abstraits : il ne consomme pas de c
 
 ## Filières
 
-| Gisement | Cartes de transformation | Recettes provisoires |
+| Matériau | Cartes de transformation | Recettes provisoires |
 | --- | --- | --- |
 | Fer | Foreuse → Concasseur → Broyeur → Séparateur magnétique → Four de réduction | 5 broyés → 2 concentrés de fer + 3 résidus ; 2 concentrés → 1 fer brut + 1 laitier |
 | Cuivre | Foreuse → Concasseur → Broyeur → Séparateur gravitaire → Four de réduction | 5 broyés → 2 concentrés de cuivre + 3 résidus ; 2 concentrés → 1 cuivre brut + 1 laitier |
@@ -57,9 +57,13 @@ quantités de séchage sont conservées à 1:1. La séparation du pétrole garde
 80/15/5. Les matières et sous-produits sont déclarés dans `src/data/resources.js` ; les
 ports, recettes, débits et consommations se trouvent dans `src/data/processes.js`.
 
-La Foreuse terrestre lit le `resourceId` du gisement du bâtiment : fer, cuivre, silice
-ou carbone. La Plateforme pétrolière utilise une Pompe pétrolière dédiée et son
-séparateur triphasé. La carte de Réserve d'eau ne mine pas un gisement : elle fournit
+Il n'y a plus de gisements : un Extracteur se pose librement sur la terre ferme et
+enregistre la composition moyenne du sol sous son emprise (`composition`), puis le
+matériau exploitable le plus présent (`resourceId` : fer, cuivre, silice ou carbone) et
+sa part (`resourceShare`). La Foreuse lit ce `resourceId`. Une Plateforme pétrolière se
+pose librement en mer profonde, enregistre la part de pétrole du fond et utilise une
+Pompe pétrolière dédiée et son séparateur triphasé. La part ne modifie pas encore le
+débit : les rendements seront calibrés plus tard. La carte de Réserve d'eau ne mine pas le sol : elle fournit
 l'auxiliaire eau depuis la réserve infinie temporaire de la colonie.
 
 ## Buffers, énergie et état
@@ -78,7 +82,7 @@ est débranché et son buffer vide. Le quai retire une unité du stock par cycle
 uniquement s'il est relié et dispose de place en aval. Plusieurs quais partagent le même
 stock sans dupliquer les unités. La matière sélectionnée et le buffer sont sauvegardés.
 Le catalogue des nouvelles machines suit la filière du premier quai configuré, sans
-modifier les recettes des machines déjà posées ni créer de gisement dans l'usine.
+modifier les recettes des machines déjà posées ni changer le matériau du sol.
 Les Plateformes de lancement reçoivent nativement et n'ont pas besoin de cette carte.
 
 Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
@@ -98,7 +102,7 @@ de la planète ; une route terrestre entièrement construite est nécessaire. R�
 
 | Fichier | Responsabilité |
 | --- | --- |
-| `src/data/processes.js` | Cartes, ports, recettes par gisement, débits et énergie |
+| `src/data/processes.js` | Cartes, ports, recettes par matériau, débits et énergie |
 | `src/data/resources.js` | Identifiants et noms des matières et sous-produits |
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, énergie et débits soutenables |
