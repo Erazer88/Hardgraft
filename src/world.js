@@ -703,9 +703,9 @@
   }
 
   // Ground composition. Each cell gets a share of every material, rock filling
-  // the rest. Terrain traits set where a material tends to gather, warped
-  // Voronoi zones give every area its own mix, and noise pockets concentrate
-  // it. Shares are stored per cell and material as bytes (255 = 100 %).
+  // the rest. Terrain traits set where a material tends to gather; it only
+  // concentrates in a few deposits sited there, and some worlds lack it
+  // entirely. Shares are stored per cell and material as bytes (255 = 100 %).
   function buildMaterials(options) {
     const { width, height, minSide, land, toWater, elevation, relief, features, moisture, seaLevel,
       offsetX, offsetY, terrainSeed, planet, settings } = options;
@@ -729,35 +729,28 @@
       for (const cell of component) landmass[cell] = component.length / count;
     }
 
-    // Zones: a jittered grid of seeds; every zone scales each material by its
-    // own factor and boosts one signature material.
-    const spacing = Math.max(2, table.zoneSize * minSide);
-    const columns = Math.ceil(width / spacing) + 1, rows = Math.ceil(height / spacing) + 1;
-    const zoneRandom = rng(terrainSeed ^ 0x5bd1e995);
-    const seedX = new Float32Array(columns * rows), seedY = new Float32Array(columns * rows);
-    const zoneFactor = new Float32Array(columns * rows * kinds);
-    const [lowVariation, highVariation] = table.zoneVariation.map(Math.log);
-    for (let zone = 0; zone < columns * rows; zone += 1) {
-      seedX[zone] = (zone % columns + .5 + (zoneRandom() - .5) * .9) * spacing;
-      seedY[zone] = (Math.floor(zone / columns) + .5 + (zoneRandom() - .5) * .9) * spacing;
-      const signature = Math.floor(zoneRandom() * kinds);
-      for (let kind = 0; kind < kinds; kind += 1) {
-        zoneFactor[zone * kinds + kind] = Math.exp(lowVariation + zoneRandom() * (highVariation - lowVariation)) *
-          (kind === signature ? table.signatureBoost : 1);
+    // Distance from land for sea cells (8-neighbour steps), for offshore materials.
+    const toLand = new Float32Array(count).fill(Infinity), queue = [];
+    for (let cell = 0; cell < count; cell += 1) if (land[cell]) { toLand[cell] = 0; queue.push(cell); }
+    for (let head = 0; head < queue.length; head += 1) {
+      const cell = queue[head], cx = cell % width, cy = (cell - cx) / width;
+      for (let n = 0; n < 8; n += 1) {
+        const x = cx + NEIGHBOR_DX[n], y = cy + NEIGHBOR_DY[n], next = y * width + x;
+        if (x < 0 || y < 0 || x >= width || y >= height || toLand[next] <= toLand[cell] + 1) continue;
+        toLand[next] = toLand[cell] + 1; queue.push(next);
       }
     }
-    const coarse = (step, evaluate) => coarseField(width, height, minSide, step, evaluate);
-    const zoneWarpX = coarse(4, (u, v) => fbm(offsetX + 211 + u * 3, offsetY - 7 + v * 3, terrainSeed ^ 0x27d4eb2f, 2));
-    const zoneWarpY = coarse(4, (u, v) => fbm(offsetX - 59 + u * 3, offsetY + 151 + v * 3, terrainSeed ^ 0x165667b1, 2));
-    const hotspots = list.map((material, kind) => coarse(2, (u, v) => fbm(offsetX + 37 * (kind + 1) + u * table.hotspotScale,
-      offsetY - 23 * (kind + 1) + v * table.hotspotScale, (terrainSeed ^ 0x68e31da4) + kind * 0x9e3779b9 >>> 0, 3)));
-    const richness = list.map(material => .5 + (planet?.resources?.[material.id] ?? .5));
 
-    const shares = new Uint8Array(count * kinds), share = new Float32Array(kinds);
+    // Deposits: each material gathers in at most a few deposits, sited where
+    // the ground favors it; between them the ground is almost bare rock. A
+    // planet's abundance decides whether a material is there at all.
+    const coarse = (step, evaluate) => coarseField(width, height, minSide, step, evaluate);
+    const warps = list.map((material, kind) => coarse(2, (u, v) => fbm(offsetX + 37 * (kind + 1) + u * table.depositWarpScale,
+      offsetY - 23 * (kind + 1) + v * table.depositWarpScale, (terrainSeed ^ 0x68e31da4) + kind * 0x9e3779b9 >>> 0, 3)));
+    const richness = list.map(material => .5 + (planet?.resources?.[material.id] ?? .5));
     const natal = Boolean(planet?.startingCandidate);
-    const best = list.map(() => ({ cell: -1, score: -1 }));
     const heightAt = (x, y) => relief[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
-    const traits = {};
+    const affinities = new Float32Array(count * kinds), bonuses = new Float32Array(count * kinds), traits = {};
     for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
       const cell = y * width + x, onLand = land[cell] === 1;
       // Terrain traits, each between 0 and 1.
@@ -777,45 +770,77 @@
       const depth = seaLevel - elevation[cell];
       traits.shelf = onLand ? 0 : 1 - smoothstep((depth - 8) / 22);
       traits.deep = onLand ? 0 : smoothstep((depth - 20) / 25);
+      traits.offshore = onLand ? 0 : smoothstep((toLand[cell] - .03 * minSide) / (.06 * minSide));
       const difficulty = Math.max(traits.rugged, traits.mountain * .8, traits.remote * .6, traits.island * .7);
-
-      // Nearest zone seed, on warped coordinates for organic zone borders.
-      const wx = x + zoneWarpX[cell] * spacing * 1.2, wy = y + zoneWarpY[cell] * spacing * 1.2;
-      const gx = Math.floor(wx / spacing), gy = Math.floor(wy / spacing);
-      let zone = 0, nearest = Infinity, other = 0, second = Infinity;
-      for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) {
-        const column = clamp(gx + dx, 0, columns - 1), row = clamp(gy + dy, 0, rows - 1), candidate = row * columns + column;
-        if (candidate === zone && nearest < Infinity) continue;
-        const distance = (seedX[candidate] - wx) ** 2 + (seedY[candidate] - wy) ** 2;
-        if (distance < nearest) { other = zone; second = nearest; nearest = distance; zone = candidate; }
-        else if (distance < second && candidate !== zone) { second = distance; other = candidate; }
-      }
-      // Soft borders: near the edge between two zones, their factors blend.
-      const own = .5 + .5 * smoothstep((Math.sqrt(second) - Math.sqrt(nearest)) / (spacing * table.zoneBlend));
-
       // Lakes and coves hold neither land materials nor offshore ones.
       const inlandWater = feature === TERRAIN_FEATURES.lake || feature === TERRAIN_FEATURES.cove;
-      let ore = 0;
       for (let kind = 0; kind < kinds; kind += 1) {
         const material = list[kind];
-        if (inlandWater || Boolean(material.marine) === onLand) { share[kind] = 0; continue; }
+        if (inlandWater || Boolean(material.marine) === onLand) continue;
         let affinity = 0;
         for (const trait in material.affinity) affinity += material.affinity[trait] * traits[trait];
-        affinity = clamp(affinity, 0, 1);
-        const pocket = Math.pow(smoothstep((hotspots[kind][cell] + .35 - (material.pocketThreshold ?? .25)) / .5),
-          table.hotspotSharpness);
-        const bonus = (1 + table.difficultyBonus * difficulty * (material.rarity ? 1 : .35)) *
+        affinities[cell * kinds + kind] = clamp(affinity, 0, 1);
+        bonuses[cell * kinds + kind] = (1 + table.difficultyBonus * difficulty * (material.rarity ? 1 : .35)) *
           (1 + table.islandBonus * traits.island);
-        const factor = zoneFactor[zone * kinds + kind] * own + zoneFactor[other * kinds + kind] * (1 - own);
-        share[kind] = material.base * factor + (material.peak - material.base) * affinity * factor * pocket * richness[kind] * bonus;
-        ore += share[kind];
-        if (natal && affinity * pocket > best[kind].score) best[kind] = { cell, score: affinity * pocket };
+      }
+    }
+
+    const depositRandom = rng(terrainSeed ^ 0x5bd1e995), deposits = [];
+    const best = list.map(() => ({ cell: -1, score: -1 }));
+    for (let kind = 0; kind < kinds; kind += 1) {
+      const material = list[kind], abundance = planet?.resources?.[material.id] ?? .5;
+      // Scarce on most worlds: below the presence threshold a material is absent.
+      const presence = clamp((abundance - table.presence[0]) / (table.presence[1] - table.presence[0]), 0, 1);
+      let wanted = depositRandom() < presence ? 1 + (depositRandom() < presence * table.secondDepositChance ? 1 : 0) : 0;
+      if (natal && !material.marine) wanted = Math.max(1, wanted);
+      // Candidate sites, weighted by how much the ground favors the material.
+      const candidates = [];
+      for (let y = 2; y < height - 2; y += 3) for (let x = 2; x < width - 2; x += 3) {
+        const cell = y * width + x, affinity = affinities[cell * kinds + kind];
+        if (affinity <= .05) continue;
+        const score = affinity * bonuses[cell * kinds + kind];
+        candidates.push({ x, y, score });
+        if (score > best[kind].score) best[kind] = { cell, score };
+      }
+      candidates.sort((first, second) => second.score - first.score || first.y - second.y || first.x - second.x);
+      const pool = candidates.slice(0, Math.max(1, Math.ceil(candidates.length * table.siteShortlist)));
+      for (let attempt = 0; attempt < 40 && deposits.filter(deposit => deposit.kind === kind).length < wanted && pool.length; attempt += 1) {
+        const site = pool[Math.floor(depositRandom() * pool.length)];
+        if (deposits.some(deposit => deposit.kind === kind && Math.hypot(deposit.x - site.x, deposit.y - site.y) < table.depositSpacing * minSide)) continue;
+        deposits.push({ kind, x: site.x, y: site.y, radius: pickRange(depositRandom, table.depositRadius) * minSide,
+          peak: material.peak * pickRange(depositRandom, table.depositStrength) * richness[kind] });
+      }
+    }
+
+    const shares = new Uint8Array(count * kinds), share = new Float32Array(kinds);
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const cell = y * width + x;
+      let ore = 0;
+      for (let kind = 0; kind < kinds; kind += 1) {
+        const affinity = affinities[cell * kinds + kind];
+        share[kind] = 0;
+        if (!bonuses[cell * kinds + kind]) continue;
+        // A trace everywhere, then each deposit: a warped blob that hugs the
+        // ground the material favors.
+        let value = list[kind].base * (.5 + affinity);
+        for (const deposit of deposits) {
+          if (deposit.kind !== kind) continue;
+          const distance = Math.hypot(x - deposit.x, y - deposit.y) / deposit.radius;
+          if (distance > 1.6) continue;
+          const body = smoothstep(1 - distance + (warps[kind][cell] - .5) * table.depositWarp);
+          value = Math.max(value, deposit.peak * body * (.6 + .4 * affinity) * bonuses[cell * kinds + kind]);
+        }
+        share[kind] = value;
+        ore += value;
       }
       const scale = ore > table.maxOreShare ? table.maxOreShare / ore : 1;
       for (let kind = 0; kind < kinds; kind += 1) shares[cell * kinds + kind] = Math.round(clamp(share[kind] * scale, 0, 1) * 255);
     }
 
-    // The natal world always offers at least one rich pocket of each land material.
+    const veins = buildVeins({ width, height, minSide, land, features, relief, shares, list, table, terrainSeed, richness });
+    smoothShares({ width, height, land, features, shares, list, passes: table.smoothing.passes, radius: table.smoothing.radius });
+    // The natal world always offers at least one rich pocket of each land
+    // material, checked once the ground is smoothed.
     if (natal) {
       const target = Math.round(table.natalMinimumPeak * 255), sigma = Math.max(1.5, .02 * minSide);
       for (let kind = 0; kind < kinds; kind += 1) {
@@ -834,9 +859,8 @@
         }
       }
     }
-    const veins = buildVeins({ width, height, minSide, land, features, relief, shares, list, table, terrainSeed, richness });
-    smoothShares({ width, height, land, features, shares, list, passes: table.smoothing.passes, radius: table.smoothing.radius });
-    return { ids: list.map(material => material.id), shares, veins: veins.veins, nodes: veins.nodes };
+    return { ids: list.map(material => material.id), shares, veins: veins.veins, nodes: veins.nodes,
+      deposits: deposits.map(deposit => ({ id: list[deposit.kind].id, x: deposit.x, y: deposit.y, radius: Math.round(deposit.radius * 10) / 10 })) };
   }
 
   // Ground varies over kilometers, not from one cell to the next: box blurs of

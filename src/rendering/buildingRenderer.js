@@ -61,10 +61,10 @@
     ctx.beginPath(); ctx.moveTo(x - size * .7, y + size * .48); ctx.lineTo(x + size * .75, y + size * .48); ctx.stroke();
   }
 
-  // Beacon geometry around a building's ground point, in screen pixels.
+  // Beacon geometry, in screen pixels: the hexagon sits on the building's spot.
   function pinGeometry(frame, building) {
-    const pin = Style.buildings.pin, ground = frame.project(building.x, building.y);
-    return { ground, head: { x: ground.x, y: ground.y - pin.stemPx - pin.headRadiusPx }, radius: pin.headRadiusPx };
+    const ground = frame.project(building.x, building.y);
+    return { ground, head: ground, radius: Style.buildings.pin.headRadiusPx };
   }
 
   function hexagon(ctx, x, y, radius) {
@@ -78,20 +78,14 @@
   }
 
   function drawPin(frame, building, definition, ghost = false) {
-    const ctx = frame.context, pin = Style.buildings.pin, { ground, head, radius } = pinGeometry(frame, building);
+    const ctx = frame.context, pin = Style.buildings.pin, { head, radius } = pinGeometry(frame, building);
     const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
     const complete = ghost || building.constructionState === 'complete';
     const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870')
       : pin.categoryColors[definition.category] || pin.defaultColor;
     ctx.save();
     ctx.globalAlpha = ghost ? pin.ghostOpacity : complete ? 1 : pin.constructionOpacity + (1 - pin.constructionOpacity) * .5;
-    // Ground: a soft shadow and a glowing ring at the exact spot.
-    ctx.fillStyle = 'rgba(4,10,20,.45)';
-    ctx.beginPath(); ctx.ellipse(ground.x, ground.y, pin.groundShadowPx, pin.groundShadowPx * .42, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = color; ctx.lineWidth = 1.1; ctx.shadowColor = color; ctx.shadowBlur = pin.glowBlurPx * .6;
-    ctx.beginPath(); ctx.ellipse(ground.x, ground.y, pin.groundRingPx, pin.groundRingPx * .55, 0, 0, Math.PI * 2); ctx.stroke();
-    // Stem, then the head with its glow.
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ground.x, ground.y); ctx.lineTo(head.x, head.y + radius); ctx.stroke();
+    ctx.shadowColor = color;
     hexagon(ctx, head.x, head.y, radius);
     ctx.shadowBlur = 0; ctx.strokeStyle = pin.rimColor; ctx.lineWidth = pin.rimWidthPx; ctx.stroke();
     ctx.strokeStyle = color; ctx.shadowBlur = pin.glowBlurPx;
@@ -103,7 +97,7 @@
       // Construction progress runs around the head.
       const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
       ctx.strokeStyle = pin.constructionColor; ctx.lineWidth = pin.progressWidthPx; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.arc(head.x, head.y, radius + 5, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(head.x, head.y, radius + 4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
     }
     if (selected) {
       ctx.strokeStyle = Style.buildings.selectedOutlineColor; ctx.lineWidth = Style.buildings.selectedOutlineWidthPx;
@@ -153,7 +147,7 @@
     ctx.globalAlpha = 1;
     ctx.font = `${pin.readoutSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const y = ground.y + pin.groundShadowPx * .6 + 5, width = ctx.measureText(text).width + 14;
+    const y = ground.y + pin.headRadiusPx + 8, width = ctx.measureText(text).width + 14;
     ctx.fillStyle = pin.readoutFill;
     ctx.beginPath(); ctx.roundRect(ground.x - width / 2, y - 3, width, pin.readoutSizePx + 7, 4); ctx.fill();
     ctx.strokeStyle = color; ctx.lineWidth = .8; ctx.stroke();

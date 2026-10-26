@@ -114,7 +114,7 @@ des sauvegardes.
 
 ## Matériaux du sol
 
-Il n'y a pas de gisements localisés : chaque cellule mélange de la roche avec du fer,
+Chaque cellule mélange de la roche avec du fer,
 du cuivre, de la silice, du carbone et, sous la mer, du pétrole (`terrain.materials` :
 une part par cellule et par matériau, en octets ; la roche complète le reste ;
 `OrbitWorld.materialsAt` renvoie les fractions d'une cellule). La table déclarative
@@ -126,19 +126,23 @@ part maximale et ses affinités avec le terrain :
 - la **silice** sur les côtes, dans les régions sèches et les sables de rivière ;
 - le **cuivre**, plus rare, sur les reliefs escarpés, les canyons, l'intérieur reculé
   et les îles ;
-- le **pétrole** sur les plateaux continentaux, plus rarement en mer profonde.
+- le **pétrole** en haute mer, loin des côtes (`offshore`), dans les eaux profondes.
 
-La carte est découpée en zones (cellules de Voronoï déformées, environ 36 cellules de
-large) : chaque zone multiplie chaque matériau par son propre facteur et favorise un
-matériau signature, avec des frontières fondues. Des poches de bruit concentrent les
-matériaux. Les lieux difficiles d'accès (pentes, sommets, intérieur reculé) et les
-petites îles portent des poches plus riches. L'indice de richesse de chaque planète
-(`planet.resources`) module l'ensemble. La planète natale garantit au moins une poche
-riche de chaque matériau terrestre. Les ratios sont des premiers jets.
+Les matériaux sont rares : hors gisement, il n'en reste qu'une trace (`base`, moins de
+1 %). Chaque matériau forme **au plus deux gisements** par planète, et peut être
+**absent** : l'abondance de la planète (`planet.resources`) donne sa probabilité de
+présence (nulle sous `presence[0]`, certaine au-delà de `presence[1]`) et la chance
+d'un second gisement. Un gisement est placé au hasard parmi les sites les mieux
+adaptés (`siteShortlist`), loin d'un autre gisement du même matériau
+(`depositSpacing`) ; c'est une tache déformée par du bruit (`depositRadius`,
+`depositWarp`) qui épouse le terrain favorable, plus riche sur les lieux difficiles
+d'accès et les petites îles. Certaines planètes n'ont presque rien : il faut explorer.
+La planète natale garantit au moins un gisement riche de chaque matériau terrestre.
+`terrain.materials.deposits` liste les gisements. Les ratios sont des premiers jets.
 
 Les minerais terrestres suivent ensuite des **veines** (`materials.veins`) : pour
-chaque matériau, les poches les plus riches, espacées entre elles, deviennent des
-nœuds (deux à quatre selon la richesse de la planète) d'où partent deux à quatre filons,
+chaque matériau, les points les plus riches des gisements deviennent des
+nœuds (un ou deux selon la richesse de la planète) d'où partent deux ou trois filons,
 lancés dans les deux sens de la direction des courbes de niveau locales. Chaque filon
 avance sur la terre ferme (jamais dans un lac, une crique ou la mer) en s'infléchissant
 vers les courbes de niveau, comme une strate ou une faille, s'affine vers sa pointe et

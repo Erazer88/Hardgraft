@@ -185,17 +185,34 @@
     }
   }
 
-  // Roads end on the building's ground ring: a short leg joins each reached
-  // building node (its road or water port) to the building's own position.
+  // Road width factor: roads thin down when zoomed out.
+  function widthScale(frame) {
+    const { farZoom, nearZoom, farScale } = Style.zoomWidth;
+    const t = Math.max(0, Math.min(1, (frame.zoom - farZoom) / (nearZoom - farZoom)));
+    return farScale + (1 - farScale) * t * t * (3 - 2 * t);
+  }
+
+  // The beacon corner a road joins: the hexagon corner facing its port, in
+  // world units (the beacon has a fixed screen size).
+  function beaconCorner(frame, building, toward) {
+    const radius = root.OrbitSurfaceStyle?.buildings?.pin?.headRadiusPx || 0;
+    const direction = Math.atan2(toward.y - building.y, toward.x - building.x);
+    const corner = Math.PI / 6 + Math.round((direction - Math.PI / 6) / (Math.PI / 3)) * Math.PI / 3;
+    return { x: building.x + Math.cos(corner) * radius / frame.zoom, y: building.y + Math.sin(corner) * radius / frame.zoom };
+  }
+
+  // Roads end on a corner of the building's beacon: a short leg joins each
+  // reached building node (its road or water port) to that corner.
   function buildingLegs(frame, network) {
     const buildings = new Map((frame.state.surfaceBuildings || []).map(building => [building.id, building])), legs = [];
     for (const node of network.nodes) {
       const building = node.buildingId && buildings.get(node.buildingId);
       if (!building) continue;
-      const length = Math.hypot(building.x - node.x, building.y - node.y);
-      if (length < 1e-6 || !network.segments.some(segment =>
+      if (!network.segments.some(segment =>
         (segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id))) continue;
-      legs.push({ leg: true, points: [{ x: node.x, y: node.y }, { x: building.x, y: building.y }], surfaceTypes: [false],
+      const corner = beaconCorner(frame, building, node), length = Math.hypot(corner.x - node.x, corner.y - node.y);
+      if (length < 1e-6) continue;
+      legs.push({ leg: true, points: [{ x: node.x, y: node.y }, corner], surfaceTypes: [false],
         length, builtLength: length, routeType: node.connectionMode === 'marine' ? 'marine' : 'land' });
     }
     return legs;
@@ -217,11 +234,12 @@
         .filter(segment => segment.points?.length >= 2 && visible(frame, segment));
       ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // Glow passes first, then the white core with its causeway dots.
+      const scale = widthScale(frame);
       for (const pass of Style.glowPasses) {
-        ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx; ctx.globalAlpha = pass.opacity;
+        ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx * scale; ctx.globalAlpha = pass.opacity * scale;
         for (const segment of segments) if (segment.routeType !== 'marine') roadRuns(frame, segment, 1, Style.landColor, 0, false);
       }
-      ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx; ctx.globalAlpha = Style.landOpacity;
+      ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx * scale; ctx.globalAlpha = Style.landOpacity;
       for (const segment of segments) {
         if (segment.routeType === 'marine') marineRun(frame, segment);
         else roadRuns(frame, segment, 1, Style.waterColor);

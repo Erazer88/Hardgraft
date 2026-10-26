@@ -150,29 +150,26 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      // Buildings show as beacons: a hexagonal head carrying the building icon,
-      // raised on a thin stem over a glowing ring that marks the exact spot.
-      // Sizes are screen pixels; the outline color follows the category.
+      // Buildings show as beacons: a hexagon carrying the building icon,
+      // centered on the exact spot; roads join it at a corner. Sizes are
+      // screen pixels, fixed at every zoom; the outline follows the category.
       pin: Object.freeze({
-        headRadiusPx: 17,
-        stemPx: 15,
-        groundRingPx: 4.5,
-        groundShadowPx: 10,
+        headRadiusPx: 12.5,
         fill: '#0b1a2c',
-        lineWidthPx: 2.2,
+        lineWidthPx: 1.8,
         // A dark rim under the colored outline keeps the head readable on pale strata.
         rimColor: 'rgba(5,10,22,.85)',
-        rimWidthPx: 5,
-        glowBlurPx: 12,
-        glyphSizePx: 17,
-        glyphLineWidthPx: 1.9,
+        rimWidthPx: 4,
+        glowBlurPx: 9,
+        glyphSizePx: 12.5,
+        glyphLineWidthPx: 1.6,
         glyphColor: '#eefcff',
         categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a' }),
         defaultColor: '#c9d6dc',
-        selectedRingPx: 5,
+        selectedRingPx: 4,
         constructionColor: '#d7a66f',
         constructionOpacity: .55,
-        progressWidthPx: 3,
+        progressWidthPx: 2.4,
         // Ground readout under a drill being placed or selected.
         readoutSizePx: 10,
         readoutFill: 'rgba(6,14,28,.86)',

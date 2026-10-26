@@ -61,14 +61,14 @@ retracées en vecteurs depuis ce même terrain pour rester nettes au zoom. Il n'
 terrain haute résolution, ni worker, ni couche WebGL.
 
 Les bâtiments ne sont pas dessinés : `buildingRenderer.js` les signale par des balises
-de point d'intérêt de taille constante à l'écran (`OrbitSurfaceStyle.buildings.pin`),
-une tête hexagonale portant l'icône du bâtiment, colorée selon sa catégorie, posée
-sur une tige au-dessus d'un anneau lumineux qui marque l'emplacement exact. La
-construction progresse en arc autour de la tête ; la sélection ajoute un hexagone
-orange. L'aperçu de placement montre en plus l'emprise au sol. Le clic sur la tête
+de point d'intérêt de taille fixe à l'écran (`OrbitSurfaceStyle.buildings.pin`) : un
+hexagone portant l'icône du bâtiment, coloré selon sa catégorie et centré sur
+l'emplacement exact ; les routes le rejoignent par l'angle tourné vers elles. La
+construction progresse en arc autour de l'hexagone ; la sélection ajoute un hexagone
+orange. L'aperçu de placement montre en plus l'emprise au sol. Le clic sur l'hexagone
 sélectionne le bâtiment. Pendant le placement d'une foreuse, et lorsqu'elle est
 sélectionnée, son rayon de captage est tracé en pointillés et une étiquette sous
-l'anneau donne les minerais qu'elle draine (texte préparé par `app.js`, qui garde
+l'hexagone donne les minerais qu'elle draine (texte préparé par `app.js`, qui garde
 la mise en forme dans l'UI).
 
 ## Modules denses et limites de refactorisation

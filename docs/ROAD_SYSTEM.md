@@ -68,7 +68,8 @@ les itinéraires.
 
 Le point de raccordement d'un bâtiment (`roadPort`, `waterPort`) reste la fin du
 tracé calculé, mais il n'est plus dessiné : le rendu prolonge chaque route atteinte
-jusqu'à l'anneau au sol de la balise, et l'aperçu fait de même.
+jusqu'à l'angle de la balise hexagonale tourné vers elle. Vue de loin, les routes
+s'affinent et leur halo s'atténue (`render.zoomWidth`).
 
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan
 (`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde

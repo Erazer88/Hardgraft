@@ -94,26 +94,30 @@
         coves: { minFlow: 4, minCoastHeight: 14, length: [3, 9] }
       },
       // Ground composition: every cell mixes plain rock with these materials,
-      // and the rest of the cell is rock. Shares are first drafts.
+      // and the rest of the cell is rock. Away from deposits only a trace
+      // (`base`) remains; `peak` is a deposit's typical heart. First drafts.
       // `affinity` weighs terrain traits, each between 0 and 1, where a
       // material concentrates: mountain, upland, plain, coast, river, marsh,
-      // dry, rugged, remote, island, shelf, deep. `rarity` favors ground that is
+      // dry, rugged, remote, island, shelf, deep, offshore (far from land). `rarity` favors ground that is
       // hard to reach. Marine materials only exist under the sea.
       materials: {
         list: [
-          { id: 'iron', base: .02, peak: .3, affinity: { mountain: 1, upland: .55, rugged: .3, island: .35 } },
-          { id: 'copper', base: .004, peak: .14, rarity: 1,
+          { id: 'iron', base: .008, peak: .3, affinity: { mountain: 1, upland: .55, rugged: .3, island: .35 } },
+          { id: 'copper', base: .002, peak: .18, rarity: 1,
             affinity: { rugged: .7, mountain: .45, remote: .45, island: .65 } },
-          { id: 'silicon', base: .02, peak: .28, affinity: { coast: .85, dry: .7, river: .35, plain: .2 } },
-          { id: 'carbon', base: .01, peak: .3, affinity: { marsh: 1, plain: .45, river: .3 } },
-          { id: 'oil', base: 0, peak: .3, marine: true, pocketThreshold: .25, affinity: { shelf: .8, deep: .15 } }
+          { id: 'silicon', base: .008, peak: .28, affinity: { coast: .85, dry: .7, river: .35, plain: .2 } },
+          { id: 'carbon', base: .005, peak: .3, affinity: { marsh: 1, plain: .45, river: .3 } },
+          { id: 'oil', base: 0, peak: .3, marine: true, affinity: { offshore: .7, deep: .4 } }
         ],
-        // Each zone (a warped Voronoi cell about this wide) scales every material
-        // by its own factor, and favors one signature material. Factors blend
-        // across this share of the zone size at borders.
-        zoneSize: .075, zoneVariation: [.25, 1.9], signatureBoost: 1.7, zoneBlend: .35,
-        // Pockets where materials concentrate, as a noise frequency per map side.
-        hotspotScale: 9, hotspotSharpness: 2,
+        // A material is absent below the first planet abundance, always there
+        // from the second; a second deposit appears with this chance (scaled
+        // by presence). Deposits are sited at random among the best-suited
+        // share of candidate sites, kept apart (fraction of the map side).
+        presence: [.3, .65], secondDepositChance: .5, siteShortlist: .12, depositSpacing: .18,
+        // Deposit radius (fraction of the map side), strength of its heart
+        // relative to `peak`, and how much noise (frequency per map side,
+        // amplitude) warps its outline.
+        depositRadius: [.05, .09], depositStrength: [.85, 1.25], depositWarpScale: 7, depositWarp: .8,
         // Hard-to-reach ground and small islands hold richer pockets.
         difficultyBonus: .8, islandBonus: .6,
         maxOreShare: .72,
@@ -124,8 +128,8 @@
         // A cell on a vein holds up to `share` of its material, fading out over
         // `width` cells on each side.
         veins: {
-          nodes: [2, 4], nodeSpacing: .1, minNodeShare: .07,
-          branches: [2, 4], branchSpread: .45, length: [.05, .12], step: 1.2, turn: .22,
+          nodes: [1, 2], nodeSpacing: .1, minNodeShare: .1,
+          branches: [2, 3], branchSpread: .45, length: [.05, .12], step: 1.2, turn: .22,
           followContour: .35, contourReach: 3, minContourSlope: 4,
           splitChance: .07, splitAngle: [.25, .6], splitLength: [.3, .55], maxDepth: 2,
           width: 3.5, share: .4

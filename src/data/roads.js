@@ -80,9 +80,11 @@
       landWidthPx: 1.2,
       glowColor: '#78f0ff',
       glowPasses: Object.freeze([
-        Object.freeze({ widthPx: 7, opacity: .13 }),
-        Object.freeze({ widthPx: 3.4, opacity: .38 })
+        Object.freeze({ widthPx: 5, opacity: .08 }),
+        Object.freeze({ widthPx: 2.6, opacity: .24 })
       ]),
+      // Zoomed out, roads thin down to this share of their width.
+      zoomWidth: Object.freeze({ farZoom: .7, nearZoom: 1.8, farScale: .55 }),
       waterColor: '#b8f6ff',
       waterOpacity: .9,
       waterDotRadiusPx: 1.15,

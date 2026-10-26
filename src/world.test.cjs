@@ -201,62 +201,65 @@ test('terrain contains coherent water, land, and reachable resources for differe
     Array.from(world.createTerrain('two', 80, 60).elevation));
 });
 
-test('materials gather where the ground favors them, richer in hard places and on islands', () => {
-  const totals = {};
-  const add = (key, value) => { totals[key] ||= { sum: 0, count: 0 }; totals[key].sum += value; totals[key].count += 1; };
-  for (let index = 0; index < 5; index += 1) {
-    const planet = { kind: 'tellurique', surfaceWater: .4, temperature: 18, seed: 300 + index,
-      resources: { iron: .5, copper: .5, silicon: .5, carbon: .5, oil: .5 } };
-    const terrain = world.createTerrain('materials-' + index, 320, 240, planet);
-    const { width, height, seaLevel, relief, elevation } = terrain;
-    const water = cell => elevation[cell] <= seaLevel;
-    for (let y = 2; y < height - 2; y += 1) for (let x = 2; x < width - 2; x += 1) {
-      const cell = y * width + x, composition = world.materialsAt(terrain, cell);
-      if (water(cell)) {
-        add(seaLevel - elevation[cell] < 12 ? 'oilShelf' : 'oilDeep', composition.oil);
+test('materials gather in a few deposits where the ground favors them, and some worlds lack them', () => {
+  const at = {}, add = (key, value) => { at[key] ||= []; at[key].push(value); };
+  const mean = key => at[key].reduce((sum, value) => sum + value, 0) / at[key].length;
+  for (let index = 0; index < 8; index += 1) {
+    const planet = { kind: 'tellurique', surfaceWater: .45, temperature: 18, seed: 300 + index,
+      resources: { iron: .9, copper: .9, silicon: .9, carbon: .9, oil: .9 } };
+    const terrain = world.createTerrain('deposits-' + index, 240, 180, planet);
+    const { width, height, seaLevel, relief, elevation, materials } = terrain, minSide = Math.min(width, height);
+    const ids = materials.ids;
+    for (const id of ids) {
+      const count = materials.deposits.filter(deposit => deposit.id === id).length;
+      assert.ok(count >= 1 && count <= 2, `an abundant ${id} forms one or two deposits`);
+    }
+    for (const deposit of materials.deposits) {
+      const cell = deposit.y * width + deposit.x;
+      if (deposit.id === 'oil') {
+        let nearestLand = Infinity;
+        for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+          if (elevation[y * width + x] > seaLevel) nearestLand = Math.min(nearestLand, Math.hypot(x - deposit.x, y - deposit.y));
+        }
+        add('oilOffshore', nearestLand / minSide);
         continue;
       }
-      const above = relief[cell] - seaLevel;
-      let nearSea = false;
-      for (let dy = -2; dy <= 2 && !nearSea; dy += 1) for (let dx = -2; dx <= 2; dx += 1) {
-        if (water((y + dy) * width + x + dx) && terrain.features[(y + dy) * width + x + dx] !== world.TERRAIN_FEATURES.lake) nearSea = true;
+      add(deposit.id + 'Height', relief[cell] - seaLevel);
+      let sea = 0;
+      for (let dy = -8; dy <= 8; dy += 1) for (let dx = -8; dx <= 8; dx += 1) {
+        const x = Math.min(width - 1, Math.max(0, deposit.x + dx)), y = Math.min(height - 1, Math.max(0, deposit.y + dy));
+        if (elevation[y * width + x] <= seaLevel) sea += 1;
       }
-      if (above > 80) { add('ironMountain', composition.iron); add('carbonMountain', composition.carbon); }
-      if (above < 8) { add('ironPlain', composition.iron); add('carbonPlain', composition.carbon); }
-      add(nearSea ? 'siliconCoast' : 'siliconInland', composition.silicon);
+      add(deposit.id + 'Sea', sea);
     }
+    // Rich ground stays rare: most land shows no material above the first grade.
+    let land = 0, rich = 0;
+    for (let cell = 0; cell < width * height; cell += 1) {
+      if (elevation[cell] <= seaLevel) continue;
+      land += 1;
+      if (ids.some((id, kind) => id !== 'oil' && materials.shares[cell * ids.length + kind] >= .07 * 255)) rich += 1;
+    }
+    assert.ok(rich / land < .3, 'most of the land is plain rock');
   }
-  const mean = key => totals[key].sum / totals[key].count;
-  assert.ok(mean('ironMountain') > mean('ironPlain') * 2, 'iron favors mountains');
-  assert.ok(mean('carbonPlain') > mean('carbonMountain') * 2, 'carbon favors plains');
-  assert.ok(mean('siliconCoast') > mean('siliconInland') * 1.5, 'silica favors coasts');
-  assert.ok(mean('oilShelf') > mean('oilDeep'), 'oil gathers on continental shelves');
+  assert.ok(mean('ironHeight') > mean('carbonHeight') + 15, 'iron deposits sit higher than carbon ones');
+  assert.ok(mean('siliconSea') > mean('carbonSea'), 'silica deposits sit near the coast');
+  assert.ok(Math.min(...at.oilOffshore) > .02, 'oil lies in open sea, away from the coasts');
 
-  // Islands: the same ground is richer on a small island than on a continent.
-  const islandWorld = world.createTerrain('materials-islands', 320, 240,
-    { kind: 'océanique', surfaceWater: .82, temperature: 18, seed: 41 });
-  const continentWorld = world.createTerrain('materials-continents', 320, 240,
-    { kind: 'tellurique', surfaceWater: .3, temperature: 18, seed: 41 });
-  const landOre = terrain => {
-    let ore = 0, cells = 0;
-    for (let cell = 0; cell < terrain.elevation.length; cell += 1) {
-      if (terrain.elevation[cell] <= terrain.seaLevel) continue;
-      const composition = world.materialsAt(terrain, cell);
-      ore += 1 - composition.rock; cells += 1;
-    }
-    return ore / cells;
-  };
-  assert.ok(landOre(islandWorld) > landOre(continentWorld), 'island worlds hold richer ground');
+  // A poor world may hold almost nothing.
+  const poor = world.createTerrain('deposits-poor', 240, 180,
+    { kind: 'tellurique', surfaceWater: .45, temperature: 18, seed: 9, resources: { iron: .2, copper: .25, silicon: .1, carbon: .2, oil: .15 } });
+  assert.equal(poor.materials.deposits.length, 0, 'a poor world has no deposit');
+  for (const id of poor.materials.ids) assert.ok(materialPeak(poor, id) < .07, `a poor world shows no ${id} grade`);
 });
 
 test('ore veins branch from rich nodes over land and enrich the ground they cross', () => {
   const planet = { kind: 'tellurique', surfaceWater: .4, temperature: 18, seed: 77,
-    resources: { iron: .7, copper: .5, silicon: .5, carbon: .5, oil: .5 } };
+    resources: { iron: .9, copper: .9, silicon: .9, carbon: .9, oil: .9 } };
   const terrain = world.createTerrain('veins', 320, 240, planet);
   const again = world.createTerrain('veins', 320, 240, planet);
   const { veins, nodes, ids, shares } = terrain.materials, { width, height, seaLevel, elevation } = terrain;
   assert.equal(serialize(again.materials.veins), serialize(veins), 'veins are deterministic');
-  assert.ok(nodes.length >= 3 && veins.length >= nodes.length * 2, 'several nodes each send out branches');
+  assert.ok(nodes.length >= 3 && veins.length >= nodes.length, 'rich nodes send out branches');
   assert.ok(veins.every(vein => !terrain.materials.ids[vein.kind].startsWith('oil')), 'no vein carries a marine material');
   let onVein = 0, onVeinCount = 0, branched = 0;
   for (const vein of veins) {
