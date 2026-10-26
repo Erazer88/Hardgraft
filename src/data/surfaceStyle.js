@@ -87,39 +87,24 @@
       // Faint depth lines offshore, at these elevations (sea level is 102).
       bathymetry: Object.freeze({ levels: Object.freeze([94, 80, 62]), color: '#6fa3cc', opacity: .16 }),
       marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .3, mark: '#86e6d2', markOpacity: .35 }),
-      // Ground materials: sparse glowing dots colored by the dominant material.
-      // A cell starts showing a dot from minShare and is at full chance and
-      // brightness at fullShare; density caps the share of cells with a dot.
+      // Ground materials as a grade map: for each material, isolines at these
+      // shares and a translucent flat tint between them. The richer the band,
+      // the more opaque its tint and the brighter and thicker its line.
       materials: Object.freeze({
         colors: Object.freeze({ iron: '#ffb83d', copper: '#3ee8c6', silicon: '#4fd9ff', carbon: '#b9a8ff', oil: '#d4ff5c' }),
-        minShare: .08,
-        fullShare: .3,
-        density: .12,
-        coreOpacity: .75,
-        haloOpacity: .14,
-        // Baked overview layer: texels per terrain cell and dot sizes in texels.
-        layerScale: 1.5,
-        coreTexels: 1.1,
-        haloTexels: 3,
-        // Close up, dots are drawn at a constant screen size instead.
-        corePx: 1.8,
-        haloPx: 5,
-        closeUpZoom: Object.freeze([1.1, 1.7]),
-        // Ore veins, a light hint: a faint glow, a thin body and a fine core whose
-        // width follows the vein's strength. Texels on the baked layer, px close up.
-        veins: Object.freeze({
-          glowTexels: 3.4, bodyTexels: 1.4, coreTexels: .55,
-          glowPx: 6, bodyPx: 2.2, corePx: .9,
-          glowOpacity: .1, bodyOpacity: .5, coreOpacity: .85,
-          coreColor: '#fff6e8', coreTint: .45,
-          minWidth: .35, strengthBuckets: 4
-        }),
-        // Rich nodes where veins meet: a soft halo, a faint ring and a bright center.
-        nodes: Object.freeze({
-          haloTexels: 6, ringTexels: 4, coreTexels: 1.8,
-          haloPx: 11, ringPx: 6, corePx: 2.2,
-          haloOpacity: .22, ringOpacity: .22, ringWidthPx: .7, coreOpacity: .8
-        })
+        levels: Object.freeze([.07, .12, .18, .26]),
+        // Tint once a share passes each level (cumulative opacity per band).
+        fillOpacity: Object.freeze([.1, .17, .26, .38]),
+        lineOpacity: Object.freeze([.45, .6, .8, 1]),
+        lineWidthPx: Object.freeze([.9, 1.1, 1.4, 1.8]),
+        // The richest line glows.
+        topGlowPx: 6,
+        // Offshore materials stay quieter.
+        marineOpacity: .6,
+        // Baked overview layers, in texels per terrain cell.
+        layerScale: 2,
+        // Baked lines crossfade into vector isolines close up.
+        closeUpZoom: Object.freeze([1.1, 1.7])
       }),
       // Lakes and rivers share the sea's dark water and its neon shoreline.
       water: Object.freeze({

@@ -55,7 +55,7 @@ La graine, les zones sondées et les systèmes visités sont sauvegardés locale
 - 2 560 systèmes répartis dans quatre bras et un noyau. Le brouillard masque les secteurs non découverts.
 - Des systèmes générés avec des compositions variées, des planètes solides ou gazeuses, des ceintures de débris et des épaves occasionnelles.
 - Des vitesses orbitales relatives qui suivent la troisième loi de Kepler, avec des durées adaptées à la navigation du prototype.
-- Des cartes planétaires reproductibles au style néon : océan sombre quadrillé, continents et archipels en strates d'altitude, rivières, lacs, littoral lumineux et matériaux du sol en points colorés.
+- Des cartes planétaires reproductibles au style néon : océan sombre quadrillé, continents et archipels en strates d'altitude, rivières, lacs, littoral lumineux et carte de teneur des matériaux du sol (isolignes et aplats colorés).
 - Une caméra et un repère galactique communs aux vues galaxie, système et surface. Le zoom reste continu ; les tailles sont adaptées à la navigation et ne représentent pas les distances réelles.
 
 Les coûts, délais et remboursements restent déclaratifs. Les filières industrielles sont simulées par cycles et buffers entiers ; les routes alimentent la logistique planétaire et les exports orbitaux temporisés. Les flux du Hub vers les planètes restent à implémenter. Le contrat du moteur est décrit dans [docs/PROCESS_SYSTEM.md](docs/PROCESS_SYSTEM.md), et l'architecture du réseau de surface dans [docs/ROAD_SYSTEM.md](docs/ROAD_SYSTEM.md).

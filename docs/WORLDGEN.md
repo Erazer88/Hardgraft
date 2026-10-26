@@ -154,14 +154,15 @@ Une foreuse moyenne en plus sa zone de captage (voir
 [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md)), et l'inspection d'un point du sol affiche
 cette même moyenne, arrondie.
 
-À l'écran, les matériaux apparaissent en points lumineux de la couleur du matériau
-dominant, plus fréquents et plus vifs là où il est concentré
-(`OrbitSurfaceStyle.neon.materials`). Les veines restent une indication légère : un
-trait fin de la couleur du matériau, à peine lumineux, plus marqué près du nœud ;
-chaque nœud porte un petit halo, un anneau ténu et un centre clair. Une couche
-cuite montre points et veines en vue d'ensemble ; au zoom, ils sont retracés à taille
-d'écran constante. Le réglage développeur
-**Ressources du sol** les masque, en attendant l'affichage par scan.
+À l'écran, les matériaux forment une carte de teneur (`OrbitSurfaceStyle.neon.materials`) :
+pour chaque matériau, des isolignes à 7, 12, 18 et 26 % et un aplat translucide de sa
+couleur entre elles. Plus la teneur monte, plus l'aplat est opaque et plus la ligne est
+vive et épaisse ; la ligne la plus riche luit. Les matériaux marins restent plus
+discrets. Les veines ne sont plus dessinées : elles se lisent dans la forme des
+courbes, qu'elles étirent le long du relief. Deux couches cuites portent les aplats
+(toujours affichés) et les lignes (vue d'ensemble) ; au zoom, les lignes cuites
+s'effacent au profit d'isolignes vectorielles tracées avec la côte. Le réglage
+développeur **Ressources du sol** masque la carte, en attendant l'affichage par scan.
 
 Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
 (`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta

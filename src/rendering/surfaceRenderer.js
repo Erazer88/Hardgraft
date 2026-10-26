@@ -151,154 +151,72 @@
       return { mask, edge };
     }
 
-    // Ground materials as sparse glowing dots, one candidate per terrain cell,
-    // colored by the dominant material. The richer the cell, the likelier and
-    // brighter its dot. Positions are deterministic so every view agrees.
-    const materialDotCache = new WeakMap();
-    function materialDots(terrain) {
-      if (materialDotCache.has(terrain)) return materialDotCache.get(terrain);
-      const style = SurfaceStyle.neon.materials, materials = terrain.materials;
-      const xs = [], ys = [], kinds = [], strengths = [];
-      if (materials) {
-        const count = materials.ids.length, shares = materials.shares;
-        for (let cell = 0; cell < terrain.width * terrain.height; cell += 1) {
-          let kind = 0, best = 0;
-          for (let index = 0; index < count; index += 1) {
-            if (shares[cell * count + index] > best) { best = shares[cell * count + index]; kind = index; }
+    function isMarineMaterial(id) {
+      return Boolean(root.OrbitWorldgenData?.terrain?.materials?.list?.find(material => material.id === id)?.marine);
+    }
+
+    // Ground materials as a grade map, baked in two layers: flat tints between
+    // the grade levels (always shown) and their isolines (overview only; close
+    // up they are traced as vectors). Shares are sampled bilinearly, like the
+    // vector isolines, and both tints and lines are antialiased on the field.
+    function createMaterialLayers(terrainData) {
+      const style = SurfaceStyle.neon.materials, scale = style.layerScale, materials = terrainData.materials;
+      const { width, height } = terrainData, layerWidth = width * scale, layerHeight = height * scale;
+      const fill = makeCanvas(layerWidth, layerHeight), lines = makeCanvas(layerWidth, layerHeight);
+      if (!materials) return { fill, lines };
+      const fillContext = fill.getContext('2d'), lineContext = lines.getContext('2d');
+      const fillImage = fillContext.createImageData(layerWidth, layerHeight), lineImage = lineContext.createImageData(layerWidth, layerHeight);
+      const kinds = materials.ids.length, shares = materials.shares, levels = style.levels, lowest = levels[0] * 255;
+      const colors = materials.ids.map(id => hexRGB(style.colors[id] || '#ffffff'));
+      const strength = materials.ids.map(id => isMarineMaterial(id) ? style.marineOpacity : 1);
+      // Composites a color over a pixel with straight alpha.
+      const over = (pixels, pixel, color, alpha) => {
+        if (alpha <= 0) return;
+        const below = pixels[pixel + 3] / 255, out = alpha + below * (1 - alpha);
+        for (let channel = 0; channel < 3; channel++) {
+          pixels[pixel + channel] = (color[channel] * alpha + pixels[pixel + channel] * below * (1 - alpha)) / out;
+        }
+        pixels[pixel + 3] = out * 255;
+      };
+      for (let ty = 0; ty < layerHeight; ty++) {
+        const fy = Math.min(height - 1, (ty + .5) / scale), y0 = Math.min(height - 2, Math.floor(fy)), sy = fy - y0;
+        for (let tx = 0; tx < layerWidth; tx++) {
+          const fx = Math.min(width - 1, (tx + .5) / scale), x0 = Math.min(width - 2, Math.floor(fx)), sx = fx - x0;
+          const i00 = y0 * width + x0, i10 = i00 + 1, i01 = i00 + width, i11 = i01 + 1, pixel = (ty * layerWidth + tx) * 4;
+          for (let kind = 0; kind < kinds; kind++) {
+            const a = shares[i00 * kinds + kind], b = shares[i10 * kinds + kind];
+            const c = shares[i01 * kinds + kind], d = shares[i11 * kinds + kind];
+            if (Math.max(a, b, c, d) < lowest * .8) continue;
+            const top = a + (b - a) * sx, bottom = c + (d - c) * sx, value = (top + (bottom - top) * sy) / 255;
+            const gx = ((b - a) * (1 - sy) + (d - c) * sy) / 255 / scale, gy = (bottom - top) / 255 / scale;
+            const gradient = Math.max(1e-4, Math.hypot(gx, gy));
+            let fillAlpha = 0, lineAlpha = 0, previous = 0;
+            for (let level = 0; level < levels.length; level++) {
+              const distance = (value - levels[level]) / gradient;
+              fillAlpha += (style.fillOpacity[level] - previous) * clamp(.5 + distance, 0, 1);
+              previous = style.fillOpacity[level];
+              const half = style.lineWidthPx[level] / 2 + .5;
+              lineAlpha = Math.max(lineAlpha, style.lineOpacity[level] * clamp(half - Math.abs(distance), 0, 1));
+              if (level === levels.length - 1) {
+                lineAlpha = Math.max(lineAlpha, .3 * clamp(1 - Math.abs(distance) / style.topGlowPx, 0, 1));
+              }
+            }
+            over(fillImage.data, pixel, colors[kind], fillAlpha * strength[kind]);
+            over(lineImage.data, pixel, colors[kind], lineAlpha * strength[kind]);
           }
-          const strength = smoothstep((best / 255 - style.minShare) / (style.fullShare - style.minShare));
-          if (strength <= 0) continue;
-          let hash = Math.imul(cell ^ 0x9e3779b9, 0x85ebca6b);
-          hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35); hash ^= hash >>> 16;
-          if ((hash >>> 0) / 4294967296 >= strength * style.density) continue;
-          const jitter = Math.imul(hash, 0x27d4eb2d);
-          const x = cell % terrain.width, y = (cell - x) / terrain.width;
-          xs.push(x + ((jitter & 0xffff) / 65536 - .5) * .9);
-          ys.push(y + ((jitter >>> 16) / 65536 - .5) * .9);
-          kinds.push(kind); strengths.push(strength);
         }
       }
-      const colors = (materials?.ids || []).map(id => style.colors[id] || '#ffffff');
-      const dots = { xs: Float32Array.from(xs), ys: Float32Array.from(ys), kinds: Uint8Array.from(kinds),
-        strengths: Float32Array.from(strengths), colors };
-      materialDotCache.set(terrain, dots);
-      return dots;
-    }
-
-    // Draws the dots whose cell positions fall in `bounds` (cell units), with a
-    // faint halo under a bright core; sizes are in the context's units.
-    function drawMaterialDots(context, terrain, scale, coreSize, haloSize, bounds = null, alpha = 1) {
-      const style = SurfaceStyle.neon.materials, dots = materialDots(terrain);
-      context.save();
-      context.globalCompositeOperation = 'lighter';
-      for (let pass = 0; pass < 2; pass += 1) {
-        const size = pass ? coreSize : haloSize;
-        for (let i = 0; i < dots.xs.length; i += 1) {
-          const x = dots.xs[i], y = dots.ys[i];
-          if (bounds && (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY)) continue;
-          context.globalAlpha = alpha * (pass ? style.coreOpacity : style.haloOpacity) * (.45 + .55 * dots.strengths[i]);
-          context.fillStyle = dots.colors[dots.kinds[i]];
-          context.fillRect(x * scale - size / 2, y * scale - size / 2, size, size);
-        }
-      }
-      context.restore();
-    }
-
-    // Ore veins in cell units, one Path2D per material and strength bucket.
-    // Curves pass through the midpoints of the generator's random walk so the
-    // veins read as smooth cracks rather than polylines.
-    const veinPathCache = new WeakMap();
-    function veinPaths(terrain) {
-      if (veinPathCache.has(terrain)) return veinPathCache.get(terrain);
-      const style = SurfaceStyle.neon.materials, buckets = style.veins.strengthBuckets;
-      const groups = new Map();
-      for (const vein of terrain.materials?.veins || []) {
-        const { points, strengths } = vein, count = points.length / 2;
-        let start = 0;
-        while (start < count - 1) {
-          const bucket = Math.min(buckets - 1, Math.floor(strengths[start] * buckets));
-          let end = start + 1;
-          while (end < count - 1 && Math.min(buckets - 1, Math.floor(strengths[end] * buckets)) === bucket) end += 1;
-          const key = vein.kind * buckets + bucket;
-          if (!groups.has(key)) groups.set(key, { kind: vein.kind, strength: (bucket + 1) / buckets, path: new root.Path2D() });
-          const path = groups.get(key).path;
-          path.moveTo(points[start * 2], points[start * 2 + 1]);
-          for (let index = start + 1; index < end; index += 1) {
-            path.quadraticCurveTo(points[index * 2], points[index * 2 + 1],
-              (points[index * 2] + points[index * 2 + 2]) / 2, (points[index * 2 + 1] + points[index * 2 + 3]) / 2);
-          }
-          path.lineTo(points[end * 2], points[end * 2 + 1]);
-          start = end;
-        }
-      }
-      const paths = [...groups.values()].sort((first, second) => first.strength - second.strength);
-      veinPathCache.set(terrain, paths);
-      return paths;
-    }
-
-    // Veins and their nodes in cell units scaled by `scale`; `sizes` gives the
-    // widths in the context's units before that scale.
-    function drawMaterialVeins(context, terrain, scale, sizes, alpha = 1) {
-      if (typeof root.Path2D !== 'function' || !terrain.materials?.veins) return;
-      const style = SurfaceStyle.neon.materials, veinStyle = style.veins, nodeStyle = style.nodes;
-      const colors = terrain.materials.ids.map(id => style.colors[id] || '#ffffff');
-      const paths = veinPaths(terrain);
-      context.save();
-      context.scale(scale, scale);
-      context.lineCap = 'round'; context.lineJoin = 'round';
-      context.globalCompositeOperation = 'lighter';
-      const passes = [[sizes.glow, veinStyle.glowOpacity, false], [sizes.body, veinStyle.bodyOpacity, false],
-        [sizes.core, veinStyle.coreOpacity, true]];
-      for (const [size, opacity, core] of passes) {
-        for (const group of paths) {
-          const color = core ? `rgb(${mixRGB(hexRGB(colors[group.kind]), hexRGB(veinStyle.coreColor), veinStyle.coreTint).map(Math.round)})` : colors[group.kind];
-          context.strokeStyle = color;
-          context.globalAlpha = alpha * opacity * (.4 + .6 * group.strength);
-          context.lineWidth = size * (veinStyle.minWidth + (1 - veinStyle.minWidth) * group.strength) / scale;
-          context.stroke(group.path);
-        }
-      }
-      for (const node of terrain.materials.nodes || []) {
-        const color = colors[node.kind], x = node.x, y = node.y;
-        const halo = sizes.nodeHalo * node.strength / scale;
-        const gradient = context.createRadialGradient(x, y, 0, x, y, halo);
-        gradient.addColorStop(0, rgba(color, nodeStyle.haloOpacity));
-        gradient.addColorStop(.35, rgba(color, nodeStyle.haloOpacity * .35));
-        gradient.addColorStop(1, rgba(color, 0));
-        context.globalAlpha = alpha;
-        context.fillStyle = gradient;
-        context.fillRect(x - halo, y - halo, halo * 2, halo * 2);
-        context.globalAlpha = alpha * nodeStyle.ringOpacity;
-        context.strokeStyle = color;
-        context.lineWidth = sizes.ringWidth / scale;
-        context.beginPath();
-        context.arc(x, y, sizes.nodeRing * node.strength / scale, 0, TAU);
-        context.stroke();
-        context.globalAlpha = alpha * nodeStyle.coreOpacity;
-        context.fillStyle = `rgb(${mixRGB(hexRGB(color), hexRGB(veinStyle.coreColor), .7).map(Math.round)})`;
-        context.beginPath();
-        context.arc(x, y, sizes.nodeCore / 2 / scale, 0, TAU);
-        context.fill();
-      }
-      context.restore();
-    }
-
-    // Vein sizes for the baked layer (texels) or the close-up raster (px).
-    function veinSizes(unit, texels) {
-      const veins = SurfaceStyle.neon.materials.veins, nodes = SurfaceStyle.neon.materials.nodes;
-      return texels
-        ? { glow: veins.glowTexels, body: veins.bodyTexels, core: veins.coreTexels,
-          nodeHalo: nodes.haloTexels, nodeRing: nodes.ringTexels, nodeCore: nodes.coreTexels, ringWidth: nodes.ringWidthPx }
-        : { glow: veins.glowPx * unit, body: veins.bodyPx * unit, core: veins.corePx * unit,
-          nodeHalo: nodes.haloPx * unit, nodeRing: nodes.ringPx * unit, nodeCore: nodes.corePx * unit, ringWidth: nodes.ringWidthPx * unit };
+      fillContext.putImageData(fillImage, 0, 0);
+      lineContext.putImageData(lineImage, 0, 0);
+      return { fill, lines };
     }
 
     function materialsVisible() {
       return root.OrbitDeveloperSettings?.get('showGroundMaterials') !== false;
     }
 
-    // Overview dots crossfade into the screen-space dots of the close-up raster.
-    function closeUpDotsAlpha(zoom) {
+    // Baked isolines crossfade into the vector isolines of the close-up raster.
+    function closeUpMaterialAlpha(zoom) {
       const [start, end] = SurfaceStyle.neon.materials.closeUpZoom;
       return smoothstep((zoom - start) / (end - start));
     }
@@ -663,15 +581,11 @@
       context.restore();
       // Rivers come last: at a mouth their water opens the shoreline.
       strokeRivers(context, terrainData, textureWidth / SurfaceStyle.neon.glowReferenceWidthPx);
-      // Material dots live on their own layer so they can be hidden or faded out close up.
-      const dotStyle = style.materials, dotScale = dotStyle.layerScale;
-      const materialLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
-      drawMaterialDots(materialLayer.getContext('2d'), terrainData, dotScale, dotStyle.coreTexels, dotStyle.haloTexels);
-      terrainTexture.materialLayer = materialLayer;
-      // Veins get their own alpha-blended layer, kept sober on pale summits.
-      const veinLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
-      drawMaterialVeins(veinLayer.getContext('2d'), terrainData, dotScale, veinSizes(1, true));
-      terrainTexture.veinLayer = veinLayer;
+      // The grade map lives on its own layers so it can be hidden, and its
+      // baked lines can give way to vector isolines close up.
+      const materialLayers = createMaterialLayers(terrainData);
+      terrainTexture.materialFill = materialLayers.fill;
+      terrainTexture.materialLines = materialLayers.lines;
       for (const canvas of [mask, edge, layer, reliefLayer, seaLayer]) { canvas.width = 0; canvas.height = 0; }
       return terrainTexture;
     }
@@ -733,6 +647,19 @@
       for (let level = first; level <= last; level += 1) {
         traceLevel(cache.levelPaths[level - 1], cache.levelBase + level * step, a, b, d, e, x, y, cellSize);
       }
+      // Grade isolines of every material crossing this cell.
+      if (cache.materialPaths) {
+        const { ids, shares } = job.terrain.materials, kinds = ids.length, levels = SurfaceStyle.neon.materials.levels;
+        for (let kind = 0; kind < kinds; kind++) {
+          const ma = shares[index * kinds + kind] / 255, mb = shares[(index + 1) * kinds + kind] / 255;
+          const md = shares[(index + width) * kinds + kind] / 255, me = shares[(index + width + 1) * kinds + kind] / 255;
+          const low = Math.min(ma, mb, md, me), high = Math.max(ma, mb, md, me);
+          if (high < levels[0]) continue;
+          for (let level = 0; level < levels.length; level++) {
+            if (levels[level] > low && levels[level] < high) traceLevel(cache.materialPaths[kind][level], levels[level], ma, mb, md, me, x, y, cellSize);
+          }
+        }
+      }
       // Knoll and hollow outlines, once the baked texture has built the detail.
       const detail = reliefDetailCache.get(job.terrain);
       if (detail) {
@@ -772,13 +699,21 @@
       context.lineWidth = reliefStyle.lineWidthPx / job.zoom;
       context.strokeStyle = rgba(reliefStyle.lineColor, reliefStyle.detail.vectorLineOpacity);
       context.stroke(cache.knollPath);
-      const closeDots = materialsVisible() ? closeUpDotsAlpha(job.zoom) : 0;
-      if (closeDots > .001) {
-        const dotStyle = SurfaceStyle.neon.materials, margin = 2;
-        drawMaterialDots(context, job.terrain, cellSize, dotStyle.corePx / job.zoom, dotStyle.haloPx / job.zoom, {
-          minX: bounds.x / cellSize - margin, maxX: (bounds.x + bounds.width) / cellSize + margin,
-          minY: bounds.y / cellSize - margin, maxY: (bounds.y + bounds.height) / cellSize + margin }, closeDots);
-        drawMaterialVeins(context, job.terrain, cellSize, veinSizes(1 / job.zoom, false), closeDots);
+      const closeLines = materialsVisible() ? closeUpMaterialAlpha(job.zoom) : 0;
+      if (closeLines > .001 && cache.materialPaths) {
+        const materialStyle = SurfaceStyle.neon.materials, ids = job.terrain.materials.ids;
+        cache.materialPaths.forEach((paths, kind) => {
+          const color = materialStyle.colors[ids[kind]] || '#ffffff', strength = isMarineMaterial(ids[kind]) ? materialStyle.marineOpacity : 1;
+          paths.forEach((path, level) => {
+            const top = level === paths.length - 1;
+            context.save();
+            context.lineWidth = materialStyle.lineWidthPx[level] / job.zoom;
+            context.strokeStyle = rgba(color, materialStyle.lineOpacity[level] * strength * closeLines);
+            if (top) { context.shadowColor = rgba(color, .9 * closeLines); context.shadowBlur = materialStyle.topGlowPx * job.pixelRatio; }
+            context.stroke(path);
+            context.restore();
+          });
+        });
       }
       // A soft glow stroke under a crisp line. Shadow blur is in device pixels,
       // independent of the world transform. The line thickens slightly with
@@ -847,6 +782,8 @@
       candidate.cache = { planetId: request.planetId, terrain: request.terrain, minX: request.minX,
         maxX: request.maxX, minY: request.minY, maxY: request.maxY,
         path: new root.Path2D(), knollPath: new root.Path2D(), raster: null,
+        materialPaths: request.terrain.materials ? request.terrain.materials.ids.map(() =>
+          SurfaceStyle.neon.materials.levels.map(() => new root.Path2D())) : null,
         levelBase: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).base,
         levelPaths: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).levels.map(() => new root.Path2D()) };
       candidate.x = candidate.minX; candidate.y = candidate.minY; candidate.phase = 'trace';
@@ -965,17 +902,15 @@
       const { terrainTexture, terrainWidth, terrainHeight } = frame, top = frame.project(0, 0);
       canvasContext.imageSmoothingEnabled = true;
       canvasContext.drawImage(terrainTexture, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
-      const overviewDots = materialsVisible() && terrainTexture.materialLayer ? 1 - closeUpDotsAlpha(frame.zoom) : 0;
-      if (overviewDots > .001) {
-        canvasContext.save();
-        canvasContext.globalAlpha = overviewDots;
-        canvasContext.globalCompositeOperation = 'screen';
-        canvasContext.drawImage(terrainTexture.materialLayer, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
-        canvasContext.globalCompositeOperation = 'source-over';
-        if (terrainTexture.veinLayer) {
-          canvasContext.drawImage(terrainTexture.veinLayer, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+      if (materialsVisible() && terrainTexture.materialFill) {
+        canvasContext.drawImage(terrainTexture.materialFill, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+        const overviewLines = 1 - closeUpMaterialAlpha(frame.zoom);
+        if (overviewLines > .001) {
+          canvasContext.save();
+          canvasContext.globalAlpha = overviewLines;
+          canvasContext.drawImage(terrainTexture.materialLines, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+          canvasContext.restore();
         }
-        canvasContext.restore();
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
       if (drawCoast) drawCoastline(frame);
