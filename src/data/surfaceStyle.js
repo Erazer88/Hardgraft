@@ -169,21 +169,25 @@
       // raised on a thin stem over a glowing ring that marks the exact spot.
       // Sizes are screen pixels; the outline color follows the category.
       pin: Object.freeze({
-        headRadiusPx: 10.5,
-        stemPx: 12,
-        groundRingPx: 3,
-        groundShadowPx: 7,
+        headRadiusPx: 17,
+        stemPx: 15,
+        groundRingPx: 4.5,
+        groundShadowPx: 10,
         fill: '#0b1a2c',
-        lineWidthPx: 1.4,
-        glowBlurPx: 9,
-        glyphSizePx: 10,
+        lineWidthPx: 2.2,
+        // A dark rim under the colored outline keeps the head readable on pale strata.
+        rimColor: 'rgba(5,10,22,.85)',
+        rimWidthPx: 5,
+        glowBlurPx: 12,
+        glyphSizePx: 17,
+        glyphLineWidthPx: 1.9,
         glyphColor: '#eefcff',
         categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a' }),
         defaultColor: '#c9d6dc',
-        selectedRingPx: 4,
+        selectedRingPx: 5,
         constructionColor: '#d7a66f',
         constructionOpacity: .55,
-        progressWidthPx: 2,
+        progressWidthPx: 3,
         ghostOpacity: .65
       })
     }),

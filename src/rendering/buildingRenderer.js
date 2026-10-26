@@ -7,8 +7,8 @@
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
   }
 
-  function drawGlyph(ctx, x, y, size, color, icon = 'factory') {
-    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+  function drawGlyph(ctx, x, y, size, color, icon = 'factory', lineWidth = 1.2) {
+    ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
     if (icon === 'extractor') {
       ctx.moveTo(x - size * .6, y + size * .45); ctx.lineTo(x + size * .45, y - size * .6);
       ctx.moveTo(x - size * .45, y - size * .45); ctx.lineTo(x + size * .6, y + size * .45);
@@ -100,17 +100,18 @@
     ctx.beginPath(); ctx.ellipse(ground.x, ground.y, pin.groundRingPx, pin.groundRingPx * .55, 0, 0, Math.PI * 2); ctx.stroke();
     // Stem, then the head with its glow.
     ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ground.x, ground.y); ctx.lineTo(head.x, head.y + radius); ctx.stroke();
-    ctx.shadowBlur = pin.glowBlurPx;
     hexagon(ctx, head.x, head.y, radius);
+    ctx.shadowBlur = 0; ctx.strokeStyle = pin.rimColor; ctx.lineWidth = pin.rimWidthPx; ctx.stroke();
+    ctx.strokeStyle = color; ctx.shadowBlur = pin.glowBlurPx;
     ctx.fillStyle = pin.fill; ctx.fill();
     ctx.lineWidth = pin.lineWidthPx; ctx.setLineDash(complete ? [] : [3, 2.5]); ctx.stroke(); ctx.setLineDash([]);
     ctx.shadowBlur = 0;
-    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx, pin.glyphColor, definition.icon);
+    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx, pin.glyphColor, definition.icon, pin.glyphLineWidthPx);
     if (!complete) {
       // Construction progress runs around the head.
       const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
       ctx.strokeStyle = pin.constructionColor; ctx.lineWidth = pin.progressWidthPx; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.arc(head.x, head.y, radius + 3.5, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(head.x, head.y, radius + 5, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
     }
     if (selected) {
       ctx.strokeStyle = Style.buildings.selectedOutlineColor; ctx.lineWidth = Style.buildings.selectedOutlineWidthPx;
