@@ -156,7 +156,8 @@ test('the natal system always provides a temperate candidate, water and basic de
       assert.equal(oilFields.length, planet.hasOilDeposit ? 1 : 0);
       assert.ok(terrain.resources.length <= 5);
       const water = terrain.elevation.filter(value => value <= terrain.seaLevel).length / terrain.elevation.length;
-      assert.ok(Math.abs(water - planet.surfaceWater) < .04);
+      const expectedWater = Math.max(planet.surfaceWater, context.OrbitWorldgenData.terrain.oceanBorder.minimumWater);
+      assert.ok(Math.abs(water - expectedWater) < .04);
       assert.ok(landResources.every(item => terrain.elevation[item.y * terrain.width + item.x] > terrain.seaLevel + 10));
       assert.ok(oilFields.every(item => terrain.elevation[item.y * terrain.width + item.x] <= terrain.seaLevel - 12));
     }
@@ -220,11 +221,32 @@ test('most planets have two or three large deposits, with some worlds empty or e
   assert.ok(counts[0] > 0 && counts[5] > 0, 'some planets have none and a few have five');
 });
 
+test('telluric maps keep their continents inside an open-sea border', () => {
+  const border = context.OrbitWorldgenData.terrain.oceanBorder;
+  for (const [index, surfaceWater] of [.08, .2, .35, .7].entries()) {
+    const planet = { kind: 'tellurique', surfaceWater, temperature: 18, seed: 900 + index };
+    const terrain = world.createTerrain('border-' + index, 160, 120, planet);
+    const margin = Math.ceil(border.minimumOcean * Math.min(terrain.width, terrain.height));
+    let land = 0;
+    for (let y = 0; y < terrain.height; y += 1) for (let x = 0; x < terrain.width; x += 1) {
+      if (terrain.elevation[y * terrain.width + x] <= terrain.seaLevel) continue;
+      land += 1;
+      assert.ok(Math.min(x, y, terrain.width - 1 - x, terrain.height - 1 - y) >= margin,
+        `land stays off the map edge (${surfaceWater})`);
+    }
+    assert.ok(land > 0, `the map still has continents (${surfaceWater})`);
+    assert.ok(1 - land / terrain.elevation.length >= Math.max(surfaceWater, border.minimumWater) - .03);
+  }
+  const arid = world.createTerrain('border-arid', 160, 120, { kind: 'aride', surfaceWater: .04, temperature: 90, seed: 77 });
+  assert.ok(arid.elevation.filter(value => value > arid.seaLevel).length / arid.elevation.length > .9,
+    'other planet kinds keep their own water coverage');
+});
+
 test('eligible planets can carry one broad offshore oil field', () => {
   const planet = { kind: 'tellurique', hasOilDeposit: true, surfaceWater: .74, temperature: 18,
     seed: 412, resources: { iron: .7 } };
-  const terrain = world.createTerrain('oceanic-world', 480, 360, planet);
-  const repeated = world.createTerrain('oceanic-world', 480, 360, planet);
+  const terrain = world.createTerrain('oceanic-world', 640, 480, planet);
+  const repeated = world.createTerrain('oceanic-world', 640, 480, planet);
   const minerals = terrain.resources.filter(resource => !resource.marine);
   const oil = terrain.resources.filter(resource => resource.marine);
   assert.deepEqual(serialize(terrain.resources), serialize(repeated.resources));

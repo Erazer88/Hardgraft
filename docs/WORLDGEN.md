@@ -63,14 +63,31 @@ La carte d'une planète est un rectangle 4:3 de 640 × 480 cellules
 la cadre pour couvrir exactement l'écran, en portrait comme en paysage. Les ratios de
 gisements sont relatifs au plus petit côté de la carte.
 
-`createTerrain(seed, width, height, planet)` utilise la couverture d'eau du
-profil, ou la couverture totale eau/glace dans `terrainWater` pour les mondes
-froids. Le terrain v2 déforme les masses continentales avec un bruit basse
-fréquence et place des îlots secondaires autour des continents. Les planètes
-riches en eau forment davantage d'archipels ; les mondes tempérés natals
-conservent leur profil de départ viable. Le relief combine plusieurs fréquences
-de détail configurées dans `OrbitWorldgenData.terrain`. Un changement de version
-du terrain conserve la graine, mais régénère la géographie des sauvegardes.
+`createTerrain(seed, width, height, planet)` (terrain v5) dessine d'abord les terres,
+puis en déduit le relief. Les réglages sont dans `OrbitWorldgenData.terrain`.
+
+1. **Masses de terre** (`landmasses`) : deux à quatre continents, ou un à trois sur
+   les mondes d'îles, se partagent la surface émergée. Chacun est une ellipse
+   orientée avec des lobes (péninsules, sous-continents), placée loin des autres.
+   Le reste de la surface forme des chaînes d'îles au large d'un continent ou en
+   pleine mer.
+2. **Côtes** (`coast`) : une déformation du domaine plie chaque forme, puis des
+   bandes de bruit fractal découpent caps, baies et criques. Les bandes fines
+   déplacent moins la côte que les larges, et chacune est tournée pour ne pas
+   s'aligner sur les axes de la carte.
+3. **Niveau de la mer** : le seuil de forme laisse exactement la couverture d'eau du
+   profil (`surfaceWater`, ou `terrainWater` pour les mondes froids).
+4. **Relief** (`relief`) : l'altitude monte avec la distance à la côte (plaines,
+   collines, chaînes montagneuses) ; la profondeur croît au large (plateau
+   continental puis océan profond).
+
+Sur les planètes `tellurique` et `océanique` (`oceanBorder`), les terres restent
+en pleine mer : la carte garde au moins 70 % d'eau, les masses sont placées loin des
+bords et une bande d'eau libre longe toujours le bord de la carte. Les autres mondes
+(arides, glacés, volcaniques) gardent leur propre couverture d'eau et peuvent toucher
+le bord. `terrain.elevation` reste la hauteur canonique, avec la mer à 102. Un
+changement de version du terrain conserve la graine, mais régénère la géographie
+des sauvegardes.
 
 Les gisements solides (`iron`, `copper`, `silicon`, `carbon`) sont moins nombreux
 qu'avant et possèdent un rayon déterministe en cellules de terrain. Les champs

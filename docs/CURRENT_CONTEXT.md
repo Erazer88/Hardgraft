@@ -31,8 +31,9 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   `neon-style` (terres plates, côtes lumineuses, sans relief). L'ancien rendu réaliste
   (biomes, textures, WebGL, courbes de relief) est supprimé. Les formes restent celles
   de la génération par graine. Réglages dans `src/data/surfaceStyle.js`.
-- La génération de planète conserve `terrain.elevation` comme hauteur canonique et
-  utilise des champs géologiques supplémentaires pour le rendu. Voir
+- La génération de planète dessine d'abord continents et îles, puis en déduit
+  `terrain.elevation`, qui reste la hauteur canonique. Sur les planètes telluriques
+  et océaniques, les terres ne touchent jamais le bord de la carte. Voir
   [`WORLDGEN.md`](WORLDGEN.md).
 - Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
   illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques

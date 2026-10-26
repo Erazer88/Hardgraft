@@ -29,15 +29,40 @@
       gasChance: [.04, .46], pressure: [.015, 6], gravity: [.35, 2.1], water: [0, .82], iceBonus: .10,
       greenhouse: 32, equilibriumKelvin: 255, maxSurfaceWater: .86, oceanCoverageExponent: .72 },
     terrain: {
-      version: 4,
+      version: 5,
       genericWater: [.30, .46], islandWaterThreshold: .56,
-      continentalMassCount: [2, 4], islandMassCount: [6, 10],
-      continentalMassRadius: [.20, .39], islandMassRadius: [.10, .23],
-      archipelago: { continentalIslets: [5, 11], islandIslets: [12, 24],
-        isletRadius: [.012, .038], parentDistance: [1.15, 2.2] },
       frozenWaterStartTemperature: 12, frozenWaterFullTemperature: -23, frozenWaterRetention: .9,
-      relief: { warpScale: 2.2, warpStrength: .035, fineScale: 40, fineAmplitude: 8,
-        microScale: 92, microAmplitude: 3.8, ridgeScale: 7, ridgePower: 3.2, ridgeAmplitude: 94 },
+      // Maps are drawn shape-first: landmasses and islands define the coast,
+      // then the relief is built from the distance to that coast. Sizes are
+      // fractions of the smaller map side; land areas are fractions of the map.
+      landmasses: {
+        continentCount: [2, 4], islandWorldContinentCount: [1, 3],
+        // Share of the land budget spent on islands rather than continents.
+        islandShare: [.08, .18], islandWorldIslandShare: [.35, .55],
+        islandCount: [8, 18], islandWorldIslandCount: [22, 40],
+        // Most islands form chains off a continent; the rest rise in open sea.
+        coastalIslandRatio: .7, islandChainSpacing: [.9, 1.6],
+        elongation: [1, 1.8], separation: 1, placementAttempts: 32,
+        // Each continent is a core with smaller lobes: peninsulas and subcontinents.
+        lobeCount: [1, 3], lobeSize: [.35, .62], lobeDistance: [.55, .95]
+      },
+      coast: {
+        // A domain warp bends each landform, then fractal noise bands carve
+        // capes, bays and coves: finer bands move the coast less, as on real
+        // shorelines. Amplitudes are distances, in fractions of the map side.
+        warp: .1, warpScale: 2.4,
+        bands: [{ scale: 2.2, amplitude: .1 }, { scale: 6, amplitude: .06 },
+          { scale: 16, amplitude: .035 }, { scale: 45, amplitude: .018 }, { scale: 120, amplitude: .007 }]
+      },
+      // Planet kinds whose landmasses always sit in open sea, off the map edge.
+      oceanBorder: { kinds: ['tellurique', 'océanique'], minimumWater: .7,
+        minimumOcean: .03, edgeWidth: .16, edgeDepth: .16, edgeWarp: .05 },
+      relief: {
+        // Heights above sea level grow inland; depths grow offshore.
+        inlandScale: .07, lowlandRise: 30, hillAmplitude: 26, hillScale: 9,
+        mountainScale: 6, mountainPower: 2.6, mountainAmplitude: 96, mountainCoverage: .5,
+        shelfScale: .03, shelfDepth: 14, oceanScale: .12, oceanDepth: 46, seabedAmplitude: 6
+      },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
         startingCandidateCount: 4, spacingRatio: .1575, radiusRatio: [.045, .0675] },
       offshoreOil: { planetChance: 1 / 3, temperatureRange: [-10, 40], minimumWater: .18,
