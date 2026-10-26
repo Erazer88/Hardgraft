@@ -77,9 +77,33 @@ puis en déduit le relief. Les réglages sont dans `OrbitWorldgenData.terrain`.
    s'aligner sur les axes de la carte.
 3. **Niveau de la mer** : le seuil de forme laisse exactement la couverture d'eau du
    profil (`surfaceWater`, ou `terrainWater` pour les mondes froids).
-4. **Relief** (`relief`) : l'altitude monte avec la distance à la côte (plaines,
-   collines, chaînes montagneuses) ; la profondeur croît au large (plateau
-   continental puis océan profond).
+4. **Relief** (`relief`, sans toucher à la côte) : une rampe côtière de largeur
+   variable (falaises ou plaines), un soulèvement à grande échelle qui crée lignes
+   de partage des eaux et bassins, des plaines aplanies, des collines, des plateaux
+   en terrasses (mesas) et des massifs montagneux le long de ceintures sinueuses
+   (bruit multifractal à crêtes). Au large : plateau continental puis océan profond.
+5. **Hydrologie** (`hydrology`), proportionnelle à l'eau de la planète :
+   - des cuvettes irrégulières sont creusées puis une inondation par priorité
+     depuis la mer donne à chaque cellule son exutoire et son niveau de
+     débordement ;
+   - les cuvettes profondes deviennent des **lacs** à leur niveau de débordement
+     (part limitée des terres), les petites sont comblées en replats ;
+   - l'eau ruisselle selon l'humidité ; au-delà d'un seuil de bassin versant
+     naissent des **rivières**, dont le lit ne remonte jamais vers l'aval. Elles
+     creusent des vallées, et des **canyons** étroits à travers mesas et massifs ;
+   - les **marais** occupent les plaines inondables plates et humides, les rives de
+     lacs et les replats ;
+   - les grands fleuves débouchant sur une côte haute ouvrent une **crique**
+     (estuaire en entonnoir de quelques cellules) ;
+   - les mondes secs gardent seulement des canyons asséchés.
+
+Le terrain expose `elevation` (hauteur canonique pour le gameplay : les lacs et
+criques sont de l'eau, à ou sous la mer), `relief` (hauteur d'affichage, où un lac
+garde l'altitude de sa surface), `features` (une valeur de `TERRAIN_FEATURES` par
+cellule : lac, marais, rivière, canyon, crique) et `rivers` (tracés de la source à la
+mer, à un lac ou à un confluent, avec le débit relatif en chaque point). Les étapes
+de forme 1 à 3 ne dépendent pas du relief : le contour des continents est identique
+avec ou sans hydrologie.
 
 Sur les planètes `tellurique` et `océanique` (`oceanBorder`), les terres restent
 en pleine mer : la carte garde au moins 70 % d'eau, les masses sont placées loin des
@@ -95,10 +119,14 @@ marins de pétrole sont également générés en eau profonde, et les plateforme
 pétrolières doivent être posées dans leur zone. Les marqueurs de ressource sont
 dessinés en pixels d'écran afin de conserver leur lisibilité au dézoom.
 
-Le rendu est plat, au style néon : seule la limite terre/mer de
-`terrain.elevation` est dessinée, sans relief, biome ni texture de matière. Une
-variation de pigment déterministe par graine nuance les terres. La palette se
-règle dans `OrbitSurfaceStyle.neon` (`src/data/surfaceStyle.js`).
+Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
+(`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta
+sombre aux sommets presque blancs, séparée de la suivante par une ligne d'altitude
+(une ligne maîtresse toutes les `majorEvery` strates). Les pentes fortes (falaises,
+parois de canyon) sont ombrées, les marais portent un motif de touffes, rivières et
+lacs reprennent l'eau sombre et le liseré lumineux de la mer. Au zoom, lignes
+d'altitude, rivières et côte sont retracées en vecteurs. La palette se règle dans
+`OrbitSurfaceStyle.neon` (`src/data/surfaceStyle.js`).
 
 ## Départ viable et sauvegardes
 

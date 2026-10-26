@@ -728,8 +728,15 @@
         return buildingHit(frame, candidate, definition, x, y);
       });
       if (building) { selectSurfaceBuilding(building); return; }
-      const height = terrainData.elevation[ty * terrainData.width + tx], altitude = Math.round((height - terrainData.seaLevel) * 35);
-      const names = height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' : height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : 'Massif montagneux';
+      const cell = ty * terrainData.width + tx, height = terrainData.elevation[cell];
+      // Lakes report their surface altitude rather than their floor.
+      const surfaceHeight = terrainData.relief?.[cell] ?? height;
+      const altitude = Math.round((surfaceHeight - terrainData.seaLevel) * 35);
+      const featureNames = { [World.TERRAIN_FEATURES.lake]: 'Lac', [World.TERRAIN_FEATURES.marsh]: 'Marais',
+        [World.TERRAIN_FEATURES.river]: 'Rivière', [World.TERRAIN_FEATURES.canyon]: 'Canyon',
+        [World.TERRAIN_FEATURES.cove]: 'Crique' };
+      const names = featureNames[terrainData.features?.[cell]] || (height < 100 ? 'Zone océanique' : height < 109 ? 'Littoral' :
+        height < 143 ? 'Plaine continentale' : height < 183 ? 'Plateau rocheux' : height < 225 ? 'Massif montagneux' : 'Sommet');
       const nearest = terrainData.resources.find(resource => Math.hypot(resource.x - tx, resource.y - ty) < 10);
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
         info: nearest ? `Gisement détecté : ${nearest.type}.` : 'Le relief, les côtes et les ressources composent une surface générée pour ce monde.' });

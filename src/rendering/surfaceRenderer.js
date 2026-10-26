@@ -10,10 +10,50 @@
   });
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
+  const smoothstep = t => ease(clamp(t, 0, 1));
   const coastClock = () => root.performance?.now ? root.performance.now() : Date.now();
 
   function hexRGB(hex) {
     return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+  }
+
+  function mixRGB(first, second, amount) {
+    return first.map((channel, index) => channel + (second[index] - channel) * amount);
+  }
+
+  // Contour levels sit between integer heights, so flat ground never lies on a line.
+  function reliefLevels(seaLevel, step) {
+    const base = seaLevel + .5, levels = [];
+    for (let level = base + step; level < 255; level += step) levels.push(level);
+    return { base, levels };
+  }
+
+  // Corner cutting turns the cell-to-cell steps of a river into a smooth
+  // course, then a gentle sideways wave adds meanders. Ends stay in place so
+  // confluences and mouths still meet.
+  function smoothCourse(points, flows, water) {
+    let xs = [], ys = [], fs = [];
+    for (let i = 0; i < points.length; i += 2) { xs.push(points[i]); ys.push(points[i + 1]); fs.push(flows[i / 2]); }
+    const length = xs.length, phase = (points[0] * 12.9898 + points[1] * 78.233) % (Math.PI * 2);
+    for (let i = 1; i + 1 < length; i += 1) {
+      const dx = xs[i + 1] - xs[i - 1], dy = ys[i + 1] - ys[i - 1], norm = Math.hypot(dx, dy) || 1;
+      const taper = Math.min(1, i / 3, (length - 1 - i) / 3);
+      const wave = Math.sin(i / water.meanderWavelength * Math.PI * 2 + phase) * .7 +
+        Math.sin(i / water.meanderWavelength * Math.PI * 4.7 + phase * 1.7) * .3;
+      xs[i] += -dy / norm * wave * water.meanderAmplitude * taper;
+      ys[i] += dx / norm * wave * water.meanderAmplitude * taper;
+    }
+    for (let pass = 0; pass < 2; pass += 1) {
+      const nx = [xs[0]], ny = [ys[0]], nf = [fs[0]];
+      for (let i = 0; i + 1 < xs.length; i += 1) {
+        nx.push(xs[i] * .75 + xs[i + 1] * .25, xs[i] * .25 + xs[i + 1] * .75);
+        ny.push(ys[i] * .75 + ys[i + 1] * .25, ys[i] * .25 + ys[i + 1] * .75);
+        nf.push(fs[i], fs[i + 1]);
+      }
+      nx.push(xs.at(-1)); ny.push(ys.at(-1)); nf.push(fs.at(-1));
+      xs = nx; ys = ny; fs = nf;
+    }
+    return { xs, ys, fs };
   }
 
   function create(canvasContext, dependencies) {
@@ -96,32 +136,131 @@
       return { mask, edge };
     }
 
-    function createNeonPigment(planet, terrainData, color) {
-      // Low-amplitude pigment variation breaks the single-color sticker look
-      // while keeping the land flat.
-      const { width, height } = terrainData;
-      const pigment = makeCanvas(width, height), pigmentContext = pigment.getContext('2d');
-      const image = pigmentContext.createImageData(width, height), pixels = image.data;
-      const [red, green, blue] = hexRGB(color);
-      const [macroScale, mesoScale, fineScale, grainScale] = SurfaceStyle.neon.pigmentFrequencies;
-      const seed = World.hashSeed(String(planet.seed) + ':neon-pigment:v1');
-      for (let y = 0; y < height; y += 1) {
-        const v = y / height;
-        for (let x = 0; x < width; x += 1) {
-          const u = x / height;
-          const macro = valueNoise(u * macroScale + 2.1, v * macroScale - 6.4, seed) - .5;
-          const meso = valueNoise(u * mesoScale - 9.2, v * mesoScale + 3.7, seed ^ 0x9e3779b9) - .5;
-          const fine = valueNoise(u * fineScale + 12.8, v * fineScale - 1.5, seed ^ 0x243f6a88) - .5;
-          const grain = valueNoise(u * grainScale - 4.3, v * grainScale + 8.2, seed ^ 0xbb67ae85) - .5;
-          const pixel = (y * width + x) * 4;
-          pixels[pixel] = clamp(Math.round(red * (1 + macro * .32 + meso * .16 + fine * .07)), 0, 255);
-          pixels[pixel + 1] = clamp(Math.round(green * (1 + macro * .27 + meso * .14 + fine * .06 - grain * .06)), 0, 255);
-          pixels[pixel + 2] = clamp(Math.round(blue * (1 + macro * .32 + meso * .16 + fine * .07 + grain * .08)), 0, 255);
-          pixels[pixel + 3] = 255;
+    function riverWidthKm(flow) {
+      const water = SurfaceStyle.neon.water;
+      return clamp(water.riverMinWidthKm + water.riverWidthPerFlowKm * Math.log2(1 + flow),
+        water.riverMinWidthKm, water.riverMaxWidthKm);
+    }
+
+    // River courses in world units, grouped by width: one Path2D per width so
+    // the texture and the close-up overlay stroke the same smooth geometry.
+    const riverGeometry = new WeakMap();
+    function riverPaths(terrain) {
+      if (riverGeometry.has(terrain)) return riverGeometry.get(terrain);
+      const cellSize = Config.terrain.textureScale, groups = new Map();
+      for (const river of terrain.rivers || []) {
+        const { xs, ys, fs } = smoothCourse(river.points, river.flows, SurfaceStyle.neon.water);
+        for (let i = 0; i + 1 < xs.length; i += 1) {
+          const width = Math.round(riverWidthKm((fs[i] + fs[i + 1]) / 2) * 2) / 2;
+          if (!groups.has(width)) groups.set(width, new root.Path2D());
+          const path = groups.get(width);
+          path.moveTo(xs[i] * cellSize, ys[i] * cellSize);
+          path.lineTo(xs[i + 1] * cellSize, ys[i + 1] * cellSize);
         }
       }
-      pigmentContext.putImageData(image, 0, 0);
-      return pigment;
+      const paths = [...groups.entries()].sort((first, second) => first[0] - second[0])
+        .map(([width, path]) => ({ width, path }));
+      riverGeometry.set(terrain, paths);
+      return paths;
+    }
+
+    function strokeRivers(context, terrain, pixelSize) {
+      if (typeof root.Path2D !== 'function') return;
+      const water = SurfaceStyle.neon.water, paths = riverPaths(terrain);
+      context.save();
+      context.lineCap = 'round'; context.lineJoin = 'round';
+      context.strokeStyle = rgba(water.riverEdgeColor, water.riverEdgeOpacity);
+      for (const { width, path } of paths) { context.lineWidth = width + water.riverEdgePx * pixelSize; context.stroke(path); }
+      context.strokeStyle = water.riverColor;
+      for (const { width, path } of paths) { context.lineWidth = width; context.stroke(path); }
+      context.restore();
+    }
+
+    // Hypsometric land layer: each texel samples the relief bilinearly (cell
+    // values sit on multiples of the layer scale, as for the contours), takes
+    // its stratum tint and draws antialiased contour lines at the limits. It is
+    // computed at `layerScale` texels per cell and smoothed when drawn: close
+    // up, the vector contours take over.
+    function createReliefLayer(planet, terrainData, layerScale) {
+      const style = SurfaceStyle.neon.relief, marsh = SurfaceStyle.neon.marsh, features = World.TERRAIN_FEATURES;
+      const { width, height, seaLevel } = terrainData;
+      const relief = terrainData.relief || terrainData.elevation, cellFeatures = terrainData.features;
+      const { base } = reliefLevels(seaLevel, style.bandStep), step = style.bandStep;
+      const bandCount = Math.ceil((255 - base) / step) + 1, stops = style.colors.map(hexRGB);
+      const bands = Array.from({ length: bandCount }, (_, band) => {
+        const position = band / Math.max(1, bandCount - 1) * (stops.length - 1);
+        const index = Math.min(stops.length - 2, Math.floor(position));
+        return mixRGB(stops[index], stops[index + 1], position - index);
+      });
+      // Low-amplitude pigment variation keeps each stratum from looking printed.
+      const pigment = new Float32Array(width * height);
+      const seed = World.hashSeed(String(planet.seed) + ':neon-pigment:v1');
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const u = x / height, v = y / height;
+        pigment[y * width + x] = (valueNoise(u * 3 + 2.1, v * 3 - 6.4, seed) - .5) * 1.4 +
+          (valueNoise(u * 10.5 - 9.2, v * 10.5 + 3.7, seed ^ 0x9e3779b9) - .5) * .6;
+      }
+      const line = hexRGB(style.lineColor), marshTint = hexRGB(marsh.tint), marshMark = hexRGB(marsh.mark);
+      const marshField = cellFeatures ? Uint8Array.from(cellFeatures, feature => feature === features.marsh ? 1 : 0) : null;
+      // Per-cell slope from central differences, interpolated per texel: the
+      // shading stays smooth instead of showing the cell grid.
+      const slope = new Float32Array(width * height);
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        const left = relief[y * width + Math.max(0, x - 1)], right = relief[y * width + Math.min(width - 1, x + 1)];
+        const up = relief[Math.max(0, y - 1) * width + x], down = relief[Math.min(height - 1, y + 1) * width + x];
+        slope[y * width + x] = Math.hypot(right - left, down - up) * .5;
+      }
+      const layerWidth = width * layerScale, layerHeight = height * layerScale, textureScale = layerScale;
+      const layer = makeCanvas(layerWidth, layerHeight), context = layer.getContext('2d');
+      const image = context.createImageData(layerWidth, layerHeight), pixels = image.data;
+      for (let ty = 0; ty < layerHeight; ty += 1) {
+        const fy = Math.min(height - 1, (ty + .5) / textureScale);
+        const y0 = Math.min(height - 2, Math.floor(fy)), sy = fy - y0;
+        for (let tx = 0; tx < layerWidth; tx += 1) {
+          const fx = Math.min(width - 1, (tx + .5) / textureScale);
+          const x0 = Math.min(width - 2, Math.floor(fx)), sx = fx - x0;
+          const i00 = y0 * width + x0, i10 = i00 + 1, i01 = i00 + width, i11 = i01 + 1;
+          const top = relief[i00] + (relief[i10] - relief[i00]) * sx;
+          const bottom = relief[i01] + (relief[i11] - relief[i01]) * sx;
+          const value = top + (bottom - top) * sy;
+          const gx = ((relief[i10] - relief[i00]) * (1 - sy) + (relief[i11] - relief[i01]) * sy) / textureScale;
+          const gy = (bottom - top) / textureScale;
+          const strata = (value - base) / step;
+          const band = bands[clamp(Math.floor(strata) + 1, 0, bandCount - 1)];
+          const topSlope = slope[i00] + (slope[i10] - slope[i00]) * sx;
+          const slopeHere = topSlope + (slope[i01] + (slope[i11] - slope[i01]) * sx - topSlope) * sy;
+          const light = (1 + (pigment[i00] + (pigment[i10] - pigment[i00]) * sx) * style.pigment) *
+            (1 - style.slopeShade * smoothstep(slopeHere / style.slopeShadeFull));
+          let red = band[0] * light, green = band[1] * light, blue = band[2] * light;
+          if (marshField) {
+            // Marsh cells blend bilinearly into soft patches with a map symbol:
+            // short horizontal tufts in staggered rows.
+            const topMarsh = marshField[i00] + (marshField[i10] - marshField[i00]) * sx;
+            const marshAmount = smoothstep(((topMarsh + (marshField[i01] + (marshField[i11] - marshField[i01]) * sx - topMarsh) * sy) - .3) / .4);
+            if (marshAmount > 0) {
+              const amount = marsh.tintOpacity * marshAmount;
+              red += (marshTint[0] - red) * amount; green += (marshTint[1] - green) * amount; blue += (marshTint[2] - blue) * amount;
+              if (marshAmount > .5 && ty % 6 === 0 && (tx + Math.floor(ty / 6) * 4) % 9 < 5) {
+                red += (marshMark[0] - red) * marsh.markOpacity; green += (marshMark[1] - green) * marsh.markOpacity;
+                blue += (marshMark[2] - blue) * marsh.markOpacity;
+              }
+            }
+          }
+          const nearest = Math.round(strata);
+          if (nearest >= 1) {
+            const distance = Math.abs(value - (base + nearest * step)) / Math.max(.08, Math.hypot(gx, gy));
+            const coverage = clamp(1.1 - distance / .75, 0, 1);
+            if (coverage > 0) {
+              const amount = coverage * (nearest % style.majorEvery === 0 ? style.majorLineOpacity : style.lineOpacity);
+              red += (line[0] - red) * amount; green += (line[1] - green) * amount; blue += (line[2] - blue) * amount;
+            }
+          }
+          const pixel = (ty * layerWidth + tx) * 4;
+          pixels[pixel] = red; pixels[pixel + 1] = green; pixels[pixel + 2] = blue; pixels[pixel + 3] = 255;
+        }
+      }
+      context.putImageData(image, 0, 0);
+      return layer;
     }
 
     function drawNeonOcean(context, width, height, color) {
@@ -180,13 +319,24 @@
       context.drawImage(layer, 0, 0);
       context.restore();
 
-      const pigment = createNeonPigment(planet, terrainData, style.landColor);
+      // Lakes and coves are holes in the land mask: give them their water tone.
+      const cellFeatures = terrainData.features, features = World.TERRAIN_FEATURES;
+      if (cellFeatures) {
+        context.fillStyle = style.water.lakeColor;
+        for (let i = 0; i < cellFeatures.length; i += 1) {
+          if (cellFeatures[i] !== features.lake) continue;
+          const x = i % terrainData.width, y = (i - x) / terrainData.width;
+          context.fillRect((x - .6) * textureScale, (y - .6) * textureScale, textureScale * 1.2, textureScale * 1.2);
+        }
+      }
+      const reliefLayer = createReliefLayer(planet, terrainData, style.relief.layerScale);
       layerContext.globalCompositeOperation = 'copy';
       layerContext.imageSmoothingEnabled = true;
-      layerContext.drawImage(pigment, 0, 0, textureWidth, textureHeight);
+      layerContext.drawImage(reliefLayer, 0, 0, textureWidth, textureHeight);
       layerContext.globalCompositeOperation = 'destination-in';
       layerContext.drawImage(mask, 0, 0);
       context.drawImage(layer, 0, 0);
+      strokeRivers(context, terrainData, textureWidth / SurfaceStyle.neon.glowReferenceWidthPx);
 
       context.save();
       context.globalCompositeOperation = 'screen';
@@ -199,13 +349,14 @@
       context.globalAlpha = .62 + glow * .30;
       context.drawImage(edge, 0, 0);
       context.restore();
-      for (const canvas of [mask, edge, layer, pigment]) { canvas.width = 0; canvas.height = 0; }
+      for (const canvas of [mask, edge, layer, reliefLayer]) { canvas.width = 0; canvas.height = 0; }
       return terrainTexture;
     }
 
-    // The baked texture shows the coast at map scale. On the active surface,
-    // the shoreline is also traced as vectors for the visible area, a few
-    // milliseconds at a time, then rasterized at screen resolution.
+    // The baked texture shows coast, contours and rivers at map scale. On the
+    // active surface, the shoreline and contour lines are also traced as
+    // vectors for the visible area, a few milliseconds at a time, then
+    // rasterized with the rivers at screen resolution.
     function sameCoastRequest(first, second) {
       return first && second && first.kind === second.kind && first.planetId === second.planetId &&
         first.terrain === second.terrain && first.minX === second.minX && first.maxX === second.maxX &&
@@ -227,14 +378,8 @@
       job.timer = root.setTimeout(() => processCoastJob(job), delay);
     }
 
-    function traceCoastCell(job, x, y) {
-      // Marching squares on the shore level, halfway between the last water
-      // cell and the first land cell, like the baked land mask.
-      const { width, elevation, seaLevel } = job.terrain;
-      const level = seaLevel + .5, cellSize = Config.terrain.textureScale, path = job.cache.path;
-      const index = y * width + x;
-      const a = elevation[index], b = elevation[index + 1];
-      const d = elevation[index + width], e = elevation[index + width + 1];
+    // Marching squares for one level over the cell whose top-left corner is (x, y).
+    function traceLevel(path, level, a, b, d, e, x, y, cellSize) {
       const mask = (a < level ? 1 : 0) | (b < level ? 2 : 0) | (e < level ? 4 : 0) | (d < level ? 8 : 0);
       if (mask === 0 || mask === 15) return;
       let hasFirst = false, firstX = 0, firstY = 0;
@@ -248,6 +393,24 @@
       if ((b < level) !== (e < level)) crossing(x + 1, y + (level - b) / (e - b));
       if ((e < level) !== (d < level)) crossing(x + 1 - (level - e) / (d - e), y + 1);
       if ((d < level) !== (a < level)) crossing(x, y + 1 - (level - d) / (a - d));
+    }
+
+    function traceContourCell(job, x, y) {
+      // The shore sits halfway between the last water cell and the first land
+      // cell, like the baked land mask; contour lines follow the relief, where
+      // lakes keep their surface height.
+      const { width, elevation, seaLevel } = job.terrain;
+      const relief = job.terrain.relief || elevation, cache = job.cache, cellSize = Config.terrain.textureScale;
+      const index = y * width + x;
+      traceLevel(cache.path, seaLevel + .5, elevation[index], elevation[index + 1],
+        elevation[index + width], elevation[index + width + 1], x, y, cellSize);
+      const a = relief[index], b = relief[index + 1], d = relief[index + width], e = relief[index + width + 1];
+      const low = Math.min(a, b, d, e), high = Math.max(a, b, d, e), step = SurfaceStyle.neon.relief.bandStep;
+      const first = Math.max(1, Math.ceil((low - cache.levelBase) / step));
+      const last = Math.min(cache.levelPaths.length, Math.floor((high - cache.levelBase) / step));
+      for (let level = first; level <= last; level += 1) {
+        traceLevel(cache.levelPaths[level - 1], cache.levelBase + level * step, a, b, d, e, x, y, cellSize);
+      }
     }
 
     function rasterizeCoast(job) {
@@ -270,6 +433,15 @@
       context.clearRect(0, 0, rasterWidth, rasterHeight);
       context.setTransform(scale, 0, 0, scale, -bounds.x * scale, -bounds.y * scale);
       context.lineCap = 'round'; context.lineJoin = 'round';
+      // Contour lines first, every majorEvery-th one stronger, then rivers.
+      const reliefStyle = SurfaceStyle.neon.relief;
+      for (const [index, path] of cache.levelPaths.entries()) {
+        const major = (index + 1) % reliefStyle.majorEvery === 0;
+        context.lineWidth = (major ? reliefStyle.majorLineWidthPx : reliefStyle.lineWidthPx) / job.zoom;
+        context.strokeStyle = rgba(reliefStyle.lineColor, major ? reliefStyle.majorLineOpacity : reliefStyle.lineOpacity);
+        context.stroke(path);
+      }
+      strokeRivers(context, job.terrain, 1 / job.zoom);
       // A soft glow stroke under a crisp line. Shadow blur is in device pixels,
       // independent of the world transform. The line thickens slightly with
       // zoom to cover the texel steps of the magnified base texture.
@@ -304,7 +476,7 @@
         const maxX = Math.min(job.maxX, job.terrain.width - 2);
         const maxY = Math.min(job.maxY, job.terrain.height - 2);
         while (job.y <= maxY && coastClock() < stopAt) {
-          traceCoastCell(job, job.x, job.y);
+          traceContourCell(job, job.x, job.y);
           job.x += 1;
           if (job.x > maxX) { job.x = job.minX; job.y += 1; }
         }
@@ -335,7 +507,9 @@
       stopCoastJob();
       candidate.cache = { planetId: request.planetId, terrain: request.terrain, minX: request.minX,
         maxX: request.maxX, minY: request.minY, maxY: request.maxY,
-        path: new root.Path2D(), raster: null };
+        path: new root.Path2D(), raster: null,
+        levelBase: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).base,
+        levelPaths: reliefLevels(request.terrain.seaLevel, SurfaceStyle.neon.relief.bandStep).levels.map(() => new root.Path2D()) };
       candidate.x = candidate.minX; candidate.y = candidate.minY; candidate.phase = 'trace';
       coastJob = candidate;
       lastCoastBuildAt = coastClock();

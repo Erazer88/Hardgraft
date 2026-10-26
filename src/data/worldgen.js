@@ -57,11 +57,41 @@
       // Planet kinds whose landmasses always sit in open sea, off the map edge.
       oceanBorder: { kinds: ['tellurique', 'océanique'], minimumWater: .7,
         minimumOcean: .03, edgeWidth: .16, edgeDepth: .16, edgeWarp: .05 },
+      // Inland relief, in elevation units above the sea (sea level 102, top 255).
+      // Scales are noise frequencies per map side; widths are in cells.
       relief: {
-        // Heights above sea level grow inland; depths grow offshore.
-        inlandScale: .07, lowlandRise: 30, hillAmplitude: 26, hillScale: 9,
-        mountainScale: 6, mountainPower: 2.6, mountainAmplitude: 96, mountainCoverage: .5,
-        shelfScale: .03, shelfDepth: 14, oceanScale: .12, oceanDepth: 46, seabedAmplitude: 6
+        // Relief fades out over a narrow coastal strip only, so the interior is
+        // shaped by uplift and basins rather than by the distance to the sea.
+        // The coastal strip width varies along the shore: cliffs here, broad plains there.
+        coastRamp: [.012, .075], coastRampScale: 2.6, inlandScale: .07, coastalRise: 6, detail: 5, detailScale: 18,
+        // Broad uplift: divides and long valleys that gather rivers into basins.
+        uplift: { scale: 2, amplitude: 34 },
+        // Broad lowland basins flatten the relief into plains.
+        plains: { scale: 1.5, coverage: .45, flattening: .75 },
+        hills: { scale: 7, amplitude: 24 },
+        // Mesas: flat-topped plateaus with stepped cliffs, where rivers cut canyons.
+        plateaus: { scale: 2.3, coverage: .44, height: 60, terraces: 3, cliff: .22 },
+        // Mountain massifs follow winding belts; ridged noise raises the crests.
+        mountains: { beltScale: 1.3, beltWidth: .42, ridgeScale: 5, octaves: 5,
+          height: 132, peakPower: 1.3 },
+        ocean: { shelfScale: .03, shelfDepth: 14, oceanScale: .12, oceanDepth: 46, seabedAmplitude: 6 }
+      },
+      // Water on land. Hydrology scales with the planet's water: dry worlds keep
+      // canyons as dry riverbeds, without rivers, lakes or marshes.
+      hydrology: {
+        waterRange: [.04, .3],
+        // Lakes fill basins up to their spill level; small hollows become flats.
+        lakes: { basinCount: [3, 7], basinRadius: [.02, .05], basinDepth: 30, lobes: [2, 4],
+          shoreNoise: .55, minDepth: 3, minArea: 10, maxDepth: 9,
+          // At most this share of the land becomes lakes; the deepest basins win.
+          maxShare: .025 },
+        // Rivers start where the drained area passes the threshold (fraction of the map).
+        rivers: { threshold: .0018, carve: 4, maxCarve: 14, valleyWidth: [1.6, 6],
+          canyonStart: 45, canyonDepth: 40, canyonWidth: 1.6 },
+        // Marshes: flat, wet floodplains (wider along big rivers), lake shores and filled hollows.
+        marshes: { maxHeight: 40, maxSlope: .7, minMoisture: .45, reach: 4, floodplain: 2.5, patchiness: -.05 },
+        // Criques: estuaries cut at the mouths of large rivers through high coasts.
+        coves: { minFlow: 4, minCoastHeight: 14, length: [3, 9] }
       },
       deposits: { countWeights: [.08, .12, .34, .30, .13, .03],
         startingCandidateCount: 4, spacingRatio: .1575, radiusRatio: [.045, .0675] },

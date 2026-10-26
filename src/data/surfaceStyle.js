@@ -28,7 +28,6 @@
     // no relief lighting, shadows or contour cues, only a low pigment variation.
     neon: Object.freeze({
       oceanColor: '#07182b',
-      landColor: '#bd4d89',
       coastColor: '#ff87b7',
       glow: .42,
       oceanGridStepWorld: 100,
@@ -38,11 +37,43 @@
       oceanGridLineWidth: 1,
       // Glow radii are tuned for a map about this wide on screen.
       glowReferenceWidthPx: 1600,
-      pigmentFrequencies: Object.freeze([3, 10.5, 30, 83]),
       coastLineWidthPx: 1.15,
       coastLineMaxZoomScale: 2.2,
       coastGlowBlurPx: 4.5,
-      coastGlowOpacity: .7
+      coastGlowOpacity: .7,
+      // Relief strata: one tint per elevation band, darker lowlands to pale
+      // summits, separated by contour lines like a hypsometric map.
+      relief: Object.freeze({
+        bandStep: 12,
+        // Texels per terrain cell for the baked strata; the map texture has 3.
+        layerScale: 2,
+        majorEvery: 4,
+        colors: Object.freeze(['#6e2153', '#8c2e69', '#ab3f80', '#c75594', '#de72aa', '#ee96c2', '#f8bdd9', '#ffe6f2']),
+        pigment: .1,
+        lineColor: '#ffd3e8',
+        lineOpacity: .3,
+        majorLineOpacity: .58,
+        lineWidthPx: .7,
+        majorLineWidthPx: 1.15,
+        // Steep ground (cliffs, canyon walls) is shaded darker, up to this share.
+        slopeShade: .38,
+        slopeShadeFull: 5
+      }),
+      marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .45, mark: '#86e6d2', markOpacity: .7 }),
+      // Lakes and rivers share the sea's dark water and its neon shoreline.
+      water: Object.freeze({
+        lakeColor: '#0d2742',
+        riverColor: '#0d2742',
+        riverEdgeColor: '#ff9cc6',
+        riverEdgeOpacity: .85,
+        riverEdgePx: 2.2,
+        riverMinWidthKm: .8,
+        riverWidthPerFlowKm: .6,
+        riverMaxWidthKm: 4.5,
+        // Visual meanders, in cells, so courses never run as straight grid lines.
+        meanderAmplitude: .9,
+        meanderWavelength: 7
+      })
     }),
     resources: Object.freeze({
       markerRadiusWorldScale: .45,

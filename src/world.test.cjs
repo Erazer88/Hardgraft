@@ -242,6 +242,44 @@ test('telluric maps keep their continents inside an open-sea border', () => {
     'other planet kinds keep their own water coverage');
 });
 
+test('rivers run downhill to the sea, a lake or another river, and lakes keep a surface height', () => {
+  const features = world.TERRAIN_FEATURES;
+  for (const [index, surfaceWater] of [.3, .55].entries()) {
+    const planet = { kind: 'tellurique', surfaceWater, temperature: 16, seed: 700 + index };
+    const terrain = world.createTerrain('hydrology-' + index, 320, 240, planet);
+    const repeated = world.createTerrain('hydrology-' + index, 320, 240, planet);
+    assert.equal(serialize(terrain.rivers), serialize(repeated.rivers));
+    assert.deepEqual(Array.from(terrain.features), Array.from(repeated.features));
+    assert.ok(terrain.rivers.length > 3, 'wet worlds have rivers');
+    const riverCells = new Set();
+    for (const river of terrain.rivers) for (let i = 0; i < river.points.length; i += 2) {
+      riverCells.add(river.points[i + 1] * terrain.width + river.points[i]);
+    }
+    for (const river of terrain.rivers) {
+      const cells = [];
+      for (let i = 0; i < river.points.length; i += 2) cells.push(river.points[i + 1] * terrain.width + river.points[i]);
+      const land = cells.filter(cell => terrain.elevation[cell] > terrain.seaLevel);
+      for (let i = 1; i < land.length; i += 1) {
+        assert.ok(terrain.elevation[land[i]] <= terrain.elevation[land[i - 1]], 'river beds never rise downstream');
+      }
+      const mouth = cells.at(-1);
+      assert.ok(terrain.elevation[mouth] <= terrain.seaLevel || riverCells.has(mouth), 'rivers end in water or at a confluence');
+    }
+    let lakes = 0;
+    for (let cell = 0; cell < terrain.features.length; cell += 1) {
+      if (terrain.features[cell] !== features.lake) continue;
+      lakes += 1;
+      assert.ok(terrain.elevation[cell] <= terrain.seaLevel, 'lakes are water for building and road rules');
+      assert.ok(terrain.relief[cell] > terrain.seaLevel, 'lakes keep their surface above the sea');
+    }
+    assert.ok(lakes > 0, 'wet worlds have lakes');
+  }
+  const dry = world.createTerrain('hydrology-dry', 320, 240, { kind: 'aride', surfaceWater: 0, temperature: 90, seed: 9 });
+  assert.equal(dry.rivers.length, 0, 'dry worlds have no rivers');
+  assert.ok(!dry.features.includes(features.lake) && !dry.features.includes(features.marsh));
+  assert.ok(dry.features.includes(features.canyon), 'dry riverbeds remain as canyons');
+});
+
 test('eligible planets can carry one broad offshore oil field', () => {
   const planet = { kind: 'tellurique', hasOilDeposit: true, surfaceWater: .74, temperature: 18,
     seed: 412, resources: { iron: .7 } };

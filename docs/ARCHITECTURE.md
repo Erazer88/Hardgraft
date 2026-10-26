@@ -54,10 +54,11 @@ volontaire pour le prototype ; aucune migration globale vers ESM ou npm n'est
 prévue dans une tâche locale.
 
 Le rendu de surface est entièrement Canvas 2D, au style néon (palette
-`OrbitSurfaceStyle.neon`) : océan sombre quadrillé, terres magenta plates et littoral
-lumineux, cuits dans une texture à partir de `terrain.elevation`. Sur la surface active,
-le trait de côte est retracé en vecteur depuis ce même terrain canonique pour rester net
-au zoom. Il n'y a ni terrain haute résolution, ni worker, ni couche WebGL.
+`OrbitSurfaceStyle.neon`) : océan sombre quadrillé, strates d'altitude teintées avec
+lignes d'altitude, rivières, lacs et marais, littoral lumineux, cuits dans une texture
+à partir du terrain. Sur la surface active, côte, lignes d'altitude et rivières sont
+retracées en vecteurs depuis ce même terrain pour rester nettes au zoom. Il n'y a ni
+terrain haute résolution, ni worker, ni couche WebGL.
 
 ## Modules denses et limites de refactorisation
 

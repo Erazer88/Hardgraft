@@ -192,6 +192,76 @@
     return distance;
   }
 
+  // Binary min-heap of cell indices keyed by height, for priority flooding.
+  function createHeap(capacity) {
+    const keys = new Float64Array(capacity), items = new Int32Array(capacity);
+    let size = 0;
+    return {
+      get size() { return size; },
+      push(item, key) {
+        let i = size++;
+        while (i > 0) {
+          const parent = (i - 1) >> 1;
+          if (keys[parent] <= key) break;
+          keys[i] = keys[parent]; items[i] = items[parent]; i = parent;
+        }
+        keys[i] = key; items[i] = item;
+      },
+      pop() {
+        const top = items[0];
+        size -= 1;
+        if (size > 0) {
+          const key = keys[size], item = items[size];
+          let i = 0;
+          for (;;) {
+            let child = i * 2 + 1;
+            if (child >= size) break;
+            if (child + 1 < size && keys[child + 1] < keys[child]) child += 1;
+            if (keys[child] >= key) break;
+            keys[i] = keys[child]; items[i] = items[child]; i = child;
+          }
+          keys[i] = key; items[i] = item;
+        }
+        return top;
+      }
+    };
+  }
+
+  const NEIGHBORS = [[-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
+    [-1, -1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [1, 1, Math.SQRT2]];
+  const CARDINAL = NEIGHBORS.slice(0, 4);
+  const NEIGHBOR_DX = Int8Array.from(NEIGHBORS, ([dx]) => dx), NEIGHBOR_DY = Int8Array.from(NEIGHBORS, ([, dy]) => dy);
+
+  // Smooth, low-frequency noise sampled every `step` cells and interpolated:
+  // the same field as a per-cell evaluation, at a fraction of the cost.
+  function coarseField(width, height, minSide, step, evaluate) {
+    const columns = Math.ceil((width - 1) / step) + 1, rows = Math.ceil((height - 1) / step) + 1;
+    const grid = new Float32Array(columns * rows), field = new Float32Array(width * height);
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      grid[row * columns + column] = evaluate(column * step / minSide, row * step / minSide);
+    }
+    for (let y = 0; y < height; y += 1) {
+      const gy = y / step, row = Math.min(rows - 2, Math.floor(gy)), sy = gy - row;
+      for (let x = 0; x < width; x += 1) {
+        const gx = x / step, column = Math.min(columns - 2, Math.floor(gx)), sx = gx - column;
+        const i = row * columns + column;
+        const top = grid[i] + (grid[i + 1] - grid[i]) * sx;
+        const bottom = grid[i + columns] + (grid[i + columns + 1] - grid[i + columns]) * sx;
+        field[y * width + x] = top + (bottom - top) * sy;
+      }
+    }
+    return field;
+  }
+
+  // Flat treads separated by cliffs: t in [0, 1] becomes `steps` mesa levels.
+  function terrace(t, steps, cliff) {
+    const scaled = clamp(t, 0, 1) * steps, level = Math.min(steps - 1, Math.floor(scaled));
+    return (level + smoothstep((scaled - level - (1 - cliff)) / cliff)) / steps;
+  }
+
+  // Cell features exposed with the terrain, for rendering and descriptions.
+  const TERRAIN_FEATURES = Object.freeze({ none: 0, lake: 1, marsh: 2, river: 3, canyon: 4, cove: 5 });
+
   function pickRange(random, range) {
     return range[0] + random() * (range[1] - range[0]);
   }
@@ -282,6 +352,366 @@
     return continents.concat(lobes, islands);
   }
 
+  // Inland relief and water for a fixed coastline. Heights are in elevation
+  // units above the sea. Lakes and coves become water cells (elevation at or
+  // below sea level); `relief` keeps a lake's surface height for contours.
+  function buildLandRelief(options) {
+    const { width, height, minSide, land, toWater, offsetX, offsetY, terrainSeed, random,
+      settings, waterFraction, seaLevel, elevation } = options;
+    const count = width * height, relief = settings.relief, hydrology = settings.hydrology;
+    const plains = relief.plains, hills = relief.hills, plateaus = relief.plateaus, mountains = relief.mountains;
+    const wetness = smoothstep((waterFraction - hydrology.waterRange[0]) /
+      (hydrology.waterRange[1] - hydrology.waterRange[0]));
+    const rainfall = new Float32Array(count), ground = new Float32Array(count);
+    const ridgeTurn = { cos: Math.cos(.7), sin: Math.sin(.7) };
+    let landCount = 0;
+
+    // Low-frequency fields are sampled on a coarse grid; only hills, ridges
+    // and fine detail are evaluated closer to every cell.
+    const coarse = (step, evaluate) => coarseField(width, height, minSide, step, evaluate);
+    const rain = coarse(4, (u, v) => fbm(offsetX + u * 6, offsetY + v * 6, terrainSeed ^ 0x19191531, 4));
+    const rampNoise = coarse(4, (u, v) => fbm(offsetX + 71 + u * relief.coastRampScale,
+      offsetY - 13 + v * relief.coastRampScale, terrainSeed ^ 0x1f83d9ab, 2));
+    const plainNoise = coarse(4, (u, v) => fbm(offsetX + 3 + u * plains.scale, offsetY - 9 + v * plains.scale,
+      terrainSeed ^ 0x51ed270b, 3));
+    const mesaNoise = coarse(4, (u, v) => fbm(offsetX - 17 + u * plateaus.scale, offsetY + 23 + v * plateaus.scale,
+      terrainSeed ^ 0x7b3e1d55, 3));
+    const beltNoise = coarse(4, (u, v) => {
+      const bend = fbm(offsetX + 61 + u * 1.1, offsetY - 37 + v * 1.1, terrainSeed ^ 0x6a09e667, 2) * .35;
+      return 1 - Math.abs(fbm(offsetX + 91 + (u + bend) * mountains.beltScale,
+        offsetY + 13 + (v - bend) * mountains.beltScale, terrainSeed ^ 0x3c6ef372, 3));
+    });
+    const upliftNoise = coarse(4, (u, v) => fbm(offsetX - 41 + u * relief.uplift.scale,
+      offsetY + 57 + v * relief.uplift.scale, terrainSeed ^ 0x0f6d2c1b, 3));
+    const hillNoise = coarse(2, (u, v) => fbm(offsetX + u * hills.scale, offsetY + v * hills.scale, terrainSeed ^ 0x29f1483b, 4));
+
+    // Base heights: coastal lowlands, plains basins, hills, mesas and massifs.
+    for (let y = 0; y < height; y += 1) {
+      const v = y / minSide;
+      for (let x = 0; x < width; x += 1) {
+        const u = x / minSide, index = y * width + x;
+        rainfall[index] = clamp(0.52 + rain[index] * 0.7, 0, 1);
+        if (!land[index]) continue;
+        landCount += 1;
+        const inland = 1 - Math.exp(-toWater[index] / (relief.inlandScale * minSide));
+        const ramp = relief.coastRamp[0] + (relief.coastRamp[1] - relief.coastRamp[0]) * smoothstep(rampNoise[index] * 1.6 + .5);
+        const envelope = smoothstep(toWater[index] / (ramp * minSide));
+        const plain = smoothstep((plainNoise[index] + plains.coverage - .5) * 2.5);
+        const open = 1 - plain * plains.flattening;
+        const hilly = (hillNoise[index] * .5 + .5) * hills.amplitude * Math.sqrt(envelope) * open;
+        const mesa = smoothstep((mesaNoise[index] + plateaus.coverage - .5) * 3.2);
+        const plateau = terrace(mesa * envelope, plateaus.terraces, plateaus.cliff) * plateaus.height * open;
+        const belt = beltNoise[index];
+        const beltMask = smoothstep((belt - (1 - mountains.beltWidth)) / mountains.beltWidth) *
+          envelope * (1 - plain * .85);
+        let massif = 0;
+        if (beltMask > 0) {
+          // Ridged multifractal: each octave sharpens the crests of the previous one.
+          let frequency = mountains.ridgeScale, amplitude = .5, weight = 1, sum = 0, normalization = 0;
+          const ru = u * ridgeTurn.cos - v * ridgeTurn.sin, rv = u * ridgeTurn.sin + v * ridgeTurn.cos;
+          for (let octave = 0; octave < mountains.octaves; octave += 1) {
+            let ridge = 1 - Math.abs(noise(offsetX + 7 * octave + ru * frequency, offsetY - 3 * octave + rv * frequency,
+              ((terrainSeed ^ 0x2545f491) + Math.imul(octave, 163399)) >>> 0));
+            ridge *= ridge * weight;
+            weight = clamp(ridge * 1.8, 0, 1);
+            sum += ridge * amplitude; normalization += amplitude;
+            amplitude *= .5; frequency *= 2.03;
+          }
+          massif = Math.pow(sum / normalization, mountains.peakPower) * beltMask * mountains.height;
+        }
+        const uplift = (upliftNoise[index] * .5 + .5) * relief.uplift.amplitude * envelope * open;
+        // Fine relief makes channels wander instead of running straight downhill.
+        const detail = fbm(offsetX + 5 + u * relief.detailScale, offsetY - 3 + v * relief.detailScale,
+          terrainSeed ^ 0x165667b1, 3) * relief.detail * envelope;
+        ground[index] = 1 + relief.coastalRise * inland + uplift + hilly + plateau + massif + detail;
+      }
+    }
+
+    const lakes = hydrology.lakes, riverSettings = hydrology.rivers;
+    // Lake basins: irregular bowls dug into the relief; flooding decides their shores.
+    const basinCount = wetness > .25 ? Math.round(pickCount(random, lakes.basinCount) * wetness) : 0;
+    for (let basin = 0; basin < basinCount; basin += 1) {
+      let center = -1;
+      for (let attempt = 0; attempt < 40 && center < 0; attempt += 1) {
+        const candidate = Math.floor(random() * count);
+        if (land[candidate] && toWater[candidate] > .05 * minSide) center = candidate;
+      }
+      if (center < 0) continue;
+      // A few overlapping elongated bowls with a noisy rim: irregular shores and arms.
+      const depth = lakes.basinDepth * (.6 + random() * .6);
+      let lobeX = center % width, lobeY = Math.floor(center / width);
+      for (let lobe = pickCount(random, lakes.lobes); lobe > 0; lobe -= 1) {
+        const radius = pickRange(random, lakes.basinRadius) * minSide, angle = random() * Math.PI;
+        const stretch = 1 + random() * 1.2, cos = Math.cos(angle), sin = Math.sin(angle);
+        const reach = Math.ceil(radius * stretch * (1 + lakes.shoreNoise));
+        const cx = Math.round(lobeX), cy = Math.round(lobeY);
+        for (let y = Math.max(0, cy - reach); y <= Math.min(height - 1, cy + reach); y += 1) {
+          for (let x = Math.max(0, cx - reach); x <= Math.min(width - 1, cx + reach); x += 1) {
+            const index = y * width + x;
+            if (!land[index]) continue;
+            const along = ((x - cx) * cos + (y - cy) * sin) / (radius * stretch);
+            const across = (-(x - cx) * sin + (y - cy) * cos) / radius;
+            const rim = 1 + lakes.shoreNoise * fbm(offsetX + x / minSide * 16, offsetY + y / minSide * 16,
+              terrainSeed ^ 0x4a7484aa, 3);
+            const distance = Math.hypot(along, across) / rim;
+            if (distance < 1) ground[index] -= depth * (1 - distance * distance) ** 2;
+          }
+        }
+        lobeX += Math.cos(angle) * radius * stretch * (random() < .5 ? 1 : -1);
+        lobeY += Math.sin(angle) * radius * stretch * (random() < .5 ? 1 : -1);
+      }
+    }
+
+    // Priority flood from the sea (or the map edge on dry worlds): every land
+    // cell gets a drainage parent and the lowest spill height that reaches the
+    // outlet. Cells below their spill height sit in a closed depression.
+    const filled = new Float32Array(count), parent = new Int32Array(count).fill(-1);
+    const order = new Int32Array(landCount), visited = new Uint8Array(count), heap = createHeap(Math.max(1, landCount));
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (!land[index]) continue;
+      let outlet = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+      for (let n = 0; n < 8 && !outlet; n += 1) outlet = !land[index + NEIGHBOR_DY[n] * width + NEIGHBOR_DX[n]];
+      if (!outlet) continue;
+      visited[index] = 1; filled[index] = ground[index];
+      heap.push(index, filled[index]);
+    }
+    let flooded = 0;
+    while (heap.size) {
+      const cell = heap.pop(), cx = cell % width, cy = (cell - cx) / width;
+      order[flooded++] = cell;
+      for (let n = 0; n < 8; n += 1) {
+        const x = cx + NEIGHBOR_DX[n], y = cy + NEIGHBOR_DY[n];
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        const next = y * width + x;
+        if (!land[next] || visited[next]) continue;
+        visited[next] = 1;
+        filled[next] = Math.max(ground[next], filled[cell] + 1e-3);
+        parent[next] = cell;
+        heap.push(next, filled[next]);
+      }
+    }
+
+    // Lakes: closed depressions deep and wide enough on wet worlds. Shallower
+    // hollows are filled to their spill height and become flats.
+    const lake = new Uint8Array(count);
+    if (wetness > .25) {
+      const seen = new Uint8Array(count), stack = [], basins = [];
+      for (let start = 0; start < count; start += 1) {
+        if (!land[start] || seen[start] || filled[start] - ground[start] <= .3) continue;
+        const component = [];
+        let deepest = 0;
+        seen[start] = 1; stack.push(start);
+        while (stack.length) {
+          const cell = stack.pop(), cx = cell % width, cy = (cell - cx) / width;
+          component.push(cell);
+          deepest = Math.max(deepest, filled[cell] - ground[cell]);
+          for (const [dx, dy] of CARDINAL) {
+            const x = cx + dx, y = cy + dy, next = y * width + x;
+            if (x < 0 || y < 0 || x >= width || y >= height || seen[next] || !land[next] ||
+                filled[next] - ground[next] <= .3) continue;
+            seen[next] = 1; stack.push(next);
+          }
+        }
+        if (deepest >= lakes.minDepth && component.length >= lakes.minArea) basins.push({ component, score: deepest * Math.sqrt(component.length) });
+      }
+      let lakeCells = 0;
+      for (const basin of basins.sort((first, second) => second.score - first.score)) {
+        if (lakeCells + basin.component.length > lakes.maxShare * landCount * wetness) continue;
+        lakeCells += basin.component.length;
+        for (const cell of basin.component) lake[cell] = 1;
+      }
+    }
+
+    // Drainage: rain gathers downstream along the flood parents.
+    const flow = new Float32Array(count);
+    for (let i = 0; i < flooded; i += 1) flow[order[i]] = .3 + rainfall[order[i]];
+    for (let i = flooded - 1; i >= 0; i -= 1) {
+      const cell = order[i];
+      if (parent[cell] >= 0) flow[parent[cell]] += flow[cell];
+    }
+    // Wet worlds have more rivers; dry worlds keep only their largest channels as dry canyons.
+    const threshold = riverSettings.threshold * count / (.5 + wetness);
+    const flowing = wetness > .2;
+    const channel = new Uint8Array(count), bed = new Float32Array(count), valley = new Float32Array(count);
+    const canyon = new Float32Array(count);
+    for (let i = 0; i < flooded; i += 1) {
+      const cell = order[i];
+      if (lake[cell] || flow[cell] < threshold) continue;
+      channel[cell] = 1;
+      const strength = Math.log2(1 + flow[cell] / threshold);
+      // Across filled hollows the drainage runs in straight lines: barely
+      // incise there, so no artificial straight grooves appear.
+      const hollow = filled[cell] - ground[cell] > .5;
+      const carve = Math.min(riverSettings.maxCarve, riverSettings.carve * strength) * (hollow ? .25 : 1);
+      // Rivers crossing high mesas and massifs cut narrow canyons.
+      canyon[cell] = hollow ? 0 : smoothstep((filled[cell] - riverSettings.canyonStart) / 30);
+      const target = filled[cell] - carve - riverSettings.canyonDepth * canyon[cell] * Math.min(1, strength / 2);
+      const down = parent[cell];
+      const downstreamBed = down < 0 ? .5 : lake[down] ? filled[down] : channel[down] ? bed[down] : filled[down];
+      // Beds never rise downstream, so every river keeps flowing to its outlet.
+      bed[cell] = Math.max(target, downstreamBed + .05);
+      valley[cell] = canyon[cell] > .5 ? riverSettings.canyonWidth :
+        riverSettings.valleyWidth[0] + (riverSettings.valleyWidth[1] - riverSettings.valleyWidth[0]) * clamp((strength - 1) / 3, 0, 1);
+    }
+
+    // Valleys: lower each cell toward the bed of its nearest channel, with
+    // steep walls in canyons and gentle slopes in plains.
+    const nearest = new Int32Array(count).fill(-1), distance = new Float32Array(count).fill(width + height);
+    for (let i = 0; i < count; i += 1) if (channel[i]) { nearest[i] = i; distance[i] = 0; }
+    // Two chamfer passes that also carry the index of the nearest channel cell.
+    const relax = (cell, other, cost) => {
+      if (nearest[other] >= 0 && distance[other] + cost < distance[cell]) {
+        distance[cell] = distance[other] + cost; nearest[cell] = nearest[other];
+      }
+    };
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const cell = y * width + x;
+      if (x > 0) relax(cell, cell - 1, 1);
+      if (y > 0) {
+        relax(cell, cell - width, 1);
+        if (x > 0) relax(cell, cell - width - 1, Math.SQRT2);
+        if (x + 1 < width) relax(cell, cell - width + 1, Math.SQRT2);
+      }
+    }
+    for (let y = height - 1; y >= 0; y -= 1) for (let x = width - 1; x >= 0; x -= 1) {
+      const cell = y * width + x;
+      if (x + 1 < width) relax(cell, cell + 1, 1);
+      if (y + 1 < height) {
+        relax(cell, cell + width, 1);
+        if (x + 1 < width) relax(cell, cell + width + 1, Math.SQRT2);
+        if (x > 0) relax(cell, cell + width - 1, Math.SQRT2);
+      }
+    }
+    const heightAbove = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) {
+      if (!land[i] || lake[i]) continue;
+      let value = filled[i];
+      const river = nearest[i];
+      if (river >= 0) {
+        const reach = valley[river] * 2.2, t = distance[i] / reach;
+        if (t < 1) {
+          const profile = canyon[river] > .5 ? Math.pow(t, .45) : smoothstep(t);
+          value = Math.min(value, bed[river] + (filled[i] - bed[river]) * profile);
+        }
+      }
+      heightAbove[i] = value;
+    }
+
+    // Criques: the last cells of large rivers through high coasts open to the sea.
+    const coves = hydrology.coves, cove = new Uint8Array(count);
+    if (flowing) {
+      const mainChild = new Int32Array(count).fill(-1);
+      for (let i = 0; i < count; i += 1) {
+        const down = parent[i];
+        if (channel[i] && down >= 0 && (mainChild[down] < 0 || flow[i] > flow[mainChild[down]])) mainChild[down] = i;
+      }
+      for (let i = 0; i < count; i += 1) {
+        if (!channel[i] || parent[i] >= 0 || flow[i] < threshold * coves.minFlow) continue;
+        const strength = clamp((Math.log2(1 + flow[i] / threshold) - 2) / 3, 0, 1);
+        const length = Math.round(coves.length[0] + (coves.length[1] - coves.length[0]) * strength);
+        const stem = [];
+        for (let cell = i; cell >= 0 && stem.length < length; cell = mainChild[cell]) stem.push(cell);
+        const coastHeight = stem.reduce((highest, cell) => Math.max(highest, filled[cell]), 0);
+        if (coastHeight < coves.minCoastHeight && strength < 1) continue;
+        for (const [position, cell] of stem.entries()) {
+          cove[cell] = 1;
+          // Wider near the mouth: a funnel-shaped estuary.
+          if (position > stem.length / 2) continue;
+          const cx = cell % width, cy = (cell - cx) / width;
+          for (const [dx, dy] of CARDINAL) {
+            const next = (cy + dy) * width + cx + dx;
+            if (cx + dx >= 0 && cy + dy >= 0 && cx + dx < width && cy + dy < height && land[next] && !lake[next]) cove[next] = 1;
+          }
+        }
+      }
+    }
+
+    // Marshes: wet, low and flat ground beside rivers, lakes and shores.
+    const marshes = hydrology.marshes, features = new Uint8Array(count);
+    const lakeShore = new Uint8Array(count);
+    for (let i = 0; i < count; i += 1) if (lake[i]) {
+      const cx = i % width, cy = (i - cx) / width;
+      for (let dy = -marshes.reach; dy <= marshes.reach; dy += 1) for (let dx = -marshes.reach; dx <= marshes.reach; dx += 1) {
+        const x = cx + dx, y = cy + dy;
+        if (x >= 0 && y >= 0 && x < width && y < height) lakeShore[y * width + x] = 1;
+      }
+    }
+    const heightAt = (x, y) => {
+      const index = clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1);
+      return land[index] && !lake[index] ? heightAbove[index] : 0;
+    };
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (!land[index]) continue;
+      if (lake[index]) { features[index] = TERRAIN_FEATURES.lake; continue; }
+      if (cove[index]) { features[index] = TERRAIN_FEATURES.cove; continue; }
+      if (channel[index]) { features[index] = flowing ? TERRAIN_FEATURES.river : TERRAIN_FEATURES.canyon; continue; }
+      if (filled[index] - heightAbove[index] > 12) { features[index] = TERRAIN_FEATURES.canyon; continue; }
+      if (!flowing || heightAbove[index] > marshes.maxHeight || rainfall[index] < marshes.minMoisture) continue;
+      const slope = Math.hypot(heightAt(x + 1, y) - heightAt(x - 1, y), heightAt(x, y + 1) - heightAt(x, y - 1)) * .5;
+      const river = nearest[index];
+      const floodplain = river >= 0 && distance[index] <= marshes.reach +
+        marshes.floodplain * Math.log2(1 + flow[river] / threshold) && canyon[river] < .5;
+      const nearWater = floodplain || filled[index] - ground[index] > .2 || lakeShore[index] ||
+        (toWater[index] <= marshes.reach && flow[index] > threshold * .25);
+      const patch = fbm(offsetX + 47 + x / minSide * 12, offsetY - 29 + y / minSide * 12, terrainSeed ^ 0x2f8c1d4b, 2);
+      if (slope < marshes.maxSlope && nearWater && patch > marshes.patchiness) features[index] = TERRAIN_FEATURES.marsh;
+    }
+
+    // Rivers as polylines from each source to the sea, a lake or a confluence.
+    const rivers = [];
+    if (flowing) {
+      const hasChannelChild = new Uint8Array(count), traced = new Uint8Array(count);
+      for (let i = 0; i < count; i += 1) if (channel[i] && !cove[i] && parent[i] >= 0) hasChannelChild[parent[i]] = 1;
+      for (let i = 0; i < flooded; i += 1) {
+        const source = order[flooded - 1 - i];
+        if (!channel[source] || cove[source] || hasChannelChild[source]) continue;
+        const points = [], flows = [];
+        let cell = source;
+        for (;;) {
+          const cx = cell % width, cy = (cell - cx) / width;
+          points.push(cx, cy); flows.push(+(flow[cell] / threshold).toFixed(2));
+          if (traced[cell]) break;
+          traced[cell] = 1;
+          const down = parent[cell];
+          if (down < 0) {
+            // Reach into the neighboring sea for a visible mouth.
+            const sea = NEIGHBORS.find(([dx, dy]) => {
+              const x = cx + dx, y = cy + dy;
+              return x >= 0 && y >= 0 && x < width && y < height && !land[y * width + x];
+            });
+            if (sea) { points.push(cx + sea[0], cy + sea[1]); flows.push(flows.at(-1)); }
+            break;
+          }
+          if (lake[down] || cove[down]) {
+            points.push(down % width, Math.floor(down / width)); flows.push(flows.at(-1));
+            break;
+          }
+          cell = down;
+        }
+        if (points.length >= 6) rivers.push({ points, flows });
+      }
+    }
+
+    // Final heights: land above the sea, lakes and coves at or below it.
+    const reliefHeight = new Uint8Array(count), moisture = new Uint8Array(count);
+    const soften = value => value <= 120 ? value : 120 + 33 * (1 - Math.exp(-(value - 120) / 33));
+    for (let i = 0; i < count; i += 1) {
+      moisture[i] = Math.round(rainfall[i] * 255);
+      if (!land[i]) continue;
+      if (lake[i]) {
+        elevation[i] = seaLevel - clamp(Math.round((filled[i] - ground[i]) / 3), 1, lakes.maxDepth);
+        reliefHeight[i] = seaLevel + clamp(Math.round(soften(filled[i])), 1, 153);
+      } else if (cove[i]) {
+        elevation[i] = reliefHeight[i] = seaLevel - 3;
+      } else {
+        elevation[i] = reliefHeight[i] = seaLevel + clamp(Math.round(soften(heightAbove[i])), 1, 153);
+      }
+    }
+    return { moisture, relief: reliefHeight, features, rivers };
+  }
+
   function createTerrain(seed, width = 320, height = 240, planet = null) {
     width = Math.max(1, Math.floor(width));
     height = Math.max(1, Math.floor(height));
@@ -324,9 +754,10 @@
           const across = (-dx * landform.sin + dy * landform.cos) / landform.radiusY;
           value = Math.max(value, (1 - Math.hypot(along, across)) * landform.radius);
         }
-        for (const [band, { scale, amplitude }] of coast.bands.entries()) {
+        for (let band = 0; band < coast.bands.length; band += 1) {
           // Each band is rotated differently so lattice noise never lines the
           // coast up with the map axes.
+          const { scale, amplitude } = coast.bands[band];
           const cos = bandRotations[band].cos, sin = bandRotations[band].sin;
           value += fbm(offsetX + 7 * band + (u * cos - v * sin) * scale, offsetY - 5 * band + (u * sin + v * cos) * scale,
             terrainSeed ^ (0x5a6a4f29 + band * 0x9e3779b9), band < 2 ? 3 : 2) * amplitude * minSide;
@@ -357,36 +788,27 @@
       water[i] = 1 - land[i];
     }
 
-    // 3. Relief from the distance to the coast: lowlands, hills and mountain
-    // ranges inland; a shelf, then deep ocean offshore.
+    // 3. Relief: inland heights and hydrology on the fixed coastline, then
+    // the shelf and deep ocean offshore.
     const toWater = distanceField(width, height, water), toLand = distanceField(width, height, land);
     const seaLevel = 102;
-    const elevation = new Uint8Array(count), moisture = new Uint8Array(count);
+    const elevation = new Uint8Array(count);
+    const { moisture, relief: reliefHeight, features, rivers } = buildLandRelief({
+      width, height, minSide, land, toWater, offsetX, offsetY, terrainSeed, random, settings,
+      waterFraction: mapWater, seaLevel, elevation
+    });
+    const ocean = settings.relief.ocean;
     for (let y = 0; y < height; y += 1) {
       const v = y / minSide;
       for (let x = 0; x < width; x += 1) {
         const u = x / minSide, index = y * width + x;
-        const broad = fbm(offsetX + u * 1.8, offsetY + v * 1.8, terrainSeed, 3);
-        let mountainMask = 0;
-        if (land[index]) {
-          const inland = 1 - Math.exp(-toWater[index] / (relief.inlandScale * minSide));
-          const hills = (fbm(offsetX + u * relief.hillScale, offsetY + v * relief.hillScale,
-            terrainSeed ^ 0x29f1483b, 3) * .5 + .5) * relief.hillAmplitude * inland;
-          mountainMask = smoothstep((broad + relief.mountainCoverage - .5) * 3) * inland * Math.sqrt(inland);
-          const ridge = Math.pow(1 - Math.abs(fbm(offsetX + u * relief.mountainScale, offsetY + v * relief.mountainScale,
-            terrainSeed ^ 0x3482f129, 4)), relief.mountainPower);
-          const rise = 1 + relief.lowlandRise * inland + hills + ridge * mountainMask * relief.mountainAmplitude;
-          elevation[index] = Math.min(255, seaLevel + Math.max(1, Math.round(rise)));
-        } else {
-          const offshore = toLand[index];
-          const deep = smoothstep(offshore / (relief.oceanScale * minSide));
-          const depth = 1 + relief.shelfDepth * (1 - Math.exp(-offshore / (relief.shelfScale * minSide))) +
-            relief.oceanDepth * deep + fbm(offsetX + 31 + u * 5, offsetY + 17 + v * 5,
-              terrainSeed ^ 0x74a1d2c7, 3) * relief.seabedAmplitude * deep;
-          elevation[index] = Math.max(0, seaLevel - Math.max(0, Math.round(depth)));
-        }
-        moisture[index] = Math.round(clamp(0.52 + fbm(offsetX + u * 6, offsetY + v * 6,
-          terrainSeed ^ 0x19191531, 4) * 0.7 - mountainMask * 0.12, 0, 1) * 255);
+        if (land[index]) continue;
+        const offshore = toLand[index];
+        const deep = smoothstep(offshore / (ocean.oceanScale * minSide));
+        const depth = 1 + ocean.shelfDepth * (1 - Math.exp(-offshore / (ocean.shelfScale * minSide))) +
+          ocean.oceanDepth * deep + fbm(offsetX + 31 + u * 5, offsetY + 17 + v * 5,
+            terrainSeed ^ 0x74a1d2c7, 3) * ocean.seabedAmplitude * deep;
+        elevation[index] = reliefHeight[index] = Math.max(0, seaLevel - Math.max(0, Math.round(depth)));
       }
     }
 
@@ -439,10 +861,10 @@
           abundance: planet?.resources?.oil ?? (0.55 + random() * 0.4) });
       }
     }
-    return { width, height, elevation, moisture, seaLevel, resources };
+    return { width, height, elevation, relief: reliefHeight, features, rivers, moisture, seaLevel, resources };
   }
 
   root.OrbitWorld = Object.freeze({
-    hashSeed, rng, createGalaxy, createSystem, planetPosition, createTerrain
+    hashSeed, rng, createGalaxy, createSystem, planetPosition, createTerrain, TERRAIN_FEATURES
   });
 })(globalThis);
