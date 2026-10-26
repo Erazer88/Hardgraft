@@ -407,17 +407,9 @@
     const anchor = project(frame.x + building.x * frame.scale, frame.y + building.y * frame.scale);
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
-    if (definition.sprite) {
-      const style = SurfaceStyle.buildings;
-      const spriteWidth = Math.max(style.spriteMinWidthPx,
-        Math.max(definition.footprint.width, definition.footprint.height) * style.spriteFootprintScale * localZoom);
-      const spriteHeight = spriteWidth / (definition.spriteAspectRatio || 1);
-      const rotation = (building.rotation || 0) + (definition.spriteRotationOffset || 0);
-      const dx = x - anchor.x, dy = y - anchor.y;
-      const localX = dx * Math.cos(rotation) + dy * Math.sin(rotation);
-      const localY = -dx * Math.sin(rotation) + dy * Math.cos(rotation);
-      if (Math.abs(localX) <= spriteWidth / 2 + 4 && Math.abs(localY) <= spriteHeight / 2 + 4) return true;
-    }
+    // The beacon's head stands above the ground point.
+    const pin = SurfaceStyle.buildings.pin;
+    if (Math.hypot(x - anchor.x, y - (anchor.y - pin.stemPx - pin.headRadiusPx)) <= pin.headRadiusPx + 5) return true;
     if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
     if (building.constructionState === 'complete') return false;
 

@@ -2,7 +2,6 @@
   'use strict';
 
   const Data = root.OrbitBuildingData, Style = root.OrbitSurfaceStyle;
-  const spriteCache = new Map();
 
   function visibleBuildings(frame) {
     return (frame.state.surfaceBuildings || []).filter(building => building.planetId === frame.planet.id);
@@ -47,6 +46,14 @@
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x - size * .52, y + size * .12);
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x + size * .52, y + size * .12); ctx.stroke(); return;
     }
+    if (icon === 'geothermal') {
+      ctx.moveTo(x - size * .7, y + size * .55); ctx.lineTo(x + size * .7, y + size * .55);
+      for (const offset of [-.32, 0, .32]) {
+        ctx.moveTo(x + size * offset, y + size * .35);
+        ctx.bezierCurveTo(x + size * (offset - .18), y + size * .05, x + size * (offset + .18), y - size * .2, x + size * offset, y - size * .55);
+      }
+      ctx.stroke(); return;
+    }
     ctx.moveTo(x - size * .55, y + size * .42); ctx.lineTo(x - size * .55, y - size * .14);
     ctx.lineTo(x - size * .08, y + size * .12); ctx.lineTo(x - size * .08, y - size * .14);
     ctx.lineTo(x + size * .35, y + size * .12); ctx.lineTo(x + size * .35, y - size * .52);
@@ -62,91 +69,94 @@
     return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
   }
 
-  function spriteFor(definition) {
-    if (!definition.sprite || typeof root.Image !== 'function') return null;
-    if (!spriteCache.has(definition.sprite)) {
-      const image = new root.Image();
-      image.src = definition.sprite;
-      spriteCache.set(definition.sprite, image);
+  // Beacon geometry around a building's ground point, in screen pixels.
+  function pinGeometry(frame, building) {
+    const pin = Style.buildings.pin, ground = frame.project(building.x, building.y);
+    return { ground, head: { x: ground.x, y: ground.y - pin.stemPx - pin.headRadiusPx }, radius: pin.headRadiusPx };
+  }
+
+  function hexagon(ctx, x, y, radius) {
+    ctx.beginPath();
+    for (let corner = 0; corner < 6; corner++) {
+      const angle = Math.PI / 6 + corner * Math.PI / 3;
+      const px = x + Math.cos(angle) * radius, py = y + Math.sin(angle) * radius;
+      corner ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     }
-    return spriteCache.get(definition.sprite);
+    ctx.closePath();
   }
 
-  function spriteDimensions(frame, definition, image) {
-    const style = Style.buildings;
-    const width = Math.max(style.spriteMinWidthPx,
-      Math.max(definition.footprint.width, definition.footprint.height) * style.spriteFootprintScale * frame.zoom);
-    const aspect = image?.naturalWidth && image?.naturalHeight ? image.naturalWidth / image.naturalHeight :
-      (definition.spriteAspectRatio || 1);
-    return { width, height: width / aspect };
-  }
-
-  function drawSprite(frame, building, definition, ghost = false) {
-    const image = spriteFor(definition);
-    if (!image || !image.complete || !image.naturalWidth) return;
-    const ctx = frame.context, style = Style.buildings, center = frame.project(building.x, building.y);
-    const { width, height } = spriteDimensions(frame, definition, image);
+  function drawPin(frame, building, definition, ghost = false) {
+    const ctx = frame.context, pin = Style.buildings.pin, { ground, head, radius } = pinGeometry(frame, building);
     const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    const complete = ghost || building.constructionState === 'complete';
+    const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870')
+      : pin.categoryColors[definition.category] || pin.defaultColor;
     ctx.save();
-    ctx.globalAlpha = ghost ? style.spriteGhostOpacity : style.spriteOpacity;
-    ctx.translate(center.x, center.y);
-    ctx.rotate((building.rotation || 0) + (definition.spriteRotationOffset || 0));
-    ctx.drawImage(image, -width / 2, -height / 2, width, height);
-    if (ghost || selected) {
-      const padding = ghost ? 0 : style.spriteSelectedPaddingPx;
-      ctx.strokeStyle = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') : style.selectedOutlineColor;
-      ctx.lineWidth = ghost ? 1.4 : style.selectedOutlineWidthPx;
-      ctx.setLineDash(ghost ? [5, 4] : []);
-      ctx.strokeRect(-width / 2 - padding, -height / 2 - padding, width + padding * 2, height + padding * 2);
+    ctx.globalAlpha = ghost ? pin.ghostOpacity : complete ? 1 : pin.constructionOpacity + (1 - pin.constructionOpacity) * .5;
+    // Ground: a soft shadow and a glowing ring at the exact spot.
+    ctx.fillStyle = 'rgba(4,10,20,.45)';
+    ctx.beginPath(); ctx.ellipse(ground.x, ground.y, pin.groundShadowPx, pin.groundShadowPx * .42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 1.1; ctx.shadowColor = color; ctx.shadowBlur = pin.glowBlurPx * .6;
+    ctx.beginPath(); ctx.ellipse(ground.x, ground.y, pin.groundRingPx, pin.groundRingPx * .55, 0, 0, Math.PI * 2); ctx.stroke();
+    // Stem, then the head with its glow.
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ground.x, ground.y); ctx.lineTo(head.x, head.y + radius); ctx.stroke();
+    ctx.shadowBlur = pin.glowBlurPx;
+    hexagon(ctx, head.x, head.y, radius);
+    ctx.fillStyle = pin.fill; ctx.fill();
+    ctx.lineWidth = pin.lineWidthPx; ctx.setLineDash(complete ? [] : [3, 2.5]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx, pin.glyphColor, definition.icon);
+    if (!complete) {
+      // Construction progress runs around the head.
+      const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
+      ctx.strokeStyle = pin.constructionColor; ctx.lineWidth = pin.progressWidthPx; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(head.x, head.y, radius + 3.5, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
+    }
+    if (selected) {
+      ctx.strokeStyle = Style.buildings.selectedOutlineColor; ctx.lineWidth = Style.buildings.selectedOutlineWidthPx;
+      hexagon(ctx, head.x, head.y, radius + pin.selectedRingPx); ctx.stroke();
     }
     ctx.restore();
+    return color;
   }
 
   function drawFootprint(frame, building, definition, ghost = false) {
     const ctx = frame.context, center = frame.project(building.x, building.y), scale = frame.zoom;
     const width = definition.footprint.width * scale, height = definition.footprint.height * scale;
-    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
     const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870') :
-      selected ? Style.buildings.selectedOutlineColor : '#aebfba';
-    if (definition.sprite) {
-      drawSprite(frame, building, definition, ghost);
-      if (ghost) {
-        ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
-        ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-        ctx.strokeRect(-width / 2, -height / 2, width, height); ctx.restore();
-      }
-    } else {
+      Style.buildings.pin.categoryColors[definition.category] || Style.buildings.pin.defaultColor;
+    if (ghost) {
+      // The placement preview still shows the ground the building will take.
       ctx.save(); ctx.translate(center.x, center.y); ctx.rotate(building.rotation || 0);
-      ctx.fillStyle = ghost ? (frame.state.placement?.valid ? '#76bdb522' : '#e5787022') : '#0b1a24b8';
-      ctx.strokeStyle = color; ctx.lineWidth = ghost ? 1.4 : 1.1; ctx.setLineDash(ghost ? [5, 4] : []);
+      ctx.fillStyle = frame.state.placement?.valid ? '#76bdb522' : '#e5787022';
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
       ctx.fillRect(-width / 2, -height / 2, width, height); ctx.strokeRect(-width / 2, -height / 2, width, height);
-      ctx.setLineDash([]);
-      const glyphSize = Math.max(7, Math.min(13, Math.min(width, height) * .45));
-      drawGlyph(ctx, 0, 0, glyphSize, color, definition.icon);
       ctx.restore();
     }
 
     const port = portPoint(building, definition);
     if (port) {
       const screenPort = frame.project(port.x, port.y);
-      ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = '#0b1826'; ctx.lineWidth = 1;
+      ctx.save(); ctx.strokeStyle = color; ctx.globalAlpha = ghost ? 1 : .55; ctx.fillStyle = '#0b1826'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y);
       if (ghost) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
     }
     const marineOffset = definition.marinePortOffset || definition.seaFacingOffset;
     const waterPort = building.waterPort || (marineOffset && pointOnBuilding(building, marineOffset));
     if (waterPort) {
       const screenPort = frame.project(waterPort.x, waterPort.y);
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(ghost ? [3, 3] : []);
+      ctx.save(); ctx.strokeStyle = color; ctx.globalAlpha = ghost ? 1 : .55; ctx.lineWidth = 1; ctx.setLineDash(ghost ? [3, 3] : []);
       ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 2.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
+    drawPin(frame, building, definition, ghost);
     if (ghost) {
+      const head = pinGeometry(frame, building).head;
       ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
       ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(`${definition.label} · EMPLACEMENT ${frame.state.placement?.valid ? 'VALIDE' : 'INVALIDE'}`,
-        center.x + 12, center.y - height / 2 - 9);
+        head.x + Style.buildings.pin.headRadiusPx + 6, head.y);
       ctx.restore();
     }
   }
@@ -224,5 +234,5 @@
     }
   }
 
-  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards });
+  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards, pinGeometry });
 })(globalThis);

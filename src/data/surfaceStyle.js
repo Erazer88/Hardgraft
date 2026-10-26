@@ -165,11 +165,27 @@
       valueSizePx: 8,
       activityBarHeightPx: 2,
       portRadiusPx: 3.5,
-      spriteFootprintScale: 1.5,
-      spriteMinWidthPx: 7.5,
-      spriteSelectedPaddingPx: 1.5,
-      spriteOpacity: .96,
-      spriteGhostOpacity: .62
+      // Buildings show as beacons: a hexagonal head carrying the building icon,
+      // raised on a thin stem over a glowing ring that marks the exact spot.
+      // Sizes are screen pixels; the outline color follows the category.
+      pin: Object.freeze({
+        headRadiusPx: 10.5,
+        stemPx: 12,
+        groundRingPx: 3,
+        groundShadowPx: 7,
+        fill: '#0b1a2c',
+        lineWidthPx: 1.4,
+        glowBlurPx: 9,
+        glyphSizePx: 10,
+        glyphColor: '#eefcff',
+        categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a' }),
+        defaultColor: '#c9d6dc',
+        selectedRingPx: 4,
+        constructionColor: '#d7a66f',
+        constructionOpacity: .55,
+        progressWidthPx: 2,
+        ghostOpacity: .65
+      })
     }),
     roads: Object.freeze({
       normalColor: '#b9c5c7',

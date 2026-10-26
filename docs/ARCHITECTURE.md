@@ -60,6 +60,14 @@ ombrées avec lignes d'altitude, rivières, lacs et marais, veines de minerai, l
 retracées en vecteurs depuis ce même terrain pour rester nettes au zoom. Il n'y a ni
 terrain haute résolution, ni worker, ni couche WebGL.
 
+Les bâtiments ne sont pas dessinés : `buildingRenderer.js` les signale par des balises
+de point d'intérêt de taille constante à l'écran (`OrbitSurfaceStyle.buildings.pin`),
+une tête hexagonale portant l'icône du bâtiment, colorée selon sa catégorie, posée
+sur une tige au-dessus d'un anneau lumineux qui marque l'emplacement exact. La
+construction progresse en arc autour de la tête ; la sélection ajoute un hexagone
+orange. L'aperçu de placement montre en plus l'emprise au sol. Le clic sur la tête
+sélectionne le bâtiment.
+
 ## Modules denses et limites de refactorisation
 
 - `src/app.js` centralise encore l'état partagé, les gestes, la navigation, les
