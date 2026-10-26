@@ -92,13 +92,23 @@
     return true;
   }
 
-  function elevationAt(terrain, textureScale, xWorld, yWorld) {
+  function sampleAt(values, terrain, textureScale, xWorld, yWorld) {
     const x = xWorld / textureScale, y = yWorld / textureScale;
     const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(terrain.width - 1, x0 + 1), y1 = Math.min(terrain.height - 1, y0 + 1);
     const fx = x - x0, fy = y - y0;
-    const a = terrain.elevation[y0 * terrain.width + x0], b = terrain.elevation[y0 * terrain.width + x1];
-    const c = terrain.elevation[y1 * terrain.width + x0], d = terrain.elevation[y1 * terrain.width + x1];
+    const a = values[y0 * terrain.width + x0], b = values[y0 * terrain.width + x1];
+    const c = values[y1 * terrain.width + x0], d = values[y1 * terrain.width + x1];
     return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+  }
+
+  // Gameplay elevation decides water; slopes are read on the relief the map
+  // draws, which the pathfinder follows too.
+  function elevationAt(terrain, textureScale, xWorld, yWorld) {
+    return sampleAt(terrain.elevation, terrain, textureScale, xWorld, yWorld);
+  }
+
+  function reliefAt(terrain, textureScale, xWorld, yWorld) {
+    return sampleAt(terrain.relief || terrain.elevation, terrain, textureScale, xWorld, yWorld);
   }
 
   function surfaceTypes(points, terrain, textureScale) {
@@ -113,10 +123,10 @@
     let previous = null, previousHeight = 0, previousWater = false;
     for (const point of points) {
       if (point.x < 0 || point.y < 0 || point.x > maxX || point.y > maxY) return false;
-      const height = elevationAt(terrain, textureScale, point.x, point.y);
-      const water = height <= terrain.seaLevel;
+      const elevation = elevationAt(terrain, textureScale, point.x, point.y), height = reliefAt(terrain, textureScale, point.x, point.y);
+      const water = elevation <= terrain.seaLevel;
       if (options.waterOnly && !water) return false;
-      if (!options.allowDeepWater && height < terrain.seaLevel - rules.maxWaterDepth) return false;
+      if (!options.allowDeepWater && elevation < terrain.seaLevel - rules.maxWaterDepth) return false;
       for (const building of buildings) {
         const footprint = Buildings.get(building.type)?.footprint;
         if (!footprint) continue;
@@ -150,5 +160,5 @@
     return null;
   }
 
-  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, surfaceTypes, valid, create });
+  root.OrbitRoadGeometry = Object.freeze({ simplify, catmullRom, resample, followsPath, elevationAt, reliefAt, surfaceTypes, valid, create });
 })(globalThis);

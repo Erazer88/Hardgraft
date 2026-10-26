@@ -44,6 +44,34 @@ simplifiée, lissée et validée contre le terrain. Le calcul appartient aux mod
 `simulation/` et `gameplay/` ; le rendu lit les points calculés et ne choisit pas
 les itinéraires.
 
+### Suivre le terrain
+
+- **Relief affiché.** Le champ de coût lit `terrain.relief` (le relief dessiné,
+  avec canyons et rives de lacs), moyenné sur chaque cellule de routage ; l'eau
+  reste décidée par `terrain.elevation`. La validation géométrique mesure aussi la
+  pente sur ce relief.
+- **Seize caps.** A* avance vers les huit voisins et en saut de cavalier : les
+  routes prennent des angles de 26,6° et 63,4° et tournent progressivement. Le coût
+  de virage est proportionnel à l'angle.
+- **Pente et lacets.** Au-delà d'une pente confortable (`comfortableSlopePerHeightCell`),
+  la pénalité croît fortement (`steepGradePenalty`) : sur un versant raide, il est
+  moins cher de monter en biais, et les virages y coûtent peu
+  (`switchbackTurnMultiplier`), ce qui plie la montée en lacets.
+- **Dévers.** Traverser un flanc coûte selon la pente latérale (`crossSlopePenalty`,
+  terrassements) : les routes préfèrent fonds de vallée et replats.
+- **Rivières.** Les rivières dessinées (`bridgeMinFlow`) se franchissent par un pont,
+  avec un coût d'entrée (`riverCrossing`) ; suivre leur lit coûte (`riverAlong`).
+- **Recherche.** L'heuristique utilise le coût de cellule le plus bas du champ,
+  pondérée par `search.heuristicWeight` pour rester rapide.
+
+### Rendu « filament néon »
+
+Les routes terrestres sont un fil lumineux : deux passes de halo cyan
+(`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde
+gardent leurs points lumineux, les carrefours sont de petits losanges à contour
+lumineux, et chaque franchissement de rivière porte deux rails de pont. Tous les
+réglages sont dans `src/data/roads.js`.
+
 ## Quartiers résidentiels
 
 Les quartiers décoratifs se développent autour des bâtiments de production

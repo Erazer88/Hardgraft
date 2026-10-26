@@ -388,3 +388,46 @@ test('extractors stand anywhere on land and record the richest material of the g
   assert.equal(platform.resourceId, 'oil');
   assert.ok(Math.abs(platform.resourceShare - .2) < .01);
 });
+
+test('roads wind up steep slopes and cross drawn rivers once, on a bridge', () => {
+  const roadContext = vm.createContext({});
+  for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js',
+    'simulation/roadCostField.js', 'simulation/roadPathfinder.js', 'simulation/roadGeometry.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), roadContext);
+  }
+  const { OrbitRoadCostField: Field, OrbitRoadPathfinder: Pathfinder, OrbitRoadGeometry: Geometry } = roadContext;
+  const scale = 3, width = 120, height = 90;
+  const route = (terrain, from, to) => {
+    const base = Field.createBase(terrain, scale);
+    const field = Field.withNetwork(base, null, [], [from, to], null, {});
+    return Geometry.create(Pathfinder.findPath(field, terrain, from, to), terrain, scale, [], {});
+  };
+  const heightAt = (terrain, point) => terrain.relief[Math.round(point.y / scale) * width + Math.round(point.x / scale)];
+
+  // A steep ramp, 4 height units per cell northward: the road climbs at a
+  // gentler grade than the slope by running across it.
+  const ramp = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) ramp[y * width + x] = Math.min(250, 110 + (height - 1 - y) * 1.6);
+  const rampTerrain = { width, height, seaLevel: 102, elevation: ramp, relief: ramp, rivers: [] };
+  const climb = route(rampTerrain, { x: 180, y: 240 }, { x: 180, y: 30 });
+  assert.ok(climb, 'a route climbs the ramp');
+  let length = 0;
+  for (let i = 1; i < climb.points.length; i++) length += Math.hypot(climb.points[i].x - climb.points[i - 1].x, climb.points[i].y - climb.points[i - 1].y);
+  const rise = Math.abs(heightAt(rampTerrain, climb.points[climb.points.length - 1]) - heightAt(rampTerrain, climb.points[0]));
+  assert.ok(length > 210 * 1.3, 'the road is longer than the straight climb');
+  assert.ok(rise / (length / scale) < 1.6 * .8, 'its mean grade is gentler than the slope');
+
+  // Flat land split by a drawn river along x = 60: one crossing only.
+  const flat = new Uint8Array(width * height).fill(120), points = [], flows = [];
+  for (let y = 0; y < height; y++) { points.push(60, y); flows.push(8); }
+  const riverTerrain = { width, height, seaLevel: 102, elevation: flat, relief: flat, rivers: [{ points, flows }] };
+  const crossing = route(riverTerrain, { x: 90, y: 60 }, { x: 270, y: 210 });
+  assert.ok(crossing, 'a route crosses the river');
+  let entries = 0, wasRiver = false;
+  for (const point of crossing.points) {
+    const river = Math.round(point.x / scale) === 60;
+    if (river && !wasRiver) entries++;
+    wasRiver = river;
+  }
+  assert.equal(entries, 1, 'the river is crossed once');
+});

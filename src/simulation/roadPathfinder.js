@@ -2,13 +2,27 @@
   'use strict';
 
   const Config = root.OrbitRoadConfig, Field = root.OrbitRoadCostField;
+  // Sixteen headings: the eight neighbours plus knight moves, so roads can
+  // run at 26.6° and 63.4° and bend gradually instead of in 45° steps.
   const directions = Object.freeze([
-    Object.freeze({ x: 1, y: 0 }), Object.freeze({ x: 1, y: 1 }),
-    Object.freeze({ x: 0, y: 1 }), Object.freeze({ x: -1, y: 1 }),
-    Object.freeze({ x: -1, y: 0 }), Object.freeze({ x: -1, y: -1 }),
-    Object.freeze({ x: 0, y: -1 }), Object.freeze({ x: 1, y: -1 })
-  ]);
-  const NONE = 8, EPSILON = 1e-9;
+    [1, 0], [2, 1], [1, 1], [1, 2], [0, 1], [-1, 2], [-1, 1], [-2, 1],
+    [-1, 0], [-2, -1], [-1, -1], [-1, -2], [0, -1], [1, -2], [1, -1], [2, -1]
+  ].map(([x, y]) => Object.freeze({ x, y, length: Math.hypot(x, y), angle: Math.atan2(y, x),
+    // Cells a move passes between, which must be open too: the two
+    // orthogonal neighbours of a diagonal, the two cells a knight move skims.
+    via: Object.freeze(Math.abs(x) === 2 ? [{ x: Math.sign(x), y: 0 }, { x: Math.sign(x), y: Math.sign(y) }]
+      : Math.abs(y) === 2 ? [{ x: 0, y: Math.sign(y) }, { x: Math.sign(x), y: Math.sign(y) }]
+        : x && y ? [{ x, y: 0 }, { x: 0, y }] : []) })));
+  const HEADINGS = directions.length, NONE = HEADINGS, STATES = HEADINGS + 1, EPSILON = 1e-9;
+  // Turn between two headings, in eighths of a full turn.
+  const turns = new Float64Array(HEADINGS * HEADINGS);
+  for (let from = 0; from < HEADINGS; from++) for (let to = 0; to < HEADINGS; to++) {
+    let turn = Math.abs(directions[to].angle - directions[from].angle);
+    if (turn > Math.PI) turn = 2 * Math.PI - turn;
+    turns[from * HEADINGS + to] = turn / (Math.PI / 4);
+  }
+  // Search buffers are reused between calls of the same size.
+  let buffers = null;
 
   class MinHeap {
     constructor(capacity) {
@@ -69,63 +83,85 @@
     if (field.blocked[start.index] || field.blocked[goal.index]) return null;
     if (start.index === goal.index) return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
 
-    const stateCount = field.count * 9, best = new Float64Array(stateCount), parent = new Int32Array(stateCount);
-    const closed = new Uint8Array(stateCount);
-    best.fill(Infinity); parent.fill(-1);
-    const startState = start.index * 9 + NONE;
+    const stateCount = field.count * STATES;
+    if (!buffers || buffers.size !== stateCount) {
+      buffers = { size: stateCount, best: new Float64Array(stateCount), parent: new Int32Array(stateCount),
+        closed: new Uint8Array(stateCount) };
+    }
+    const { best, parent, closed } = buffers;
+    best.fill(Infinity); parent.fill(-1); closed.fill(0);
+    const startState = start.index * STATES + NONE;
     best[startState] = 0;
-    const heap = new MinHeap(Math.min(4096, Math.max(64, stateCount)));
+    const heap = new MinHeap(4096);
     const minCost = Number.isFinite(field.minimumCost) ? field.minimumCost : Config.weights.roadReuse;
+    // Above 1 the search trades a little optimality for speed.
+    const heuristicWeight = Config.search.heuristicWeight || 1;
     const heuristic = index => {
       const x = index % field.width, y = Math.floor(index / field.width);
-      return Math.hypot(goal.x - x, goal.y - y) * minCost;
+      return Math.hypot(goal.x - x, goal.y - y) * minCost * heuristicWeight;
     };
     heap.push(startState, 0, heuristic(start.index));
 
+    const weights = Config.weights, elevations = field.elevations;
     let found = -1, expanded = 0;
-    const elevationAt = index => field.elevations[index];
     while (heap.size) {
       const currentState = heap.pop(), queuedG = heap.poppedG;
       if (closed[currentState] || queuedG > best[currentState] + EPSILON) continue;
       if (++expanded > Config.search.maxExpandedStates) return null;
       closed[currentState] = 1;
-      const current = Math.floor(currentState / 9), incoming = currentState % 9;
+      const current = Math.floor(currentState / STATES), incoming = currentState % STATES;
       if (current === goal.index) { found = currentState; break; }
-      const x = current % field.width, y = Math.floor(current / field.width), currentElevation = elevationAt(current);
-      for (let direction = 0; direction < directions.length; direction++) {
+      const x = current % field.width, y = Math.floor(current / field.width), currentElevation = elevations[current];
+      // Grade of the step that led here: climbing roads fold into hairpins,
+      // so turning is cheap on a steep grade.
+      let previousGrade = 0;
+      if (incoming !== NONE) {
+        const previousDirection = directions[incoming];
+        const previousX = x - previousDirection.x, previousY = y - previousDirection.y;
+        if (previousX >= 0 && previousY >= 0 && previousX < field.width && previousY < field.height) {
+          const previous = previousY * field.width + previousX;
+          if (!field.water[previous] && !field.water[current]) {
+            previousGrade = Math.abs(currentElevation - elevations[previous]) / (field.step * previousDirection.length);
+          }
+        }
+      }
+      for (let direction = 0; direction < HEADINGS; direction++) {
         const delta = directions[direction], nx = x + delta.x, ny = y + delta.y;
         if (nx < 0 || ny < 0 || nx >= field.width || ny >= field.height) continue;
         const next = ny * field.width + nx;
         if (field.blocked[next]) continue;
-        if (delta.x && delta.y && current !== start.index && next !== goal.index &&
-            (field.blocked[y * field.width + nx] || field.blocked[ny * field.width + x])) continue;
-        const elevationDelta = elevationAt(next) - currentElevation;
-        const travel = delta.x && delta.y ? Math.SQRT2 : 1;
-        const grade = Math.abs(elevationDelta) / (field.step * travel);
+        if (current !== start.index && next !== goal.index) {
+          let squeezed = false;
+          for (const cell of delta.via) if (field.blocked[(y + cell.y) * field.width + x + cell.x]) { squeezed = true; break; }
+          if (squeezed) continue;
+        }
+        const travel = delta.length, run = field.step * travel;
+        const elevationDelta = elevations[next] - currentElevation;
+        const grade = Math.abs(elevationDelta) / run;
         const bothLand = !field.water[current] && !field.water[next];
-        if (bothLand && grade > Config.weights.maxSlopePerHeightCell) continue;
-        const rise = bothLand ? Math.max(0, elevationDelta) / (field.step * travel) : 0;
-        const fall = bothLand ? Math.max(0, -elevationDelta) / (field.step * travel) : 0;
-        const excessGrade = bothLand ? Math.max(0, grade - Config.weights.comfortableSlopePerHeightCell) : 0;
-        const slopeCost = rise * Config.weights.uphillPerElevation + fall * Config.weights.downhillPerElevation +
-          excessGrade * excessGrade * Config.weights.steepGradePenalty;
+        if (bothLand && grade > weights.maxSlopePerHeightCell) continue;
+        const rise = bothLand ? Math.max(0, elevationDelta) / run : 0;
+        const fall = bothLand ? Math.max(0, -elevationDelta) / run : 0;
+        const excessGrade = bothLand ? Math.max(0, grade - weights.comfortableSlopePerHeightCell) : 0;
+        // Earthworks: cutting across a hillside costs with the side slope.
+        let crossSlope = 0;
+        if (bothLand && field.slopeX) {
+          const slopeX = (field.slopeX[current] + field.slopeX[next]) / 2, slopeY = (field.slopeY[current] + field.slopeY[next]) / 2;
+          crossSlope = Math.abs(slopeX * delta.y - slopeY * delta.x) / travel;
+        }
+        const slopeCost = rise * weights.uphillPerElevation + fall * weights.downhillPerElevation +
+          excessGrade * excessGrade * weights.steepGradePenalty + crossSlope * crossSlope * weights.crossSlopePenalty;
+        // Rivers are crossed by a bridge, never followed down their bed.
+        const riverCost = field.river?.[next] ? (field.river[current] ? weights.riverAlong : weights.riverCrossing) : 0;
         let turnCost = 0;
         if (incoming !== NONE) {
-          const turn = Math.abs(direction - incoming);
-          const previousDirection = directions[incoming];
-          const previousX = x - previousDirection.x, previousY = y - previousDirection.y;
-          const previous = previousX >= 0 && previousY >= 0 && previousX < field.width && previousY < field.height
-            ? previousY * field.width + previousX : -1;
-          const previousTravel = Math.hypot(previousDirection.x, previousDirection.y);
-          const previousRise = previous >= 0 && !field.water[previous] && !field.water[current]
-            ? Math.max(0, currentElevation - elevationAt(previous)) / (field.step * previousTravel) : 0;
-          const climbingGrade = Math.max(previousRise, rise);
-          const turnMultiplier = climbingGrade >= Config.weights.switchbackGradePerHeightCell
-            ? Config.weights.switchbackTurnMultiplier : 1;
-          turnCost = Math.min(turn, 8 - turn) * Config.weights.directionChange * turnMultiplier;
+          const turnMultiplier = Math.max(previousGrade, grade) >= weights.switchbackGradePerHeightCell
+            ? weights.switchbackTurnMultiplier : 1;
+          turnCost = turns[incoming * HEADINGS + direction] * weights.directionChange * turnMultiplier;
         }
-        const nextState = next * 9 + direction;
-        const nextG = best[currentState] + travel * ((field.costs[current] + field.costs[next]) / 2 + slopeCost) + turnCost;
+        const nextState = next * STATES + direction;
+        const nextG = best[currentState] + travel * ((field.costs[current] + field.costs[next]) / 2 + slopeCost) +
+          turnCost + riverCost;
         if (nextG + EPSILON >= best[nextState]) continue;
         best[nextState] = nextG; parent[nextState] = currentState; closed[nextState] = 0;
         heap.push(nextState, nextG, heuristic(next));
@@ -135,7 +171,7 @@
 
     const cells = [];
     for (let current = found; current >= 0; current = parent[current]) {
-      cells.push(Math.floor(current / 9));
+      cells.push(Math.floor(current / STATES));
       if (current === startState) break;
     }
     cells.reverse();

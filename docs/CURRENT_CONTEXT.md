@@ -25,6 +25,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 - Le modèle de transport cible agrège les transferts entre bâtiments. Actuellement,
   le Dock transfère vers une usine avec Quai d'entrée ou une Plateforme de lancement
   lorsqu'une route construite les relie. Les routes n'ont pas de capacité ni de durée.
+  Leur tracé suit le relief affiché (vallées, lacets sur les pentes, ponts sur les
+  rivières) et elles s'affichent en filament néon.
   Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 - La carte planétaire utilise la couche visuelle néon issue de la branche

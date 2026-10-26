@@ -13,12 +13,18 @@
       valleyScale: 10,
       uphillPerElevation: .15,
       downhillPerElevation: .1,
-      comfortableSlopePerHeightCell: 1,
-      steepGradePenalty: .7,
+      comfortableSlopePerHeightCell: .8,
+      steepGradePenalty: 4,
       maxSlopePerHeightCell: 12,
       directionChange: .14,
-      switchbackGradePerHeightCell: 2.5,
+      switchbackGradePerHeightCell: .8,
       switchbackTurnMultiplier: .28,
+      // Side slope of the hillside a road cuts across (earthworks).
+      crossSlopePenalty: .03,
+      // Drawn rivers (from this flow) are crossed by bridges, not followed.
+      bridgeMinFlow: 2,
+      riverCrossing: 5,
+      riverAlong: 2.5,
       shallowWaterMultiplier: 22,
       marineWaterMultiplier: 64,
       roadReuse: .02,
@@ -32,7 +38,7 @@
       maxWaterDepth: 16,
       buildingClearance: 2
     }),
-    search: Object.freeze({ maxExpandedStates: 500000 }),
+    search: Object.freeze({ maxExpandedStates: 500000, heuristicWeight: 1.6 }),
     marine: Object.freeze({
       waterCost: .65,
       docking: Object.freeze({
@@ -67,17 +73,31 @@
       maxSplineDeviation: 8,
       validationRetries: 4
     }),
+    // Neon filament: a soft cyan glow in two passes under a white core.
     render: Object.freeze({
-      landColor: '#f2f4ef',
-      landOpacity: .86,
-      landWidthPx: 1.25,
-      waterColor: '#f2f4ef',
-      waterOpacity: .82,
+      landColor: '#effcff',
+      landOpacity: .95,
+      landWidthPx: 1.2,
+      glowColor: '#78f0ff',
+      glowPasses: Object.freeze([
+        Object.freeze({ widthPx: 7, opacity: .13 }),
+        Object.freeze({ widthPx: 3.4, opacity: .38 })
+      ]),
+      waterColor: '#b8f6ff',
+      waterOpacity: .9,
       waterDotRadiusPx: 1.15,
       waterDotSpacingPx: 7,
-      junctionColor: '#f2f4ef',
-      junctionRadiusPx: 2.1,
-      marineColor: '#f2f4ef',
+      // Junctions are small diamonds: dark center, glowing outline.
+      junctionColor: '#9ff4ff',
+      junctionFill: '#0b1a2c',
+      junctionHalfSizePx: 4.2,
+      junctionLineWidthPx: 1.3,
+      // Bridges: two short rails on both sides of the road over a river.
+      bridgeColor: '#effcff',
+      bridgeLengthPx: 7,
+      bridgeOffsetPx: 3.2,
+      bridgeWidthPx: 1.1,
+      marineColor: '#9ff4ff',
       marineOpacity: .6,
       marineWidthPx: 1.25,
       marineDashPx: Object.freeze([6, 5]),

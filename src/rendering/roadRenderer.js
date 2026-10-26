@@ -1,9 +1,9 @@
 (function (root) {
   'use strict';
 
-  const Style = root.OrbitRoadConfig.render;
+  const Style = root.OrbitRoadConfig.render, Weights = root.OrbitRoadConfig.weights;
 
-  function roadRuns(frame, segment, opacity = 1, color = Style.landColor, waterOpacity = Style.waterOpacity) {
+  function roadRuns(frame, segment, opacity = 1, color = Style.landColor, waterOpacity = Style.waterOpacity, drawDots = true) {
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
     let landOpen = false, waterOpen = false, waterProgress = Style.waterDotSpacingPx / 2;
@@ -25,7 +25,7 @@
       if (isWater) {
         if (landOpen) { ctx.stroke(); ctx.beginPath(); landOpen = false; }
         if (!waterOpen) waterProgress = Style.waterDotSpacingPx / 2;
-        waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity, color, waterOpacity);
+        if (drawDots) waterProgress = drawWaterDots(ctx, screenA, screenB, waterProgress, opacity, color, waterOpacity);
         waterOpen = true;
       } else {
         waterOpen = false; waterProgress = Style.waterDotSpacingPx / 2;
@@ -136,27 +136,93 @@
     frame.context.restore();
   }
 
+  // Cells of the rivers the map draws, per terrain, for bridges.
+  const riverCellCache = new WeakMap();
+  function riverCells(terrain) {
+    if (riverCellCache.has(terrain)) return riverCellCache.get(terrain);
+    const cells = new Set();
+    for (const course of terrain.rivers || []) for (let i = 0; i < course.points.length; i += 2) {
+      if (course.flows[i / 2] >= Weights.bridgeMinFlow) cells.add(course.points[i + 1] * terrain.width + course.points[i]);
+    }
+    riverCellCache.set(terrain, cells);
+    return cells;
+  }
+
+  // Bridge positions of a land segment, in world units, where it enters a river.
+  const bridgeCache = new WeakMap();
+  function bridges(segment, terrain) {
+    if (!terrain?.rivers || segment.routeType === 'marine') return [];
+    if (bridgeCache.has(segment.points)) return bridgeCache.get(segment.points);
+    const scale = root.OrbitConfig.terrain.textureScale, cells = riverCells(terrain), found = [];
+    let wasRiver = false, lastDistance = -Infinity, walked = 0;
+    for (let i = 1; i < segment.points.length; i++) {
+      const a = segment.points[i - 1], b = segment.points[i], length = Math.hypot(b.x - a.x, b.y - a.y);
+      const cell = Math.round(b.y / scale) * terrain.width + Math.round(b.x / scale);
+      const river = cells.has(cell) && !segment.surfaceTypes?.[i - 1];
+      walked += length;
+      if (river && !wasRiver && walked - lastDistance > scale * 2 && length > 1e-6) {
+        found.push({ x: b.x, y: b.y, angle: Math.atan2(b.y - a.y, b.x - a.x), distance: walked });
+        lastDistance = walked;
+      }
+      wasRiver = river;
+    }
+    bridgeCache.set(segment.points, found);
+    return found;
+  }
+
+  function drawBridges(frame, segment) {
+    const built = Number.isFinite(segment.builtLength) ? segment.builtLength : segment.length, ctx = frame.context;
+    for (const bridge of bridges(segment, frame.terrain)) {
+      if (bridge.distance > built) break;
+      const point = frame.project(bridge.x, bridge.y), along = Style.bridgeLengthPx / 2, side = Style.bridgeOffsetPx;
+      const cos = Math.cos(bridge.angle), sin = Math.sin(bridge.angle);
+      ctx.beginPath();
+      for (const offset of [-side, side]) {
+        ctx.moveTo(point.x - cos * along - sin * offset, point.y - sin * along + cos * offset);
+        ctx.lineTo(point.x + cos * along - sin * offset, point.y + sin * along + cos * offset);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function drawJunction(ctx, point) {
+    const size = Style.junctionHalfSizePx;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - size); ctx.lineTo(point.x + size, point.y);
+    ctx.lineTo(point.x, point.y + size); ctx.lineTo(point.x - size, point.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
   function render(frame) {
     const network = frame.state.roadNetworks?.[frame.planet.id];
     const ctx = frame.context;
     if (network) {
-      ctx.save(); ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = Style.landOpacity;
-      for (const segment of network.segments) {
-        if (segment.points?.length < 2 || !visible(frame, segment)) continue;
-        if (segment.routeType === 'marine') marineRun(frame, segment);
-        else roadRuns(frame, segment);
-        drawConstructionHead(frame, segment);
+      const segments = network.segments.filter(segment => segment.points?.length >= 2 && visible(frame, segment));
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // Glow passes first, then the white core with its causeway dots.
+      for (const pass of Style.glowPasses) {
+        ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx; ctx.globalAlpha = pass.opacity;
+        for (const segment of segments) if (segment.routeType !== 'marine') roadRuns(frame, segment, 1, Style.landColor, 0, false);
       }
+      ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx; ctx.globalAlpha = Style.landOpacity;
+      for (const segment of segments) {
+        if (segment.routeType === 'marine') marineRun(frame, segment);
+        else roadRuns(frame, segment, 1, Style.waterColor);
+      }
+      ctx.strokeStyle = Style.bridgeColor; ctx.lineWidth = Style.bridgeWidthPx; ctx.globalAlpha = Style.landOpacity;
+      for (const segment of segments) drawBridges(frame, segment);
+      for (const segment of segments) drawConstructionHead(frame, segment);
       ctx.restore();
-      ctx.fillStyle = Style.junctionColor; ctx.globalAlpha = Style.landOpacity;
+      ctx.save();
+      ctx.fillStyle = Style.junctionFill; ctx.strokeStyle = Style.junctionColor; ctx.lineWidth = Style.junctionLineWidthPx;
+      ctx.shadowColor = Style.glowColor; ctx.shadowBlur = 8;
       for (const node of network.nodes) {
         if ((node.type !== 'intersection' && node.isIntersection !== true) || !reachedIntersection(network, node)) continue;
-        const point = frame.project(node.x, node.y);
-        if (point.x < -4 || point.y < -4 || point.x > frame.viewport.width + 4 || point.y > frame.viewport.height + 4) continue;
-        ctx.beginPath(); ctx.arc(point.x, point.y, Style.junctionRadiusPx, 0, Math.PI * 2); ctx.fill();
+        const point = frame.project(node.x, node.y), margin = Style.junctionHalfSizePx + 2;
+        if (point.x < -margin || point.y < -margin || point.x > frame.viewport.width + margin || point.y > frame.viewport.height + margin) continue;
+        drawJunction(ctx, point);
       }
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     const preview = frame.state.roadPreview;
@@ -171,10 +237,15 @@
       const color = preview.valid ? Style.landColor : (preview.color || Style.landColor);
       const lineWidth = Number.isFinite(preview.lineWidth) ? preview.lineWidth : Style.landWidthPx;
       const waterOpacity = Number.isFinite(preview.waterOpacity) ? preview.waterOpacity : Style.waterOpacity;
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = lineWidth;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = opacity;
+      const draft = { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length };
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (preview.valid) for (const pass of Style.glowPasses) {
+        ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx; ctx.globalAlpha = pass.opacity * opacity;
+        roadRuns(frame, draft, opacity, color, 0, false);
+      }
+      ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.globalAlpha = opacity;
       ctx.setLineDash(preview.valid ? [] : (preview.dash || []));
-      roadRuns(frame, { points: preview.points, surfaceTypes: preview.surfaceTypes || [], length, builtLength: length }, opacity, color, waterOpacity);
+      roadRuns(frame, draft, opacity, color, waterOpacity);
       ctx.restore();
     }
   }

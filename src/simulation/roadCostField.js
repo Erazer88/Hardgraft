@@ -4,22 +4,42 @@
   const Config = root.OrbitRoadConfig, Buildings = root.OrbitBuildingData;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+  // Roads read the relief the map draws (canyons, lake shores, strata),
+  // averaged over each routing cell; water still comes from the gameplay
+  // elevation. Every cell keeps its slope vector, so the pathfinder can
+  // charge earthworks for crossing a hillside, and marks drawn rivers so
+  // crossings become explicit bridges.
   function createBase(terrain, textureScale) {
     const step = Config.gridStep;
     const width = Math.floor((terrain.width - 1) / step) + 1;
     const height = Math.floor((terrain.height - 1) / step) + 1;
     const count = width * height, costs = new Float32Array(count), blocked = new Uint8Array(count);
-    const elevations = new Uint8Array(count), water = new Uint8Array(count), seaLevel = terrain.seaLevel;
+    const elevations = new Float32Array(count), water = new Uint8Array(count), seaLevel = terrain.seaLevel;
+    const slopeX = new Float32Array(count), slopeY = new Float32Array(count), river = new Uint8Array(count);
     const valueAt = (x, y) => elevations[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
-    const weights = Config.weights, radius = weights.valleyRadiusCells;
+    const weights = Config.weights, radius = weights.valleyRadiusCells, relief = terrain.relief || terrain.elevation;
 
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const sourceX = Math.min(terrain.width - 1, x * step), sourceY = Math.min(terrain.height - 1, y * step);
-      elevations[y * width + x] = terrain.elevation[sourceY * terrain.width + sourceX];
+      let total = 0, samples = 0;
+      for (let oy = -Math.floor(step / 2); oy <= Math.floor(step / 2); oy++) for (let ox = -Math.floor(step / 2); ox <= Math.floor(step / 2); ox++) {
+        const sx = clamp(sourceX + ox, 0, terrain.width - 1), sy = clamp(sourceY + oy, 0, terrain.height - 1);
+        total += relief[sy * terrain.width + sx]; samples++;
+      }
+      elevations[y * width + x] = total / samples;
+      water[y * width + x] = terrain.elevation[sourceY * terrain.width + sourceX] <= seaLevel ? 1 : 0;
+    }
+    for (const course of terrain.rivers || []) {
+      for (let i = 0; i < course.points.length; i += 2) {
+        if (course.flows[i / 2] < weights.bridgeMinFlow) continue;
+        const x = Math.round(course.points[i] / step), y = Math.round(course.points[i + 1] / step);
+        if (x >= 0 && y >= 0 && x < width && y < height) river[y * width + x] = 1;
+      }
     }
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-      const index = y * width + x, elevation = elevations[index], depth = seaLevel - elevation;
-      water[index] = depth >= 0 ? 1 : 0;
+      const index = y * width + x, elevation = elevations[index];
+      const depth = seaLevel - terrain.elevation[Math.min(terrain.height - 1, y * step) * terrain.width +
+        Math.min(terrain.width - 1, x * step)];
       if (depth > Config.obstacles.maxWaterDepth) { blocked[index] = 1; costs[index] = Infinity; continue; }
       let localTotal = 0, localCount = 0;
       for (let oy = -radius; oy <= radius; oy++) for (let ox = -radius; ox <= radius; ox++) {
@@ -28,6 +48,7 @@
       const localAverage = localTotal / localCount;
       const dx = (valueAt(x + 1, y) - valueAt(x - 1, y)) / (2 * step);
       const dy = (valueAt(x, y + 1) - valueAt(x, y - 1)) / (2 * step);
+      slopeX[index] = dx; slopeY[index] = dy;
       const roughness = Math.hypot(dx, dy);
       const valley = clamp((localAverage - elevation) / weights.valleyScale, 0, 1);
       let cost = weights.landBase + Math.max(0, elevation - seaLevel) * weights.highlandPerElevation +
@@ -35,9 +56,12 @@
       if (depth > 0) cost *= weights.shallowWaterMultiplier;
       costs[index] = Math.max(weights.roadReuse, cost);
     }
+    // The cheapest cell bounds the A* heuristic without overestimating.
+    let minimumCost = Infinity;
+    for (let index = 0; index < count; index++) if (costs[index] < minimumCost) minimumCost = costs[index];
     return { width, height, count, step, textureScale, cellWorld: step * textureScale,
       terrainWidth: terrain.width, terrainHeight: terrain.height, seaLevel,
-      costs, blocked, elevations, water };
+      costs, blocked, elevations, water, slopeX, slopeY, river, minimumCost };
   }
 
   function createMarine(base) {
@@ -63,6 +87,7 @@
 
   function withNetwork(base, network, buildings = [], endpoints = [], skipSegmentId = null, options = {}) {
     const costs = new Float32Array(base.costs), blocked = new Uint8Array(base.blocked);
+    let minimumCost = base.minimumCost;
     if (options.allowDeepWater) for (let index = 0; index < base.count; index++) {
       if (!base.water[index]) continue;
       blocked[index] = 0; costs[index] = Config.weights.marineWaterMultiplier;
@@ -80,8 +105,8 @@
         if (options.avoidExistingRoads) {
           if (distance <= .01) costs[index] = Math.max(costs[index], Config.weights.manualRoadCenterCost);
           else if (distance <= influence + .35) costs[index] = Math.max(costs[index], Config.weights.manualRoadInfluenceCost);
-        } else if (distance <= .01) costs[index] = Math.min(costs[index], roadCost);
-        else if (distance <= influence + .35) costs[index] = Math.min(costs[index], nearCost);
+        } else if (distance <= .01) { costs[index] = Math.min(costs[index], roadCost); minimumCost = Math.min(minimumCost, roadCost); }
+        else if (distance <= influence + .35) { costs[index] = Math.min(costs[index], nearCost); minimumCost = Math.min(minimumCost, nearCost); }
       }
     }
     for (const segment of network?.segments || []) {
@@ -124,8 +149,9 @@
       blocked[index] = 0;
       costs[index] = options.avoidExistingRoads ? base.costs[index] :
         Number.isFinite(costs[index]) ? Math.max(Config.weights.roadReuse, costs[index]) : Config.weights.landBase;
+      minimumCost = Math.min(minimumCost, costs[index]);
     }
-    return { ...base, costs, blocked };
+    return { ...base, costs, blocked, minimumCost };
   }
 
   root.OrbitRoadCostField = Object.freeze({ createBase, createMarine, withNetwork, pointToCell, cellIndex });
