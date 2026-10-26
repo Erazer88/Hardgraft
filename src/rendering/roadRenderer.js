@@ -151,7 +151,7 @@
   // Bridge positions of a land segment, in world units, where it enters a river.
   const bridgeCache = new WeakMap();
   function bridges(segment, terrain) {
-    if (!terrain?.rivers || segment.routeType === 'marine') return [];
+    if (!terrain?.rivers || segment.routeType === 'marine' || segment.leg) return [];
     if (bridgeCache.has(segment.points)) return bridgeCache.get(segment.points);
     const scale = root.OrbitConfig.terrain.textureScale, cells = riverCells(terrain), found = [];
     let wasRiver = false, lastDistance = -Infinity, walked = 0;
@@ -185,6 +185,22 @@
     }
   }
 
+  // Roads end on the building's ground ring: a short leg joins each reached
+  // building node (its road or water port) to the building's own position.
+  function buildingLegs(frame, network) {
+    const buildings = new Map((frame.state.surfaceBuildings || []).map(building => [building.id, building])), legs = [];
+    for (const node of network.nodes) {
+      const building = node.buildingId && buildings.get(node.buildingId);
+      if (!building) continue;
+      const length = Math.hypot(building.x - node.x, building.y - node.y);
+      if (length < 1e-6 || !network.segments.some(segment =>
+        (segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id))) continue;
+      legs.push({ leg: true, points: [{ x: node.x, y: node.y }, { x: building.x, y: building.y }], surfaceTypes: [false],
+        length, builtLength: length, routeType: node.connectionMode === 'marine' ? 'marine' : 'land' });
+    }
+    return legs;
+  }
+
   function drawJunction(ctx, point) {
     const size = Style.junctionHalfSizePx;
     ctx.beginPath();
@@ -197,7 +213,8 @@
     const network = frame.state.roadNetworks?.[frame.planet.id];
     const ctx = frame.context;
     if (network) {
-      const segments = network.segments.filter(segment => segment.points?.length >= 2 && visible(frame, segment));
+      const segments = network.segments.concat(buildingLegs(frame, network))
+        .filter(segment => segment.points?.length >= 2 && visible(frame, segment));
       ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // Glow passes first, then the white core with its causeway dots.
       for (const pass of Style.glowPasses) {

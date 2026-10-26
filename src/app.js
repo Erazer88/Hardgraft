@@ -343,7 +343,13 @@
     const validation = BuildingPlacement.validate({ terrain: terrainData,
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
-    state.placement = { type, ...position, rotation: 0, ...validation };
+    state.placement = { type, ...position, rotation: 0, ...validation,
+      groundText: validation.composition ? groundReadout(validation.composition) : null };
+  }
+  // The ores a drill would drain, shown under its beacon: "Fer ≈ 30 % · Silice ≈ 10 %".
+  function groundReadout(composition) {
+    const text = hud.compositionText({ ...composition, rock: 0 }, 3);
+    return text === 'Inconnue' ? 'Roche seule' : text;
   }
   function placeSurfaceBuilding() {
     const preview = state.placement;
@@ -387,7 +393,8 @@
   function selectSurfaceBuilding(building) {
     cancelRoadDrag();
     state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-    state.selected = { kind: 'building', ...building };
+    state.selected = { kind: 'building', ...building,
+      groundText: building.composition ? groundReadout(building.composition) : null };
     hud.showSelection(state.selected, { state }); updateUI();
   }
   function demolishSelectedBuilding() {
@@ -541,6 +548,17 @@
       baseField: record.roadCostField, buildings: state.surfaceBuildings };
   }
 
+  // Like built roads, a preview reaches the ground ring of the buildings it joins.
+  function anchorRoadPreview(points, surfaceTypes, from, to) {
+    const anchor = endpoint => endpoint?.kind === 'building'
+      ? state.surfaceBuildings.find(building => building.id === endpoint.buildingId) : null;
+    const start = anchor(from), end = anchor(to);
+    return {
+      points: [...(start ? [{ x: start.x, y: start.y }] : []), ...points, ...(end ? [{ x: end.x, y: end.y }] : [])],
+      surfaceTypes: [...(start ? [false] : []), ...(surfaceTypes || []), ...(end ? [false] : [])]
+    };
+  }
+
   function roadTerrainPointAt(screenX, screenY) {
     const frame = surfaceFrame(), world = unproject(screenX, screenY);
     return { x: (world.x - frame.x) / frame.scale, y: (world.y - frame.y) / frame.scale };
@@ -555,8 +573,9 @@
     roadDrag.target = target;
     if (target) {
       const preview = RoadPlacement.previewBetween(roadRouteParameters(roadDrag.from, target));
+      const anchored = preview.connected ? anchorRoadPreview(preview.points, preview.surfaceTypes, roadDrag.from, target) : null;
       state.roadPreview = preview.connected
-        ? { points: preview.points, surfaceTypes: preview.surfaceTypes, valid: true, snapped: true,
+        ? { points: anchored.points, surfaceTypes: anchored.surfaceTypes, valid: true, snapped: true,
           routeType: preview.routeType,
           opacity: preview.routeType === 'marine' ? RoadPlacement.config.render.marineOpacity : RoadPlacement.config.interaction.previewOpacity,
           fromPoint: roadDrag.from.point, toPoint: target.point }

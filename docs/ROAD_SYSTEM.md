@@ -66,6 +66,10 @@ les itinéraires.
 
 ### Rendu « filament néon »
 
+Le point de raccordement d'un bâtiment (`roadPort`, `waterPort`) reste la fin du
+tracé calculé, mais il n'est plus dessiné : le rendu prolonge chaque route atteinte
+jusqu'à l'anneau au sol de la balise, et l'aperçu fait de même.
+
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan
 (`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde
 gardent leurs points lumineux, les carrefours sont de petits losanges à contour

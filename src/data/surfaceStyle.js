@@ -188,6 +188,10 @@
         constructionColor: '#d7a66f',
         constructionOpacity: .55,
         progressWidthPx: 3,
+        // Ground readout under a drill being placed or selected.
+        readoutSizePx: 10,
+        readoutFill: 'rgba(6,14,28,.86)',
+        readoutColor: '#eefcff',
         ghostOpacity: .65
       })
     }),

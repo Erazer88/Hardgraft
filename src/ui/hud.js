@@ -175,7 +175,7 @@
           ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
           ['RESSOURCE', building.resourceId ? `${resourceName(building.resourceId)}${Number.isFinite(building.resourceShare)
             ? ` · ${approximateShare(building.resourceShare)}` : ''}` : 'Selon le sol'],
-          ['SOL', compositionText(building.composition)],
+          [`SOL · MOY. ${BuildingData.get('extractor')?.catchmentRadius || ''} KM`, compositionText(building.composition)],
           ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
           ['STOCK REÇU', receivedText]
         ],

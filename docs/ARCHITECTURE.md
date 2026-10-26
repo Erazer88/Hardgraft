@@ -66,7 +66,10 @@ une tête hexagonale portant l'icône du bâtiment, colorée selon sa catégorie
 sur une tige au-dessus d'un anneau lumineux qui marque l'emplacement exact. La
 construction progresse en arc autour de la tête ; la sélection ajoute un hexagone
 orange. L'aperçu de placement montre en plus l'emprise au sol. Le clic sur la tête
-sélectionne le bâtiment.
+sélectionne le bâtiment. Pendant le placement d'une foreuse, et lorsqu'elle est
+sélectionnée, son rayon de captage est tracé en pointillés et une étiquette sous
+l'anneau donne les minerais qu'elle draine (texte préparé par `app.js`, qui garde
+la mise en forme dans l'UI).
 
 ## Modules denses et limites de refactorisation
 

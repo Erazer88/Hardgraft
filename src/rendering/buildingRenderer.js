@@ -61,14 +61,6 @@
     ctx.beginPath(); ctx.moveTo(x - size * .7, y + size * .48); ctx.lineTo(x + size * .75, y + size * .48); ctx.stroke();
   }
 
-  function portPoint(building, definition) {
-    if (building.roadPort) return building.roadPort;
-    const offset = definition.roadPortOffset;
-    if (!offset) return null;
-    const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
-    return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
-  }
-
   // Beacon geometry around a building's ground point, in screen pixels.
   function pinGeometry(frame, building) {
     const pin = Style.buildings.pin, ground = frame.project(building.x, building.y);
@@ -135,22 +127,10 @@
       ctx.restore();
     }
 
-    const port = portPoint(building, definition);
-    if (port) {
-      const screenPort = frame.project(port.x, port.y);
-      ctx.save(); ctx.strokeStyle = color; ctx.globalAlpha = ghost ? 1 : .55; ctx.fillStyle = '#0b1826'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y);
-      if (ghost) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
-    }
-    const marineOffset = definition.marinePortOffset || definition.seaFacingOffset;
-    const waterPort = building.waterPort || (marineOffset && pointOnBuilding(building, marineOffset));
-    if (waterPort) {
-      const screenPort = frame.project(waterPort.x, waterPort.y);
-      ctx.save(); ctx.strokeStyle = color; ctx.globalAlpha = ghost ? 1 : .55; ctx.lineWidth = 1; ctx.setLineDash(ghost ? [3, 3] : []);
-      ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(screenPort.x, screenPort.y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(screenPort.x, screenPort.y, ghost ? 4 : 2.5, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-    }
+    // A drill being placed or selected shows the ground it drains and what it holds.
+    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    const groundText = ghost ? frame.state.placement?.groundText : selected ? frame.state.selected.groundText : null;
+    if (groundText) drawGroundReadout(frame, building, definition, groundText, color);
     drawPin(frame, building, definition, ghost);
     if (ghost) {
       const head = pinGeometry(frame, building).head;
@@ -162,9 +142,23 @@
     }
   }
 
-  function pointOnBuilding(building, offset) {
-    const rotation = building.rotation || 0, cos = Math.cos(rotation), sin = Math.sin(rotation);
-    return { x: building.x + offset.x * cos - offset.y * sin, y: building.y + offset.x * sin + offset.y * cos };
+  function drawGroundReadout(frame, building, definition, text, color) {
+    const ctx = frame.context, pin = Style.buildings.pin, ground = frame.project(building.x, building.y);
+    ctx.save();
+    if (definition.catchmentRadius) {
+      ctx.strokeStyle = color; ctx.globalAlpha = .55; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.arc(ground.x, ground.y, definition.catchmentRadius * frame.zoom, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = `${pin.readoutSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const y = ground.y + pin.groundShadowPx * .6 + 5, width = ctx.measureText(text).width + 14;
+    ctx.fillStyle = pin.readoutFill;
+    ctx.beginPath(); ctx.roundRect(ground.x - width / 2, y - 3, width, pin.readoutSizePx + 7, 4); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = .8; ctx.stroke();
+    ctx.fillStyle = pin.readoutColor; ctx.fillText(text, ground.x, y + 1);
+    ctx.restore();
   }
 
   function cardPosition(frame, building, definition) {
