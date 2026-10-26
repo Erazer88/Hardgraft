@@ -91,11 +91,16 @@
       // shares and a translucent flat tint between them. The richer the band,
       // the more opaque its tint and the brighter and thicker its line.
       materials: Object.freeze({
-        colors: Object.freeze({ iron: '#b8632e', copper: '#ff4a36', silicon: '#3f8cff', carbon: '#08080c', oil: '#2fe36b' }),
+        // Hues kept away from the magenta strata and from each other: rusty
+        // orange iron, verdigris copper, electric blue silica, black carbon
+        // (outlined in light so it reads on dark strata), neon green oil.
+        colors: Object.freeze({ iron: '#ff8a1c', copper: '#18e0a0', silicon: '#29a3ff', carbon: '#07070b', oil: '#3dff6e' }),
+        // A pale halo under the isolines of dark materials.
+        lineHalo: Object.freeze({ carbon: '#f1ecff' }),
         levels: Object.freeze([.07, .12, .18, .26]),
         // Tint once a share passes each level (cumulative opacity per band).
-        fillOpacity: Object.freeze([.1, .17, .26, .38]),
-        lineOpacity: Object.freeze([.45, .6, .8, 1]),
+        fillOpacity: Object.freeze([.14, .24, .36, .5]),
+        lineOpacity: Object.freeze([.6, .75, .9, 1]),
         lineWidthPx: Object.freeze([.9, 1.1, 1.4, 1.8]),
         // The richest line glows.
         topGlowPx: 6,

@@ -168,6 +168,7 @@
       const fillImage = fillContext.createImageData(layerWidth, layerHeight), lineImage = lineContext.createImageData(layerWidth, layerHeight);
       const kinds = materials.ids.length, shares = materials.shares, levels = style.levels, lowest = levels[0] * 255;
       const colors = materials.ids.map(id => hexRGB(style.colors[id] || '#ffffff'));
+      const halos = materials.ids.map(id => style.lineHalo?.[id] ? hexRGB(style.lineHalo[id]) : null);
       const strength = materials.ids.map(id => isMarineMaterial(id) ? style.marineOpacity : 1);
       // Composites a color over a pixel with straight alpha.
       const over = (pixels, pixel, color, alpha) => {
@@ -190,18 +191,20 @@
             const top = a + (b - a) * sx, bottom = c + (d - c) * sx, value = (top + (bottom - top) * sy) / 255;
             const gx = ((b - a) * (1 - sy) + (d - c) * sy) / 255 / scale, gy = (bottom - top) / 255 / scale;
             const gradient = Math.max(1e-4, Math.hypot(gx, gy));
-            let fillAlpha = 0, lineAlpha = 0, previous = 0;
+            let fillAlpha = 0, lineAlpha = 0, haloAlpha = 0, previous = 0;
             for (let level = 0; level < levels.length; level++) {
               const distance = (value - levels[level]) / gradient;
               fillAlpha += (style.fillOpacity[level] - previous) * clamp(.5 + distance, 0, 1);
               previous = style.fillOpacity[level];
               const half = style.lineWidthPx[level] / 2 + .5;
               lineAlpha = Math.max(lineAlpha, style.lineOpacity[level] * clamp(half - Math.abs(distance), 0, 1));
+              if (halos[kind]) haloAlpha = Math.max(haloAlpha, .55 * style.lineOpacity[level] * clamp(half + 1.2 - Math.abs(distance), 0, 1));
               if (level === levels.length - 1) {
                 lineAlpha = Math.max(lineAlpha, .3 * clamp(1 - Math.abs(distance) / style.topGlowPx, 0, 1));
               }
             }
             over(fillImage.data, pixel, colors[kind], fillAlpha * strength[kind]);
+            if (halos[kind]) over(lineImage.data, pixel, halos[kind], haloAlpha * strength[kind]);
             over(lineImage.data, pixel, colors[kind], lineAlpha * strength[kind]);
           }
         }
@@ -705,7 +708,14 @@
         cache.materialPaths.forEach((paths, kind) => {
           const color = materialStyle.colors[ids[kind]] || '#ffffff', strength = isMarineMaterial(ids[kind]) ? materialStyle.marineOpacity : 1;
           paths.forEach((path, level) => {
-            const top = level === paths.length - 1;
+            const top = level === paths.length - 1, halo = materialStyle.lineHalo?.[ids[kind]];
+            if (halo) {
+              context.save();
+              context.lineWidth = materialStyle.lineWidthPx[level] / job.zoom + 2.4 / job.zoom;
+              context.strokeStyle = rgba(halo, .55 * materialStyle.lineOpacity[level] * strength * closeLines);
+              context.stroke(path);
+              context.restore();
+            }
             context.save();
             context.lineWidth = materialStyle.lineWidthPx[level] / job.zoom;
             context.strokeStyle = rgba(color, materialStyle.lineOpacity[level] * strength * closeLines);
