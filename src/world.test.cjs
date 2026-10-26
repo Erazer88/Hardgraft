@@ -268,6 +268,18 @@ test('ore veins branch from rich nodes over land and enrich the ground they cros
     if (!nodes.some(node => node.x === vein.points[0] && node.y === vein.points[1])) branched += 1;
   }
   assert.ok(branched > 0, 'veins split into side branches');
+  // Veins run along the relief: their segments cross the slope far less than random ones (2/π).
+  const relief = terrain.relief, sample = (x, y) =>
+    relief[Math.max(0, Math.min(height - 1, Math.round(y))) * width + Math.max(0, Math.min(width - 1, Math.round(x)))];
+  let across = 0, segments = 0;
+  for (const vein of veins) for (let index = 2; index < vein.points.length; index += 2) {
+    const x = vein.points[index - 2], y = vein.points[index - 1];
+    const dx = vein.points[index] - x, dy = vein.points[index + 1] - y;
+    const gx = sample(x + 3, y) - sample(x - 3, y), gy = sample(x, y + 3) - sample(x, y - 3), slope = Math.hypot(gx, gy);
+    if (slope < 4) continue;
+    across += Math.abs(dx * gx + dy * gy) / Math.hypot(dx, dy) / slope; segments += 1;
+  }
+  assert.ok(segments > 20 && across / segments < .45, 'veins follow the contour lines');
   let ground = 0, groundCount = 0;
   for (let cell = 0; cell < elevation.length; cell += 1) {
     if (elevation[cell] <= seaLevel) continue;

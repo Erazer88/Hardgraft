@@ -61,16 +61,18 @@
         // Each stratum brightens slightly toward the next one.
         innerGradient: .3,
         // Light from the top left: a gentle hillshade, then stacked-paper steps
-        // (ambient and cast shadow below each step, a thin lit rim above it).
+        // (ambient and cast shadow below each step, a lit rim above it), both
+        // fading out over several texels and eased in over stepSoftenTexels.
         lightDirection: Object.freeze([-.62, -.78]),
         lightHeight: .9,
         reliefExaggeration: .09,
         hillshade: .28,
-        stepShadow: .3,
-        stepAmbient: .1,
-        stepShadowTexels: 5,
-        stepHighlight: .22,
-        stepHighlightTexels: 1.6
+        stepShadow: .2,
+        stepAmbient: .06,
+        stepShadowTexels: 11,
+        stepHighlight: .12,
+        stepHighlightTexels: 4,
+        stepSoftenTexels: 2.5
       }),
       // Faint depth lines offshore, at these elevations (sea level is 102).
       bathymetry: Object.freeze({ levels: Object.freeze([94, 80, 62]), color: '#6fa3cc', opacity: .16 }),
@@ -93,21 +95,20 @@
         corePx: 1.8,
         haloPx: 5,
         closeUpZoom: Object.freeze([1.1, 1.7]),
-        // Ore veins: a wide faint glow, a soft body and a thin bright core whose
+        // Ore veins, a light hint: a faint glow, a thin body and a fine core whose
         // width follows the vein's strength. Texels on the baked layer, px close up.
         veins: Object.freeze({
-          grooveTexels: 3, glowTexels: 4.5, bodyTexels: 1.6, coreTexels: .6,
-          groovePx: 5, glowPx: 9, bodyPx: 2.8, corePx: 1.1,
-          grooveColor: '#1a0624', grooveOpacity: .3,
-          glowOpacity: .07, bodyOpacity: .26, coreOpacity: .8,
+          glowTexels: 2.6, bodyTexels: 1, coreTexels: .45,
+          glowPx: 5, bodyPx: 1.8, corePx: .8,
+          glowOpacity: .05, bodyOpacity: .24, coreOpacity: .6,
           coreColor: '#fff6e8', coreTint: .45,
           minWidth: .35, strengthBuckets: 4
         }),
-        // Rich nodes where veins meet: halo, ring and a white-hot center.
+        // Rich nodes where veins meet: a soft halo, a faint ring and a bright center.
         nodes: Object.freeze({
-          haloTexels: 12, ringTexels: 6, coreTexels: 3,
-          haloPx: 22, ringPx: 10, corePx: 3.4,
-          haloOpacity: .45, ringOpacity: .5, ringWidthPx: .9, coreOpacity: 1
+          haloTexels: 6, ringTexels: 4, coreTexels: 1.8,
+          haloPx: 11, ringPx: 6, corePx: 2.2,
+          haloOpacity: .22, ringOpacity: .22, ringWidthPx: .7, coreOpacity: .8
         })
       }),
       // Lakes and rivers share the sea's dark water and its neon shoreline.

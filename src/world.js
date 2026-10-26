@@ -834,17 +834,32 @@
         }
       }
     }
-    const veins = buildVeins({ width, height, minSide, land, features, shares, list, table, terrainSeed, richness });
+    const veins = buildVeins({ width, height, minSide, land, features, relief, shares, list, table, terrainSeed, richness });
     return { ids: list.map(material => material.id), shares, veins: veins.veins, nodes: veins.nodes };
   }
 
-  // Ore veins: from the richest spots of each land material, branching
-  // fractures wander outward. Every vein enriches the cells it crosses, so the
+  // Ore veins: from the richest spots of each land material, a few fractures
+  // run along the relief, bending toward the local contour direction like
+  // strata and faults do. Every vein enriches the cells it crosses, so the
   // ground under a vein really holds more of its material.
   function buildVeins(options) {
-    const { width, height, minSide, land, features, shares, list, table, terrainSeed, richness } = options;
+    const { width, height, minSide, land, features, relief, shares, list, table, terrainSeed, richness } = options;
     const settings = table.veins, kinds = list.length, random = rng(terrainSeed ^ 0x2f6e2b1d);
     const veins = [], nodes = [];
+    // Contour direction at a point, from the relief gradient over a few cells,
+    // or null on flat ground.
+    const contour = (x, y) => {
+      const reach = settings.contourReach, sample = (cx, cy) =>
+        relief[clamp(Math.round(cy), 0, height - 1) * width + clamp(Math.round(cx), 0, width - 1)];
+      const gx = sample(x + reach, y) - sample(x - reach, y), gy = sample(x, y + reach) - sample(x, y - reach);
+      return Math.hypot(gx, gy) < settings.minContourSlope ? null : Math.atan2(gx, -gy);
+    };
+    const turnToward = (heading, target, amount) => {
+      // Contours have no sense of travel: follow the one closer to the heading.
+      let delta = ((target - heading) % TAU + TAU * 1.5) % TAU - Math.PI;
+      if (Math.abs(delta) > Math.PI / 2) delta -= Math.sign(delta) * Math.PI;
+      return heading + delta * amount;
+    };
     const onLand = (x, y) => {
       const cx = Math.round(x), cy = Math.round(y);
       if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
@@ -874,6 +889,8 @@
       const steps = Math.max(2, Math.round(length / settings.step));
       for (let step = 1; step <= steps; step += 1) {
         heading += (random() - .5) * 2 * settings.turn;
+        const along = contour(x, y);
+        if (along !== null) heading = turnToward(heading, along, settings.followContour);
         const nx = x + Math.cos(heading) * settings.step, ny = y + Math.sin(heading) * settings.step;
         if (!onLand(nx, ny)) break;
         x = nx; y = ny;
@@ -910,9 +927,11 @@
         const strength = clamp(.55 + node.share * 1.5, .55, 1);
         nodes.push({ kind, x: node.x, y: node.y, strength });
         enrich(kind, node.x, node.y, strength);
-        const branches = pickCount(random, settings.branches), start = random() * TAU;
+        // Branches leave along the local strike, alternately in both directions.
+        const branches = pickCount(random, settings.branches);
+        const strike = contour(node.x, node.y) ?? random() * TAU;
         for (let branch = 0; branch < branches; branch += 1) {
-          const heading = start + branch / branches * TAU + (random() - .5) * .6;
+          const heading = strike + (branch % 2) * Math.PI + (random() - .5) * 2 * settings.branchSpread;
           grow(kind, node.x, node.y, heading, pickRange(random, settings.length) * minSide, strength, 0);
         }
       }

@@ -246,13 +246,6 @@
       context.save();
       context.scale(scale, scale);
       context.lineCap = 'round'; context.lineJoin = 'round';
-      // A dark groove first, so the glow reads as a crack even on pale summits.
-      context.strokeStyle = veinStyle.grooveColor;
-      for (const group of paths) {
-        context.globalAlpha = alpha * veinStyle.grooveOpacity * (.4 + .6 * group.strength);
-        context.lineWidth = sizes.groove * (veinStyle.minWidth + (1 - veinStyle.minWidth) * group.strength) / scale;
-        context.stroke(group.path);
-      }
       context.globalCompositeOperation = 'lighter';
       const passes = [[sizes.glow, veinStyle.glowOpacity, false], [sizes.body, veinStyle.bodyOpacity, false],
         [sizes.core, veinStyle.coreOpacity, true]];
@@ -294,9 +287,9 @@
     function veinSizes(unit, texels) {
       const veins = SurfaceStyle.neon.materials.veins, nodes = SurfaceStyle.neon.materials.nodes;
       return texels
-        ? { glow: veins.glowTexels, body: veins.bodyTexels, core: veins.coreTexels, groove: veins.grooveTexels,
+        ? { glow: veins.glowTexels, body: veins.bodyTexels, core: veins.coreTexels,
           nodeHalo: nodes.haloTexels, nodeRing: nodes.ringTexels, nodeCore: nodes.coreTexels, ringWidth: nodes.ringWidthPx }
-        : { glow: veins.glowPx * unit, body: veins.bodyPx * unit, core: veins.corePx * unit, groove: veins.groovePx * unit,
+        : { glow: veins.glowPx * unit, body: veins.bodyPx * unit, core: veins.corePx * unit,
           nodeHalo: nodes.haloPx * unit, nodeRing: nodes.ringPx * unit, nodeCore: nodes.corePx * unit, ringWidth: nodes.ringWidthPx * unit };
     }
 
@@ -447,18 +440,20 @@
           const normalX = -smoothX * style.reliefExaggeration, normalY = -smoothY * style.reliefExaggeration;
           const lambert = (normalX * sunX + normalY * sunY + sunZ) / Math.hypot(normalX, normalY, 1);
           let light = (1 + bilinear(pigment) * style.pigment) * (1 + style.hillshade * (lambert - sunZ));
-          if (nearest >= 1 && smoothLength > .05) {
-            // Uphill direction against the light: the stratum above shades the
-            // one below when it stands between it and the light.
+          if (strata > 0 && smoothLength > .05) {
+            // Uphill direction against the light: the step above shades the
+            // stratum below when it stands between it and the light, the step
+            // below lights its rim. Both fade quadratically over several texels
+            // and ease in at the step itself, so shadows stay diffuse.
             const facing = (smoothX * towardX + smoothY * towardY) / smoothLength;
-            const distance = Math.abs(value - (base + nearest * step)) / Math.max(.08, smoothLength / textureScale);
-            if (signed < 0) {
-              const shadow = 1 - smoothstep(distance / style.stepShadowTexels);
-              light *= 1 - shadow * (style.stepAmbient + style.stepShadow * Math.max(0, facing));
-            } else {
-              const rim = 1 - smoothstep(distance / style.stepHighlightTexels);
-              light *= 1 + rim * style.stepHighlight * Math.max(0, -facing) - rim * style.stepAmbient * .5 * Math.max(0, facing);
-            }
+            const texelSlope = Math.max(.08, smoothLength / textureScale);
+            const toAbove = (base + Math.ceil(strata) * step - value) / texelSlope;
+            const fromBelow = (value - (base + Math.floor(strata) * step)) / texelSlope;
+            const soft = distance => smoothstep(.35 + distance / style.stepSoftenTexels);
+            const shadow = (1 - clamp(toAbove / style.stepShadowTexels, 0, 1)) ** 2 * soft(toAbove);
+            const rim = (1 - clamp(fromBelow / style.stepHighlightTexels, 0, 1)) ** 2 * soft(fromBelow);
+            light *= 1 - shadow * (style.stepAmbient + style.stepShadow * Math.max(0, facing));
+            light *= 1 + rim * style.stepHighlight * Math.max(0, -facing);
           }
           let red = band[0] * light, green = band[1] * light, blue = band[2] * light;
           if (marshField) {
@@ -588,7 +583,7 @@
       const materialLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
       drawMaterialDots(materialLayer.getContext('2d'), terrainData, dotScale, dotStyle.coreTexels, dotStyle.haloTexels);
       terrainTexture.materialLayer = materialLayer;
-      // Veins darken their groove, so they get a plain alpha-blended layer.
+      // Veins get their own alpha-blended layer, kept sober on pale summits.
       const veinLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
       drawMaterialVeins(veinLayer.getContext('2d'), terrainData, dotScale, veinSizes(1, true));
       terrainTexture.veinLayer = veinLayer;
