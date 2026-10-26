@@ -91,7 +91,7 @@
       // shares and a translucent flat tint between them. The richer the band,
       // the more opaque its tint and the brighter and thicker its line.
       materials: Object.freeze({
-        colors: Object.freeze({ iron: '#ffb83d', copper: '#3ee8c6', silicon: '#4fd9ff', carbon: '#b9a8ff', oil: '#d4ff5c' }),
+        colors: Object.freeze({ iron: '#b8632e', copper: '#ff4a36', silicon: '#3f8cff', carbon: '#08080c', oil: '#2fe36b' }),
         levels: Object.freeze([.07, .12, .18, .26]),
         // Tint once a share passes each level (cumulative opacity per band).
         fillOpacity: Object.freeze([.1, .17, .26, .38]),
