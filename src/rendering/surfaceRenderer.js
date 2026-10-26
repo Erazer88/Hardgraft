@@ -83,18 +83,37 @@
       return `rgba(${red},${green},${blue},${alpha})`;
     }
 
+    // Signed shore field per cell, positive on land: the raw sea/land sign
+    // blended with its blur, so the traced shore rounds the cell staircase off
+    // while single-cell islets and inlets still show. Mask and coast line share it.
+    const shoreFieldCache = new WeakMap();
+    function shoreField(terrain) {
+      if (shoreFieldCache.has(terrain)) return shoreFieldCache.get(terrain);
+      const { width, height, elevation, seaLevel } = terrain, smoothing = SurfaceStyle.neon.shoreSmoothing;
+      const raw = new Float32Array(width * height), blurred = new Float32Array(width * height);
+      for (let i = 0; i < raw.length; i += 1) raw[i] = clamp(elevation[i] - seaLevel - .5, -1, 1);
+      const at = (x, y) => raw[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
+      for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+        blurred[y * width + x] = (4 * at(x, y) + 2 * (at(x - 1, y) + at(x + 1, y) + at(x, y - 1) + at(x, y + 1)) +
+          at(x - 1, y - 1) + at(x + 1, y - 1) + at(x - 1, y + 1) + at(x + 1, y + 1)) / 16;
+      }
+      for (let i = 0; i < raw.length; i += 1) blurred[i] = raw[i] + (blurred[i] - raw[i]) * smoothing;
+      shoreFieldCache.set(terrain, blurred);
+      return blurred;
+    }
+
     function createNeonCoast(terrainData, textureWidth, textureHeight, textureScale, coastColor) {
       // Upscale a signed sea-level field with bilinear smoothing. Dividing by
       // its local gradient estimates the distance to the shore in texels, which
       // gives an antialiased land mask and a smooth coast line that follow the
       // same interpolated shoreline as the contours, not the terrain cells.
-      const { width, height, elevation, seaLevel } = terrainData;
+      const { width, height } = terrainData, shore = shoreField(terrainData);
       const field = makeCanvas(width + 1, height + 1), fieldContext = field.getContext('2d');
       const fieldImage = fieldContext.createImageData(width + 1, height + 1);
       for (let y = 0; y <= height; y += 1) for (let x = 0; x <= width; x += 1) {
-        const value = elevation[Math.min(y, height - 1) * width + Math.min(x, width - 1)];
+        const value = shore[Math.min(y, height - 1) * width + Math.min(x, width - 1)];
         const pixel = (y * (width + 1) + x) * 4;
-        const signed = clamp(Math.round(128 + (value - seaLevel - .5) * 2), 0, 255);
+        const signed = clamp(Math.round(128 + value * 64), 0, 255);
         fieldImage.data[pixel] = fieldImage.data[pixel + 1] = fieldImage.data[pixel + 2] = signed;
         fieldImage.data[pixel + 3] = 255;
       }
@@ -185,6 +204,102 @@
       context.restore();
     }
 
+    // Ore veins in cell units, one Path2D per material and strength bucket.
+    // Curves pass through the midpoints of the generator's random walk so the
+    // veins read as smooth cracks rather than polylines.
+    const veinPathCache = new WeakMap();
+    function veinPaths(terrain) {
+      if (veinPathCache.has(terrain)) return veinPathCache.get(terrain);
+      const style = SurfaceStyle.neon.materials, buckets = style.veins.strengthBuckets;
+      const groups = new Map();
+      for (const vein of terrain.materials?.veins || []) {
+        const { points, strengths } = vein, count = points.length / 2;
+        let start = 0;
+        while (start < count - 1) {
+          const bucket = Math.min(buckets - 1, Math.floor(strengths[start] * buckets));
+          let end = start + 1;
+          while (end < count - 1 && Math.min(buckets - 1, Math.floor(strengths[end] * buckets)) === bucket) end += 1;
+          const key = vein.kind * buckets + bucket;
+          if (!groups.has(key)) groups.set(key, { kind: vein.kind, strength: (bucket + 1) / buckets, path: new root.Path2D() });
+          const path = groups.get(key).path;
+          path.moveTo(points[start * 2], points[start * 2 + 1]);
+          for (let index = start + 1; index < end; index += 1) {
+            path.quadraticCurveTo(points[index * 2], points[index * 2 + 1],
+              (points[index * 2] + points[index * 2 + 2]) / 2, (points[index * 2 + 1] + points[index * 2 + 3]) / 2);
+          }
+          path.lineTo(points[end * 2], points[end * 2 + 1]);
+          start = end;
+        }
+      }
+      const paths = [...groups.values()].sort((first, second) => first.strength - second.strength);
+      veinPathCache.set(terrain, paths);
+      return paths;
+    }
+
+    // Veins and their nodes in cell units scaled by `scale`; `sizes` gives the
+    // widths in the context's units before that scale.
+    function drawMaterialVeins(context, terrain, scale, sizes, alpha = 1) {
+      if (typeof root.Path2D !== 'function' || !terrain.materials?.veins) return;
+      const style = SurfaceStyle.neon.materials, veinStyle = style.veins, nodeStyle = style.nodes;
+      const colors = terrain.materials.ids.map(id => style.colors[id] || '#ffffff');
+      const paths = veinPaths(terrain);
+      context.save();
+      context.scale(scale, scale);
+      context.lineCap = 'round'; context.lineJoin = 'round';
+      // A dark groove first, so the glow reads as a crack even on pale summits.
+      context.strokeStyle = veinStyle.grooveColor;
+      for (const group of paths) {
+        context.globalAlpha = alpha * veinStyle.grooveOpacity * (.4 + .6 * group.strength);
+        context.lineWidth = sizes.groove * (veinStyle.minWidth + (1 - veinStyle.minWidth) * group.strength) / scale;
+        context.stroke(group.path);
+      }
+      context.globalCompositeOperation = 'lighter';
+      const passes = [[sizes.glow, veinStyle.glowOpacity, false], [sizes.body, veinStyle.bodyOpacity, false],
+        [sizes.core, veinStyle.coreOpacity, true]];
+      for (const [size, opacity, core] of passes) {
+        for (const group of paths) {
+          const color = core ? `rgb(${mixRGB(hexRGB(colors[group.kind]), hexRGB(veinStyle.coreColor), veinStyle.coreTint).map(Math.round)})` : colors[group.kind];
+          context.strokeStyle = color;
+          context.globalAlpha = alpha * opacity * (.4 + .6 * group.strength);
+          context.lineWidth = size * (veinStyle.minWidth + (1 - veinStyle.minWidth) * group.strength) / scale;
+          context.stroke(group.path);
+        }
+      }
+      for (const node of terrain.materials.nodes || []) {
+        const color = colors[node.kind], x = node.x, y = node.y;
+        const halo = sizes.nodeHalo * node.strength / scale;
+        const gradient = context.createRadialGradient(x, y, 0, x, y, halo);
+        gradient.addColorStop(0, rgba(color, nodeStyle.haloOpacity));
+        gradient.addColorStop(.35, rgba(color, nodeStyle.haloOpacity * .35));
+        gradient.addColorStop(1, rgba(color, 0));
+        context.globalAlpha = alpha;
+        context.fillStyle = gradient;
+        context.fillRect(x - halo, y - halo, halo * 2, halo * 2);
+        context.globalAlpha = alpha * nodeStyle.ringOpacity;
+        context.strokeStyle = color;
+        context.lineWidth = sizes.ringWidth / scale;
+        context.beginPath();
+        context.arc(x, y, sizes.nodeRing * node.strength / scale, 0, TAU);
+        context.stroke();
+        context.globalAlpha = alpha * nodeStyle.coreOpacity;
+        context.fillStyle = `rgb(${mixRGB(hexRGB(color), hexRGB(veinStyle.coreColor), .7).map(Math.round)})`;
+        context.beginPath();
+        context.arc(x, y, sizes.nodeCore / 2 / scale, 0, TAU);
+        context.fill();
+      }
+      context.restore();
+    }
+
+    // Vein sizes for the baked layer (texels) or the close-up raster (px).
+    function veinSizes(unit, texels) {
+      const veins = SurfaceStyle.neon.materials.veins, nodes = SurfaceStyle.neon.materials.nodes;
+      return texels
+        ? { glow: veins.glowTexels, body: veins.bodyTexels, core: veins.coreTexels, groove: veins.grooveTexels,
+          nodeHalo: nodes.haloTexels, nodeRing: nodes.ringTexels, nodeCore: nodes.coreTexels, ringWidth: nodes.ringWidthPx }
+        : { glow: veins.glowPx * unit, body: veins.bodyPx * unit, core: veins.corePx * unit, groove: veins.groovePx * unit,
+          nodeHalo: nodes.haloPx * unit, nodeRing: nodes.ringPx * unit, nodeCore: nodes.corePx * unit, ringWidth: nodes.ringWidthPx * unit };
+    }
+
     function materialsVisible() {
       return root.OrbitDeveloperSettings?.get('showGroundMaterials') !== false;
     }
@@ -244,19 +359,23 @@
       context.restore();
     }
 
-    // Hypsometric land layer: each texel samples the relief bilinearly (cell
-    // values sit on multiples of the layer scale, as for the contours), takes
-    // its stratum tint and draws antialiased contour lines at the limits. It is
+    // Hypsometric land layer, lit like stacked paper: each texel samples the
+    // relief bilinearly (cell values sit on multiples of the layer scale, as
+    // for the contours) and takes its stratum tint, brightening toward the next
+    // stratum. Every step casts a soft shadow on the stratum below where the
+    // higher one faces the light, and gets a thin highlight on its lit rim.
+    // Faint secondary lines and a gentle directional hillshade add detail. Sea
+    // texels instead draw faint isobaths on a separate layer. Both layers are
     // computed at `layerScale` texels per cell and smoothed when drawn: close
     // up, the vector contours take over.
     function createReliefLayer(planet, terrainData, layerScale) {
       const style = SurfaceStyle.neon.relief, marsh = SurfaceStyle.neon.marsh, features = World.TERRAIN_FEATURES;
       const { width, height, seaLevel } = terrainData;
       const relief = terrainData.relief || terrainData.elevation, cellFeatures = terrainData.features;
-      const { base } = reliefLevels(seaLevel, style.bandStep), step = style.bandStep;
-      const bandCount = Math.ceil((255 - base) / step) + 1, stops = style.colors.map(hexRGB);
+      const { base } = reliefLevels(seaLevel, style.bandStep), step = style.bandStep, minorStep = step / style.minorLines;
+      const bandCount = Math.ceil((255 - base) / step) + 2, stops = style.colors.map(hexRGB);
       const bands = Array.from({ length: bandCount }, (_, band) => {
-        const position = band / Math.max(1, bandCount - 1) * (stops.length - 1);
+        const position = Math.min(1, band / Math.max(1, bandCount - 2)) * (stops.length - 1);
         const index = Math.min(stops.length - 2, Math.floor(position));
         return mixRGB(stops[index], stops[index + 1], position - index);
       });
@@ -270,17 +389,22 @@
       }
       const line = hexRGB(style.lineColor), marshTint = hexRGB(marsh.tint), marshMark = hexRGB(marsh.mark);
       const marshField = cellFeatures ? Uint8Array.from(cellFeatures, feature => feature === features.marsh ? 1 : 0) : null;
-      // Per-cell slope from central differences, interpolated per texel: the
-      // shading stays smooth instead of showing the cell grid.
-      const slope = new Float32Array(width * height);
+      // Per-cell gradient from central differences, interpolated per texel, so
+      // shading and shadow directions stay smooth instead of showing the grid.
+      const slopeX = new Float32Array(width * height), slopeY = new Float32Array(width * height);
       for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-        const left = relief[y * width + Math.max(0, x - 1)], right = relief[y * width + Math.min(width - 1, x + 1)];
-        const up = relief[Math.max(0, y - 1) * width + x], down = relief[Math.min(height - 1, y + 1) * width + x];
-        slope[y * width + x] = Math.hypot(right - left, down - up) * .5;
+        slopeX[y * width + x] = (relief[y * width + Math.min(width - 1, x + 1)] - relief[y * width + Math.max(0, x - 1)]) * .5;
+        slopeY[y * width + x] = (relief[Math.min(height - 1, y + 1) * width + x] - relief[Math.max(0, y - 1) * width + x]) * .5;
       }
+      const [lightX, lightY] = style.lightDirection, lightLength = Math.hypot(lightX, lightY, style.lightHeight);
+      const sunX = lightX / lightLength, sunY = lightY / lightLength, sunZ = style.lightHeight / lightLength;
+      const towardX = lightX / Math.hypot(lightX, lightY), towardY = lightY / Math.hypot(lightX, lightY);
+      const bathymetry = SurfaceStyle.neon.bathymetry, depthLine = hexRGB(bathymetry.color);
       const layerWidth = width * layerScale, layerHeight = height * layerScale, textureScale = layerScale;
       const layer = makeCanvas(layerWidth, layerHeight), context = layer.getContext('2d');
+      const seaLayer = makeCanvas(layerWidth, layerHeight), seaContext = seaLayer.getContext('2d');
       const image = context.createImageData(layerWidth, layerHeight), pixels = image.data;
+      const seaImage = seaContext.createImageData(layerWidth, layerHeight), seaPixels = seaImage.data;
       for (let ty = 0; ty < layerHeight; ty += 1) {
         const fy = Math.min(height - 1, (ty + .5) / textureScale);
         const y0 = Math.min(height - 2, Math.floor(fy)), sy = fy - y0;
@@ -288,30 +412,59 @@
           const fx = Math.min(width - 1, (tx + .5) / textureScale);
           const x0 = Math.min(width - 2, Math.floor(fx)), sx = fx - x0;
           const i00 = y0 * width + x0, i10 = i00 + 1, i01 = i00 + width, i11 = i01 + 1;
+          const bilinear = field => {
+            const upper = field[i00] + (field[i10] - field[i00]) * sx;
+            return upper + (field[i01] + (field[i11] - field[i01]) * sx - upper) * sy;
+          };
           const top = relief[i00] + (relief[i10] - relief[i00]) * sx;
           const bottom = relief[i01] + (relief[i11] - relief[i01]) * sx;
           const value = top + (bottom - top) * sy;
           const gx = ((relief[i10] - relief[i00]) * (1 - sy) + (relief[i11] - relief[i01]) * sy) / textureScale;
           const gy = (bottom - top) / textureScale;
+          const gradient = Math.max(.08, Math.hypot(gx, gy));
+          const pixel = (ty * layerWidth + tx) * 4;
+          if (value < base) {
+            // Faint isobaths offshore.
+            for (const level of bathymetry.levels) {
+              const coverage = clamp(1 - Math.abs(value - level) / gradient / .6, 0, 1);
+              if (coverage <= 0) continue;
+              seaPixels[pixel] = depthLine[0]; seaPixels[pixel + 1] = depthLine[1]; seaPixels[pixel + 2] = depthLine[2];
+              seaPixels[pixel + 3] = Math.round(coverage * bathymetry.opacity * 255);
+            }
+          }
           const strata = (value - base) / step, nearest = Math.round(strata);
           // Signed distance to the nearest stratum limit, in texels: within a
           // texel of it, the two tints blend so limits stay smooth close up.
-          const gradient = Math.max(.08, Math.hypot(gx, gy)), signed = (value - (base + nearest * step)) / gradient;
-          let band = bands[clamp(Math.floor(strata) + 1, 0, bandCount - 1)];
+          const signed = (value - (base + nearest * step)) / gradient;
+          const lower = clamp(Math.floor(strata) + 1, 0, bandCount - 2);
+          let band = mixRGB(bands[lower], bands[lower + 1], (strata - Math.floor(strata)) * style.innerGradient);
           if (nearest >= 1 && Math.abs(signed) < 1) {
-            const below = bands[clamp(nearest, 0, bandCount - 1)], above = bands[clamp(nearest + 1, 0, bandCount - 1)];
-            band = mixRGB(below, above, smoothstep(.5 + signed * .5));
+            const below = mixRGB(bands[clamp(nearest, 0, bandCount - 2)], bands[clamp(nearest + 1, 0, bandCount - 1)], style.innerGradient);
+            band = mixRGB(below, bands[clamp(nearest + 1, 0, bandCount - 1)], smoothstep(.5 + signed * .5));
           }
-          const topSlope = slope[i00] + (slope[i10] - slope[i00]) * sx;
-          const slopeHere = topSlope + (slope[i01] + (slope[i11] - slope[i01]) * sx - topSlope) * sy;
-          const light = (1 + (pigment[i00] + (pigment[i10] - pigment[i00]) * sx) * style.pigment) *
-            (1 - style.slopeShade * smoothstep(slopeHere / style.slopeShadeFull));
+          // Smooth gradient for lighting, in relief units per cell.
+          const smoothX = bilinear(slopeX), smoothY = bilinear(slopeY), smoothLength = Math.hypot(smoothX, smoothY);
+          const normalX = -smoothX * style.reliefExaggeration, normalY = -smoothY * style.reliefExaggeration;
+          const lambert = (normalX * sunX + normalY * sunY + sunZ) / Math.hypot(normalX, normalY, 1);
+          let light = (1 + bilinear(pigment) * style.pigment) * (1 + style.hillshade * (lambert - sunZ));
+          if (nearest >= 1 && smoothLength > .05) {
+            // Uphill direction against the light: the stratum above shades the
+            // one below when it stands between it and the light.
+            const facing = (smoothX * towardX + smoothY * towardY) / smoothLength;
+            const distance = Math.abs(value - (base + nearest * step)) / Math.max(.08, smoothLength / textureScale);
+            if (signed < 0) {
+              const shadow = 1 - smoothstep(distance / style.stepShadowTexels);
+              light *= 1 - shadow * (style.stepAmbient + style.stepShadow * Math.max(0, facing));
+            } else {
+              const rim = 1 - smoothstep(distance / style.stepHighlightTexels);
+              light *= 1 + rim * style.stepHighlight * Math.max(0, -facing) - rim * style.stepAmbient * .5 * Math.max(0, facing);
+            }
+          }
           let red = band[0] * light, green = band[1] * light, blue = band[2] * light;
           if (marshField) {
             // Marsh cells blend bilinearly into soft patches with a map symbol:
             // short horizontal tufts in staggered rows.
-            const topMarsh = marshField[i00] + (marshField[i10] - marshField[i00]) * sx;
-            const marshAmount = smoothstep(((topMarsh + (marshField[i01] + (marshField[i11] - marshField[i01]) * sx - topMarsh) * sy) - .3) / .4);
+            const marshAmount = smoothstep((bilinear(marshField) - .3) / .4);
             if (marshAmount > 0) {
               const amount = marsh.tintOpacity * marshAmount;
               red += (marshTint[0] - red) * amount; green += (marshTint[1] - green) * amount; blue += (marshTint[2] - blue) * amount;
@@ -321,20 +474,25 @@
               }
             }
           }
-          if (nearest >= 1) {
-            const coverage = clamp(1 - Math.abs(signed) / .6, 0, 1);
+          // Main contour lines, then much fainter secondary lines between them.
+          const minor = Math.round((value - base) / minorStep);
+          const lineLevel = base + minor * minorStep;
+          const major = minor % style.minorLines === 0;
+          if (minor >= 1) {
+            const coverage = clamp(1 - Math.abs(value - lineLevel) / gradient / (major ? .6 : .45), 0, 1);
             if (coverage > 0) {
-              const amount = coverage * style.lineOpacity;
+              const amount = coverage * (major ? style.lineOpacity : style.minorLineOpacity);
               red += (line[0] - red) * amount; green += (line[1] - green) * amount; blue += (line[2] - blue) * amount;
             }
           }
-          const pixel = (ty * layerWidth + tx) * 4;
           pixels[pixel] = red; pixels[pixel + 1] = green; pixels[pixel + 2] = blue; pixels[pixel + 3] = 255;
         }
       }
       context.putImageData(image, 0, 0);
-      return layer;
+      seaContext.putImageData(seaImage, 0, 0);
+      return { layer, seaLayer };
     }
+
 
     function drawNeonOcean(context, width, height, color) {
       const style = SurfaceStyle.neon;
@@ -402,7 +560,9 @@
           context.fillRect((x - .6) * textureScale, (y - .6) * textureScale, textureScale * 1.2, textureScale * 1.2);
         }
       }
-      const reliefLayer = createReliefLayer(planet, terrainData, style.relief.layerScale);
+      const { layer: reliefLayer, seaLayer } = createReliefLayer(planet, terrainData, style.relief.layerScale);
+      context.imageSmoothingEnabled = true;
+      context.drawImage(seaLayer, 0, 0, textureWidth, textureHeight);
       layerContext.globalCompositeOperation = 'copy';
       layerContext.imageSmoothingEnabled = true;
       layerContext.drawImage(reliefLayer, 0, 0, textureWidth, textureHeight);
@@ -428,7 +588,11 @@
       const materialLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
       drawMaterialDots(materialLayer.getContext('2d'), terrainData, dotScale, dotStyle.coreTexels, dotStyle.haloTexels);
       terrainTexture.materialLayer = materialLayer;
-      for (const canvas of [mask, edge, layer, reliefLayer]) { canvas.width = 0; canvas.height = 0; }
+      // Veins darken their groove, so they get a plain alpha-blended layer.
+      const veinLayer = makeCanvas(terrainData.width * dotScale, terrainData.height * dotScale);
+      drawMaterialVeins(veinLayer.getContext('2d'), terrainData, dotScale, veinSizes(1, true));
+      terrainTexture.veinLayer = veinLayer;
+      for (const canvas of [mask, edge, layer, reliefLayer, seaLayer]) { canvas.width = 0; canvas.height = 0; }
       return terrainTexture;
     }
 
@@ -478,11 +642,10 @@
       // The shore sits halfway between the last water cell and the first land
       // cell, like the baked land mask; contour lines follow the relief, where
       // lakes keep their surface height.
-      const { width, elevation, seaLevel } = job.terrain;
+      const { width, elevation } = job.terrain, shore = shoreField(job.terrain);
       const relief = job.terrain.relief || elevation, cache = job.cache, cellSize = Config.terrain.textureScale;
       const index = y * width + x;
-      traceLevel(cache.path, seaLevel + .5, elevation[index], elevation[index + 1],
-        elevation[index + width], elevation[index + width + 1], x, y, cellSize);
+      traceLevel(cache.path, 0, shore[index], shore[index + 1], shore[index + width], shore[index + width + 1], x, y, cellSize);
       const a = relief[index], b = relief[index + 1], d = relief[index + width], e = relief[index + width + 1];
       const low = Math.min(a, b, d, e), high = Math.max(a, b, d, e), step = SurfaceStyle.neon.relief.bandStep;
       const first = Math.max(1, Math.ceil((low - cache.levelBase) / step));
@@ -525,6 +688,7 @@
         drawMaterialDots(context, job.terrain, cellSize, dotStyle.corePx / job.zoom, dotStyle.haloPx / job.zoom, {
           minX: bounds.x / cellSize - margin, maxX: (bounds.x + bounds.width) / cellSize + margin,
           minY: bounds.y / cellSize - margin, maxY: (bounds.y + bounds.height) / cellSize + margin }, closeDots);
+        drawMaterialVeins(context, job.terrain, cellSize, veinSizes(1 / job.zoom, false), closeDots);
       }
       // A soft glow stroke under a crisp line. Shadow blur is in device pixels,
       // independent of the world transform. The line thickens slightly with
@@ -717,6 +881,10 @@
         canvasContext.globalAlpha = overviewDots;
         canvasContext.globalCompositeOperation = 'screen';
         canvasContext.drawImage(terrainTexture.materialLayer, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+        canvasContext.globalCompositeOperation = 'source-over';
+        if (terrainTexture.veinLayer) {
+          canvasContext.drawImage(terrainTexture.veinLayer, top.x, top.y, terrainWidth * frame.zoom, terrainHeight * frame.zoom);
+        }
         canvasContext.restore();
       }
       if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);

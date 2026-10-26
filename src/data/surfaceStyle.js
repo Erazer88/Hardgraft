@@ -37,6 +37,8 @@
       oceanGridLineWidth: 1,
       // Glow radii are tuned for a map about this wide on screen.
       glowReferenceWidthPx: 1600,
+      // Share of a 3×3 blur in the shore field (0 keeps the cell staircase; above .66 drops lone cells).
+      shoreSmoothing: .6,
       coastLineWidthPx: 1.15,
       coastLineMaxZoomScale: 2.2,
       coastGlowBlurPx: 4.5,
@@ -53,19 +55,34 @@
         lineColor: '#ffd3e8',
         lineOpacity: .16,
         lineWidthPx: .6,
-        // Steep ground (cliffs, canyon walls) is shaded darker, up to this share.
-        slopeShade: .18,
-        slopeShadeFull: 6
+        // Fainter secondary lines split each stratum in this many slices.
+        minorLines: 4,
+        minorLineOpacity: .055,
+        // Each stratum brightens slightly toward the next one.
+        innerGradient: .3,
+        // Light from the top left: a gentle hillshade, then stacked-paper steps
+        // (ambient and cast shadow below each step, a thin lit rim above it).
+        lightDirection: Object.freeze([-.62, -.78]),
+        lightHeight: .9,
+        reliefExaggeration: .09,
+        hillshade: .28,
+        stepShadow: .3,
+        stepAmbient: .1,
+        stepShadowTexels: 5,
+        stepHighlight: .22,
+        stepHighlightTexels: 1.6
       }),
+      // Faint depth lines offshore, at these elevations (sea level is 102).
+      bathymetry: Object.freeze({ levels: Object.freeze([94, 80, 62]), color: '#6fa3cc', opacity: .16 }),
       marsh: Object.freeze({ tint: '#5a3a78', tintOpacity: .3, mark: '#86e6d2', markOpacity: .35 }),
       // Ground materials: sparse glowing dots colored by the dominant material.
       // A cell starts showing a dot from minShare and is at full chance and
       // brightness at fullShare; density caps the share of cells with a dot.
       materials: Object.freeze({
-        colors: Object.freeze({ iron: '#ffad42', copper: '#3ee8c6', silicon: '#79c8ff', carbon: '#c9a3ff', oil: '#d4ff5c' }),
+        colors: Object.freeze({ iron: '#ffb83d', copper: '#3ee8c6', silicon: '#4fd9ff', carbon: '#b9a8ff', oil: '#d4ff5c' }),
         minShare: .08,
         fullShare: .3,
-        density: .34,
+        density: .2,
         coreOpacity: .75,
         haloOpacity: .14,
         // Baked overview layer: texels per terrain cell and dot sizes in texels.
@@ -75,7 +92,23 @@
         // Close up, dots are drawn at a constant screen size instead.
         corePx: 1.8,
         haloPx: 5,
-        closeUpZoom: Object.freeze([1.1, 1.7])
+        closeUpZoom: Object.freeze([1.1, 1.7]),
+        // Ore veins: a wide faint glow, a soft body and a thin bright core whose
+        // width follows the vein's strength. Texels on the baked layer, px close up.
+        veins: Object.freeze({
+          grooveTexels: 3, glowTexels: 4.5, bodyTexels: 1.6, coreTexels: .6,
+          groovePx: 5, glowPx: 9, bodyPx: 2.8, corePx: 1.1,
+          grooveColor: '#1a0624', grooveOpacity: .3,
+          glowOpacity: .07, bodyOpacity: .26, coreOpacity: .8,
+          coreColor: '#fff6e8', coreTint: .45,
+          minWidth: .35, strengthBuckets: 4
+        }),
+        // Rich nodes where veins meet: halo, ring and a white-hot center.
+        nodes: Object.freeze({
+          haloTexels: 12, ringTexels: 6, coreTexels: 3,
+          haloPx: 22, ringPx: 10, corePx: 3.4,
+          haloOpacity: .45, ringOpacity: .5, ringWidthPx: .9, coreOpacity: 1
+        })
       }),
       // Lakes and rivers share the sea's dark water and its neon shoreline.
       water: Object.freeze({

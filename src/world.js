@@ -834,7 +834,90 @@
         }
       }
     }
-    return { ids: list.map(material => material.id), shares };
+    const veins = buildVeins({ width, height, minSide, land, features, shares, list, table, terrainSeed, richness });
+    return { ids: list.map(material => material.id), shares, veins: veins.veins, nodes: veins.nodes };
+  }
+
+  // Ore veins: from the richest spots of each land material, branching
+  // fractures wander outward. Every vein enriches the cells it crosses, so the
+  // ground under a vein really holds more of its material.
+  function buildVeins(options) {
+    const { width, height, minSide, land, features, shares, list, table, terrainSeed, richness } = options;
+    const settings = table.veins, kinds = list.length, random = rng(terrainSeed ^ 0x2f6e2b1d);
+    const veins = [], nodes = [];
+    const onLand = (x, y) => {
+      const cx = Math.round(x), cy = Math.round(y);
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
+      const cell = cy * width + cx, feature = features[cell];
+      return land[cell] === 1 && feature !== TERRAIN_FEATURES.lake && feature !== TERRAIN_FEATURES.cove;
+    };
+    const enrich = (kind, x, y, strength) => {
+      const peak = settings.share * strength, reach = Math.ceil(settings.width);
+      for (let cy = Math.round(y) - reach; cy <= Math.round(y) + reach; cy += 1) {
+        for (let cx = Math.round(x) - reach; cx <= Math.round(x) + reach; cx += 1) {
+          if (!onLand(cx, cy)) continue;
+          const falloff = 1 - Math.hypot(cx - x, cy - y) / settings.width;
+          if (falloff <= 0) continue;
+          const cell = cy * width + cx, index = cell * kinds + kind;
+          shares[index] = Math.max(shares[index], Math.round(peak * falloff * 255));
+          let ore = 0;
+          for (let other = 0; other < kinds; other += 1) ore += shares[cell * kinds + other];
+          const limit = table.maxOreShare * 255;
+          if (ore > limit) for (let other = 0; other < kinds; other += 1) {
+            if (other !== kind) shares[cell * kinds + other] = Math.floor(shares[cell * kinds + other] * Math.max(0, limit - shares[index]) / Math.max(1, ore - shares[index]));
+          }
+        }
+      }
+    };
+    const grow = (kind, x, y, heading, length, strength, depth) => {
+      const points = [x, y], strengths = [strength];
+      const steps = Math.max(2, Math.round(length / settings.step));
+      for (let step = 1; step <= steps; step += 1) {
+        heading += (random() - .5) * 2 * settings.turn;
+        const nx = x + Math.cos(heading) * settings.step, ny = y + Math.sin(heading) * settings.step;
+        if (!onLand(nx, ny)) break;
+        x = nx; y = ny;
+        // Veins thin out from the node toward their tips.
+        const local = strength * (1 - .65 * step / steps);
+        points.push(x, y); strengths.push(local);
+        enrich(kind, x, y, local);
+        if (depth < settings.maxDepth && random() < settings.splitChance) {
+          const turn = (random() < .5 ? -1 : 1) * pickRange(random, settings.splitAngle);
+          grow(kind, x, y, heading + turn, (steps - step) * settings.step * pickRange(random, settings.splitLength),
+            local * .8, depth + 1);
+        }
+      }
+      if (points.length >= 4) veins.push({ kind, points: points.map(value => Math.round(value * 100) / 100), strengths });
+    };
+    const spacing = settings.nodeSpacing * minSide, stride = 4;
+    for (let kind = 0; kind < kinds; kind += 1) {
+      if (list[kind].marine) continue;
+      // The richest spots, kept apart from each other.
+      const candidates = [];
+      for (let y = 0; y < height; y += stride) for (let x = 0; x < width; x += stride) {
+        const share = shares[(y * width + x) * kinds + kind] / 255;
+        if (share >= settings.minNodeShare && onLand(x, y)) candidates.push({ x, y, share });
+      }
+      candidates.sort((first, second) => second.share - first.share || first.y - second.y || first.x - second.x);
+      const wanted = Math.round(settings.nodes[0] + (settings.nodes[1] - settings.nodes[0]) * clamp(richness[kind] - .5, 0, 1));
+      const chosen = [];
+      for (const candidate of candidates) {
+        if (chosen.length >= wanted) break;
+        if (chosen.some(node => Math.hypot(node.x - candidate.x, node.y - candidate.y) < spacing)) continue;
+        chosen.push(candidate);
+      }
+      for (const node of chosen) {
+        const strength = clamp(.55 + node.share * 1.5, .55, 1);
+        nodes.push({ kind, x: node.x, y: node.y, strength });
+        enrich(kind, node.x, node.y, strength);
+        const branches = pickCount(random, settings.branches), start = random() * TAU;
+        for (let branch = 0; branch < branches; branch += 1) {
+          const heading = start + branch / branches * TAU + (random() - .5) * .6;
+          grow(kind, node.x, node.y, heading, pickRange(random, settings.length) * minSide, strength, 0);
+        }
+      }
+    }
+    return { veins, nodes };
   }
 
   // Shares of every material in one cell, rock included, as fractions.

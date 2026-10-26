@@ -118,7 +118,16 @@
         difficultyBonus: .8, islandBonus: .6,
         maxOreShare: .72,
         // The natal world always offers a rich pocket of each land material.
-        natalMinimumPeak: .14
+        natalMinimumPeak: .14,
+        // Veins: branching fractures that radiate from a rich node and carry
+        // the material. Lengths are fractions of the map side, steps in cells.
+        // A cell on a vein holds up to `share` of its material.
+        veins: {
+          nodes: [1, 4], nodeSpacing: .1, minNodeShare: .07,
+          branches: [3, 6], length: [.05, .15], step: 1.2, turn: .32,
+          splitChance: .13, splitAngle: [.35, .85], splitLength: [.4, .7], maxDepth: 3,
+          width: 1.3, share: .42
+        }
       }
     },
     colors: { tellurique: '#90a58b', océanique: '#6097ad', aride: '#bd9c77',

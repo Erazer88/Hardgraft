@@ -136,17 +136,34 @@ petites îles portent des poches plus riches. L'indice de richesse de chaque pla
 (`planet.resources`) module l'ensemble. La planète natale garantit au moins une poche
 riche de chaque matériau terrestre. Les ratios sont des premiers jets.
 
+Les minerais terrestres suivent ensuite des **veines** (`materials.veins`) : pour
+chaque matériau, les poches les plus riches, espacées entre elles, deviennent des
+nœuds (un à quatre selon la richesse de la planète) d'où partent trois à six filons.
+Chaque filon avance en marche aléatoire sur la terre ferme (jamais dans un lac, une
+crique ou la mer), s'affine vers sa pointe et se ramifie parfois, jusqu'à trois
+niveaux. Le sol traversé est enrichi dans le matériau du filon (la part des autres est
+réduite pour rester sous le plafond de minerai). `terrain.materials.veins` (tracés en
+cellules, force par point) et `terrain.materials.nodes` sont déterministes par graine.
+
 À l'écran, les matériaux apparaissent en points lumineux de la couleur du matériau
 dominant, plus fréquents et plus vifs là où il est concentré
-(`OrbitSurfaceStyle.neon.materials`). Une couche cuite les montre en vue d'ensemble ;
-au zoom, des points de taille constante prennent le relais. Le réglage développeur
+(`OrbitSurfaceStyle.neon.materials`). Les veines sont des fissures lumineuses : un
+sillon sombre, une lueur de la couleur du matériau et un cœur clair, plus épais près
+du nœud ; chaque nœud porte un halo, un anneau et un centre presque blanc. Une couche
+cuite montre points et veines en vue d'ensemble ; au zoom, ils sont retracés à taille
+d'écran constante. Le réglage développeur
 **Ressources du sol** les masque, en attendant l'affichage par scan.
 
 Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
 (`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta
 sombre aux sommets presque blancs, séparée de la suivante par une ligne d'altitude
-fine et discrète, toutes identiques. Les pentes fortes (falaises, parois de canyon) sont
-légèrement ombrées, les marais portent un motif de touffes discret. Les rivières
+fine et discrète, toutes identiques, accompagnée de lignes intermédiaires plus pâles.
+Les strates se lisent comme des feuilles de papier empilées : un léger dégradé
+intérieur, une ombre portée au pied de chaque marche du côté opposé à la lumière et
+un liseré clair sur l'arête éclairée, plus un ombrage directionnel doux des pentes
+(lumière venant du nord-ouest). La mer porte quelques isobathes discrètes. Le trait de
+côte suit un champ lissé qui arrondit l'escalier des cellules (`neon.shoreSmoothing`)
+sans faire disparaître les îlots d'une cellule. Les marais portent un motif de touffes discret. Les rivières
 reprennent l'eau sombre de la mer avec un liseré léger ; seules celles qui drainent un
 bassin assez grand sont dessinées (`water.riverMinFlow`). Le rendu reste volontairement
 sobre pour laisser la place aux éléments de jeu. Au zoom, lignes

@@ -249,6 +249,33 @@ test('materials gather where the ground favors them, richer in hard places and o
   assert.ok(landOre(islandWorld) > landOre(continentWorld), 'island worlds hold richer ground');
 });
 
+test('ore veins branch from rich nodes over land and enrich the ground they cross', () => {
+  const planet = { kind: 'tellurique', surfaceWater: .4, temperature: 18, seed: 77,
+    resources: { iron: .7, copper: .5, silicon: .5, carbon: .5, oil: .5 } };
+  const terrain = world.createTerrain('veins', 320, 240, planet);
+  const again = world.createTerrain('veins', 320, 240, planet);
+  const { veins, nodes, ids, shares } = terrain.materials, { width, height, seaLevel, elevation } = terrain;
+  assert.equal(serialize(again.materials.veins), serialize(veins), 'veins are deterministic');
+  assert.ok(nodes.length >= 3 && veins.length >= nodes.length * 2, 'several nodes each send out branches');
+  assert.ok(veins.every(vein => !terrain.materials.ids[vein.kind].startsWith('oil')), 'no vein carries a marine material');
+  let onVein = 0, onVeinCount = 0, branched = 0;
+  for (const vein of veins) {
+    for (let index = 0; index < vein.points.length; index += 2) {
+      const x = Math.round(vein.points[index]), y = Math.round(vein.points[index + 1]);
+      assert.ok(x >= 0 && y >= 0 && x < width && y < height && elevation[y * width + x] > seaLevel, 'veins stay on land');
+      onVein += shares[(y * width + x) * ids.length + vein.kind] / 255; onVeinCount += 1;
+    }
+    if (!nodes.some(node => node.x === vein.points[0] && node.y === vein.points[1])) branched += 1;
+  }
+  assert.ok(branched > 0, 'veins split into side branches');
+  let ground = 0, groundCount = 0;
+  for (let cell = 0; cell < elevation.length; cell += 1) {
+    if (elevation[cell] <= seaLevel) continue;
+    for (let kind = 0; kind < ids.length; kind += 1) if (ids[kind] !== 'oil') { ground += shares[cell * ids.length + kind] / 255; groundCount += 1; }
+  }
+  assert.ok(onVein / onVeinCount > ground / groundCount * 3, 'ground along a vein is far richer in its material');
+});
+
 test('telluric maps keep their continents inside an open-sea border', () => {
   const border = context.OrbitWorldgenData.terrain.oceanBorder;
   for (const [index, surfaceWater] of [.08, .2, .35, .7].entries()) {

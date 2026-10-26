@@ -28,8 +28,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 - La carte planétaire utilise la couche visuelle néon issue de la branche
-  `neon-style` : strates d'altitude teintées (plus claires vers les sommets) et lignes
-  d'altitude, rivières, lacs, marais, côtes lumineuses. L'ancien rendu réaliste
+  `neon-style` : strates d'altitude teintées (plus claires vers les sommets) et ombrées
+  comme du papier empilé, lignes d'altitude, rivières, lacs, marais, côtes lumineuses. L'ancien rendu réaliste
   (biomes, textures, WebGL) est supprimé. Réglages dans `src/data/surfaceStyle.js`.
 - La génération de planète dessine d'abord continents et îles, puis en déduit
   `terrain.elevation`, qui reste la hauteur canonique, et l'hydrologie (rivières,
@@ -40,7 +40,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 - Plus de gisements ni de champ de pétrole : chaque zone du sol a sa composition
   (roche + fer, cuivre, silice, carbone ; pétrole en mer), plus concentrée selon le
   terrain. Extracteurs et plateformes se posent librement et extraient le matériau
-  le plus présent sous eux. Les points colorés du sol seront plus tard révélés par
+  le plus présent sous eux. Les minerais suivent des veines ramifiées issues de nœuds
+  riches. Les points et veines colorés du sol seront plus tard révélés par
   un scan progressif ; les ratios et rendements restent à calibrer.
 - Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
   illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques
