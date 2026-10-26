@@ -431,3 +431,31 @@ test('roads wind up steep slopes and cross drawn rivers once, on a bridge', () =
   }
   assert.equal(entries, 1, 'the river is crossed once');
 });
+
+test('sea lanes round a continent offshore and stop at enclosed lakes', () => {
+  const seaContext = vm.createContext({});
+  for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js',
+    'simulation/roadCostField.js', 'simulation/roadPathfinder.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), seaContext);
+  }
+  const { OrbitRoadCostField: Field, OrbitRoadPathfinder: Pathfinder } = seaContext;
+  // Open sea with a long continent across the middle, holding a lake.
+  const width = 160, height = 120, elevation = new Uint8Array(width * height).fill(80);
+  for (let y = 20; y < 100; y++) for (let x = 60; x < 100; x++) elevation[y * width + x] = 140;
+  for (let y = 50; y < 60; y++) for (let x = 75; x < 85; x++) elevation[y * width + x] = 90;
+  const terrain = { width, height, seaLevel: 102, elevation, relief: elevation, rivers: [] };
+  const field = Field.createMarine(Field.createBase(terrain, 3));
+  const west = { x: 40 * 3, y: 60 * 3 }, east = { x: 120 * 3, y: 60 * 3 };
+  const lane = Pathfinder.findPath(field, terrain, west, east);
+  assert.ok(lane, 'a lane rounds the continent');
+  let length = 0, nearShore = 0;
+  for (let i = 1; i < lane.length; i++) length += Math.hypot(lane[i].x - lane[i - 1].x, lane[i].y - lane[i - 1].y);
+  for (const point of lane) {
+    const x = Math.round(point.x / 3), y = Math.round(point.y / 3);
+    assert.ok(elevation[y * width + x] <= 102, 'the lane stays at sea');
+    if (x >= 57 && x <= 102 && y >= 17 && y <= 102) nearShore++;
+  }
+  assert.ok(length > 240 * 1.5, 'the lane goes around rather than across');
+  assert.ok(nearShore / lane.length < .2, 'the lane keeps off the shore');
+  assert.equal(Pathfinder.findPath(field, terrain, west, { x: 80 * 3, y: 55 * 3 }), null, 'an enclosed lake is not reachable');
+});

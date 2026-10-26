@@ -28,9 +28,17 @@ Le réseau manuel est sauvegardé par planète. Les segments enregistrent leur
 géométrie, leur classe terre/mer et la distance déjà construite. La simulation
 fait progresser les travaux ; le renderer n'affiche que la portion terminée.
 Les intersections terrestres sont détectées sur la géométrie réelle, puis le
-segment est découpé et rattaché au nouveau nœud. Les routes maritimes relient les
-ports de surface aux plateformes pétrolières, restent isolées en mer et partagent
-les points d'amarrage des ports.
+segment est découpé et rattaché au nouveau nœud. Les routes maritimes, tracées avec
+l'outil route, relient un port de surface à une plateforme pétrolière ou à un autre
+port ; elles restent isolées en mer et partagent les points d'amarrage des ports.
+
+Une route maritime suit un couloir cohérent : seule l'eau est ouverte, l'eau proche
+des côtes coûte plus cher (`marine.coastClearanceCells`, `marine.coastPenalty`), si
+bien que le couloir prend le large et contourne caps et continents entiers si besoin
+(`marine.maxExpandedStates` autorise ces longues recherches). Les emprises des autres
+bâtiments sont évitées. Deux ports qui ne donnent pas sur la même étendue d'eau (un
+lac fermé et la mer) sont refusés immédiatement. Les couloirs s'affichent en
+pointillés lumineux.
 
 Pour les exports orbitaux, `src/simulation/logisticsNetwork.js` parcourt uniquement
 les segments terrestres dont `builtLength` atteint `length`. Le stock dédié `dockStock`

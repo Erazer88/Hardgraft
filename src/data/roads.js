@@ -41,6 +41,12 @@
     search: Object.freeze({ maxExpandedStates: 500000, heuristicWeight: 1.6 }),
     marine: Object.freeze({
       waterCost: .65,
+      // Sea lanes keep off the shore: water within this many routing cells of
+      // land costs more, up to (1 + coastPenalty) times at the shore itself.
+      coastClearanceCells: 6,
+      coastPenalty: 5,
+      // A lane may round a whole continent: the search may expand this many states.
+      maxExpandedStates: 2500000,
       docking: Object.freeze({
         clearanceCells: 1,
         approachCells: 2,
@@ -99,10 +105,12 @@
       bridgeLengthPx: 7,
       bridgeOffsetPx: 3.2,
       bridgeWidthPx: 1.1,
-      marineColor: '#9ff4ff',
-      marineOpacity: .6,
-      marineWidthPx: 1.25,
-      marineDashPx: Object.freeze([6, 5]),
+      // Sea lanes: a dotted line, lighter than roads.
+      marineColor: '#c8f8ff',
+      marineMinScale: .8,
+      marineOpacity: .85,
+      marineWidthPx: 2.4,
+      marineDashPx: Object.freeze([.1, 5.5]),
       constructionColor: '#f3b46b',
       constructionPulsePeriodMs: 1450,
       constructionPulseRadiusPx: 5.5,

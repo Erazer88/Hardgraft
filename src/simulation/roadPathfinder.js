@@ -81,6 +81,7 @@
         !Number.isFinite(to.x) || !Number.isFinite(to.y)) return null;
     const start = Field.cellIndex(field, from), goal = Field.cellIndex(field, to);
     if (field.blocked[start.index] || field.blocked[goal.index]) return null;
+    if (field.waterBody && field.waterBody[start.index] !== field.waterBody[goal.index]) return null;
     if (start.index === goal.index) return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
 
     const stateCount = field.count * STATES;
@@ -107,7 +108,7 @@
     while (heap.size) {
       const currentState = heap.pop(), queuedG = heap.poppedG;
       if (closed[currentState] || queuedG > best[currentState] + EPSILON) continue;
-      if (++expanded > Config.search.maxExpandedStates) return null;
+      if (++expanded > (field.maxExpandedStates || Config.search.maxExpandedStates)) return null;
       closed[currentState] = 1;
       const current = Math.floor(currentState / STATES), incoming = currentState % STATES;
       if (current === goal.index) { found = currentState; break; }

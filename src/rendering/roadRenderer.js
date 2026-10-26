@@ -46,7 +46,7 @@
       ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length;
     if (remaining <= 0) return;
     ctx.save(); ctx.strokeStyle = Style.marineColor; ctx.globalAlpha = opacity;
-    ctx.lineWidth = Style.marineWidthPx; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Style.marineWidthPx * Math.max(Style.marineMinScale, widthScale(frame)); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.setLineDash(Style.marineDashPx); ctx.beginPath(); ctx.moveTo(projected[0].x, projected[0].y);
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1], b = points[i], length = Math.hypot(b.x - a.x, b.y - a.y);

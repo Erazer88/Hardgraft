@@ -21,10 +21,12 @@
     return Boolean(segment?.routeType === 'marine');
   }
 
+  // Sea lanes join a port to an oil platform or to another port.
   function marinePair(from, to, buildings) {
     const a = buildingFor(from, buildings), b = buildingFor(to, buildings);
     return Boolean((a?.type === 'oil_platform' && b?.type === 'surface_port') ||
-      (b?.type === 'oil_platform' && a?.type === 'surface_port'));
+      (b?.type === 'oil_platform' && a?.type === 'surface_port') ||
+      (a?.type === 'surface_port' && b?.type === 'surface_port'));
   }
 
   function marinePairAlreadyConnected(network, from, to) {
@@ -106,13 +108,13 @@
 
   function previewBetween({ network, from, to, terrain, baseField, buildings }) {
     if (isMarineRoadEndpoint(from, network) || isMarineRoadEndpoint(to, network)) {
-      return { connected: false, reason: 'Une route maritime se relie uniquement entre un port et une plateforme pétrolière.' };
+      return { connected: false, reason: 'Une route maritime relie seulement des ports et des plateformes pétrolières.' };
     }
     const fromBuilding = buildingFor(from, buildings), toBuilding = buildingFor(to, buildings);
     const hasOilPlatform = fromBuilding?.type === 'oil_platform' || toBuilding?.type === 'oil_platform';
     const isMarine = marinePair(from, to, buildings);
     if (isMarine && marinePairAlreadyConnected(network, from, to)) {
-      return { connected: false, reason: 'Cette plateforme est déjà reliée à ce port.' };
+      return { connected: false, reason: 'Ces deux bâtiments sont déjà reliés par la mer.' };
     }
     if (hasOilPlatform && !isMarine) {
       return { connected: false, reason: 'Une plateforme pétrolière doit être reliée à un port de surface.' };
@@ -135,19 +137,24 @@
         { allowDeepWater, avoidExistingRoads: true, builtRoadsOnly: true });
     let route;
     if (isMarine) {
-      const portEndpoint = fromBuilding?.type === 'surface_port' ? routeFrom : routeTo;
-      const portIsFrom = portEndpoint === routeFrom;
-      const pathStart = portIsFrom ? portEndpoint.approachPoint : routeFrom.point;
-      const pathEnd = portIsFrom ? routeTo.point : portEndpoint.approachPoint;
-      const rawPath = Pathfinder.findPath(field, terrain, pathStart, pathEnd);
+      // Ports reach open water along their approach; platforms stand in it.
+      const leads = endpoint => buildingFor(endpoint, buildings)?.type === 'surface_port';
+      const pathStart = leads(routeFrom) ? routeFrom.approachPoint : routeFrom.point;
+      const pathEnd = leads(routeTo) ? routeTo.approachPoint : routeTo.point;
+      const startCell = CostField.cellIndex(field, pathStart).index, endCell = CostField.cellIndex(field, pathEnd).index;
+      if (field.waterBody[startCell] !== field.waterBody[endCell]) {
+        return { connected: false, reason: 'Ces deux bâtiments ne donnent pas sur la même étendue d’eau.' };
+      }
+      // Lanes steer around other buildings' footprints, ending on their own two.
+      const seaField = CostField.withNetwork(field, null, buildings, [pathStart, pathEnd]);
+      const rawPath = Pathfinder.findPath(seaField, terrain, pathStart, pathEnd);
       const seaRoute = Geometry.create(rawPath, terrain, baseField.textureScale, buildings,
         { allowDeepWater: true, waterOnly: true });
       if (seaRoute) {
-        const lead = Geometry.resample([portEndpoint.point, portEndpoint.approachPoint],
-          Config.geometry.validationSpacing);
-        const points = portIsFrom
-          ? [...lead, ...seaRoute.points.slice(1)]
-          : [...seaRoute.points.slice(0, -1), ...lead.slice().reverse().slice(1)];
+        const lead = (a, b) => Geometry.resample([a, b], Config.geometry.validationSpacing);
+        let points = seaRoute.points;
+        if (leads(routeFrom)) points = [...lead(routeFrom.point, routeFrom.approachPoint), ...points.slice(1)];
+        if (leads(routeTo)) points = [...points.slice(0, -1), ...lead(routeTo.approachPoint, routeTo.point)];
         if (Geometry.valid(points, terrain, baseField.textureScale, buildings,
             { allowDeepWater: true, waterOnly: true })) {
           route = { ...seaRoute, points,

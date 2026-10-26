@@ -64,13 +64,42 @@
       costs, blocked, elevations, water, slopeX, slopeY, river, minimumCost };
   }
 
+  // Sea lanes: only water is open, and water near the shore costs more, so
+  // lanes run offshore and round headlands instead of hugging the coast.
   function createMarine(base) {
-    const costs = new Float32Array(base.costs), blocked = new Uint8Array(base.blocked);
+    const marine = Config.marine, costs = new Float32Array(base.count), blocked = new Uint8Array(base.count);
+    const toLand = new Float32Array(base.count).fill(Infinity), queue = [];
+    for (let index = 0; index < base.count; index++) if (!base.water[index]) { toLand[index] = 0; queue.push(index); }
+    for (let head = 0; head < queue.length; head++) {
+      const index = queue[head], x = index % base.width, y = Math.floor(index / base.width);
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const nx = x + ox, ny = y + oy, next = ny * base.width + nx;
+        if ((!ox && !oy) || nx < 0 || ny < 0 || nx >= base.width || ny >= base.height) continue;
+        const distance = toLand[index] + (ox && oy ? Math.SQRT2 : 1);
+        if (distance < toLand[next]) { toLand[next] = distance; queue.push(next); }
+      }
+    }
+    // Connected bodies of water, so a lake port fails fast instead of searching the sea.
+    const waterBody = new Int32Array(base.count).fill(-1);
+    for (let start = 0, label = 0; start < base.count; start++) {
+      if (!base.water[start] || waterBody[start] >= 0) continue;
+      const stack = [start]; waterBody[start] = label;
+      while (stack.length) {
+        const index = stack.pop(), x = index % base.width, y = Math.floor(index / base.width);
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const nx = x + ox, ny = y + oy, next = ny * base.width + nx;
+          if (nx < 0 || ny < 0 || nx >= base.width || ny >= base.height || !base.water[next] || waterBody[next] >= 0) continue;
+          waterBody[next] = label; stack.push(next);
+        }
+      }
+      label++;
+    }
     for (let index = 0; index < base.count; index++) {
       blocked[index] = base.water[index] ? 0 : 1;
-      costs[index] = base.water[index] ? Config.marine.waterCost : Infinity;
+      const nearShore = Math.max(0, 1 - toLand[index] / marine.coastClearanceCells);
+      costs[index] = base.water[index] ? marine.waterCost * (1 + marine.coastPenalty * nearShore * nearShore) : Infinity;
     }
-    return { ...base, costs, blocked, minimumCost: Config.marine.waterCost };
+    return { ...base, costs, blocked, waterBody, minimumCost: marine.waterCost, maxExpandedStates: marine.maxExpandedStates };
   }
 
   function pointToCell(field, point) {
