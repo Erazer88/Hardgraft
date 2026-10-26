@@ -138,7 +138,7 @@ riche de chaque matériau terrestre. Les ratios sont des premiers jets.
 
 Les minerais terrestres suivent ensuite des **veines** (`materials.veins`) : pour
 chaque matériau, les poches les plus riches, espacées entre elles, deviennent des
-nœuds (un à trois selon la richesse de la planète) d'où partent deux ou trois filons,
+nœuds (deux à quatre selon la richesse de la planète) d'où partent deux à quatre filons,
 lancés dans les deux sens de la direction des courbes de niveau locales. Chaque filon
 avance sur la terre ferme (jamais dans un lac, une crique ou la mer) en s'infléchissant
 vers les courbes de niveau, comme une strate ou une faille, s'affine vers sa pointe et
@@ -157,7 +157,7 @@ d'écran constante. Le réglage développeur
 
 Le rendu suit une carte hypsométrique néon : chaque strate d'altitude
 (`OrbitSurfaceStyle.neon.relief.bandStep`) a sa teinte, des basses terres magenta
-sombre aux sommets presque blancs, séparée de la suivante par une ligne d'altitude
+sombre aux sommets rose pâle (jamais blancs, pour rester lisibles), séparée de la suivante par une ligne d'altitude
 fine et discrète, toutes identiques, accompagnée de lignes intermédiaires plus pâles.
 Les strates se lisent comme des feuilles de papier empilées : un léger dégradé
 intérieur, une ombre diffuse qui s'estompe au pied de chaque marche du côté opposé à

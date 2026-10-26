@@ -50,7 +50,7 @@
         bandStep: 16,
         // Texels per terrain cell for the baked strata; the map texture has 3.
         layerScale: 2,
-        colors: Object.freeze(['#6e2153', '#8c2e69', '#ab3f80', '#c75594', '#de72aa', '#ee96c2', '#f8bdd9', '#ffe6f2']),
+        colors: Object.freeze(['#521440', '#6c1f55', '#882d6a', '#a33f7f', '#bb5593', '#ce6fa6', '#dc8bb8', '#e6a5c8']),
         pigment: .06,
         lineColor: '#ffd3e8',
         lineOpacity: .16,
@@ -84,7 +84,7 @@
         colors: Object.freeze({ iron: '#ffb83d', copper: '#3ee8c6', silicon: '#4fd9ff', carbon: '#b9a8ff', oil: '#d4ff5c' }),
         minShare: .08,
         fullShare: .3,
-        density: .2,
+        density: .12,
         coreOpacity: .75,
         haloOpacity: .14,
         // Baked overview layer: texels per terrain cell and dot sizes in texels.
@@ -98,9 +98,9 @@
         // Ore veins, a light hint: a faint glow, a thin body and a fine core whose
         // width follows the vein's strength. Texels on the baked layer, px close up.
         veins: Object.freeze({
-          glowTexels: 2.6, bodyTexels: 1, coreTexels: .45,
-          glowPx: 5, bodyPx: 1.8, corePx: .8,
-          glowOpacity: .05, bodyOpacity: .24, coreOpacity: .6,
+          glowTexels: 3.4, bodyTexels: 1.4, coreTexels: .55,
+          glowPx: 6, bodyPx: 2.2, corePx: .9,
+          glowOpacity: .1, bodyOpacity: .5, coreOpacity: .85,
           coreColor: '#fff6e8', coreTint: .45,
           minWidth: .35, strengthBuckets: 4
         }),
