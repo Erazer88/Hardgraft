@@ -7,8 +7,16 @@
 
   function advance(state, currentTime, systemsById, running = true) {
     state.orbitalLogistics ||= Transit.createState();
-    if (running) Network.transferDockStockToBuildings(state);
+    if (running) recordTransportActivity(state, Network.transferDockStockToBuildings(state).flows, currentTime);
     return Transit.advance(state, currentTime, systemsById, running);
+  }
+
+  // Last simulation time each road link carried a transfer, keyed
+  // "source>destination". Runtime only: saves leave it out.
+  function recordTransportActivity(state, flows, currentTime) {
+    if (!flows.length) return;
+    state.transportActivity ||= {};
+    for (const flow of flows) state.transportActivity[`${flow.sourceId}>${flow.destinationId}`] = currentTime;
   }
 
   function setDockDestination(building, resourceId, destinationId) {

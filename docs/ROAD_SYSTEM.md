@@ -79,6 +79,17 @@ tracé calculé, mais il n'est plus dessiné : le rendu prolonge chaque route at
 jusqu'à l'angle de la balise hexagonale tourné vers elle. Vue de loin, les routes
 s'affinent et leur halo s'atténue (`render.zoomWidth`).
 
+Quand une ressource passe d'un bâtiment à un autre, le transfert reste immédiat,
+mais la route le montre : `logisticsNetwork.js` renvoie chaque flux (source,
+destination, ressource), `gameplay/logistics.js` note dans `state.transportActivity`
+le dernier instant où chaque liaison a servi (état d'exécution, non sauvegardé), et
+`vehicleRenderer.js` fait courir des impulsions lumineuses sur le plus court chemin
+construit, de l'angle de la balise source à celui de la destination, tant que la
+liaison a servi depuis moins de `render.transit.activeSeconds`. Chaque impulsion part
+lentement puis accélère (`easePower`) jusqu'à « percuter » la balise cible, marquée
+d'un anneau qui s'élargit ; elles reviennent à intervalle régulier (`intervalMs`).
+Rien ne court quand le jeu est en pause.
+
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan
 (`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde
 gardent leurs points lumineux, les carrefours sont de petits losanges à contour

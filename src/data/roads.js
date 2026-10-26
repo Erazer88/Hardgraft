@@ -111,6 +111,23 @@
       marineOpacity: .85,
       marineWidthPx: 2.4,
       marineDashPx: Object.freeze([.1, 5.5]),
+      // Transfers along a road: light pulses that start slowly, accelerate
+      // and strike the destination beacon, while the link stays active.
+      transit: Object.freeze({
+        activeSeconds: 5,
+        intervalMs: 1300,
+        durationMs: Object.freeze([700, 1700]),
+        durationPerKm: 3,
+        easePower: 2.6,
+        tailPx: 46,
+        tailSteps: 10,
+        headRadiusPx: 2.6,
+        color: '#f4feff',
+        glowColor: '#78f0ff',
+        glowBlurPx: 9,
+        impactMs: 420,
+        impactRadiusPx: 14
+      }),
       constructionColor: '#f3b46b',
       constructionPulsePeriodMs: 1450,
       constructionPulseRadiusPx: 5.5,

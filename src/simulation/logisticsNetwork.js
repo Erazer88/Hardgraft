@@ -34,8 +34,10 @@
     return Boolean(state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === 'input_dock'));
   }
 
+  // Moves every docked stock to its assigned destination. Besides the totals,
+  // returns each source-to-destination flow, so the road can show it.
   function transferDockStockToBuildings(state, seconds = 0) {
-    const transferred = new Map();
+    const transferred = new Map(), flows = [];
     const buildings = state.surfaceBuildings || [];
     const byId = new Map(buildings.map(building => [building.id, building]));
     for (const source of buildings) {
@@ -57,12 +59,13 @@
           destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
         }
         delete source.dockStock[resourceId];
+        flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
         transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
       }
     }
     const rates = {};
     if (seconds > 0) for (const [key, amount] of transferred) rates[key] = amount / seconds;
-    return { transferred, rates };
+    return { transferred, rates, flows };
   }
 
   root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, hasReceivingDock,

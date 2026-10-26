@@ -96,6 +96,17 @@ test('ground transfer drains only dock-exposed integer stock and leaves other in
   assert.deepEqual(plain(state.inventory), { iron: 50 });
 });
 
+test('each ground transfer is reported as a flow and marks its road link active', () => {
+  const { state } = fixture();
+  Logistics.advance(state, 4, systems);
+  assert.equal(state.transportActivity['factory-1>platform-1'], 4, 'the link carried a transfer at time 4');
+  Logistics.advance(state, 6, systems);
+  assert.equal(state.transportActivity['factory-1>platform-1'], 4, 'nothing left to send: the link keeps its last time');
+  const again = fixture();
+  assert.deepEqual(plain(Network.transferDockStockToBuildings(again.state).flows),
+    [{ sourceId: 'factory-1', destinationId: 'platform-1', resourceId: 'raw_iron', amount: 8 }]);
+});
+
 test('platform launches every dock-routed resource in whole-unit packets averaging four units per second', () => {
   const { platform, state } = fixture();
   Logistics.advance(state, 0, systems);

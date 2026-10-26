@@ -285,5 +285,5 @@
     }
   }
 
-  root.OrbitRoadRenderer = Object.freeze({ render });
+  root.OrbitRoadRenderer = Object.freeze({ render, beaconCorner });
 })(globalThis);
