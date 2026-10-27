@@ -323,6 +323,37 @@
       }
     }
 
+    // The colony's construction materials, with a brief flash when they change.
+    const STOCK_ITEMS = [['iron', 'FER', '#ff8a1c'], ['copper', 'CUIVRE', '#18e0a0'], ['silicon', 'SILICE', '#29a3ff'], ['carbon', 'CARBONE', '#c9d2d8']];
+    const shownStock = {};
+    function renderColonyStock(state) {
+      const container = $('colony-stock');
+      if (!container.children.length) {
+        for (const [id, label, color] of STOCK_ITEMS) {
+          const item = document.createElement('div'); item.className = 'colony-stock-item'; item.dataset.resource = id;
+          item.style.setProperty('--material', color);
+          item.innerHTML = `<span><i></i>${label}</span><strong>—</strong>`;
+          container.append(item);
+        }
+      }
+      for (const item of container.children) {
+        const id = item.dataset.resource, infinite = Inventory.isInfinite(id);
+        const amount = Math.floor(state.inventory?.[id] || 0), text = infinite ? '∞' : fmt(amount);
+        const value = item.querySelector('strong');
+        if (value.textContent !== text) value.textContent = text;
+        const previous = shownStock[id];
+        if (!infinite && previous !== undefined && previous !== amount) {
+          item.classList.remove('gain', 'loss'); void item.offsetWidth;
+          item.classList.add(amount > previous ? 'gain' : 'loss');
+          clearTimeout(item.flashTimer);
+          item.flashTimer = setTimeout(() => item.classList.remove('gain', 'loss'), 700);
+        }
+        shownStock[id] = amount;
+        item.classList.toggle('short', !infinite && amount < 5);
+        item.title = `${ResourceData.get(id)?.label || id} · ${infinite ? 'infini (réglage développeur)' : `${fmt(amount)} disponibles`}`;
+      }
+    }
+
     function update({ state, galaxy, terrainData, width, scaleCamera, buildingPosition }) {
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
@@ -374,6 +405,7 @@
         if (definition) option.title = option.disabled
           ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
       }
+      renderColonyStock(state);
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;

@@ -454,6 +454,8 @@ async function checkDeveloperSettings(cdp, name) {
     `${name} developer reset disables infinite minerals`);
   await cdp.until('/STOCK · Fer \\d/.test(document.querySelector("#resource-stock").textContent)',
     `${name} counted colony stock returns after developer reset`);
+  await cdp.until('/FER\\s*\\d/.test(document.querySelector("#colony-stock").textContent)',
+    `${name} colony stock stays visible in the telemetry`);
   await cdp.click('#developer-tools-close');
 }
 
