@@ -518,35 +518,16 @@ test('refined cargo reaching the Ark becomes construction stock', () => {
   assert.deepEqual(plain(state.inventory), { iron: 12 }, 'only refined materials are credited');
 });
 
-test('early game: the landing cargo starts two lines, and the Ark stays a long-term goal', () => {
-  const inventory = Inventory.create(Resources.startingInventory), built = [];
-  const price = type => Construction.costFor(type, built, planetId);
-  const pay = amounts => { assert.equal(Inventory.consume(inventory, amounts), true, JSON.stringify({ amounts, inventory })); };
-  const line = (material, cards) => {
-    pay(price('extractor')); built.push({ type: 'extractor', planetId });
-    for (const type of cards) pay(Processes.get(type, material).cost);
-  };
-  assert.deepEqual(plain(price('landing_base')), {}, 'the landing base is free');
-  built.push({ type: 'landing_base', planetId });
-  pay(price('wind_turbine')); built.push({ type: 'wind_turbine', planetId });
-  line('iron', ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock', 'output_dock', 'output_dock']);
-  line('copper', ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'output_dock', 'output_dock', 'output_dock']);
-  assert.equal(Inventory.canAfford(Inventory.create(Resources.startingInventory), price('launch_platform')), false,
-    'the launch platform is out of reach at landing');
-  const platform = BuildingData.get('launch_platform').cost;
-  assert.ok(platform.silicon > 0 && platform.carbon > 0, 'the Ark needs all four materials');
-  // Even four full lines (≈ 0,4 u/s each) need minutes of work for the platform alone.
-  assert.ok(Math.max(...Object.values(platform)) / .4 / 60 >= 10);
-});
-
-test('each building of a type raises the price of the next one on the planet', () => {
-  const others = [{ type: 'extractor', planetId }, { type: 'extractor', planetId }, { type: 'extractor', planetId: 'elsewhere' }];
-  assert.deepEqual(plain(Construction.costFor('extractor', [], planetId)), { iron: 18, copper: 8 });
-  assert.deepEqual(plain(Construction.costFor('extractor', others, planetId)), { iron: 29, copper: 13 });
-  const site = Building.create({ id: 'x', type: 'extractor', planetId, x: 0, y: 0 });
-  const inventory = { iron: 100, copper: 100 };
-  Construction.start(site, inventory, Construction.costFor('extractor', others, planetId));
-  assert.deepEqual(plain(site.costPaid), { iron: 29, copper: 13 }, 'demolition refunds the price actually paid');
+test('building and card prices are masked for now, their reference values kept in the data', () => {
+  assert.equal(Construction.pricesEnabled(), false);
+  assert.deepEqual(plain(Construction.costFor('launch_platform')), {});
+  assert.deepEqual(plain(Construction.cardCost(Processes.get('reduction_furnace', 'iron'))), {});
+  assert.deepEqual(plain(BuildingData.get('launch_platform').cost), { iron: 350, copper: 250, silicon: 150, carbon: 80 });
+  assert.deepEqual(plain(Processes.get('reduction_furnace', 'iron').cost), { iron: 8, copper: 4 });
+  const site = Building.create({ id: 'free', type: 'factory', planetId, x: 0, y: 0 });
+  const inventory = { iron: 1 };
+  assert.equal(Construction.start(site, inventory, Construction.costFor('factory')).started, true);
+  assert.deepEqual(plain(inventory), { iron: 1 }, 'nothing is charged');
 });
 
 test('the landing base turns refined materials into construction stock within two minutes of landing', () => {
@@ -554,7 +535,7 @@ test('the landing base turns refined materials into construction stock within tw
     factoryPlans: {}, roadNetworks: {}, orbitalLogistics: Transit.createState() };
   const build = (id, type, x, y, extra = {}) => {
     const building = Building.create({ id, type, planetId, x, y, ...extra });
-    assert.equal(Construction.start(building, state.inventory, Construction.costFor(type, state.surfaceBuildings, planetId)).started, true, id);
+    assert.equal(Construction.start(building, state.inventory, Construction.costFor(type)).started, true, id);
     state.surfaceBuildings.push(building); return building;
   };
   const base = build('base', 'landing_base', 200, 620);

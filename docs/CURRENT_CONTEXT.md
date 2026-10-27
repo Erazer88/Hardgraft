@@ -52,11 +52,12 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   productrice d'énergie, sans débordement ni pollution), Plateforme de lancement moins
   coûteuse en énergie près de l'équateur. Colonie, contexte et pollution viendront
   plus tard. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- Le début de partie vise environ 30 minutes avant le premier envoi à l'Arche : stock
-  de débarquement compté, base de débarquement gratuite qui convertit les métaux bruts
-  livrés par route en stock de construction, bâtiments (+30 % par exemplaire) et
-  cartes payants, deux équipes de robots, énergie éolienne limitée (32 MW ≈ une
-  filière), plateforme de lancement chère en quatre matériaux. Voir « Équilibrage du début de partie » dans
+- Début de partie : base de débarquement gratuite qui convertit les métaux bruts
+  livrés par route en stock de construction, deux équipes de robots, énergie éolienne
+  limitée (32 MW ≈ une filière). Les prix des bâtiments et des cartes sont masqués pour
+  l'instant (`pricesEnabled: false`) : rien n'est facturé ni affiché, et l'objectif
+  d'environ 30 minutes avant l'Arche n'est donc pas tenu. Voir
+  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md). Voir « Équilibrage du début de partie » dans
   [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md). Le réglage développeur « Minerais infinis »
   lève les coûts pour tester ; la carte Réserve d'eau reste une source infinie
   temporaire.

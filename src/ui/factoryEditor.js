@@ -105,6 +105,7 @@
     }
 
     function costText(def) {
+      if (!root.OrbitConstruction?.pricesEnabled()) return '';
       const names = { iron: 'Fer', copper: 'Cu', silicon: 'Si', carbon: 'C' };
       const parts = Object.entries(def.cost || {}).map(([id, amount]) => `${amount} ${names[id] || id}`);
       return parts.length ? ` · ${parts.join(' ')}` : '';

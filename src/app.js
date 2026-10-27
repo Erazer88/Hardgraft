@@ -47,12 +47,12 @@
         BuildingData.get(candidate.type)?.roadRequired);
     },
     onAddCard(building, definition) {
-      const payment = Construction.payCard(building, state.inventory, definition.cost || {});
+      const payment = Construction.payCard(building, state.inventory, Construction.cardCost(definition));
       if (payment.paid) { updateUI(); persist(); }
       return payment;
     },
     onRemoveCard(building, definition) {
-      Construction.refundCard(building, state.inventory, definition.cost || {});
+      Construction.refundCard(building, state.inventory, Construction.cardCost(definition));
       updateUI(); persist();
     },
     onDockDestinationChange(buildingId, resourceId, destinationId) {
@@ -387,7 +387,7 @@
       waterPort: preview.waterPort,
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
-      Construction.costFor(building.type, state.surfaceBuildings, state.planet.id));
+      Construction.costFor(building.type));
     if (!construction.started) {
       const shortage = construction.missing?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
       toast(shortage ? `Ressources insuffisantes : ${shortage}.` : 'Construction impossible pour le moment.');
@@ -402,7 +402,7 @@
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface') return;
     const shortage = Inventory.missing(state.inventory,
-      Construction.costFor(type, state.surfaceBuildings, state.planet?.id) || {});
+      Construction.costFor(type) || {});
     if (shortage === null || shortage.length) {
       const details = shortage?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
       toast(details ? `Ressources insuffisantes : ${details}.` : 'Coût de construction invalide.');
@@ -431,7 +431,8 @@
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
     globalThis.OrbitIndustry.reclaimBuilding(state, building);
     state.selected = null; $('inspector').hidden = true;
-    toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli. Récupéré : ${amountSummary(refund)}.`);
+    const refunded = Object.values(refund).some(amount => amount > 0);
+    toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli.${refunded ? ` Récupéré : ${amountSummary(refund)}.` : ''}`);
     updateUI(); persist();
   }
   function buildingHit(frame, building, definition, x, y) {

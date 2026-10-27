@@ -148,6 +148,12 @@ Objectif : environ 30 minutes de jeu avant le premier envoi à l'Arche. La colon
 d'abord de sa base de débarquement ; la plateforme de lancement est le premier grand
 projet, qui demande les quatre matériaux.
 
+**Prix masqués pour l'instant** (`construction.pricesEnabled: false` dans
+`src/data/buildings.js`) : bâtiments et cartes ne coûtent rien et aucun prix n'est
+affiché. Les valeurs ci-dessous restent dans les données comme référence ; tant
+qu'elles sont masquées, rien ne retarde la plateforme et l'objectif des 30 minutes
+n'est pas tenu. Il n'y a plus de hausse de prix par exemplaire.
+
 - **Stock de débarquement** (`startingInventory`) : 120 fer, 60 cuivre, 0 silice,
   6 carbone. De quoi poser une éolienne, une filière fer et une filière cuivre dans
   leurs extracteurs. La silice et le carbone viennent de filières à monter.
@@ -155,12 +161,11 @@ projet, qui demande les quatre matériaux.
   route (Dock de sortie → base) devient du stock de construction pour les métaux bruts
   et le carbone (`constructionCredits`, 1 pour 1). Le reste (résidus, minerais) reste
   dans la base. L'Arche convertit de la même façon ce qu'elle reçoit.
-- **Bâtiments** (`src/data/buildings.js`) : coût de base et durée d'assemblage. Chaque
-  bâtiment du même type déjà présent sur la planète augmente le prix du suivant de 30 %
-  (`construction.costGrowth`) ; la démolition rend ce qui a été payé. Deux équipes de
-  robots (`construction.crews`) : deux chantiers avancent à la fois.
+- **Bâtiments** (`src/data/buildings.js`) : coût de référence et durée d'assemblage ; la
+  démolition rend ce qui a été payé. Deux équipes de robots (`construction.crews`) :
+  deux chantiers avancent à la fois.
 
-| Bâtiment | Coût de base | Assemblage |
+| Bâtiment | Coût de référence (masqué) | Assemblage |
 | --- | --- | ---: |
 | Base de débarquement | gratuite | 10 s |
 | Éolienne | 12 fer, 8 cuivre, 2 carbone | 20 s |
@@ -184,9 +189,9 @@ projet, qui demande les quatre matériaux.
 - **Repères** : premier fer crédité par la base moins de 2 minutes après le
   débarquement (joueur instantané, testé). Un modèle de joueur efficace (filières
   ajoutées dès qu'elles sont payables, éoliennes au besoin, 30 s à 2 min de
-  manipulation par filière) paie la plateforme entre 27 et 36 minutes avec 12 à 15
-  filières ; avec son assemblage et le vol, l'Arche est atteinte vers 30 minutes, plus
-  tard pour un joueur qui découvre.
+  manipulation par filière) paierait la plateforme en une demi-heure environ ; ce
+  calcul supposait aussi une hausse de 30 % par exemplaire, retirée depuis. À refaire
+  quand les prix reviendront.
 
 Ces valeurs sont un premier réglage, à affiner en jouant.
 

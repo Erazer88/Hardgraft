@@ -24,7 +24,7 @@
       const title = document.createElement('strong'); title.textContent = definition.label;
       const description = document.createElement('small'); description.textContent = definition.description;
       const cost = document.createElement('small'); cost.className = 'build-option-cost';
-      cost.textContent = resourceSummary(definition.cost);
+      cost.textContent = root.OrbitConstruction?.pricesEnabled() ? resourceSummary(definition.cost) : '';
       copy.append(title, description, cost); button.append(icon, copy); buildOptions.append(button);
     }
 
@@ -318,7 +318,8 @@
         else renderPlatformLogistics(item, { state, systemsById: new Map([[state.system?.id, state.system]]) });
         $('enter-button').hidden = true;
         const refundRate = Number.isFinite(item.demolitionRefundRate) ? item.demolitionRefundRate : 1;
-        $('demolish-button').textContent = `DÉMOLIR · RÉCUPÉRER ${Math.round(refundRate * 100)} %`;
+        $('demolish-button').textContent = root.OrbitConstruction?.pricesEnabled()
+          ? `DÉMOLIR · RÉCUPÉRER ${Math.round(refundRate * 100)} %` : 'DÉMOLIR';
       } else {
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
         $('selection-name').textContent = item.name;
@@ -405,14 +406,16 @@
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       for (const option of buildOptions.children) {
         const definition = BuildingData.get(option.dataset.buildingType);
-        // Prices rise with each building of the same type on this planet.
-        const price = root.OrbitConstruction.costFor(option.dataset.buildingType, state.surfaceBuildings || [], state.planet?.id) || {};
+        const price = root.OrbitConstruction.costFor(option.dataset.buildingType) || {};
+        const showPrice = root.OrbitConstruction.pricesEnabled();
         const unique = definition?.placementRules?.uniquePerPlanet && (state.surfaceBuildings || [])
           .some(building => building.type === definition.id && building.planetId === state.planet?.id);
         option.hidden = false;
         option.disabled = unique || !Inventory.canAfford(state.inventory, price);
-        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée sur cette planète' : resourceSummary(price);
+        // Prices are masked for now: only the unique-base notice shows.
+        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée sur cette planète' : showPrice ? resourceSummary(price) : '';
         if (costLabel && costLabel.textContent !== costText) costLabel.textContent = costText;
+        if (costLabel) costLabel.hidden = !costText;
         if (definition) option.title = unique ? 'Une seule base par planète.' : option.disabled
           ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }

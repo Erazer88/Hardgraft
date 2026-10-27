@@ -134,11 +134,10 @@
   Object.freeze(definitions);
 
   // Construction crews: robots landed with the Ark. Only this many sites
-  // progress at once; the others wait their turn.
-  // Each building of a type already standing on the planet raises the price
-  // of the next one by costGrowth (+30 %), so a colony spreads out its lines
-  // rather than stacking them; the free landing base is not affected.
-  const construction = Object.freeze({ crews: 2, costGrowth: .3 });
+  // progress at once; the others wait their turn. Building and card prices
+  // stay in the data but are masked for now: nothing is charged or shown
+  // while pricesEnabled is false.
+  const construction = Object.freeze({ crews: 2, pricesEnabled: false });
 
   // Buildings whose inside is a card plan, and those of them whose output
   // docks send resources by road (the depot uses its own gates).
