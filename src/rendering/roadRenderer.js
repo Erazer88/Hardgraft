@@ -66,17 +66,6 @@
     return false;
   }
 
-  function reachedIntersection(network, node) {
-    const reachedRoutes = new Set();
-    for (const segment of network.segments) {
-      if ((segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id)) {
-        reachedRoutes.add(segment.routeId || segment.id);
-      }
-      if (reachedRoutes.size >= 2) return true;
-    }
-    return false;
-  }
-
   function drawWaterDots(ctx, a, b, progress, opacity = 1, color = Style.waterColor, waterOpacity = Style.waterOpacity) {
     const length = Math.hypot(b.x - a.x, b.y - a.y), spacing = Style.waterDotSpacingPx;
     if (length < .1) return progress;
@@ -218,14 +207,6 @@
     return legs;
   }
 
-  function drawJunction(ctx, point) {
-    const size = Style.junctionHalfSizePx;
-    ctx.beginPath();
-    ctx.moveTo(point.x, point.y - size); ctx.lineTo(point.x + size, point.y);
-    ctx.lineTo(point.x, point.y + size); ctx.lineTo(point.x - size, point.y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-  }
-
   function render(frame) {
     const network = frame.state.roadNetworks?.[frame.planet.id];
     const ctx = frame.context;
@@ -247,16 +228,6 @@
       ctx.strokeStyle = Style.bridgeColor; ctx.lineWidth = Style.bridgeWidthPx; ctx.globalAlpha = Style.landOpacity;
       for (const segment of segments) drawBridges(frame, segment);
       for (const segment of segments) drawConstructionHead(frame, segment);
-      ctx.restore();
-      ctx.save();
-      ctx.fillStyle = Style.junctionFill; ctx.strokeStyle = Style.junctionColor; ctx.lineWidth = Style.junctionLineWidthPx;
-      ctx.shadowColor = Style.glowColor; ctx.shadowBlur = 8;
-      for (const node of network.nodes) {
-        if ((node.type !== 'intersection' && node.isIntersection !== true) || !reachedIntersection(network, node)) continue;
-        const point = frame.project(node.x, node.y), margin = Style.junctionHalfSizePx + 2;
-        if (point.x < -margin || point.y < -margin || point.x > frame.viewport.width + margin || point.y > frame.viewport.height + margin) continue;
-        drawJunction(ctx, point);
-      }
       ctx.restore();
     }
 

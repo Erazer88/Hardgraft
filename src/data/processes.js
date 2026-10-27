@@ -7,8 +7,11 @@
     maxTicksPerAdvance: 100,
     inputCapacity: 20,
     outputCapacity: 20,
-    colonyReserveInfinite: true,
-    windPowerUnlimited: true,
+    // Construction materials are counted for real; the developer setting
+    // "Minerais infinis" still lifts mineral costs for testing.
+    colonyReserveInfinite: false,
+    // One wind turbine powers about one full ore line (≈ 23,5 MW).
+    windPowerUnlimited: false,
     windPowerMW: 32,
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).
@@ -130,6 +133,22 @@
   };
   const depotCatalog = ['depot_input', 'depot_buffer', 'depot_filter', 'depot_splitter', 'depot_priority', 'depot_output'];
 
+  // Price of each card, paid from the colony stock when it is added to a
+  // plan and refunded when it is removed or its building is demolished.
+  const cardCosts = {
+    drill: { iron: 6, copper: 2 }, oil_pump: { iron: 8, copper: 3 }, water_supply: { iron: 2 },
+    crusher: { iron: 4, copper: 1 }, grinder: { iron: 5, copper: 2 },
+    magnetic_separator: { iron: 4, copper: 3 }, gravity_separator: { iron: 5, copper: 2 },
+    silicon_washer: { iron: 4, copper: 2 }, silicon_dryer: { iron: 4, copper: 2 },
+    carbon_separator: { iron: 4, copper: 2 }, carbon_washer: { iron: 4, copper: 2 },
+    reduction_furnace: { iron: 8, copper: 4 }, triphasic_separator: { iron: 8, copper: 4, silicon: 2 },
+    reprocessor: { iron: 4, copper: 2 }, incinerator: { iron: 6, copper: 2 },
+    water_pump: { iron: 3, copper: 1 }, desalinator: { iron: 6, copper: 4, silicon: 2 },
+    input_dock: { iron: 2 }, output_dock: { iron: 2 }, terril: { iron: 2 },
+    depot_input: { iron: 2 }, depot_output: { iron: 2 }, depot_buffer: { iron: 3 },
+    depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 }
+  };
+
   const catalogByResource = {
     iron: ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock'],
     copper: ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'output_dock'],
@@ -226,7 +245,7 @@
     if (type === 'water_pump') {
       const kind = resourceId === 'salt_water' ? 'salt' : resourceId === 'water' ? 'fresh' : null;
       const pump = kind && config.waterPump[kind];
-      const definition = pump ? freeze({ ...templates.water_pump, ...pump,
+      const definition = pump ? freeze({ ...templates.water_pump, ...pump, cost: cardCosts.water_pump,
         outputPorts: [output('water', kind === 'salt' ? 'Eau salée' : 'Eau douce', resourceId)] }) : null;
       cache.set(key, definition);
       return definition;
@@ -252,7 +271,7 @@
         ] } };
     } else if (type === 'oil_pump' && resourceId === 'oil') definition = templates.oil_pump;
     else definition = templates[type] || utilities[type] || depotCards[type] || null;
-    cache.set(key, definition ? freeze(definition) : null);
+    cache.set(key, definition ? freeze({ ...definition, cost: cardCosts[type] || {} }) : null);
     return cache.get(key);
   }
 
@@ -279,7 +298,7 @@
     return null;
   }
   const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
-  freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates); freeze(depotCards); freeze(waterCatalog);
+  freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates); freeze(depotCards); freeze(waterCatalog); freeze(cardCosts);
 
   root.OrbitProcessData = Object.freeze({
     config, definitions, utilities: frozenUtilities, statuses, materials,

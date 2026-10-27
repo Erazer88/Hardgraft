@@ -92,8 +92,8 @@ Rien ne court quand le jeu est en pause.
 
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan
 (`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde
-gardent leurs points lumineux, les carrefours sont de petits losanges à contour
-lumineux, et chaque franchissement de rivière porte deux rails de pont. Tous les
+gardent leurs points lumineux, les carrefours n'ont pas de marque propre, et chaque
+franchissement de rivière porte deux rails de pont. Tous les
 réglages sont dans `src/data/roads.js`.
 
 ## Quartiers résidentiels

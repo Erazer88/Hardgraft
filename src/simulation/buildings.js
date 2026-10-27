@@ -36,6 +36,9 @@
         Object.entries(costPaid).some(([id, amount]) => !id.trim() || !isFiniteNumber(amount) || amount < 0))) {
       throw new TypeError('Paid construction cost must be a resource map');
     }
+    // What the cards of its plan cost; refunded with the building.
+    const cardCostPaid = properties.cardCostPaid && typeof properties.cardCostPaid === 'object' && !Array.isArray(properties.cardCostPaid)
+      ? Object.fromEntries(Object.entries(properties.cardCostPaid).filter(([id, amount]) => id.trim() && isFiniteNumber(amount) && amount > 0)) : {};
     const energyUse = properties.energyUse ?? 0;
     if (!isFiniteNumber(energyUse) || energyUse < 0) throw new RangeError('Energy use must be a non-negative number');
     const createdAt = properties.createdAt ?? Date.now();
@@ -107,6 +110,7 @@
       constructionDurationSeconds,
       demolitionRefundRate,
       costPaid: costPaid ? { ...costPaid } : null,
+      cardCostPaid,
       roadPort,
       waterPort,
       logisticsNodeId,

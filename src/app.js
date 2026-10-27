@@ -46,6 +46,15 @@
         LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
+    onAddCard(building, definition) {
+      const payment = Construction.payCard(building, state.inventory, definition.cost || {});
+      if (payment.paid) { updateUI(); persist(); }
+      return payment;
+    },
+    onRemoveCard(building, definition) {
+      Construction.refundCard(building, state.inventory, definition.cost || {});
+      updateUI(); persist();
+    },
     onDockDestinationChange(buildingId, resourceId, destinationId) {
       const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
       if (!building || !Logistics.setDockDestination(building, resourceId, destinationId)) return false;

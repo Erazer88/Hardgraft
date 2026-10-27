@@ -11,7 +11,8 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
-  'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js']) {
+  'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -468,4 +469,103 @@ test('a depot receives by road through its input gate and its output gates deliv
   assert.ok(result.flows.some(flow => flow.sourceId === 'depot-1' && flow.destinationId === 'factory-2'));
   const saved = Building.create(plain({ ...depot, gateStock: { 'factory-2': { water: 3, bad: 1.5 } } }));
   assert.deepEqual(plain(saved.gateStock), { 'factory-2': { water: 3 } });
+});
+
+// ---- Early game balance ----
+const Inventory = context.OrbitInventory, Construction = context.OrbitConstruction;
+const Processes = context.OrbitProcessData, Graph = context.OrbitProcessGraph, Industry = context.OrbitIndustry;
+const Resources = context.OrbitResourceData, BuildingData = context.OrbitBuildingData;
+
+test('construction crews build two sites at a time; the others wait their turn', () => {
+  const sites = ['a', 'b', 'c'].map(id => Building.create({ id, type: 'storage', planetId, x: 0, y: 0 }));
+  const inventory = { iron: 100, copper: 100 };
+  for (const site of sites) assert.equal(Construction.start(site, inventory).started, true);
+  Construction.advance(sites, 10);
+  assert.deepEqual(sites.map(site => site.status), ['building', 'building', 'queued']);
+  assert.equal(sites[2].constructionProgress, 0);
+  Construction.advance(sites, 10);
+  assert.deepEqual(sites.map(site => site.constructionState), ['complete', 'complete', 'constructing']);
+  Construction.advance(sites, 20);
+  assert.equal(sites[2].constructionState, 'complete');
+});
+
+test('cards are paid from the colony stock, refunded on removal and with their building', () => {
+  const inventory = { iron: 30, copper: 10 };
+  const extractor = Building.create({ id: 'ext', type: 'extractor', planetId, x: 0, y: 0 });
+  assert.equal(Construction.start(extractor, inventory).started, true);
+  const furnace = Processes.get('reduction_furnace', 'iron');
+  assert.deepEqual(plain(furnace.cost), { iron: 8, copper: 4 });
+  assert.equal(Construction.payCard(extractor, inventory, furnace.cost).paid, false, 'not enough copper left');
+  inventory.copper += 10;
+  assert.equal(Construction.payCard(extractor, inventory, furnace.cost).paid, true);
+  assert.deepEqual(plain(inventory), { iron: 4, copper: 8 });
+  assert.deepEqual(plain(Construction.refundCard(extractor, inventory, furnace.cost)), { iron: 8, copper: 4 });
+  assert.deepEqual(plain(Construction.refundCard(extractor, inventory, furnace.cost)), {}, 'never refunded twice');
+  Construction.payCard(extractor, inventory, furnace.cost);
+  assert.deepEqual(plain(Construction.demolish(extractor, inventory)), { iron: 26, copper: 12 });
+  const saved = Building.create(plain({ ...extractor, cardCostPaid: { iron: 4, bad: -1 } }));
+  assert.deepEqual(plain(saved.cardCostPaid), { iron: 4 });
+});
+
+test('refined cargo reaching the Ark becomes construction stock', () => {
+  const { platform, state } = fixture({ dockStock: {}, dockDestinations: {} });
+  state.inventory = {};
+  platform.launchStock = { raw_iron: 12, iron_tailings: 5 };
+  platform.exportEnabled = { raw_iron: true, iron_tailings: true };
+  for (let time = 0; time <= 120; time += 1) Logistics.advance(state, time, systems, true);
+  assert.equal(state.orbitalLogistics.hubs.home.stock.raw_iron, 12);
+  assert.equal(state.orbitalLogistics.hubs.home.stock.iron_tailings, 5);
+  assert.deepEqual(plain(state.inventory), { iron: 12 }, 'only refined materials are credited');
+});
+
+test('early game: the landing cargo builds a first line whose iron reaches the Ark within two minutes', () => {
+  const cost = type => BuildingData.get(type).cost, inventory = Inventory.create(Resources.startingInventory);
+  const lineCards = ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock', 'output_dock', 'output_dock'];
+  const copperCards = ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'output_dock', 'output_dock', 'output_dock'];
+  const total = {};
+  const add = amounts => { for (const [id, amount] of Object.entries(amounts)) total[id] = (total[id] || 0) + amount; };
+  for (const type of ['wind_turbine', 'wind_turbine', 'extractor', 'extractor', 'launch_platform']) add(cost(type));
+  for (const type of lineCards) add(Processes.get(type, 'iron').cost);
+  for (const type of copperCards) add(Processes.get(type, 'copper').cost);
+  assert.equal(Inventory.canAfford(inventory, total), true, `landing cargo covers two lines: ${JSON.stringify(total)}`);
+  const lineMW = lineCards.reduce((sum, type) => sum + Processes.get(type, 'iron').energyMW, 0);
+  assert.ok(lineMW <= Processes.config.windPowerMW, `one turbine powers one line (${lineMW} MW)`);
+
+  // Instant player: turbine, extractor and platform ordered at once, a 100 km road.
+  const state = { seed: 'early', inventory, surfaceBuildings: [], factoryPlans: {}, roadNetworks: {}, orbitalLogistics: Transit.createState() };
+  const build = (id, type, x, y, extra = {}) => {
+    const building = Building.create({ id, type, planetId, x, y, ...extra });
+    assert.equal(Construction.start(building, state.inventory).started, true, id);
+    state.surfaceBuildings.push(building); return building;
+  };
+  build('wind', 'wind_turbine', 0, 0);
+  const extractor = build('extractor', 'extractor', 100, 620, { resourceId: 'iron' });
+  const platform = build('platform', 'launch_platform', 200, 620);
+  platform.exportEnabled = { raw_iron: true };
+  const network = Road.create(planetId);
+  state.roadNetworks[planetId] = network;
+  const from = Road.addNode(network, { x: 100, y: 620, buildingId: extractor.id });
+  const to = Road.addNode(network, { x: 200, y: 620, buildingId: platform.id });
+  Road.addSegment(network, { from: from.id, to: to.id, points: [{ x: 100, y: 620 }, { x: 200, y: 620 }], builtLength: 100 });
+  let arrival = null;
+  for (let tick = 1; tick <= 1800 && arrival === null; tick++) {
+    const time = tick / 10;
+    Construction.advance(state.surfaceBuildings, .1);
+    if (extractor.constructionState === 'complete' && !state.factoryPlans[extractor.id]?.machines.length) {
+      const graph = Industry.ensureGraph(state, extractor);
+      lineCards.forEach((type, index) => {
+        assert.equal(Construction.payCard(extractor, state.inventory, Processes.get(type, 'iron').cost).paid, true);
+        Graph.addMachine(graph, { id: `m${index}`, type, x: 0, y: 0 });
+      });
+      [['m0', 'raw_ore', 'm1', 'raw_ore'], ['m1', 'crushed_ore', 'm2', 'crushed_ore'], ['m2', 'ground_ore', 'm3', 'ground_ore'],
+        ['m3', 'concentrate', 'm4', 'concentrate'], ['m4', 'product', 'm5', 'material'], ['m3', 'residue', 'm6', 'material'],
+        ['m4', 'slag', 'm7', 'material']].forEach(([a, out, b, input], index) => assert.equal(Graph.connect(graph,
+        { id: `l${index}`, fromMachineId: a, fromOutputId: out, toMachineId: b, toInputId: input }).ok, true));
+      extractor.dockDestinations = { raw_iron: platform.id };
+    }
+    Industry.advance(state, .1);
+    Logistics.advance(state, time, systems, true);
+    if (state.orbitalLogistics.hubs?.home?.stock.raw_iron) arrival = time;
+  }
+  assert.ok(arrival !== null && arrival <= 120, `first iron reaches the Ark at ${arrival} s`);
 });

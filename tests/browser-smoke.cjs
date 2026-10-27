@@ -445,15 +445,15 @@ async function checkDeveloperSettings(cdp, name) {
       consumed, stock, waterIsInfinite: window.OrbitInventory.isInfinite('water') };
   })()`);
   assert.deepEqual(infiniteMinerals, { enabled: true, missing: [], consumed: true,
-    stock: {}, waterIsInfinite: true }, `${name} prototype colony reserve covers resource costs`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
-    `${name} prototype colony reserve display`);
+    stock: {}, waterIsInfinite: false }, `${name} infinite minerals cover mineral costs only`);
+  await cdp.until('document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
+    `${name} infinite minerals display`);
 
   await cdp.click('#developer-reset');
   assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
     `${name} developer reset disables infinite minerals`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("RÉSERVE COLONIE ∞")',
-    `${name} colony reserve display remains active after developer reset`);
+  await cdp.until('/STOCK · Fer \\d/.test(document.querySelector("#resource-stock").textContent)',
+    `${name} counted colony stock returns after developer reset`);
   await cdp.click('#developer-tools-close');
 }
 

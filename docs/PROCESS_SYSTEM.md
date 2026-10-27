@@ -131,14 +131,56 @@ Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progr
 cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
 L'animation de la barre ne modifie pas la simulation.
 
-L'énergie reste simple : aucune ligne électrique interne. L'énergie infinie des
-éoliennes terminées et la réserve d'eau infinie sont des modes temporaires du prototype.
+L'énergie reste simple : aucune ligne électrique interne. Chaque éolienne terminée
+fournit 32 MW à la planète, partagés entre les plans au prorata de leur demande ; une
+puissance insuffisante ralentit les cartes. La réserve d'eau infinie reste un mode
+temporaire du prototype.
 
 Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
 des matériaux de construction. La destination du Dock est choisie par matière parmi les
 usines et terrils terminés équipés d'un Quai d'entrée, les dépôts dotés d'une Porte
 d'entrée et les Plateformes de lancement terminées de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
 [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
+
+## Équilibrage du début de partie
+
+Objectif : la colonie débarque, monte une première filière et envoie son premier lot à
+l'Arche en 2 à 4 minutes de jeu ; chaque lot raffiné relance la construction.
+
+- **Stock de débarquement** (`startingInventory`) : 170 fer, 90 cuivre, 20 silice,
+  8 carbone. Il couvre deux éoliennes, une filière fer et une filière cuivre montées
+  dans leurs extracteurs et une plateforme de lancement, avec un peu de marge.
+- **Bâtiments** (`src/data/buildings.js`) : coût et durée d'assemblage. Deux équipes de
+  robots (`construction.crews`) : deux chantiers avancent à la fois, les autres
+  attendent.
+
+| Bâtiment | Coût | Assemblage |
+| --- | --- | ---: |
+| Éolienne | 12 fer, 8 cuivre, 2 carbone | 20 s |
+| Extracteur | 18 fer, 8 cuivre | 30 s |
+| Usine | 35 fer, 16 cuivre, 8 silice | 45 s |
+| Plateforme de lancement | 30 fer, 15 cuivre, 10 silice | 60 s |
+| Dépôt | 12 fer, 4 cuivre | 20 s |
+| Station de pompage | 14 fer, 6 cuivre | 25 s |
+| Terril | 8 fer | 15 s |
+| Port | 24 fer, 12 cuivre | 40 s |
+| Plateforme pétrolière | 40 fer, 20 cuivre, 10 silice | 60 s |
+
+- **Cartes** (`cardCosts` dans `src/data/processes.js`) : payées à l'ajout, remboursées au
+  retrait ou à la démolition (`building.cardCostPaid`). Une filière fer complète
+  (foreuse, concasseur, broyeur, séparateur, four, trois docks pour le produit, les
+  résidus et le laitier) coûte 33 fer et 12 cuivre.
+- **Énergie** : une filière consomme 23,5 MW, une éolienne en fournit 32. Le carbone
+  du stock permet quatre éoliennes ; au-delà, il faut une filière carbone.
+- **Revenu** : une filière produit 0,4 métal brut/s (≈ 24/min). À l'arrivée à l'Arche,
+  `arkConstructionCredits` (`src/data/orbitalLogistics.js`) convertit fer, cuivre et
+  silicium bruts et carbone en matériaux de construction (1 pour 1). Les minerais et
+  déchets ne remplissent que la soute de l'Arche.
+- **Repères mesurés** (joueur instantané, route de 100 km) : éolienne 20 s, extracteur
+  30 s, premier fer au dock 38 s, plateforme 80 s, premier lot à l'Arche ≈ 115 s. Une
+  deuxième filière se paie ensuite en 1 à 2 minutes de revenu.
+
+Ces valeurs sont un premier réglage, à affiner en jouant.
 
 ## Modules
 

@@ -38,7 +38,8 @@
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
 
-  function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null } = {}) {
+  function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
+    onAddCard = null, onRemoveCard = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -103,7 +104,17 @@
       return image;
     }
 
+    function costText(def) {
+      const names = { iron: 'Fer', copper: 'Cu', silicon: 'Si', carbon: 'C' };
+      const parts = Object.entries(def.cost || {}).map(([id, amount]) => `${amount} ${names[id] || id}`);
+      return parts.length ? ` · ${parts.join(' ')}` : '';
+    }
+
     function blockSpecification(def) {
+      return baseSpecification(def) + costText(def);
+    }
+
+    function baseSpecification(def) {
       if (def.externalInput) return 'RÉSEAU TERRESTRE';
       if (def.gate) return `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
@@ -550,10 +561,17 @@
         position.y < visibleBottomRight.y;
       const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
       const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
+      // The card is paid from the colony stock before it is placed.
+      const payment = onAddCard ? onAddCard(activeBuilding, def) : { paid: true };
+      if (!payment.paid) {
+        status(payment.missing?.length ? `RESSOURCES INSUFFISANTES · ${payment.missing.map(item =>
+          `${root.OrbitResourceData.get(item.id)?.label || item.id} ${fmt(item.amount)}`).join(' · ')}` : 'CARTE INDISPONIBLE');
+        return false;
+      }
       const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type, resourceId,
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
-      if (!result.ok) { status(result.reason); return false; }
+      if (!result.ok) { onRemoveCard?.(activeBuilding, def); status(result.reason); return false; }
       machines = graph.machines; renderNodes(); persist();
       return true;
     }
@@ -563,8 +581,10 @@
       const discardedUnits = machine
         ? [...Object.values(machine.inputBuffer), ...Object.values(machine.outputBuffer)].reduce((sum, amount) => sum + amount, 0)
         : 0;
+      const removedDefinition = machine && typeOf(machine);
       const result = Graph.removeMachine(graph, id);
       if (!result.ok) { status(result.reason); return; }
+      if (removedDefinition) onRemoveCard?.(activeBuilding, removedDefinition);
       machines = graph.machines; connections = graph.connections;
       renderNodes(); persist();
       status(discardedUnits

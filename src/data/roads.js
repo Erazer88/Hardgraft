@@ -95,11 +95,6 @@
       waterOpacity: .9,
       waterDotRadiusPx: 1.15,
       waterDotSpacingPx: 7,
-      // Junctions are small diamonds: dark center, glowing outline.
-      junctionColor: '#9ff4ff',
-      junctionFill: '#0b1a2c',
-      junctionHalfSizePx: 4.2,
-      junctionLineWidthPx: 1.3,
       // Bridges: two short rails on both sides of the road over a river.
       bridgeColor: '#effcff',
       bridgeLengthPx: 7,

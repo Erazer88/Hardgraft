@@ -52,9 +52,13 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   productrice d'énergie, sans débordement ni pollution), Plateforme de lancement moins
   coûteuse en énergie près de l'équateur. Colonie, contexte et pollution viendront
   plus tard. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
-  illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques
-  finales ; leurs réglages se trouvent dans `src/data/processes.js`.
+- Le début de partie est équilibré : stock de débarquement compté, bâtiments et cartes
+  payants, deux équipes de robots, énergie éolienne limitée (32 MW ≈ une filière), et
+  les métaux bruts livrés à l'Arche reviennent en matériaux de construction. Premier
+  lot à l'Arche en 2 à 4 minutes. Voir « Équilibrage du début de partie » dans
+  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md). Le réglage développeur « Minerais infinis »
+  lève les coûts pour tester ; la carte Réserve d'eau reste une source infinie
+  temporaire.
 
 ## Points d'entrée et vérification
 

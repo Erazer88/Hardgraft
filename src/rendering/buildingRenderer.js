@@ -268,7 +268,7 @@
       ctx.fillText(definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
       ctx.font = `${style.valueSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
-      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
+      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
       const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
       const barWidth = Math.max(10, card.width - (barX - card.x) - style.cardPaddingPx);
       ctx.fillStyle = '#52687866'; ctx.fillRect(barX, barY, barWidth, style.activityBarHeightPx);

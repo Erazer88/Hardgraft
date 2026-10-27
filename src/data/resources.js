@@ -71,12 +71,14 @@
 
   // Prototype starting stock. Values and building costs stay in data tables so
   // the first economic loop can be balanced without changing simulation code.
+  // Landing cargo: enough for two turbines, an iron and a copper line inside
+  // their extractors and a launch platform, with a little slack. Further
+  // growth comes from what reaches the Ark (see orbitalLogistics.js).
   const startingInventory = Object.freeze({
-    iron: 160,
-    copper: 100,
-    silicon: 40,
-    carbon: 40,
-    water: 60
+    iron: 170,
+    copper: 90,
+    silicon: 20,
+    carbon: 8
   });
 
   root.OrbitResourceData = Object.freeze({

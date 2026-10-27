@@ -206,7 +206,8 @@
       const rows = byType[building.type] || [];
       if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
       if (building.constructionState === 'constructing') {
-        rows.unshift(['ASSEMBLAGE', `${Math.round((building.constructionProgress || 0) * 100)} %`]);
+        rows.unshift(['ASSEMBLAGE', building.status === 'queued' ? 'En attente d’une équipe de robots'
+          : `${Math.round((building.constructionProgress || 0) * 100)} %`]);
       }
       return rows;
     }

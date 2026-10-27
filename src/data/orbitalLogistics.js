@@ -15,6 +15,12 @@
   // degrees north and south of its middle row.
   const launchSite = Object.freeze({ latitudeExtentDegrees: 75, equatorEnergyMW: 5, energyPerDegreeMW: .14,
     favorableLatitudeDegrees: 10 });
+  // The Ark turns refined materials it receives into construction stock for
+  // the colony (per unit received). Other cargo only fills its hold.
+  const arkConstructionCredits = Object.freeze({
+    raw_iron: Object.freeze({ iron: 1 }), raw_copper: Object.freeze({ copper: 1 }),
+    raw_silicon: Object.freeze({ silicon: 1 }), carbon: Object.freeze({ carbon: 1 })
+  });
   // Latitude of a surface point: the middle row is the equator, north at the top.
   function latitudeAt(y, mapHeight) {
     if (!Number.isFinite(y) || !(mapHeight > 0)) return 0;
@@ -29,5 +35,5 @@
     .map(resource => Object.freeze({ id: resource.id, label: resource.label })));
 
   root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer,
-    dockDestinationTypes, exportResources, launchSite, latitudeAt, launchEnergyMW });
+    dockDestinationTypes, exportResources, launchSite, latitudeAt, launchEnergyMW, arkConstructionCredits });
 })(globalThis);
