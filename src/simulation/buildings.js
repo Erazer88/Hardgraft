@@ -64,6 +64,8 @@
     const dockStock = integerStock(properties.dockStock);
     const launchStock = integerStock(properties.launchStock);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
+    // Materials a landing base turned into construction stock.
+    const receivedTotal = integerStock(properties.receivedTotal);
     // Units a depot's output gates queued, per destination building.
     const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
       ? Object.fromEntries(Object.entries(properties.gateStock).map(([id, queue]) => [id, integerStock(queue)])
@@ -119,6 +121,7 @@
       dockDestinations,
       launchStock,
       launchReceivedTotal,
+      receivedTotal,
       gateStock,
       exportEnabled,
       exportCursorResourceId,

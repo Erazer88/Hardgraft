@@ -228,6 +228,9 @@
 
     const rules = definition.placementRules || {};
     let resolvedRotation = rotation;
+    if (rules.uniquePerPlanet && buildings.some(item => item.type === definition.id && item.planetId === planetId)) {
+      return { valid: false, reason: 'Une seule base de débarquement par planète.', rotation };
+    }
     if (rules.coastRequired) {
       resolvedRotation = coastFacingRotation(terrain, textureScale, position, definition);
       if (resolvedRotation === null) {

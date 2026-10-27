@@ -38,8 +38,8 @@ Chaque corridor sauvegardé contient seulement `id`, `fromEntityId` et `toEntity
 Les lancements utilisent des lots à quantité entière. Leur `departureTime` et leur
 `arrivalTime` sont mesurés sur `state.simulation.time` ; pause, sauvegarde et rendu
 n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmente qu’à l’arrivée.
-À l’arrivée, les métaux bruts et le carbone (`arkConstructionCredits`) s’ajoutent aussi,
-1 pour 1, au stock de construction de la colonie.
+À l’arrivée, les métaux bruts et le carbone (`constructionCredits`) s’ajoutent aussi,
+1 pour 1, au stock de construction de la colonie, comme à la base de débarquement.
 
 La génération d'un nouvel univers réinitialise aussi les corridors, les stocks orbitaux,
 les lots et l'horloge de départ. La restauration d'une sauvegarde conserve ces données.

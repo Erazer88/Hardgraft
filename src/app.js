@@ -386,7 +386,8 @@
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
       waterPort: preview.waterPort,
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
-    const construction = Construction.start(building, state.inventory);
+    const construction = Construction.start(building, state.inventory,
+      Construction.costFor(building.type, state.surfaceBuildings, state.planet.id));
     if (!construction.started) {
       const shortage = construction.missing?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
       toast(shortage ? `Ressources insuffisantes : ${shortage}.` : 'Construction impossible pour le moment.');
@@ -400,7 +401,8 @@
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface') return;
-    const shortage = Inventory.missing(state.inventory, definition.cost || {});
+    const shortage = Inventory.missing(state.inventory,
+      Construction.costFor(type, state.surfaceBuildings, state.planet?.id) || {});
     if (shortage === null || shortage.length) {
       const details = shortage?.map(item => `${resourceName(item.id)} ${formatAmount(item.amount)}`).join(' · ');
       toast(details ? `Ressources insuffisantes : ${details}.` : 'Coût de construction invalide.');

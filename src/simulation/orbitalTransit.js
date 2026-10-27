@@ -306,7 +306,7 @@
 
   // Refined cargo reaching the Ark becomes construction stock for the colony.
   function creditConstruction(state, lot) {
-    const credit = Data.arkConstructionCredits?.[lot.resourceId];
+    const credit = Data.constructionCredits?.[lot.resourceId];
     if (!credit) return;
     state.inventory ||= {};
     for (const [resourceId, perUnit] of Object.entries(credit)) {

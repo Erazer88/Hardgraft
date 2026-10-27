@@ -31,7 +31,7 @@
   // A destination receives once its plan has an entry: an input dock, or a
   // depot's input gate. Launch platforms always receive.
   function hasReceivingDock(state, building) {
-    if (building?.type === 'launch_platform') return true;
+    if (building?.type === 'launch_platform' || building?.type === 'landing_base') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
     return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry));
   }
@@ -49,9 +49,18 @@
           !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
           !hasReceivingDock(state, destination) ||
           !hasBuiltLandPath(network, source.id, destination.id)) return false;
-      const stock = destination.type === 'launch_platform'
-        ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
-      stock[resourceId] = (stock[resourceId] || 0) + amount;
+      const credit = destination.type === 'landing_base' && root.OrbitOrbitalLogisticsData.constructionCredits?.[resourceId];
+      if (credit) {
+        // The landing base turns refined materials into construction stock.
+        state.inventory ||= {};
+        for (const [id, perUnit] of Object.entries(credit)) state.inventory[id] = (state.inventory[id] || 0) + perUnit * amount;
+        destination.receivedTotal ||= {};
+        destination.receivedTotal[resourceId] = (destination.receivedTotal[resourceId] || 0) + amount;
+      } else {
+        const stock = destination.type === 'launch_platform'
+          ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
+        stock[resourceId] = (stock[resourceId] || 0) + amount;
+      }
       if (destination.type === 'launch_platform') {
         destination.launchReceivedTotal ||= {};
         destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;

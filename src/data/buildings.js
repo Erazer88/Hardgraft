@@ -4,6 +4,17 @@
   // Footprints, points of connection, and offsets use planetary world units.
   // Simulation behavior is declared here but implemented in later blocks.
   const definitions = {
+    // The robots' landing module: free, one per planet. What reaches it by
+    // road feeds the colony's construction stock until the Ark is in reach.
+    landing_base: {
+      id: 'landing_base', label: 'BASE DE DÉBARQUEMENT', shortLabel: 'BA', category: 'logistics', icon: 'base',
+      description: 'Module des robots. Les métaux bruts et le carbone qu’on y livre par route deviennent du stock de construction.',
+      functions: { receivesConstructionMaterials: true },
+      cost: {}, constructionDurationSeconds: 10, demolitionRefundRate: 1,
+      footprint: { width: 30, height: 26 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 13 },
+      placementRules: { landOnly: true, uniquePerPlanet: true }, preferredTerrain: ['flat']
+    },
     factory: {
       id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
       description: 'Transforme les minerais en matériaux.',
@@ -59,7 +70,7 @@
       id: 'launch_platform', label: 'PLATEFORME DE LANCEMENT', shortLabel: 'PL', category: 'logistics', icon: 'hub',
       description: 'Reçoit les stocks des Docks reliés par route et les exporte vers l’Arche.',
       functions: { exportsToOrbit: true },
-      cost: { iron: 30, copper: 15, silicon: 10 }, constructionDurationSeconds: 60, demolitionRefundRate: 1,
+      cost: { iron: 350, copper: 250, silicon: 150, carbon: 80 }, constructionDurationSeconds: 90, demolitionRefundRate: 1,
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat']
@@ -104,7 +115,7 @@
     }
   };
   const catalogOrder = Object.freeze([
-    'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
+    'landing_base', 'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
     'wind_turbine'
   ]);
 
@@ -124,7 +135,10 @@
 
   // Construction crews: robots landed with the Ark. Only this many sites
   // progress at once; the others wait their turn.
-  const construction = Object.freeze({ crews: 2 });
+  // Each building of a type already standing on the planet raises the price
+  // of the next one by costGrowth (+30 %), so a colony spreads out its lines
+  // rather than stacking them; the free landing base is not affected.
+  const construction = Object.freeze({ crews: 2, costGrowth: .3 });
 
   // Buildings whose inside is a card plan, and those of them whose output
   // docks send resources by road (the depot uses its own gates).

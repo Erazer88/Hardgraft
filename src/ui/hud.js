@@ -66,7 +66,7 @@
     }
 
     function resourceSummary(amounts) {
-      return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Aucun coût';
+      return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Gratuit';
     }
 
     function appendLogisticsRow(container, name, value, detail = '') {
@@ -185,6 +185,11 @@
         ],
         wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
         launch_platform: [['FONCTION', 'Export orbital vers l’Arche']],
+        landing_base: [
+          ['FONCTION', 'Métaux bruts et carbone → stock de construction'],
+          ['CONVERTI', inventoryEntries(building, 'receivedTotal').map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ') || 'Rien reçu pour l’instant'],
+          ['AUTRES MATIÈRES', receivedText]
+        ],
         storage: [
           ['EN ATTENTE D’ENTRÉE', stockText],
           ['QUANTITÉ TOTALE', fmtDecimal(total)],
@@ -400,10 +405,16 @@
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
       for (const option of buildOptions.children) {
         const definition = BuildingData.get(option.dataset.buildingType);
+        // Prices rise with each building of the same type on this planet.
+        const price = root.OrbitConstruction.costFor(option.dataset.buildingType, state.surfaceBuildings || [], state.planet?.id) || {};
+        const unique = definition?.placementRules?.uniquePerPlanet && (state.surfaceBuildings || [])
+          .some(building => building.type === definition.id && building.planetId === state.planet?.id);
         option.hidden = false;
-        option.disabled = !Inventory.canAfford(state.inventory, definition?.cost || {});
-        if (definition) option.title = option.disabled
-          ? `Ressources requises : ${resourceSummary(definition.cost)}` : definition.description;
+        option.disabled = unique || !Inventory.canAfford(state.inventory, price);
+        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée sur cette planète' : resourceSummary(price);
+        if (costLabel && costLabel.textContent !== costText) costLabel.textContent = costText;
+        if (definition) option.title = unique ? 'Une seule base par planète.' : option.disabled
+          ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }
       renderColonyStock(state);
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :

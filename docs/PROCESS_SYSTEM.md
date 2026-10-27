@@ -144,22 +144,29 @@ d'entrée et les Plateformes de lancement terminées de la planète ; une route 
 
 ## Équilibrage du début de partie
 
-Objectif : la colonie débarque, monte une première filière et envoie son premier lot à
-l'Arche en 2 à 4 minutes de jeu ; chaque lot raffiné relance la construction.
+Objectif : environ 30 minutes de jeu avant le premier envoi à l'Arche. La colonie vit
+d'abord de sa base de débarquement ; la plateforme de lancement est le premier grand
+projet, qui demande les quatre matériaux.
 
-- **Stock de débarquement** (`startingInventory`) : 170 fer, 90 cuivre, 20 silice,
-  8 carbone. Il couvre deux éoliennes, une filière fer et une filière cuivre montées
-  dans leurs extracteurs et une plateforme de lancement, avec un peu de marge.
-- **Bâtiments** (`src/data/buildings.js`) : coût et durée d'assemblage. Deux équipes de
-  robots (`construction.crews`) : deux chantiers avancent à la fois, les autres
-  attendent.
+- **Stock de débarquement** (`startingInventory`) : 120 fer, 60 cuivre, 0 silice,
+  6 carbone. De quoi poser une éolienne, une filière fer et une filière cuivre dans
+  leurs extracteurs. La silice et le carbone viennent de filières à monter.
+- **Base de débarquement** (gratuite, une par planète, 10 s) : ce qu'on lui livre par
+  route (Dock de sortie → base) devient du stock de construction pour les métaux bruts
+  et le carbone (`constructionCredits`, 1 pour 1). Le reste (résidus, minerais) reste
+  dans la base. L'Arche convertit de la même façon ce qu'elle reçoit.
+- **Bâtiments** (`src/data/buildings.js`) : coût de base et durée d'assemblage. Chaque
+  bâtiment du même type déjà présent sur la planète augmente le prix du suivant de 30 %
+  (`construction.costGrowth`) ; la démolition rend ce qui a été payé. Deux équipes de
+  robots (`construction.crews`) : deux chantiers avancent à la fois.
 
-| Bâtiment | Coût | Assemblage |
+| Bâtiment | Coût de base | Assemblage |
 | --- | --- | ---: |
+| Base de débarquement | gratuite | 10 s |
 | Éolienne | 12 fer, 8 cuivre, 2 carbone | 20 s |
 | Extracteur | 18 fer, 8 cuivre | 30 s |
 | Usine | 35 fer, 16 cuivre, 8 silice | 45 s |
-| Plateforme de lancement | 30 fer, 15 cuivre, 10 silice | 60 s |
+| Plateforme de lancement | 350 fer, 250 cuivre, 150 silice, 80 carbone | 90 s |
 | Dépôt | 12 fer, 4 cuivre | 20 s |
 | Station de pompage | 14 fer, 6 cuivre | 25 s |
 | Terril | 8 fer | 15 s |
@@ -170,15 +177,16 @@ l'Arche en 2 à 4 minutes de jeu ; chaque lot raffiné relance la construction.
   retrait ou à la démolition (`building.cardCostPaid`). Une filière fer complète
   (foreuse, concasseur, broyeur, séparateur, four, trois docks pour le produit, les
   résidus et le laitier) coûte 33 fer et 12 cuivre.
-- **Énergie** : une filière consomme 23,5 MW, une éolienne en fournit 32. Le carbone
-  du stock permet quatre éoliennes ; au-delà, il faut une filière carbone.
-- **Revenu** : une filière produit 0,4 métal brut/s (≈ 24/min). À l'arrivée à l'Arche,
-  `arkConstructionCredits` (`src/data/orbitalLogistics.js`) convertit fer, cuivre et
-  silicium bruts et carbone en matériaux de construction (1 pour 1). Les minerais et
-  déchets ne remplissent que la soute de l'Arche.
-- **Repères mesurés** (joueur instantané, route de 100 km) : éolienne 20 s, extracteur
-  30 s, premier fer au dock 38 s, plateforme 80 s, premier lot à l'Arche ≈ 115 s. Une
-  deuxième filière se paie ensuite en 1 à 2 minutes de revenu.
+- **Énergie** : une filière consomme 16,5 à 27,5 MW, une éolienne en fournit 32. Le
+  carbone de départ ne paie que deux éoliennes : la filière carbone vient tôt.
+- **Revenu** : une filière fer, cuivre ou silice produit 0,4 u/s (≈ 24/min), une
+  filière carbone ≈ 0,32 u/s.
+- **Repères** : premier fer crédité par la base moins de 2 minutes après le
+  débarquement (joueur instantané, testé). Un modèle de joueur efficace (filières
+  ajoutées dès qu'elles sont payables, éoliennes au besoin, 30 s à 2 min de
+  manipulation par filière) paie la plateforme entre 27 et 36 minutes avec 12 à 15
+  filières ; avec son assemblage et le vol, l'Arche est atteinte vers 30 minutes, plus
+  tard pour un joueur qui découvre.
 
 Ces valeurs sont un premier réglage, à affiner en jouant.
 

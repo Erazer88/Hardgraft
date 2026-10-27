@@ -41,6 +41,15 @@
       ctx.moveTo(x - size * .28, y - size * .35); ctx.lineTo(x, y - size * .63); ctx.lineTo(x + size * .28, y - size * .35);
       ctx.moveTo(x - size * .64, y + size * .4); ctx.lineTo(x + size * .64, y + size * .4); ctx.stroke(); return;
     }
+    if (icon === 'base') {
+      // A lander: dome on three legs.
+      ctx.arc(x, y - size * .05, size * .42, Math.PI, 0); ctx.lineTo(x - size * .42, y - size * .05);
+      ctx.moveTo(x - size * .3, y + size * .05); ctx.lineTo(x - size * .62, y + size * .58);
+      ctx.moveTo(x + size * .3, y + size * .05); ctx.lineTo(x + size * .62, y + size * .58);
+      ctx.moveTo(x, y + size * .05); ctx.lineTo(x, y + size * .5);
+      ctx.moveTo(x - size * .78, y + size * .58); ctx.lineTo(x - size * .46, y + size * .58);
+      ctx.moveTo(x + size * .46, y + size * .58); ctx.lineTo(x + size * .78, y + size * .58); ctx.stroke(); return;
+    }
     if (icon === 'water-pump') {
       ctx.moveTo(x - size * .45, y + size * .5); ctx.lineTo(x - size * .45, y - size * .3); ctx.lineTo(x + size * .2, y - size * .3);
       ctx.lineTo(x + size * .2, y + size * .05);

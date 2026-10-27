@@ -417,6 +417,23 @@ test('a pumping station needs a shore and pumps salt water by the sea, fresh wat
   assert.match(inland.reason, /mer, un lac ou une rivière/);
 });
 
+test('only one landing base stands on a planet', () => {
+  const placementContext = vm.createContext({});
+  for (const relative of ['data/resources.js', 'data/buildings.js', 'data/roads.js', 'simulation/buildings.js',
+    'simulation/roadGeometry.js', 'gameplay/buildingPlacement.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), placementContext);
+  }
+  const { OrbitBuildingPlacement: Placement, OrbitBuildingData: Buildings } = placementContext;
+  const width = 60, height = 40, terrain = { width, height, elevation: new Uint8Array(width * height).fill(140), seaLevel: 102 };
+  const validate = buildings => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get('landing_base'),
+    position: { x: 90, y: 60 }, planetId: 'p', buildings });
+  assert.equal(validate([]).valid, true);
+  assert.equal(validate([{ type: 'landing_base', planetId: 'other', x: 0, y: 0 }]).valid, true);
+  const second = validate([{ type: 'landing_base', planetId: 'p', x: 10, y: 10 }]);
+  assert.equal(second.valid, false);
+  assert.match(second.reason, /Une seule base/);
+});
+
 test('launch platforms spend less energy near the equator', () => {
   const logisticsContext = vm.createContext({});
   for (const relative of ['data/config.js', 'data/resources.js', 'data/orbitalLogistics.js']) {

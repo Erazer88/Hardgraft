@@ -6,11 +6,21 @@
   const defaultDurationSeconds = 3.5;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-  function start(building, inventory) {
+  // Price of the next building of a type on a planet: the base cost, raised
+  // by costGrowth for each building of that type already there.
+  function costFor(type, buildings = [], planetId = null) {
+    const definition = Buildings.get(type);
+    if (!definition) return null;
+    const count = buildings.filter(item => item.type === type && (!planetId || item.planetId === planetId)).length;
+    const factor = 1 + (Buildings.construction?.costGrowth || 0) * count;
+    return Object.fromEntries(Object.entries(definition.cost || {}).map(([id, amount]) => [id, Math.round(amount * factor)]));
+  }
+
+  function start(building, inventory, price = null) {
     if (!building || building.constructionState !== 'planned') return { started: false, missing: null };
     const definition = Buildings.get(building.type);
     if (!definition) return { started: false, missing: null };
-    const cost = definition.cost || {};
+    const cost = price || definition.cost || {};
     const missing = Inventory.missing(inventory, cost);
     if (missing === null || missing.length) return { started: false, missing };
     if (!Inventory.consume(inventory, cost)) return { started: false, missing: Inventory.missing(inventory, cost) };
@@ -83,5 +93,5 @@
     return refund;
   }
 
-  root.OrbitConstruction = Object.freeze({ start, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
+  root.OrbitConstruction = Object.freeze({ start, costFor, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
 })(globalThis);
