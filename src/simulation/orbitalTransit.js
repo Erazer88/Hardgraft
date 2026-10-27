@@ -299,9 +299,16 @@
         departureTime, arrivalTime, systemId: system.id, originPlanetId: planet.id, trajectoryVersion: 3 });
       recordDispatch(logistics, corridor.id, system.id, resourceId, amount, departureTime);
     }
-    platform.energyUse = launched ? Data.launch.energyMW * 1e6 : 0;
+    platform.energyUse = launched ? platformLaunchMW(platform) * 1e6 : 0;
     platform.lastLaunchTime = launched ? departureTime : null;
     return launched;
+  }
+
+  // Platforms far from the equator spend more energy to reach orbit.
+  function platformLaunchMW(platform) {
+    const terrain = root.OrbitConfig?.terrain;
+    if (!terrain || !Data.launchEnergyMW) return Data.launch.energyMW;
+    return Data.launchEnergyMW(Data.latitudeAt(platform.y, terrain.height * terrain.textureScale));
   }
 
   function advance(state, currentTime, systemsById = {}, allowDispatch = true) {
@@ -327,7 +334,7 @@
         ensureHub(logistics, system);
         corridorFor(logistics, platform, system.ark);
         platform.energyUse = Number.isFinite(platform.lastLaunchTime) && currentTime - platform.lastLaunchTime < 1
-          ? Data.launch.energyMW * 1e6 : 0;
+          ? platformLaunchMW(platform) * 1e6 : 0;
       } else platform.energyUse = 0;
     }
 
@@ -428,7 +435,7 @@
     return { rates, throughput: Object.values(rates).reduce((sum, rate) => sum + rate, 0) };
   }
 
-  root.OrbitOrbitalTransit = Object.freeze({ createState, normalize, snapshot, travelTime, arkPosition,
+  root.OrbitOrbitalTransit = Object.freeze({ platformLaunchMW, createState, normalize, snapshot, travelTime, arkPosition,
     ensureHub, corridorFor, advance, trajectoryFor, previewTrajectory, trajectorySamples, cargoPosition,
     currentHubMetrics, currentPlatformMetrics });
 })(globalThis);

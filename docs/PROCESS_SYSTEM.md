@@ -35,7 +35,7 @@ cartes distinctes pour permettre des retours de matière dans une évolution ult
 | Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
 | Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
 | Réserve d'eau | Réserve infinie temporaire de la colonie | Eau, sans consommation d'énergie | Sans plafond | 0 MW |
-| Terril | Toute matière | Stocke les unités par ressource, sans limite | Sans débit | 0 MW |
+| Terril (ancienne carte) | Toute matière | Conservée pour les anciens plans ; retirée des catalogues | Sans débit | 0 MW |
 | Dock de sortie | Une matière par carte | Transfert vers le stock local du bâtiment | 2 u/s | 0 MW |
 
 Le débit 2 u/s est un maximum moyen ; les unités restent indivisibles et avancent par
@@ -70,6 +70,44 @@ Pompe pétrolière dédiée et son séparateur triphasé. La part ne modifie pas
 débit : les rendements seront calibrés plus tard. La carte de Réserve d'eau ne mine pas le sol : elle fournit
 l'auxiliaire eau depuis la réserve infinie temporaire de la colonie.
 
+## Bâtiments spécialisés
+
+**Station de pompage.** Elle se pose sur la terre ferme à moins de 30 km d'une eau
+(`placementRules.shoreRequired`, `shoreReach`). L'eau la plus proche décide de son
+`resourceId` : mer et criques → `salt_water` (Eau salée), lacs et rivières → `water`
+(Eau douce). Cartes : Pompe (même carte pour toute eau, débit selon l'eau :
+`config.waterPump`, salée 4 u/s · 3 MW, douce 1,5 u/s · 2 MW, valeurs provisoires),
+Dessalinisateur (4 eau salée → 3 eau douce + 1 saumure, 6 MW, en mer seulement) et
+Dock de sortie. L'eau circule par la route comme les autres matières.
+
+**Dépôt.** Il reçoit tout ce qu'on lui envoie et le répartit. Ses cartes transportent un
+flux mixte (ports `mixed`, reliables uniquement entre cartes du dépôt ; une entrée mixte
+accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
+
+| Carte | Rôle | Réglage |
+| --- | --- | --- |
+| Porte d'entrée | Tire le stock reçu (`building.inventory`), à tour de rôle par ressource, 4 u/s | — |
+| Tampon | Garde jusqu'à 200 unités par ressource | — |
+| Filtre | Ressource choisie → sortie 1, le reste → sortie 2 | Ressource filtrée |
+| Répartiteur | Partage selon un pourcentage (10 à 90 %) | Part A/B |
+| Priorité | Remplit la sortie prioritaire, puis déborde | — |
+| Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), 4 u/s | Destination |
+
+Les autres cartes gardent au plus 20 unités. Le routage (`src/simulation/depotRouting.js`)
+ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvegardés.
+
+**Terril.** C'est un bâtiment qui reçoit les déchets par route (Quai d'entrée). Ses
+cartes : Retraitement par filière (fer, cuivre, silice, carbone : 10 déchets contenant le
+matériau → 1 minerai broyé, 4 MW) ou Incinérateur (2 déchets/s brûlés, produit jusqu'à
+8 MW pour la planète, proportionnellement à son débit). Pas de débordement ni de
+pollution pour l'instant.
+
+**Plateforme de lancement.** L'énergie d'un lancement croît avec la latitude :
+`5 MW + 0,14 MW/°` (`launchSite` dans `src/data/orbitalLogistics.js`, la carte couvre
+75° N à 75° S). Pendant sa pose ou sa sélection, une surcouche montre l'équateur, la
+bande favorable de ±10°, les parallèles (15°) et les méridiens (30°) ; la balise affiche
+la latitude et la puissance de lancement.
+
 ## Buffers, énergie et état
 
 Les machines de traitement ont des buffers entiers de 20 unités par port. Un cycle ne
@@ -98,8 +136,8 @@ L'énergie reste simple : aucune ligne électrique interne. L'énergie infinie d
 
 Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
 des matériaux de construction. La destination du Dock est choisie par matière parmi les
-usines terminées équipées d'un Quai d'entrée et les Plateformes de lancement terminées
-de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
+usines et terrils terminés équipés d'un Quai d'entrée, les dépôts dotés d'une Porte
+d'entrée et les Plateformes de lancement terminées de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
 [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ## Modules
@@ -110,6 +148,7 @@ de la planète ; une route terrestre entièrement construite est nécessaire. R�
 | `src/data/resources.js` | Identifiants et noms des matières et sous-produits |
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, énergie et débits soutenables |
+| `src/simulation/depotRouting.js` | Flux mixtes du dépôt : portes, tampon, filtre, répartiteur, priorité |
 | `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
 | `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle et routage des Docks |
 | `src/storage/save.js` | Sauvegarde des bâtiments et graphes industriels versionnés |

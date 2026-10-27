@@ -5,6 +5,7 @@
   const Graph = root.OrbitProcessGraph;
   const Simulation = root.OrbitProcessSimulation;
   const Stack = root.OrbitResourceStack;
+  const Routing = root.OrbitDepotRouting;
 
   function fraction(seed) {
     let hash = 2166136261;
@@ -13,7 +14,8 @@
   }
 
   function geology(state, building) {
-    if (!['extractor', 'oil_platform'].includes(building.type) || !building.resourceId) return null;
+    // Extractors read the ground; a pumping station, the water of its shore.
+    if (!['extractor', 'oil_platform', 'water_station'].includes(building.type) || !building.resourceId) return null;
     const id = `${building.planetId}:${building.resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
     return { id, planetId: building.planetId, resourceId: building.resourceId,
       hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
@@ -61,13 +63,27 @@
       power.set(building.planetId, entry);
       const savedGraph = state.factoryPlans[building.id];
       if (!savedGraph) continue;
-      const graph = ensureGraph(state, building), demand = Simulation.demand(graph, building.inventory);
+      const graph = ensureGraph(state, building);
+      // Incinerators burning waste feed the planet grid, from their last rate.
+      const generated = generatedMW(graph);
+      building.energyOutputWatts = generated * 1e6;
+      entry.megawatts += generated;
+      if (isDepot(building)) continue;
+      const demand = Simulation.demand(graph, building.inventory);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
 
     for (const building of state.surfaceBuildings) {
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
       const graph = ensureGraph(state, building);
+      if (isDepot(building)) {
+        Routing.advance(graph, seconds, building);
+        building.energyUse = 0;
+        building.flowPerMinute = graph.machines.reduce((sum, machine) =>
+          Graph.definitionOf(machine).gate === 'output' ? sum + machine.currentRate * 60 : sum, 0);
+        building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
+        continue;
+      }
       const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
       const demand = Simulation.demand(graph, building.inventory), planetDemand = demands.get(building.planetId) || 0;
       Simulation.advance(graph, seconds, {
@@ -83,6 +99,16 @@
       collectDockedResources(building, graph);
       building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
     }
+  }
+
+  const isDepot = building => building.type === 'storage';
+
+  function generatedMW(graph) {
+    return graph.machines.reduce((sum, machine) => {
+      const definition = Graph.definitionOf(machine);
+      if (!definition?.generatesMW || machine.state !== 'active') return sum;
+      return sum + definition.generatesMW * Math.min(1, (machine.currentRate || 0) / definition.throughput);
+    }, 0);
   }
 
   function collectDockedResources(building, graph) {
@@ -162,6 +188,10 @@
         Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
     }
     for (const [resourceId, amount] of Object.entries(building.dockStock || {})) {
+      if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
+        Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
+    }
+    for (const queue of Object.values(building.gateStock || {})) for (const [resourceId, amount] of Object.entries(queue)) {
       if (Number.isInteger(amount) && amount > 0) Stack.addToStock(state.colonyMaterials,
         Stack.create({ resourceId, amount, origin: { kind: 'building', id: building.id } }));
     }

@@ -196,7 +196,7 @@
     }
     if (!outputsReady(machine)) { machine.state = 'output_full'; return; }
     if (!inputsReady(machine)) { machine.state = 'waiting_input'; return; }
-    if (powerRatio <= 0) { machine.state = 'no_energy'; return; }
+    if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
     machine.state = 'active';
     machine.energyMW = def.energyMW * powerRatio;
     const primary = primaryInput(machine);

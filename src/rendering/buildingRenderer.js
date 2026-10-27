@@ -41,6 +41,19 @@
       ctx.moveTo(x - size * .28, y - size * .35); ctx.lineTo(x, y - size * .63); ctx.lineTo(x + size * .28, y - size * .35);
       ctx.moveTo(x - size * .64, y + size * .4); ctx.lineTo(x + size * .64, y + size * .4); ctx.stroke(); return;
     }
+    if (icon === 'water-pump') {
+      ctx.moveTo(x - size * .45, y + size * .5); ctx.lineTo(x - size * .45, y - size * .3); ctx.lineTo(x + size * .2, y - size * .3);
+      ctx.lineTo(x + size * .2, y + size * .05);
+      ctx.moveTo(x + size * .2, y + size * .05);
+      ctx.bezierCurveTo(x - size * .05, y + size * .4, x + size * .05, y + size * .62, x + size * .2, y + size * .62);
+      ctx.bezierCurveTo(x + size * .35, y + size * .62, x + size * .45, y + size * .4, x + size * .2, y + size * .05);
+      ctx.moveTo(x - size * .7, y - size * .3); ctx.lineTo(x - size * .2, y - size * .3); ctx.stroke(); return;
+    }
+    if (icon === 'terril') {
+      ctx.moveTo(x - size * .75, y + size * .5); ctx.lineTo(x - size * .25, y - size * .2); ctx.lineTo(x, y + size * .05);
+      ctx.lineTo(x + size * .3, y - size * .45); ctx.lineTo(x + size * .75, y + size * .5); ctx.closePath();
+      ctx.moveTo(x - size * .2, y + size * .28); ctx.lineTo(x + size * .12, y + size * .28); ctx.stroke(); return;
+    }
     if (icon === 'wind-turbine') {
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y + size * .66); ctx.moveTo(x, y - size * .1); ctx.lineTo(x, y - size * .68);
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x - size * .52, y + size * .12);
@@ -165,7 +178,49 @@
     return { anchor, x, y, width, height: style.cardHeightPx };
   }
 
+  // Where the launch platform pays least to reach orbit: the equator, the
+  // favorable band around it, parallels and meridians with their degrees.
+  function renderLatitudeGrid(frame) {
+    const state = frame.state, terrain = root.OrbitConfig?.terrain, Logistics = root.OrbitOrbitalLogisticsData;
+    const placing = state.tool === 'build' && state.placement?.type === 'launch_platform';
+    const selected = state.selected?.kind === 'building' && state.selected.type === 'launch_platform';
+    if (!terrain || !Logistics?.launchSite || !(placing || selected)) return;
+    const style = Style.latitudeGrid, site = Logistics.launchSite;
+    const width = terrain.width * terrain.textureScale, height = terrain.height * terrain.textureScale;
+    const rowOf = latitude => (.5 - latitude / site.latitudeExtentDegrees / 2) * height;
+    const ctx = frame.context, left = frame.project(0, 0).x, right = frame.project(width, 0).x;
+    const top = frame.project(0, 0).y, bottom = frame.project(0, height).y;
+    const clipLeft = Math.max(0, left), clipRight = Math.min(frame.viewport.width, right);
+    ctx.save();
+    ctx.font = `${style.labelSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.textBaseline = 'bottom'; ctx.textAlign = 'right';
+    const band = [frame.project(0, rowOf(site.favorableLatitudeDegrees)).y, frame.project(0, rowOf(-site.favorableLatitudeDegrees)).y];
+    ctx.fillStyle = style.bandFill; ctx.fillRect(clipLeft, band[0], clipRight - clipLeft, band[1] - band[0]);
+    for (let latitude = -site.latitudeExtentDegrees + site.latitudeExtentDegrees % style.parallelStepDegrees;
+      latitude <= site.latitudeExtentDegrees; latitude += style.parallelStepDegrees) {
+      const y = frame.project(0, rowOf(latitude)).y;
+      if (y < -2 || y > frame.viewport.height + 2) continue;
+      const equator = latitude === 0;
+      ctx.globalAlpha = equator ? .85 : style.lineOpacity;
+      ctx.strokeStyle = equator ? style.equatorColor : style.lineColor;
+      ctx.lineWidth = equator ? 1.4 : .8; ctx.setLineDash(equator ? [] : [2, 6]);
+      ctx.beginPath(); ctx.moveTo(clipLeft, y); ctx.lineTo(clipRight, y); ctx.stroke();
+      ctx.globalAlpha = equator ? 1 : .75; ctx.fillStyle = equator ? style.equatorColor : style.labelColor;
+      const text = equator ? `ÉQUATEUR · LANCEMENT ${Math.round(Logistics.launchEnergyMW(0))} MW`
+        : `${Math.abs(latitude)}° ${latitude > 0 ? 'N' : 'S'} · ${Logistics.launchEnergyMW(latitude).toFixed(1).replace('.', ',')} MW`;
+      ctx.fillText(text, clipRight - 12, y - 2);
+    }
+    ctx.setLineDash([2, 6]); ctx.strokeStyle = style.lineColor; ctx.lineWidth = .8; ctx.globalAlpha = style.lineOpacity;
+    for (let longitude = -180; longitude <= 180; longitude += style.meridianStepDegrees) {
+      const x = frame.project((longitude + 180) / 360 * width, 0).x;
+      if (x < -2 || x > frame.viewport.width + 2) continue;
+      ctx.beginPath(); ctx.moveTo(x, Math.max(0, top)); ctx.lineTo(x, Math.min(frame.viewport.height, bottom)); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderPhysical(frame) {
+    renderLatitudeGrid(frame);
     for (const building of visibleBuildings(frame)) {
       const definition = Data.get(building.type);
       if (definition) drawFootprint(frame, building, definition);

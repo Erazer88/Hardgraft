@@ -26,7 +26,7 @@ Points d'entrée spécialisés :
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
 Les fichiers importants comprennent `src/data/processes.js`,
-`src/simulation/processGraph.js` et `processSimulation.js`,
+`src/simulation/processGraph.js`, `processSimulation.js` et `depotRouting.js`,
 `src/gameplay/industry.js`, `src/navigation/camera.js`,
 `src/rendering/renderer.js`, `src/rendering/surfaceRenderer.js`,
 `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js` et `src/app.js`.

@@ -11,6 +11,10 @@
     windPowerUnlimited: true,
     windPowerMW: 32,
     geothermalPowerMW: 80,
+    // Water pumps: salt water flows faster than fresh water (first drafts).
+    waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },
+    // Depot routing cards: gate rate, per-card holding and buffer capacity.
+    depot: { gateThroughput: 4, cardCapacity: 20, bufferCapacity: 200, splitRatios: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
     // Ground under an extractor: rock hardness, and the share of the extracted
     // material assumed when a building has none recorded.
     geology: { hardnessRange: [.8, 1.8], defaultShare: .1 }
@@ -62,7 +66,24 @@
     reduction_furnace: { id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
       description: 'Transforme le concentré en métal brut et en laitier.', throughput: 2, energyMW: 10 },
     triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
-      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 }
+      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 },
+    // Waste heap: the reprocessor recovers a little ore from the waste of one material.
+    reprocessor: { id: 'reprocessor', label: 'RETRAITEMENT', mark: 'RT',
+      description: 'Récupère un peu de minerai broyé dans les déchets d’une filière (10 pour 1).', throughput: 2, energyMW: 4 },
+    // Water station: one pump for every water; the shore decides which.
+    water_pump: { id: 'water_pump', label: 'POMPE', mark: 'PO', description: 'Pompe l’eau de la rive : salée en mer, douce dans un lac ou une rivière.',
+      source: true, usesGround: true, inputPorts: [], recipe: null },
+    desalinator: { id: 'desalinator', label: 'DESSALINISATEUR', mark: 'DE', description: 'Rend l’eau salée potable et rejette une saumure.',
+      inputPorts: [input('salt_water', 'Eau salée', 'salt_water')],
+      outputPorts: [output('water', 'Eau douce', 'water'), output('brine', 'Saumure', 'brine')],
+      recipe: { inputs: [{ inputId: 'salt_water', amount: 4 }], outputs: [
+        { outputId: 'water', resourceId: 'water', amount: 3 }, { outputId: 'brine', resourceId: 'brine', amount: 1 }] },
+      throughput: 4, energyMW: 6 },
+    // Waste heap: burning waste yields energy instead of consuming it.
+    incinerator: { id: 'incinerator', label: 'INCINÉRATEUR', mark: 'IN', description: 'Brûle les déchets reçus et produit de l’énergie.',
+      inputPorts: [input('waste', 'Déchets', null, { acceptsAnyResource: true, accepts: { tag: 'waste' } })],
+      outputPorts: [], recipe: { inputs: [{ inputId: 'waste', amount: 2 }], outputs: [] },
+      throughput: 2, energyMW: 0, generatesMW: 8 }
   };
 
   const utilities = {
@@ -82,15 +103,44 @@
     }
   };
 
-  const catalogByResource = {
-    iron: ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'terril', 'output_dock'],
-    copper: ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'terril', 'output_dock'],
-    silicon: ['drill', 'crusher', 'grinder', 'water_supply', 'silicon_washer', 'silicon_dryer',
-      'reduction_furnace', 'terril', 'output_dock'],
-    carbon: ['drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer',
-      'terril', 'output_dock'],
-    oil: ['oil_pump', 'triphasic_separator', 'terril', 'output_dock']
+  // Depot routing cards carry mixed flows: every port holds any resource.
+  const mixed = (id, label) => ({ id, label, resourceId: null, mixed: true });
+  const depotCards = {
+    depot_input: { id: 'depot_input', label: 'PORTE D’ENTRÉE', mark: 'PE', routing: true, gate: 'input', throughput: config.depot.gateThroughput,
+      description: 'Fait entrer dans le circuit tout ce que le dépôt reçoit par route.',
+      inputPorts: [], outputPorts: [mixed('out', 'Flux entrant')], recipe: null, energyMW: 0 },
+    depot_output: { id: 'depot_output', label: 'PORTE DE SORTIE', mark: 'PS', routing: true, gate: 'output', throughput: config.depot.gateThroughput,
+      description: 'Envoie tout ce qui lui parvient vers un bâtiment relié par route.',
+      inputPorts: [mixed('in', 'Flux sortant')], outputPorts: [], recipe: null, energyMW: 0 },
+    depot_buffer: { id: 'depot_buffer', label: 'TAMPON', mark: 'TA', routing: true,
+      description: 'Stocke jusqu’à 200 unités par ressource et amortit les à-coups.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('out', 'Sortie')], recipe: null, energyMW: 0 },
+    depot_filter: { id: 'depot_filter', label: 'FILTRE', mark: 'FI', routing: true,
+      description: 'Laisse passer la ressource choisie ; le reste part sur la seconde sortie.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('match', 'Ressource choisie'), mixed('other', 'Le reste')],
+      recipe: null, energyMW: 0 },
+    depot_splitter: { id: 'depot_splitter', label: 'RÉPARTITEUR', mark: 'RE', routing: true,
+      description: 'Partage le flux entre deux sorties selon un pourcentage.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('a', 'Sortie A'), mixed('b', 'Sortie B')],
+      recipe: null, energyMW: 0 },
+    depot_priority: { id: 'depot_priority', label: 'PRIORITÉ', mark: 'PR', routing: true,
+      description: 'Remplit la sortie prioritaire, puis déborde vers la seconde.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('primary', 'Prioritaire'), mixed('overflow', 'Débordement')],
+      recipe: null, energyMW: 0 }
   };
+  const depotCatalog = ['depot_input', 'depot_buffer', 'depot_filter', 'depot_splitter', 'depot_priority', 'depot_output'];
+
+  const catalogByResource = {
+    iron: ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock'],
+    copper: ['drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'output_dock'],
+    silicon: ['drill', 'crusher', 'grinder', 'water_supply', 'silicon_washer', 'silicon_dryer',
+      'reduction_furnace', 'output_dock'],
+    carbon: ['drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer',
+      'output_dock'],
+    oil: ['oil_pump', 'triphasic_separator', 'output_dock']
+  };
+  // The terril card left the factories: waste now goes by road to the Terril building.
+  const waterCatalog = { salt_water: ['water_pump', 'desalinator', 'output_dock'], water: ['water_pump', 'output_dock'] };
 
   function freeze(value) {
     if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -146,6 +196,13 @@
         { outputId: 'carbon', resourceId: 'carbon', amount: 8 },
         { outputId: 'sludge', resourceId: 'carbon_sludge', amount: 12 }
       ] } };
+    if (type === 'reprocessor') return { ...templates.reprocessor, contextResourceId: resourceId,
+      label: `${templates.reprocessor.label} · ${{ iron: 'FER', copper: 'CUIVRE', silicon: 'SILICE', carbon: 'CARBONE' }[resourceId]}`,
+      inputPorts: [input('waste', `Déchets (${material.groundLabel.toLowerCase()})`, null,
+        { acceptsAnyResource: true, accepts: { tag: 'waste', composition: resourceId } })],
+      outputPorts: [output('ground_ore', material.groundLabel, material.ground)],
+      recipe: { inputs: [{ inputId: 'waste', amount: 10 }], outputs: [
+        { outputId: 'ground_ore', resourceId: material.ground, amount: 1 }] } };
     if (type === 'reduction_furnace' && material.product) {
       const inputId = resourceId === 'silicon' ? 'dry_silicon' : 'concentrate';
       const inputResource = resourceId === 'silicon' ? 'impure_silicon_dry' : material.concentrate;
@@ -166,6 +223,14 @@
   function get(type, resourceId = 'iron') {
     const key = `${type}:${resourceId || ''}`;
     if (cache.has(key)) return cache.get(key);
+    if (type === 'water_pump') {
+      const kind = resourceId === 'salt_water' ? 'salt' : resourceId === 'water' ? 'fresh' : null;
+      const pump = kind && config.waterPump[kind];
+      const definition = pump ? freeze({ ...templates.water_pump, ...pump,
+        outputPorts: [output('water', kind === 'salt' ? 'Eau salée' : 'Eau douce', resourceId)] }) : null;
+      cache.set(key, definition);
+      return definition;
+    }
     if ((type === 'oil_pump' || type === 'triphasic_separator') && resourceId !== 'oil') {
       cache.set(key, null);
       return null;
@@ -173,7 +238,7 @@
     let definition = null;
     if (type === 'drill' || type === 'crusher' || type === 'grinder' || type === 'magnetic_separator' ||
         type === 'gravity_separator' || type === 'silicon_washer' || type === 'silicon_dryer' ||
-        type === 'carbon_separator' || type === 'carbon_washer' || type === 'reduction_furnace') {
+        type === 'carbon_separator' || type === 'carbon_washer' || type === 'reduction_furnace' || type === 'reprocessor') {
       definition = solidDefinition(type, resourceId || 'iron');
     } else if (type === 'triphasic_separator' && resourceId === 'oil') {
       const base = templates.triphasic_separator;
@@ -186,7 +251,7 @@
           { outputId: 'waste', resourceId: 'waste', amount: 1 }
         ] } };
     } else if (type === 'oil_pump' && resourceId === 'oil') definition = templates.oil_pump;
-    else definition = templates[type] || utilities[type] || null;
+    else definition = templates[type] || utilities[type] || depotCards[type] || null;
     cache.set(key, definition ? freeze(definition) : null);
     return cache.get(key);
   }
@@ -195,7 +260,8 @@
     drill: 'iron', oil_pump: 'oil', water_supply: 'silicon', crusher: 'iron', grinder: 'iron',
     magnetic_separator: 'iron', gravity_separator: 'copper', silicon_washer: 'silicon',
     silicon_dryer: 'silicon', carbon_separator: 'carbon', carbon_washer: 'carbon',
-    reduction_furnace: 'iron', triphasic_separator: 'oil'
+    reduction_furnace: 'iron', triphasic_separator: 'oil', water_pump: 'salt_water', desalinator: 'salt_water',
+    reprocessor: 'iron', incinerator: 'iron'
   };
   const definitions = Object.freeze(Object.fromEntries(Object.entries(definitionContexts)
     .map(([type, resourceId]) => [type, get(type, resourceId)])
@@ -209,15 +275,25 @@
     if (['impure_silicon_wet', 'impure_silicon_dry', 'silicon_sludge'].includes(resourceId)) return 'silicon';
     if (['coal', 'carbon', 'carbon_sludge'].includes(resourceId)) return 'carbon';
     if (['raw_oil', 'oil', 'gas'].includes(resourceId)) return 'oil';
+    if (resourceId === 'salt_water' || resourceId === 'brine') return 'salt_water';
     return null;
   }
   const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
-  freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates);
+  freeze(config); freeze(materials); freeze(catalogByResource); freeze(templates); freeze(depotCards); freeze(waterCatalog);
 
   root.OrbitProcessData = Object.freeze({
     config, definitions, utilities: frozenUtilities, statuses, materials,
     get, contextForResource,
     catalog(buildingType, resourceId) {
+      if (buildingType === 'water_station') {
+        return (waterCatalog[resourceId] || waterCatalog.water).map(type => get(type, resourceId || 'water')).filter(Boolean);
+      }
+      if (buildingType === 'storage') return depotCatalog.map(type => get(type));
+      if (buildingType === 'waste_heap') {
+        const material = Object.hasOwn(materials, resourceId) && resourceId !== 'oil' ? resourceId : 'iron';
+        return [get('input_dock', material), ...['iron', 'copper', 'silicon', 'carbon'].map(id => get('reprocessor', id)),
+          get('incinerator'), get('output_dock')].filter(Boolean);
+      }
       if (!['factory', 'extractor', 'oil_platform'].includes(buildingType)) return [];
       const selected = resourceId || (buildingType === 'oil_platform' ? 'oil' : 'iron');
       if (buildingType === 'oil_platform' && selected !== 'oil' || buildingType === 'extractor' && selected === 'oil') return [];

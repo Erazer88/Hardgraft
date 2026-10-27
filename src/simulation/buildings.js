@@ -61,6 +61,10 @@
     const dockStock = integerStock(properties.dockStock);
     const launchStock = integerStock(properties.launchStock);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
+    // Units a depot's output gates queued, per destination building.
+    const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
+      ? Object.fromEntries(Object.entries(properties.gateStock).map(([id, queue]) => [id, integerStock(queue)])
+        .filter(([id, queue]) => id.trim() && Object.keys(queue).length)) : {};
     const dockDestinations = properties.dockDestinations && typeof properties.dockDestinations === 'object' &&
       !Array.isArray(properties.dockDestinations)
       ? Object.fromEntries(Object.entries(properties.dockDestinations)
@@ -111,6 +115,7 @@
       dockDestinations,
       launchStock,
       launchReceivedTotal,
+      gateStock,
       exportEnabled,
       exportCursorResourceId,
       energyUse,

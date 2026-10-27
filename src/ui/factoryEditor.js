@@ -22,6 +22,16 @@
     triphasic_separator: { accent: '#79cde3', shape: '<path d="M49 20h30v8l8 9v29H41V37l8-9z" fill="#18384c"/><path d="M43 44h42v8H43z" fill="#ae8154"/><path d="M43 53h42v8H43z" fill="#405c69"/><path d="M43 39h42v5H43z" fill="var(--art-accent)"/><path d="M55 17h18M37 68h54"/><circle cx="58" cy="41" r="2" fill="#d5e3e8"/><circle cx="72" cy="57" r="2" fill="#d5e3e8"/>' },
     terril: { accent: '#bc9369', shape: '<path d="M28 66h72"/><path d="M35 65l9-17 8 7 12-23 11 16 7-6 11 23z" fill="#364855"/><path d="M42 54l7-4m17-14 5 6m9 7 6-4" fill="none" stroke="var(--art-accent)" stroke-width="3"/><circle cx="51" cy="61" r="2" fill="#e3c293"/><circle cx="75" cy="58" r="2" fill="#e3c293"/>' },
     input_dock: { accent: '#79d6c2', shape: '<path d="M91 43H42"/><path d="M50 34l-10 9 10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M41 56h49l-7 12H48z" fill="#254758"/><path d="M50 54V46m14 8V46m14 8V46"/><rect x="86" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M89 36h9m-9 6h9"/>' },
+    water_pump: { accent: '#6fd0f2', shape: '<path d="M30 66h68"/><rect x="40" y="30" width="26" height="30" rx="4" fill="#244a60"/><path d="M66 38h18v24" fill="none"/><path d="M84 62c-5 6-5 9 0 9s5-3 0-9z" fill="var(--art-accent)"/><circle cx="53" cy="45" r="8" fill="#0d2232"/><path d="M53 39v12m-6-6h12"/><path d="M46 22h14" stroke="var(--art-accent)"/>' },
+    desalinator: { accent: '#8fe0f0', shape: '<rect x="34" y="24" width="60" height="40" rx="5" fill="#173a4f"/><path d="M42 34h44M42 44h44M42 54h44" stroke-dasharray="4 4"/><path d="M64 14v10M60 18l4-4 4 4" fill="none"/><circle cx="44" cy="70" r="3" fill="var(--art-accent)"/><circle cx="84" cy="70" r="3" fill="#d9dfe3"/>' },
+    reprocessor: { accent: '#d3b07a', shape: '<path d="M31 64l11-22 9 8 11-18 11 14 9-6 11 24z" fill="#33424d"/><path d="M58 30a14 14 0 1 1-6 22" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M50 50l2 6 6-3" fill="none" stroke="var(--art-accent)" stroke-width="3"/>' },
+    incinerator: { accent: '#ff9a5c', shape: '<path d="M40 66V34h48v32z" fill="#3d3434"/><path d="M76 34V16h8v18" fill="#2b3a44"/><path d="M64 60c-10-7 2-13-1-22 10 8 13 15 5 22z" fill="var(--art-accent)" stroke="#ffd27b"/><path d="M92 24l-6 10h6l-5 10" fill="none" stroke="#ffe08a" stroke-width="3"/><path d="M34 68h60"/>' },
+    depot_input: { accent: '#79d6c2', shape: '<rect x="30" y="26" width="34" height="38" rx="4" fill="#254758"/><path d="M98 45H66"/><path d="M76 36l-10 9 10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 36h18M38 45h18M38 54h18"/>' },
+    depot_output: { accent: '#75cfde', shape: '<rect x="64" y="26" width="34" height="38" rx="4" fill="#254758"/><path d="M30 45h32"/><path d="M52 36l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M72 36h18M72 45h18M72 54h18"/>' },
+    depot_buffer: { accent: '#9fc4dc', shape: '<rect x="38" y="20" width="52" height="46" rx="5" fill="#1d3a4d"/><path d="M38 36h52M38 51h52"/><rect x="44" y="40" width="12" height="8" fill="var(--art-accent)"/><rect x="60" y="25" width="12" height="8" fill="var(--art-accent)"/><rect x="72" y="55" width="12" height="8" fill="var(--art-accent)"/>' },
+    depot_filter: { accent: '#c6a7ec', shape: '<path d="M32 26h64L72 48v18l-16-6V48z" fill="#243f52"/><circle cx="44" cy="34" r="3" fill="var(--art-accent)"/><circle cx="64" cy="34" r="3" fill="#a8c3cf"/><circle cx="82" cy="34" r="3" fill="#a8c3cf"/><path d="M64 66v8"/>' },
+    depot_splitter: { accent: '#ecc06e', shape: '<path d="M28 45h28l18-16h26M56 45l18 16h26" fill="none"/><circle cx="56" cy="45" r="7" fill="#254758"/><path d="M92 23l8 6-8 6M92 55l8 6-8 6" fill="none" stroke="var(--art-accent)" stroke-width="3"/>' },
+    depot_priority: { accent: '#ff9f7a', shape: '<path d="M28 45h30l16-16h26" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M58 45l16 16h26" fill="none" stroke-dasharray="4 4"/><circle cx="58" cy="45" r="7" fill="#254758"/><path d="M84 18l4 6h-8z" fill="var(--art-accent)"/>' },
     output_dock: { accent: '#75cfde', shape: '<path d="M37 43h49"/><path d="M78 34l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 56h49l-7 12H45z" fill="#254758"/><path d="M49 54V46m14 8V46m14 8V46"/><rect x="27" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M30 36h9m-9 6h9"/>' }
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -43,9 +53,12 @@
       Data.contextForResource(machines.find(machine => machine.type === 'input_dock' && machine.importResourceId)?.importResourceId) || 'iron';
     const typeOf = value => Graph.definitionOf(typeof value === 'string'
       ? { type: value, resourceId: processingResource() } : value);
+    const routingControl = type => ({ depot_filter: 'filterResourceId', depot_splitter: 'splitPercent',
+      depot_output: 'destinationId' })[type] || null;
     const heightOf = value => {
       const definition = typeOf(value);
       if (definition.externalInput) return NODE.inputDockHeight;
+      if (definition.routing && routingControl(definition.id)) return NODE.height + 64;
       if (definition.externalOutput) return NODE.outputDockHeight;
       const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
       return NODE.height + (portRows - 1) * 24;
@@ -92,6 +105,9 @@
 
     function blockSpecification(def) {
       if (def.externalInput) return 'RÉSEAU TERRESTRE';
+      if (def.gate) return `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
+      if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
+      if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
       if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
       if (def.externalOutput) return `${fmt(def.throughput)} u/s · EXPORT`;
       const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
@@ -125,15 +141,19 @@
       const ratePercent = finite ? (def.throughput > 0 ? rate / def.throughput * 100 : 0) : rate > 0 ? 100 : 0;
       rateFill.style.width = `${clamp(ratePercent, 0, 100)}%`;
       const energy = card.querySelector('[data-readout="energy"]');
-      energy.textContent = `${fmt(machine.energyMW)} / ${fmt(def.energyMW)} MW`;
+      energy.textContent = def.generatesMW
+        ? `+${fmt(machine.state === 'active' ? def.generatesMW * clamp(rate / def.throughput, 0, 1) : 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
+        : def.routing ? 'SANS ÉNERGIE' : `${fmt(machine.energyMW)} / ${fmt(def.energyMW)} MW`;
       card.dataset.state = machine.state;
       const state = card.querySelector('[data-readout="state"]');
       state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = def.source || def.externalOutput;
+      const continuous = def.source || def.externalOutput || def.routing;
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
-      cycleLabel.textContent = def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
+      const held = Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0);
+      cycleLabel.textContent = def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
+        : def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : def.source ? (def.usesGround ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
@@ -159,6 +179,40 @@
       }
       updateDockDestination(machine);
       if (def.externalInput) updateInputDock(machine);
+      if (def.routing) updateRoutingControl(machine);
+    }
+
+    // Settings of depot cards: the filtered resource, the split share and
+    // the destination of an output gate.
+    function routingOptions(machine) {
+      if (machine.type === 'depot_filter') return root.OrbitResourceData.catalog()
+        .filter(resource => resource.transportable).map(resource => ({ value: resource.id, label: resource.label }));
+      if (machine.type === 'depot_splitter') return Data.config.depot.splitRatios
+        .map(percent => ({ value: String(percent), label: `A ${percent} % · B ${100 - percent} %` }));
+      return (getDestinations(activeBuilding) || []).map(destination => ({ value: destination.id,
+        label: destination.customName || `${root.OrbitBuildingData.get(destination.type)?.label || destination.type} · ${destination.id.slice(-5)}` }));
+    }
+
+    function updateRoutingControl(machine) {
+      const key = routingControl(machine.type);
+      const select = key && cards.get(machine.id)?.querySelector('[data-routing-config]');
+      if (!select) return;
+      const options = routingOptions(machine);
+      const current = machine.config?.[key] ?? (key === 'splitPercent' ? 50 : '');
+      const optionKey = JSON.stringify([options, current]);
+      if (select.dataset.optionKey === optionKey) return;
+      select.dataset.optionKey = optionKey;
+      select.replaceChildren();
+      if (key !== 'splitPercent') {
+        const placeholder = document.createElement('option'); placeholder.value = '';
+        placeholder.textContent = key === 'destinationId' && !options.length ? 'Aucun bâtiment disponible' : 'Choisir…';
+        select.append(placeholder);
+      }
+      for (const item of options) {
+        const option = document.createElement('option'); option.value = item.value; option.textContent = item.label;
+        select.append(option);
+      }
+      select.value = options.some(item => item.value === String(current)) ? String(current) : '';
     }
 
     function updateInputDock(machine) {
@@ -261,6 +315,17 @@
         if (output) card.append(createPort(machine, 'output', output, index));
       }
       let dockControl = null;
+      if (def.routing && routingControl(def.id)) {
+        const control = document.createElement('label'); control.className = 'factory-dock-route';
+        const label = document.createElement('span');
+        label.textContent = { depot_filter: 'RESSOURCE FILTRÉE', depot_splitter: 'RÉPARTITION', depot_output: 'DESTINATION' }[def.id];
+        const select = document.createElement('select');
+        select.dataset.routingConfig = machine.id;
+        select.setAttribute('aria-label', `${label.textContent} · ${def.label}`);
+        control.append(label, select);
+        dockControl = control;
+        card.style.height = `${heightOf(machine)}px`;
+      }
       if (def.externalOutput || def.externalInput) {
         if (def.externalInput) card.classList.add('factory-node-input-dock');
         else card.classList.add('factory-node-output-dock');
@@ -383,7 +448,7 @@
       onMachineMove(id, point) {
         const machine = machineById(id); if (!machine) return;
         machine.x = clamp(point.x, 8, WORLD.width - NODE.width - 8);
-        machine.y = clamp(point.y, 8, WORLD.height - heightOf(machine.type) - 8);
+        machine.y = clamp(point.y, 8, WORLD.height - heightOf(machine) - 8);
         updateMachinePosition(machine);
       },
       onMachineEnd() { persist(); },
@@ -433,6 +498,7 @@
         processingResource())) {
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
+        if (def.contextResourceId) button.dataset.resourceId = def.contextResourceId;
         const specification = blockSpecification(def);
         button.setAttribute('aria-label', `${def.label}. ${def.description || 'Machine de traitement.'} ${specification}`);
         button.append(createBlockArtwork(def));
@@ -447,13 +513,13 @@
       }
     }
 
-    function addMachine(type) {
-      const def = Data.get(type, processingResource());
+    function addMachine(type, resourceId = processingResource()) {
+      const def = Data.get(type, resourceId);
       if (!def || !activeBuilding) return;
       const viewportBounds = viewport.getBoundingClientRect();
       const center = viewportController.worldPoint(viewportBounds.left + viewportBounds.width / 2,
         viewportBounds.top + viewportBounds.height / 2);
-      const height = heightOf(type);
+      const height = heightOf({ type, resourceId });
       const topLeft = { x: center.x - NODE.width / 2, y: center.y - height / 2 };
       const visibleTopLeft = viewportController.worldPoint(viewportBounds.left, viewportBounds.top);
       const visibleBottomRight = viewportController.worldPoint(viewportBounds.right, viewportBounds.bottom);
@@ -478,13 +544,13 @@
       const available = positions.find(position => visible(position) &&
         machines.every(machine =>
           position.x + NODE.width + 12 <= machine.x || machine.x + NODE.width + 12 <= position.x ||
-          position.y + height + 12 <= machine.y || machine.y + heightOf(machine.type) + 12 <= position.y));
+          position.y + height + 12 <= machine.y || machine.y + heightOf(machine) + 12 <= position.y));
       const visibleEnough = position => position.x + NODE.width > visibleTopLeft.x &&
         position.x < visibleBottomRight.x && position.y + height > visibleTopLeft.y &&
         position.y < visibleBottomRight.y;
       const offsetPlacement = machines.length ? { x: topLeft.x + 44, y: topLeft.y + 40 } : topLeft;
       const placement = available || (visibleEnough(offsetPlacement) ? offsetPlacement : topLeft);
-      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type, resourceId: processingResource(),
+      const result = Graph.addMachine(graph, { id: `machine-${nextMachineId++}`, type, resourceId,
         x: clamp(placement.x, 8, WORLD.width - NODE.width - 8),
         y: clamp(placement.y, 8, WORLD.height - height - 8) });
       if (!result.ok) { status(result.reason); return false; }
@@ -520,7 +586,7 @@
       addPalette();
       editor.hidden = false; document.body.classList.add('factory-editor-open');
       renderNodes();
-      const fitHeight = Math.max(NODE.height, ...machines.map(machine => heightOf(machine.type)));
+      const fitHeight = Math.max(NODE.height, ...machines.map(machine => heightOf(machine)));
       viewportController.fit(machines, { width: NODE.width, height: fitHeight });
       status('PLAN ENREGISTRÉ');
       $('factory-editor-close').focus();
@@ -567,7 +633,7 @@
     });
     palette.addEventListener('click', event => {
       const button = event.target.closest('[data-add-machine]');
-      if (button && addMachine(button.dataset.addMachine)) {
+      if (button && addMachine(button.dataset.addMachine, button.dataset.resourceId || undefined)) {
         setPaletteOpen(false);
         paletteToggle.focus({ preventScroll: true });
       }
@@ -577,6 +643,20 @@
       if (button) removeMachine(button.dataset.removeMachine);
     });
     nodeLayer.addEventListener('change', event => {
+      const routingSelect = event.target.closest('select[data-routing-config]');
+      if (routingSelect && activeBuilding) {
+        const machine = machineById(routingSelect.dataset.routingConfig), key = machine && routingControl(machine.type);
+        if (!key) return;
+        machine.config ||= {};
+        if (key === 'splitPercent') machine.config.splitPercent = clamp(Number(routingSelect.value) || 50, 0, 100);
+        else if (routingSelect.value) machine.config[key] = routingSelect.value;
+        else delete machine.config[key];
+        if (key === 'splitPercent') machine.splitSent = { a: 0, b: 0 };
+        updateMachineReadout(machine); persist();
+        status(key === 'destinationId' ? (routingSelect.value ? `PORTE · ${routingSelect.selectedOptions[0]?.textContent}` : 'DESTINATION SUPPRIMÉE')
+          : key === 'splitPercent' ? `RÉPARTITION · ${routingSelect.selectedOptions[0]?.textContent}` : 'FILTRE MIS À JOUR');
+        return;
+      }
       const resourceSelect = event.target.closest('select[data-dock-resource]');
       if (resourceSelect && activeBuilding) {
         const machine = machineById(resourceSelect.dataset.dockResource);

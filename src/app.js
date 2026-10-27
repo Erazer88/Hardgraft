@@ -344,7 +344,21 @@
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
     state.placement = { type, ...position, rotation: 0, ...validation,
-      groundText: validation.composition ? groundReadout(validation.composition) : null };
+      groundText: siteReadout({ type, ...position, ...validation }) };
+  }
+  // The text under a beacon being placed or selected: the ore a drill drains,
+  // the water a station pumps, the latitude and launch power of a platform.
+  function siteReadout(building) {
+    if (building.type === 'launch_platform') {
+      const latitude = OrbitalLogisticsData.latitudeAt(building.y, Config.terrain.height * Config.terrain.textureScale);
+      const rounded = Math.round(Math.abs(latitude));
+      return `Latitude ${rounded}°${rounded ? (latitude > 0 ? ' N' : ' S') : ''} · lancement ≈ ${formatAmount(
+        Math.round(OrbitalLogisticsData.launchEnergyMW(latitude) * 10) / 10)} MW`;
+    }
+    if (building.type === 'water_station' && building.resourceId) {
+      return building.resourceId === 'salt_water' ? 'Eau salée · mer' : 'Eau douce · lac ou rivière';
+    }
+    return building.composition ? groundReadout(building.composition) : null;
   }
   // The ores a drill would drain, shown under its beacon: "Fer ≈ 30 % · Silice ≈ 10 %".
   function groundReadout(composition) {
@@ -393,8 +407,7 @@
   function selectSurfaceBuilding(building) {
     cancelRoadDrag();
     state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-    state.selected = { kind: 'building', ...building,
-      groundText: building.composition ? groundReadout(building.composition) : null };
+    state.selected = { kind: 'building', ...building, groundText: siteReadout(building) };
     hud.showSelection(state.selected, { state }); updateUI();
   }
   function demolishSelectedBuilding() {

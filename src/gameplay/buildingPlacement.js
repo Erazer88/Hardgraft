@@ -202,6 +202,24 @@
     return { resourceId, share: composition[resourceId] || 0 };
   }
 
+  // Nearest water within reach of a pumping station: the sea (and coves)
+  // give salt water; lakes and rivers fresh water.
+  function shoreWater(terrain, textureScale, position, reach) {
+    const features = root.OrbitWorld?.TERRAIN_FEATURES || { lake: 1, river: 3 };
+    let best = null;
+    for (let dy = -reach; dy <= reach; dy += textureScale) for (let dx = -reach; dx <= reach; dx += textureScale) {
+      const distance = Math.hypot(dx, dy);
+      if (distance > reach || (best && distance >= best.distance)) continue;
+      const cellX = Math.round((position.x + dx) / textureScale), cellY = Math.round((position.y + dy) / textureScale);
+      if (cellX < 0 || cellY < 0 || cellX >= terrain.width || cellY >= terrain.height) continue;
+      const cell = cellY * terrain.width + cellX, feature = terrain.features ? terrain.features[cell] : -1;
+      const fresh = feature === features.lake || feature === features.river;
+      if (!fresh && terrain.elevation[cell] > terrain.seaLevel) continue;
+      best = { distance, kind: fresh ? 'fresh' : 'salt', point: { x: cellX * textureScale, y: cellY * textureScale } };
+    }
+    return best;
+  }
+
   function validate(options) {
     const { terrain, textureScale, definition, position, rotation = 0, planetId, buildings = [] } = options;
     if (!terrain || !definition || !position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
@@ -238,12 +256,17 @@
         return { valid: false, reason: 'Cet emplacement chevauche un autre bâtiment.', rotation: resolvedRotation };
       }
     }
+    const water = rules.shoreRequired ? shoreWater(terrain, textureScale, candidate, rules.shoreReach || 30) : null;
+    if (rules.shoreRequired && !water) {
+      return { valid: false, reason: 'La station doit border la mer, un lac ou une rivière.', rotation: resolvedRotation };
+    }
     const composition = definition.extracts?.length ? groundComposition(terrain, textureScale, candidate, definition) : null;
     const material = extractedMaterial(composition, definition);
-    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: material?.resourceId || null,
+    const pumped = water ? (water.kind === 'salt' ? 'salt_water' : 'water') : null;
+    return { valid: true, reason: '', rotation: resolvedRotation, resourceId: pumped || material?.resourceId || null,
       resourceShare: material?.share ?? null, composition, waterPort: marineDock?.point || null };
   }
 
   root.OrbitBuildingPlacement = Object.freeze({ validate, coastFacingRotation,
-    marineFacingNormal, resolveMarineDock, groundComposition });
+    marineFacingNormal, resolveMarineDock, groundComposition, shoreWater });
 })(globalThis);

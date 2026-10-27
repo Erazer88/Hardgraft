@@ -48,8 +48,8 @@
     },
     storage: {
       id: 'storage', label: 'DÉPÔT', shortLabel: 'DÉ', category: 'logistics', icon: 'storage',
-      description: 'Stocke tous types de matériaux acheminés vers le site.',
-      functions: { storesAllMaterials: true },
+      description: 'Reçoit tout ce qu’on lui envoie et le répartit vers d’autres bâtiments.',
+      functions: { storesAllMaterials: true, routesMaterials: true },
       cost: { iron: 12, copper: 4 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 12 },
@@ -73,6 +73,25 @@
       roadPortOffset: { x: 0, y: 15 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
+    water_station: {
+      id: 'water_station', label: 'STATION DE POMPAGE', shortLabel: 'SP', category: 'resource', icon: 'water-pump',
+      description: 'Pompe l’eau de la rive voisine : salée en mer, douce dans un lac ou une rivière.',
+      functions: { pumpsWater: true },
+      cost: { iron: 14, copper: 6 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
+      footprint: { width: 26, height: 24 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 12 },
+      // Water must lie within shoreReach (km) of the station's center.
+      placementRules: { landOnly: true, shoreRequired: true, shoreReach: 30 }, preferredTerrain: ['shore']
+    },
+    waste_heap: {
+      id: 'waste_heap', label: 'TERRIL', shortLabel: 'TE', category: 'waste', icon: 'terril',
+      description: 'Reçoit les déchets par route ; on en récupère des matières à faible rendement ou de l’énergie.',
+      functions: { storesWaste: true },
+      cost: { iron: 8 }, constructionDurationSeconds: 3.5, demolitionRefundRate: 1,
+      footprint: { width: 32, height: 26 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 13 },
+      placementRules: { landOnly: true }, preferredTerrain: ['flat']
+    },
     // Retained for existing building data; it is not part of the current build menu.
     geothermal: {
       id: 'geothermal', label: 'GÉOTHERMIE', shortLabel: 'GT', category: 'energy', icon: 'geothermal',
@@ -85,7 +104,8 @@
     }
   };
   const catalogOrder = Object.freeze([
-    'factory', 'extractor', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'wind_turbine'
+    'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
+    'wind_turbine'
   ]);
 
   for (const definition of Object.values(definitions)) {
@@ -102,9 +122,16 @@
   }
   Object.freeze(definitions);
 
+  // Buildings whose inside is a card plan, and those of them whose output
+  // docks send resources by road (the depot uses its own gates).
+  const processTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'storage', 'waste_heap']);
+  const dockSourceTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'waste_heap']);
+
   root.OrbitBuildingData = Object.freeze({
     definitions,
     catalogOrder,
+    processTypes,
+    dockSourceTypes,
     catalog() { return catalogOrder.map(type => definitions[type]); },
     get(type) { return Object.prototype.hasOwnProperty.call(definitions, type) ? definitions[type] : null; }
   });

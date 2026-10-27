@@ -20,7 +20,7 @@
   }
 
   function setDockDestination(building, resourceId, destinationId) {
-    if (!building || !['factory', 'extractor', 'oil_platform'].includes(building.type) ||
+    if (!building || !root.OrbitBuildingData.dockSourceTypes.includes(building.type) ||
         !Data.exportResources.some(item => item.id === resourceId)) return false;
     building.dockDestinations ||= {};
     if (destinationId === null || destinationId === '') delete building.dockDestinations[resourceId];

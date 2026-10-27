@@ -28,10 +28,12 @@
     return false;
   }
 
+  // A destination receives once its plan has an entry: an input dock, or a
+  // depot's input gate. Launch platforms always receive.
   function hasReceivingDock(state, building) {
     if (building?.type === 'launch_platform') return true;
-    if (building?.type !== 'factory') return false;
-    return Boolean(state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === 'input_dock'));
+    const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
+    return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry));
   }
 
   // Moves every docked stock to its assigned destination. Besides the totals,
@@ -40,27 +42,37 @@
     const transferred = new Map(), flows = [];
     const buildings = state.surfaceBuildings || [];
     const byId = new Map(buildings.map(building => [building.id, building]));
+    const deliver = (source, network, destinationId, resourceId, rawAmount) => {
+      const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
+      const destination = byId.get(destinationId);
+      if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
+          !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+          !hasReceivingDock(state, destination) ||
+          !hasBuiltLandPath(network, source.id, destination.id)) return false;
+      const stock = destination.type === 'launch_platform'
+        ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
+      stock[resourceId] = (stock[resourceId] || 0) + amount;
+      if (destination.type === 'launch_platform') {
+        destination.launchReceivedTotal ||= {};
+        destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
+      }
+      flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
+      transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
+      return true;
+    };
     for (const source of buildings) {
-      if (source.constructionState !== 'complete' || !source.dockStock || typeof source.dockStock !== 'object') continue;
+      if (source.constructionState !== 'complete') continue;
       const network = state.roadNetworks?.[source.planetId];
-      for (const [resourceId, rawAmount] of Object.entries(source.dockStock)) {
-        const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
-        const destinationId = source.dockDestinations?.[resourceId];
-        const destination = byId.get(destinationId);
-        if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
-            !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
-            !hasReceivingDock(state, destination) ||
-            !hasBuiltLandPath(network, source.id, destination.id)) continue;
-        const stock = destination.type === 'launch_platform'
-          ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
-        stock[resourceId] = (stock[resourceId] || 0) + amount;
-        if (destination.type === 'launch_platform') {
-          destination.launchReceivedTotal ||= {};
-          destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
+      if (source.dockStock && typeof source.dockStock === 'object') {
+        for (const [resourceId, amount] of Object.entries(source.dockStock)) {
+          if (deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount)) delete source.dockStock[resourceId];
         }
-        delete source.dockStock[resourceId];
-        flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
-        transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
+      }
+      // A depot's output gates queue their units per destination building.
+      for (const [destinationId, queue] of Object.entries(source.gateStock || {})) {
+        for (const [resourceId, amount] of Object.entries(queue)) {
+          if (deliver(source, network, destinationId, resourceId, amount)) delete queue[resourceId];
+        }
       }
     }
     const rates = {};

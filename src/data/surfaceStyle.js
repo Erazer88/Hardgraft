@@ -136,6 +136,11 @@
       tickOuterRadiusPx: 13,
       tickWidthPx: .8
     }),
+    // Placement guide of the launch platform: equator, favorable band,
+    // parallels and meridians.
+    latitudeGrid: Object.freeze({ parallelStepDegrees: 15, meridianStepDegrees: 30,
+      equatorColor: '#ffd27b', bandFill: '#ffd27b14', lineColor: '#9fc4dc', lineOpacity: .32,
+      labelColor: '#cfe0ea', labelSizePx: 9 }),
     buildings: Object.freeze({
       cardWidthPx: 132,
       cardMinWidthPx: 120,
@@ -169,7 +174,7 @@
         glyphSizePx: 12.5,
         glyphLineWidthPx: 1.6,
         glyphColor: '#eefcff',
-        categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a' }),
+        categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a', waste: '#c3a6e0' }),
         defaultColor: '#c9d6dc',
         selectedRingPx: 4,
         constructionColor: '#d7a66f',

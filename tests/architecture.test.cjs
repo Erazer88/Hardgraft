@@ -389,6 +389,50 @@ test('extractors stand anywhere on land and record the richest material of the g
   assert.ok(Math.abs(platform.resourceShare - .2) < .01);
 });
 
+test('a pumping station needs a shore and pumps salt water by the sea, fresh water by a lake', () => {
+  const placementContext = vm.createContext({});
+  for (const relative of ['data/resources.js', 'data/buildings.js', 'data/roads.js', 'simulation/buildings.js',
+    'simulation/roadGeometry.js', 'gameplay/buildingPlacement.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), placementContext);
+  }
+  const { OrbitBuildingPlacement: Placement, OrbitBuildingData: Buildings } = placementContext;
+  // Land on the left half with a lake in its middle; the sea on the right.
+  const width = 80, height = 60, elevation = new Uint8Array(width * height), features = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const cell = y * width + x, lake = Math.hypot(x - 15, y - 30) < 5;
+    elevation[cell] = x < 40 && !lake ? 130 : 90;
+    if (lake) features[cell] = 1;
+  }
+  const terrain = { width, height, elevation, features, seaLevel: 102 };
+  const validate = (x, y) => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get('water_station'),
+    position: { x, y }, planetId: 'p', buildings: [] });
+  const sea = validate(105, 120);
+  assert.equal(sea.valid, true, sea.reason);
+  assert.equal(sea.resourceId, 'salt_water');
+  const lake = validate(45, 120);
+  assert.equal(lake.valid, true, lake.reason);
+  assert.equal(lake.resourceId, 'water');
+  const inland = validate(75, 30);
+  assert.equal(inland.valid, false, 'no water within reach');
+  assert.match(inland.reason, /mer, un lac ou une rivière/);
+});
+
+test('launch platforms spend less energy near the equator', () => {
+  const logisticsContext = vm.createContext({});
+  for (const relative of ['data/config.js', 'data/resources.js', 'data/orbitalLogistics.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), logisticsContext);
+  }
+  const { OrbitOrbitalLogisticsData: Logistics, OrbitConfig: Settings } = logisticsContext;
+  const mapHeight = Settings.terrain.height * Settings.terrain.textureScale;
+  assert.equal(Logistics.latitudeAt(mapHeight / 2, mapHeight), 0);
+  assert.equal(Logistics.latitudeAt(0, mapHeight), Logistics.launchSite.latitudeExtentDegrees);
+  assert.equal(Logistics.latitudeAt(mapHeight, mapHeight), -Logistics.launchSite.latitudeExtentDegrees);
+  const equator = Logistics.launchEnergyMW(0), tropic = Logistics.launchEnergyMW(-20), pole = Logistics.launchEnergyMW(75);
+  assert.equal(equator, Logistics.launchSite.equatorEnergyMW);
+  assert.ok(equator < tropic && tropic < pole, 'launch energy grows with latitude, north or south');
+  assert.equal(Logistics.launchEnergyMW(20), tropic);
+});
+
 test('roads wind up steep slopes and cross drawn rivers once, on a bridge', () => {
   const roadContext = vm.createContext({});
   for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js',

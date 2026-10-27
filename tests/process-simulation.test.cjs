@@ -8,7 +8,7 @@ const { test } = require('node:test');
 
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'simulation/resourceStack.js', 'data/processes.js',
-  'simulation/processGraph.js', 'simulation/processSimulation.js', 'gameplay/industry.js']) {
+  'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitProcessData;
@@ -49,22 +49,22 @@ function advance(graph, seconds, context = { energyUnlimited: true }) {
 
 test('V1 exposes resource-specific lines with shared crusher, grinder and furnace cards', () => {
   assert.deepEqual(plain(Data.catalog('extractor', 'iron').map(def => def.id)), [
-    'drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'terril', 'output_dock'
+    'drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock'
   ]);
   assert.deepEqual(plain(Data.catalog('extractor', 'copper').map(def => def.id)), [
-    'drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'terril', 'output_dock'
+    'drill', 'crusher', 'grinder', 'gravity_separator', 'reduction_furnace', 'output_dock'
   ]);
   assert.deepEqual(plain(Data.catalog('extractor', 'silicon').map(def => def.id)), [
     'drill', 'crusher', 'grinder', 'water_supply', 'silicon_washer', 'silicon_dryer',
-    'reduction_furnace', 'terril', 'output_dock'
+    'reduction_furnace', 'output_dock'
   ]);
   assert.deepEqual(plain(Data.catalog('extractor', 'carbon').map(def => def.id)), [
-    'drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer', 'terril', 'output_dock'
+    'drill', 'crusher', 'grinder', 'carbon_separator', 'water_supply', 'carbon_washer', 'output_dock'
   ]);
   assert.equal(Data.catalog('factory', 'iron')[0].id, 'input_dock');
   assert.equal(Data.get('input_dock').externalInput, true);
   assert.deepEqual(plain(Data.catalog('oil_platform', 'oil').map(def => def.id)), [
-    'oil_pump', 'triphasic_separator', 'terril', 'output_dock'
+    'oil_pump', 'triphasic_separator', 'output_dock'
   ]);
   for (const catalog of [Data.catalog('factory', 'iron'), Data.catalog('extractor', 'iron'),
     Data.catalog('oil_platform', 'oil')]) {
@@ -511,4 +511,124 @@ test('demolishing a building reclaims resources already exported through its doc
     (stack.resourceId === 'iron_ore_crushed' ? stack.amount : 0), 0), 5,
   'docked stock and the dock buffer both return to colony materials');
   assert.equal(state.factoryPlans.factory, undefined);
+});
+
+test('a pumping station pumps the water of its shore: salt water faster than fresh water', () => {
+  const rates = {};
+  for (const resourceId of ['salt_water', 'water']) {
+    const station = { id: `station-${resourceId}`, type: 'water_station', resourceId, planetId: 'planet-1',
+      x: 25, y: 30, constructionState: 'complete' };
+    const wind = { id: 'wind-water', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
+    const state = { seed: 'water-seed', surfaceBuildings: [station, wind], factoryPlans: {} };
+    const graph = Industry.ensureGraph(state, station);
+    assert.equal(graph.geology.resourceId, resourceId);
+    assert.deepEqual(plain(Data.catalog('water_station', resourceId).map(def => def.id)),
+      resourceId === 'salt_water' ? ['water_pump', 'desalinator', 'output_dock'] : ['water_pump', 'output_dock']);
+    const pump = machine(graph, 'pump', 'water_pump');
+    pump.resourceId = resourceId;
+    const dock = machine(graph, 'dock', 'output_dock', 300);
+    connect(graph, 'pump-dock', 'pump', 'water', 'dock', 'material');
+    assert.equal(Graph.definitionOf(pump).outputPorts[0].resourceId, resourceId);
+    Industry.advance(state, 10);
+    assert.equal(pump.state, 'active');
+    rates[resourceId] = station.dockStock[resourceId] || 0;
+    assert.ok(dock);
+  }
+  assert.ok(rates.salt_water > rates.water, `salt ${rates.salt_water} > fresh ${rates.water}`);
+});
+
+test('the desalinator turns salt water into fresh water and brine', () => {
+  const graph = Graph.create({ geology: { resourceId: 'salt_water' } });
+  const pump = machine(graph, 'pump', 'water_pump');
+  const desalinator = machine(graph, 'desalinator', 'desalinator', 300);
+  connect(graph, 'pump-desalinator', 'pump', 'water', 'desalinator', 'salt_water');
+  assert.equal(pump.resourceId, 'salt_water');
+  Simulation.advance(graph, 5, { energyUnlimited: true });
+  assert.equal(desalinator.state, 'active');
+  assert.ok(desalinator.outputBuffer.water >= 3);
+  assert.equal(desalinator.outputBuffer.water, desalinator.outputBuffer.brine * 3);
+});
+
+test('the waste heap reprocesses the waste of one line at a low yield, or burns waste for energy', () => {
+  assert.deepEqual(plain(Data.catalog('waste_heap').map(def => def.id)), ['input_dock', 'reprocessor', 'reprocessor',
+    'reprocessor', 'reprocessor', 'incinerator', 'output_dock']);
+  assert.equal(Data.catalog('factory', 'iron').some(def => def.id === 'terril'), false);
+  const heap = { id: 'heap-1', type: 'waste_heap', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
+    inventory: { iron_tailings: 40, waste: 40 } };
+  const wind = { id: 'wind-heap', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
+  const state = { seed: 'heap-seed', surfaceBuildings: [heap, wind], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, heap);
+  const tailings = machine(graph, 'dock-tailings', 'input_dock');
+  tailings.importResourceId = 'iron_tailings';
+  const reprocessor = Graph.addMachine(graph, { id: 'reprocessor', type: 'reprocessor', resourceId: 'iron', x: 300, y: 0 }).machine;
+  connect(graph, 'tailings-reprocessor', 'dock-tailings', 'material', 'reprocessor', 'waste');
+  const waste = machine(graph, 'dock-waste', 'input_dock', 0);
+  waste.importResourceId = 'waste';
+  const copper = Graph.addMachine(graph, { id: 'copper-reprocessor', type: 'reprocessor', resourceId: 'copper', x: 300, y: 300 }).machine;
+  const refused = Graph.connect(graph, { id: 'refused', fromMachineId: 'dock-waste', fromOutputId: 'material',
+    toMachineId: copper.id, toInputId: 'waste' });
+  assert.equal(refused.ok, false, 'generic waste holds no copper');
+  const incinerator = machine(graph, 'incinerator', 'incinerator', 600);
+  connect(graph, 'waste-incinerator', 'dock-waste', 'material', 'incinerator', 'waste');
+  for (let second = 0; second < 12; second++) Industry.advance(state, 1);
+  assert.equal(incinerator.state, 'active');
+  assert.ok(heap.inventory.waste < 40);
+  assert.ok(heap.energyOutputWatts > 0, 'burning waste feeds the grid');
+  assert.ok(reprocessor.outputBuffer.ground_ore >= 1, 'ten units of tailings give one unit of ground ore');
+  assert.equal(Graph.definitionOf(reprocessor).outputPorts[0].resourceId, 'iron_ore_ground');
+});
+
+test('depot cards route mixed flows through filters, splitters and priorities to their gates', () => {
+  assert.deepEqual(plain(Data.catalog('storage').map(def => def.id)),
+    ['depot_input', 'depot_buffer', 'depot_filter', 'depot_splitter', 'depot_priority', 'depot_output']);
+  const depot = { id: 'depot-1', type: 'storage', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
+    inventory: { raw_iron: 30, water: 30 } };
+  const state = { seed: 'depot-seed', surfaceBuildings: [depot], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, depot);
+  machine(graph, 'in', 'depot_input');
+  const filter = machine(graph, 'filter', 'depot_filter', 300);
+  const splitter = machine(graph, 'split', 'depot_splitter', 600);
+  const iron = machine(graph, 'gate-iron', 'depot_output', 900);
+  const a = machine(graph, 'gate-a', 'depot_output', 900);
+  const b = machine(graph, 'gate-b', 'depot_output', 900);
+  filter.config = { filterResourceId: 'raw_iron' };
+  splitter.config = { splitPercent: 75 };
+  iron.config = { destinationId: 'factory-iron' };
+  a.config = { destinationId: 'factory-a' };
+  b.config = { destinationId: 'factory-b' };
+  connect(graph, 'c1', 'in', 'out', 'filter', 'in');
+  connect(graph, 'c2', 'filter', 'match', 'gate-iron', 'in');
+  connect(graph, 'c3', 'filter', 'other', 'split', 'in');
+  connect(graph, 'c4', 'split', 'a', 'gate-a', 'in');
+  connect(graph, 'c5', 'split', 'b', 'gate-b', 'in');
+  assert.equal(Graph.connect(graph, { id: 'mixed-bad', fromMachineId: 'gate-a', fromOutputId: 'out',
+    toMachineId: 'filter', toInputId: 'in' }).ok, false);
+  for (let second = 0; second < 20; second++) Industry.advance(state, 1);
+  assert.equal(depot.inventory.raw_iron || 0, 0);
+  assert.equal(depot.inventory.water || 0, 0);
+  assert.deepEqual(plain(depot.gateStock['factory-iron']), { raw_iron: 30 });
+  const toA = depot.gateStock['factory-a'].water || 0, toB = depot.gateStock['factory-b'].water || 0;
+  assert.equal(toA + toB, 30);
+  assert.ok(Math.abs(toA - 22.5) <= 1, `three quarters of the water go to A (${toA})`);
+  const saved = Graph.create(plain(Graph.snapshot(graph)));
+  assert.equal(saved.machines.find(item => item.id === 'split').config.splitPercent, 75);
+  assert.equal(saved.machines.find(item => item.id === 'filter').config.filterResourceId, 'raw_iron');
+});
+
+test('a depot priority card fills its first output before overflowing', () => {
+  const depot = { id: 'depot-2', type: 'storage', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
+    inventory: { raw_iron: 60 } };
+  const state = { seed: 'depot-seed', surfaceBuildings: [depot], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, depot);
+  machine(graph, 'in', 'depot_input');
+  machine(graph, 'priority', 'depot_priority', 300);
+  const primary = machine(graph, 'buffer', 'depot_buffer', 600);
+  const overflow = machine(graph, 'gate', 'depot_output', 900);
+  overflow.config = { destinationId: 'factory-b' };
+  connect(graph, 'c1', 'in', 'out', 'priority', 'in');
+  connect(graph, 'c2', 'priority', 'primary', 'buffer', 'in');
+  connect(graph, 'c3', 'priority', 'overflow', 'gate', 'in');
+  for (let second = 0; second < 20; second++) Industry.advance(state, 1);
+  assert.equal(primary.storedResources.raw_iron, 60, 'the unconnected buffer keeps everything');
+  assert.equal(depot.gateStock?.['factory-b']?.raw_iron || 0, 0);
 });

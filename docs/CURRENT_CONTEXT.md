@@ -23,8 +23,9 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   connexions explicites et débits configurés. Voir
   [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - Le modèle de transport cible agrège les transferts entre bâtiments. Actuellement,
-  le Dock transfère vers une usine avec Quai d'entrée ou une Plateforme de lancement
-  lorsqu'une route construite les relie. Les routes n'ont pas de capacité ni de durée.
+  le Dock transfère vers une usine ou un terril avec Quai d'entrée, un dépôt avec
+  Porte d'entrée ou une Plateforme de lancement lorsqu'une route construite les relie ;
+  le dépôt répartit ce qu'il reçoit par ses Portes de sortie. Les routes n'ont pas de capacité ni de durée.
   Leur tracé suit le relief affiché (vallées, lacets sur les pentes, ponts sur les
   rivières) et elles s'affichent en filament néon.
   Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
@@ -46,6 +47,11 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   (moyenne sur 24 à 30 km, affichée en « ≈ »), sans placement au pixel près. Les minerais suivent des veines ramifiées issues de nœuds
   riches. La carte de teneur (isolignes et aplats colorés) sera plus tard révélée par
   un scan progressif ; les ratios et rendements restent à calibrer.
+- Bâtiments spécialisés : Station de pompage (eau salée en mer, douce en lac ou
+  rivière), Dépôt répartiteur, Terril (retraitement à faible rendement ou incinération
+  productrice d'énergie, sans débordement ni pollution), Plateforme de lancement moins
+  coûteuse en énergie près de l'équateur. Colonie, contexte et pollution viendront
+  plus tard. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - Le prototype garde encore des modes de test : réserve de colonie infinie et énergie
   illimitée par éolienne terminée. Ne pas les prendre pour les règles économiques
   finales ; leurs réglages se trouvent dans `src/data/processes.js`.

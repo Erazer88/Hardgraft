@@ -156,7 +156,7 @@
 
     function buildingStats(building) {
       const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
-      const property = ['factory', 'extractor', 'oil_platform'].includes(building.type) ? 'dockStock' : 'inventory';
+      const property = BuildingData.dockSourceTypes.includes(building.type) ? 'dockStock' : 'inventory';
       const inventory = inventoryEntries(building, property), total = inventory.reduce((sum, item) => sum + item.amount, 0);
       const stockText = inventory.length
         ? inventory.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')
@@ -186,8 +186,20 @@
         wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
         launch_platform: [['FONCTION', 'Export orbital vers l’Arche']],
         storage: [
-          ['RESSOURCES', stockText],
-          ['QUANTITÉ TOTALE', fmtDecimal(total)]
+          ['EN ATTENTE D’ENTRÉE', stockText],
+          ['QUANTITÉ TOTALE', fmtDecimal(total)],
+          ['DÉBIT DES PORTES', `${fmtDecimal(flow)} / min`]
+        ],
+        water_station: [
+          ['EAU POMPÉE', building.resourceId === 'salt_water' ? 'Eau salée · mer' : 'Eau douce · lac ou rivière'],
+          ['DÉBIT EN SORTIE', `${fmtDecimal(flow)} / min`],
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée']
+        ],
+        waste_heap: [
+          ['DÉCHETS REÇUS', receivedText],
+          ['DÉBIT EN SORTIE', `${fmtDecimal(flow)} / min`],
+          ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
+          ...(building.energyOutputWatts > 0 ? [['PRODUCTION ÉLECTRIQUE', formatPower(building.energyOutputWatts)]] : [])
         ],
         surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']]
       };
@@ -253,7 +265,7 @@
       const isBuilding = item.kind === 'building';
       const isArk = item.kind === 'orbital-hub';
       const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
-      const hasFactoryEditor = isBuilding && ['factory', 'extractor', 'oil_platform'].includes(item.type);
+      const hasFactoryEditor = isBuilding && BuildingData.processTypes.includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
       panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);

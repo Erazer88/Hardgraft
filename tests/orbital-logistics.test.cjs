@@ -8,7 +8,7 @@ const { test } = require('node:test');
 
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
-  'simulation/processGraph.js', 'simulation/processSimulation.js', 'gameplay/industry.js',
+  'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js']) {
@@ -444,4 +444,28 @@ test('the primary Ark is deterministic and remains independent from the system w
   assert.notEqual(first.ark.id, first.wreck.id);
   assert.deepEqual(plain(first.ark), plain(second.ark));
   assert.deepEqual(plain(first.wreck), plain(second.wreck));
+});
+
+test('a depot receives by road through its input gate and its output gates deliver further', () => {
+  const { factory, state } = fixture({ dockStock: { raw_iron: 6 }, dockDestinations: { raw_iron: 'depot-1' } });
+  const depot = Building.create({ id: 'depot-1', type: 'storage', planetId, x: 120, y: 10, constructionState: 'complete' });
+  const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 200, y: 10, constructionState: 'complete' });
+  state.surfaceBuildings.push(depot, receiver);
+  const network = Road.create(planetId);
+  state.roadNetworks[planetId] = network;
+  const nodes = [factory, depot, receiver].map(building => Road.addNode(network, { x: building.x, y: building.y, buildingId: building.id }));
+  for (let index = 1; index < nodes.length; index++) Road.addSegment(network, { from: nodes[index - 1].id, to: nodes[index].id,
+    points: [{ x: nodes[index - 1].x, y: 10 }, { x: nodes[index].x, y: 10 }], builtLength: 200 });
+  assert.equal(Network.hasReceivingDock(state, depot), false, 'a depot without an input gate receives nothing');
+  state.factoryPlans = { [depot.id]: { machines: [{ type: 'depot_input' }] }, [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  assert.equal(Network.hasReceivingDock(state, depot), true);
+  Network.transferDockStockToBuildings(state);
+  assert.equal(depot.inventory.raw_iron, 6);
+  depot.gateStock = { 'factory-2': { raw_iron: 4 } };
+  const result = Network.transferDockStockToBuildings(state);
+  assert.equal(receiver.inventory.raw_iron, 4);
+  assert.deepEqual(plain(depot.gateStock['factory-2']), {});
+  assert.ok(result.flows.some(flow => flow.sourceId === 'depot-1' && flow.destinationId === 'factory-2'));
+  const saved = Building.create(plain({ ...depot, gateStock: { 'factory-2': { water: 3, bad: 1.5 } } }));
+  assert.deepEqual(plain(saved.gateStock), { 'factory-2': { water: 3 } });
 });
