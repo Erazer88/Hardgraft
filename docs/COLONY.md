@@ -44,11 +44,11 @@ affiché verrouillé (`src/data/progression.js`, `src/gameplay/progression.js`) 
 | Au départ | Colonie | — |
 | Colonie posée (elle demande de la roche) | Extracteur | Foreuse, Dock de sortie |
 | Une planète manque d'énergie | Éolienne | — |
-| Palier 1 atteint (elle demande du goudron) | Usine, Terril | Concasseur, Broyeur, Trieuse de carbone, Four à goudron, Quai d'entrée, Retraitement, Incinérateur |
+| Palier 1 atteint (elle demande du goudron) | Usine, Terril, Port | Concasseur, Broyeur, Trieuse de carbone, Four à goudron, Quai d'entrée, Retraitement, Incinérateur |
 | Palier 2 atteint (elle demande des plaques) | Dépôt | Séparateur magnétique, Four · fer, Laminoir, cartes du dépôt |
 
 Un court message signale ce qui apparaît. Le réglage développeur « Tout débloquer »
-montre tout. La plateforme de lancement, le port, la station de pompage et la plateforme
+montre tout. La plateforme de lancement, la station de pompage et la plateforme
 pétrolière viendront avec les paliers suivants.
 
 ## Repères

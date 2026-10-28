@@ -14,8 +14,8 @@
     { id: 'rock', when: 'colonyPlaced', buildings: ['extractor'], cards: ['drill', 'output_dock'] },
     { id: 'power', when: 'powerShort', buildings: ['wind_turbine'] },
     // Tar: crushed rock cooked with coal sorted out of ground rock; its waste
-    // finds a heap.
-    { id: 'tar', when: { tier: 1 }, buildings: ['factory', 'waste_heap'],
+    // finds a heap, and ports reach carbon on other shores.
+    { id: 'tar', when: { tier: 1 }, buildings: ['factory', 'waste_heap', 'surface_port'],
       cards: ['crusher', 'grinder', 'carbon_separator', 'tar_furnace', 'input_dock', 'reprocessor', 'incinerator'] },
     // Metal plates: iron sorted out, smelted and rolled; a depot to share flows.
     { id: 'plates', when: { tier: 2 }, buildings: ['storage'],

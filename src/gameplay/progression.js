@@ -26,8 +26,11 @@
     const unlocks = state.unlocks = restoreUnlocks(state.unlocks);
     const opened = { buildings: [], cards: [] };
     for (const step of Data.steps) {
-      if (unlocks.steps.includes(step.id) || !holds(step.when, state)) continue;
-      unlocks.steps.push(step.id);
+      // A step already open still gains what the table added since.
+      if (!unlocks.steps.includes(step.id)) {
+        if (!holds(step.when, state)) continue;
+        unlocks.steps.push(step.id);
+      }
       for (const type of step.buildings || []) if (!unlocks.buildings.includes(type)) { unlocks.buildings.push(type); opened.buildings.push(type); }
       for (const card of step.cards || []) if (!unlocks.cards.includes(card)) { unlocks.cards.push(card); opened.cards.push(card); }
     }
