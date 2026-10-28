@@ -234,8 +234,10 @@
       const resources = Object.keys(stock).filter(id => stock[id] > 0);
       if (machine.importResourceId && !resources.includes(machine.importResourceId)) resources.push(machine.importResourceId);
       resources.sort();
-      const key = JSON.stringify([resources.map(id => [id, stock[id] || 0]), machine.importResourceId]);
-      // Rebuilding the options while the list is open would close and reopen it.
+      // Options name the resources only (quantities sit in the stock line), so
+      // they are rebuilt only when the list of resources changes: rebuilding
+      // an open list closes and reopens it on mobile.
+      const key = JSON.stringify([resources, machine.importResourceId]);
       if (select.dataset.stockKey !== key && document.activeElement !== select) {
         select.dataset.stockKey = key;
         select.replaceChildren();
@@ -244,14 +246,16 @@
         }
         for (const id of resources) {
           const option = document.createElement('option'); option.value = id;
-          option.textContent = `${root.OrbitResourceData.get(id)?.label || id} · ${stock[id] || 0} u`;
+          option.textContent = root.OrbitResourceData.get(id)?.label || id;
           select.append(option);
         }
         select.value = machine.importResourceId || '';
       }
-      select.disabled = !resources.length || machine.outputBuffer.material > 0 ||
+      const disabled = !resources.length || machine.outputBuffer.material > 0 ||
         connections.some(link => link.fromMachineId === machine.id);
-      select.title = select.disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
+      if (select.disabled !== disabled) select.disabled = disabled;
+      const title = disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
+      if (select.title !== title) select.title = title;
       card.querySelector('[data-received-stock]').textContent = `STOCK REÇU · ${Object.entries(stock)
         .filter(([, amount]) => amount > 0).map(([id, amount]) => `${root.OrbitResourceData.get(id)?.label || id} : ${amount} u`).join(' · ') || 'VIDE'}`;
     }
