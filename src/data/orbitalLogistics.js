@@ -9,19 +9,12 @@
     routeSamples: 48, durationIterations: 16, durationToleranceSeconds: .001 });
   // Destination choice is made at the dock: factories, launch platforms,
   // depots (which route further) and waste heaps.
-  const dockDestinationTypes = Object.freeze(['landing_base', 'factory', 'launch_platform', 'storage', 'waste_heap']);
+  const dockDestinationTypes = Object.freeze(['colony', 'factory', 'launch_platform', 'storage', 'waste_heap']);
   // The launch platform (space hub) climbs to orbit more cheaply near the
   // equator: launch energy grows with latitude. The map spans this many
   // degrees north and south of its middle row.
   const launchSite = Object.freeze({ latitudeExtentDegrees: 75, equatorEnergyMW: 5, energyPerDegreeMW: .14,
     favorableLatitudeDegrees: 10 });
-  // The landing base and the Ark turn refined materials they receive into
-  // construction stock for the colony (per unit received). Other cargo stays
-  // in the base or fills the Ark's hold.
-  const constructionCredits = Object.freeze({
-    raw_iron: Object.freeze({ iron: 1 }), raw_copper: Object.freeze({ copper: 1 }),
-    raw_silicon: Object.freeze({ silicon: 1 }), carbon: Object.freeze({ carbon: 1 })
-  });
   // Latitude of a surface point: the middle row is the equator, north at the top.
   function latitudeAt(y, mapHeight) {
     if (!Number.isFinite(y) || !(mapHeight > 0)) return 0;
@@ -36,5 +29,5 @@
     .map(resource => Object.freeze({ id: resource.id, label: resource.label })));
 
   root.OrbitOrbitalLogisticsData = Object.freeze({ version: 1, launch, transit, transfer,
-    dockDestinationTypes, exportResources, launchSite, latitudeAt, launchEnergyMW, constructionCredits });
+    dockDestinationTypes, exportResources, launchSite, latitudeAt, launchEnergyMW });
 })(globalThis);

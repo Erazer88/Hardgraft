@@ -32,6 +32,12 @@
       outputBuffer,
       storedResources: Object.fromEntries(Object.entries(value.storedResources || {})
         .filter(([, amount]) => Number.isInteger(amount) && amount > 0)),
+      // Average composition of the rock held in each port (see composition.js).
+      inputMix: root.OrbitComposition ? root.OrbitComposition.restore(value.inputMix) : {},
+      outputMix: root.OrbitComposition ? root.OrbitComposition.restore(value.outputMix) : {},
+      storedMix: root.OrbitComposition ? root.OrbitComposition.restore(value.storedMix) : {},
+      yieldCredit: Object.fromEntries(Object.entries(value.yieldCredit || {})
+        .filter(([, credit]) => Number.isFinite(credit) && credit >= 0 && credit < 1)),
       ...(definition.routing ? { config: routingConfig(value.config) } : {}),
       cycleProgress: clamp(Number.isFinite(value.cycleProgress) ? value.cycleProgress : 0, 0, .999999),
       state: Data.statuses[value.state] ? value.state : 'waiting_input',
@@ -189,6 +195,8 @@
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
         storedResources: clone(machine.storedResources),
+        inputMix: clone(machine.inputMix || {}), outputMix: clone(machine.outputMix || {}),
+        storedMix: clone(machine.storedMix || {}), yieldCredit: clone(machine.yieldCredit || {}),
         ...(machine.config ? { config: clone(machine.config) } : {}),
         state: machine.state })),
       connections: graph.connections.map(connection => ({ id: connection.id,

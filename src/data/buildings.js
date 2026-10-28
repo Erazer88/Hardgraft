@@ -4,16 +4,18 @@
   // Footprints, points of connection, and offsets use planetary world units.
   // Simulation behavior is declared here but implemented in later blocks.
   const definitions = {
-    // The robots' landing module: free, one per planet. What reaches it by
-    // road feeds the colony's construction stock until the Ark is in reach.
-    landing_base: {
-      id: 'landing_base', label: 'BASE DE DÉBARQUEMENT', shortLabel: 'BA', category: 'logistics', icon: 'base',
-      description: 'Module des robots. Les métaux bruts et le carbone qu’on y livre par route deviennent du stock de construction.',
-      functions: { receivesConstructionMaterials: true },
+    // The colony: always the first building, one per game, indestructible.
+    // It houses the population, produces context and grows with what it
+    // receives by road (see src/data/colony.js). Its generator powers one or
+    // two buildings.
+    colony: {
+      id: 'colony', label: 'COLONIE', shortLabel: 'CO', category: 'colony', icon: 'colony',
+      description: 'Abrite la population et produit du contexte. Elle grandit avec les ressources qu’on lui livre par route.',
+      functions: { housesPopulation: true }, indestructible: true, generatorMW: 12,
       cost: {}, constructionDurationSeconds: 10, demolitionRefundRate: 1,
       footprint: { width: 30, height: 26 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 13 },
-      placementRules: { landOnly: true, uniquePerPlanet: true }, preferredTerrain: ['flat']
+      placementRules: { landOnly: true, uniqueInGame: true }, preferredTerrain: ['flat']
     },
     factory: {
       id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
@@ -115,7 +117,7 @@
     }
   };
   const catalogOrder = Object.freeze([
-    'landing_base', 'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
+    'colony', 'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
     'wind_turbine'
   ]);
 

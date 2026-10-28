@@ -59,6 +59,18 @@
     return true;
   }
 
+  // Terrain cells touched by a footprint.
+  function footprintCells(terrain, textureScale, building, definition) {
+    const cells = new Set(), step = Math.max(1, textureScale / 2);
+    const halfWidth = definition.footprint.width / 2, halfHeight = definition.footprint.height / 2;
+    for (const localY of sampleAxis(halfHeight, step)) for (const localX of sampleAxis(halfWidth, step)) {
+      const p = point(localX, localY, building, building.rotation || 0);
+      const x = Math.round(p.x / textureScale), y = Math.round(p.y / textureScale);
+      if (x >= 0 && y >= 0 && x < terrain.width && y < terrain.height) cells.add(y * terrain.width + x);
+    }
+    return [...cells];
+  }
+
   function coastFacingRotation(terrain, textureScale, position, definition) {
     const shoreClearance = Math.max(8, textureScale * 2);
     const facing = definition.seaFacingOffset || { x: 0, y: -definition.footprint.height / 2 };
@@ -229,7 +241,10 @@
     const rules = definition.placementRules || {};
     let resolvedRotation = rotation;
     if (rules.uniquePerPlanet && buildings.some(item => item.type === definition.id && item.planetId === planetId)) {
-      return { valid: false, reason: 'Une seule base de débarquement par planète.', rotation };
+      return { valid: false, reason: 'Un seul bâtiment de ce type par planète.', rotation };
+    }
+    if (rules.uniqueInGame && buildings.some(item => item.type === definition.id)) {
+      return { valid: false, reason: 'Il n’y a qu’une colonie.', rotation };
     }
     if (rules.coastRequired) {
       resolvedRotation = coastFacingRotation(terrain, textureScale, position, definition);
@@ -252,6 +267,12 @@
       return { valid: false, reason: 'Aucun point d’amarrage sûr ne rejoint la mer depuis ce côté.', rotation: resolvedRotation };
     }
 
+    // Nothing is built inside the colony's zone.
+    const colonyCells = new Set(buildings.filter(item => item.planetId === planetId && item.colony?.cells?.length)
+      .flatMap(item => item.colony.cells));
+    if (colonyCells.size && footprintCells(terrain, textureScale, candidate, definition).some(cell => colonyCells.has(cell))) {
+      return { valid: false, reason: 'On ne construit pas dans la colonie.', rotation: resolvedRotation };
+    }
     for (const existing of buildings) {
       if (existing.planetId !== planetId) continue;
       const existingDefinition = BuildingModel.getDefinition(existing.type);

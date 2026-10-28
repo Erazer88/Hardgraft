@@ -5,12 +5,7 @@
   const definitions = Object.freeze([
     Object.freeze({
       id: 'showSurfaceRoads', type: 'checkbox', group: 'Affichage du terrain',
-      label: 'Routes', help: 'Affiche les routes posées manuellement. Les rues secondaires des quartiers sont temporairement masquées.',
-      defaultValue: true
-    }),
-    Object.freeze({
-      id: 'showSurfaceHouses', type: 'checkbox', group: 'Affichage du terrain',
-      label: 'Maisons', help: 'Affiche les maisons décoratives générées autour des bâtiments.',
+      label: 'Routes', help: 'Affiche les routes posées manuellement.',
       defaultValue: true
     }),
     Object.freeze({
@@ -28,6 +23,12 @@
       id: 'showGroundMaterials', type: 'checkbox', group: 'Affichage du terrain',
       label: 'Ressources du sol', help: 'Affiche les points colorés des matériaux présents dans le sol.',
       defaultValue: true
+    }),
+    Object.freeze({
+      id: 'unlockEverything', type: 'checkbox', group: 'Progression',
+      label: 'Tout débloquer',
+      help: 'Montre tous les bâtiments et toutes les cartes, sans attendre les besoins de la colonie.',
+      defaultValue: false
     }),
     Object.freeze({
       id: 'infiniteMinerals', type: 'checkbox', group: 'Ressources',

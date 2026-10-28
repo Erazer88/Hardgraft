@@ -154,6 +154,22 @@
         .map(([id, amount]) => ({ name: resourceName(id), amount }));
     }
 
+    // The colony: its population, the tier it climbs and what that tier asks.
+    function colonyStats(building) {
+      const colony = root.OrbitColony.normalize(building.colony), tiers = root.OrbitColonyData.tiers;
+      const tier = tiers[colony.tier];
+      const rows = [['POPULATION', `${fmt(colony.population)} habitants`],
+        ['CONTEXTE', `+${fmtDecimal(root.OrbitColonyData.contextPerMinute)} / min`]];
+      if (tier) {
+        rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, Object.entries(tier.needs)
+          .map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`).join('  /  ')]);
+      } else rows.push(['PALIERS', 'Tous atteints pour l’instant']);
+      const stock = inventoryEntries(building, 'inventory');
+      if (stock.length) rows.push(['EN RÉSERVE', stock.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')]);
+      rows.push(['GÉNÉRATEUR', formatPower((BuildingData.get('colony')?.generatorMW || 0) * 1e6)]);
+      return rows;
+    }
+
     function buildingStats(building) {
       const flow = Number.isFinite(building.flowPerMinute) ? building.flowPerMinute : 0;
       const property = BuildingData.dockSourceTypes.includes(building.type) ? 'dockStock' : 'inventory';
@@ -173,9 +189,7 @@
         ],
         extractor: [
           ['VITESSE DE MINAGE', `${fmtDecimal(flow)} / min`],
-          ['RESSOURCE', building.resourceId ? `${resourceName(building.resourceId)}${Number.isFinite(building.resourceShare)
-            ? ` · ${approximateShare(building.resourceShare)}` : ''}` : 'Selon le sol'],
-          [`SOL · MOY. ${BuildingData.get('extractor')?.catchmentRadius || ''} KM`, compositionText(building.composition)],
+          ['ROCHE EXTRAITE', compositionText(building.composition)],
           ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
           ['STOCK REÇU', receivedText]
         ],
@@ -185,11 +199,7 @@
         ],
         wind_turbine: [['PRODUCTION ÉLECTRIQUE', building.energyOutputUnlimited ? '∞ · MODE V1' : formatPower(building.energyOutputWatts)]],
         launch_platform: [['FONCTION', 'Export orbital vers l’Arche']],
-        landing_base: [
-          ['FONCTION', 'Métaux bruts et carbone → stock de construction'],
-          ['CONVERTI', inventoryEntries(building, 'receivedTotal').map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ') || 'Rien reçu pour l’instant'],
-          ['AUTRES MATIÈRES', receivedText]
-        ],
+        colony: colonyStats(building),
         storage: [
           ['EN ATTENTE D’ENTRÉE', stockText],
           ['QUANTITÉ TOTALE', fmtDecimal(total)],
@@ -279,7 +289,7 @@
       $('building-readout').hidden = !isBuilding || isLaunchPlatform;
       $('platform-logistics').hidden = !isLaunchPlatform;
       $('orbital-hub-logistics').hidden = !isArk;
-      $('demolish-button').hidden = !isBuilding;
+      $('demolish-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.indestructible);
       $('factory-edit-button').hidden = !hasFactoryEditor;
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
@@ -329,37 +339,6 @@
       }
     }
 
-    // The colony's construction materials, with a brief flash when they change.
-    const STOCK_ITEMS = [['iron', 'FER', '#ff8a1c'], ['copper', 'CUIVRE', '#18e0a0'], ['silicon', 'SILICE', '#29a3ff'], ['carbon', 'CARBONE', '#c9d2d8']];
-    const shownStock = {};
-    function renderColonyStock(state) {
-      const container = $('colony-stock');
-      if (!container.children.length) {
-        for (const [id, label, color] of STOCK_ITEMS) {
-          const item = document.createElement('div'); item.className = 'colony-stock-item'; item.dataset.resource = id;
-          item.style.setProperty('--material', color);
-          item.innerHTML = `<span><i></i>${label}</span><strong>—</strong>`;
-          container.append(item);
-        }
-      }
-      for (const item of container.children) {
-        const id = item.dataset.resource, infinite = Inventory.isInfinite(id);
-        const amount = Math.floor(state.inventory?.[id] || 0), text = infinite ? '∞' : fmt(amount);
-        const value = item.querySelector('strong');
-        if (value.textContent !== text) value.textContent = text;
-        const previous = shownStock[id];
-        if (!infinite && previous !== undefined && previous !== amount) {
-          item.classList.remove('gain', 'loss'); void item.offsetWidth;
-          item.classList.add(amount > previous ? 'gain' : 'loss');
-          clearTimeout(item.flashTimer);
-          item.flashTimer = setTimeout(() => item.classList.remove('gain', 'loss'), 700);
-        }
-        shownStock[id] = amount;
-        item.classList.toggle('short', !infinite && amount < 5);
-        item.title = `${ResourceData.get(id)?.label || id} · ${infinite ? 'infini (réglage développeur)' : `${fmt(amount)} disponibles`}`;
-      }
-    }
-
     function update({ state, galaxy, terrainData, width, scaleCamera, buildingPosition }) {
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
@@ -376,17 +355,16 @@
       if (state.selected?.kind === 'orbital-hub' && !$('orbital-hub-logistics').hidden && state.system) {
         renderOrbitalHub(state, state.system);
       }
-      const known = galaxy.systems.filter(system => system.discovered || state.reveal).length;
       const level = state.level;
       document.body.dataset.level = level;
       document.body.dataset.tool = state.tool;
-      $('stat-label').textContent = level === 'galaxy' ? 'SYSTÈMES' : level === 'system' ? 'PLANÈTES' : 'SURFACE';
-      $('stat-value').textContent = level === 'galaxy' ? `${fmt(known)} / ${fmt(galaxy.systems.length)}` :
-        level === 'system' ? String(state.system.planets.length).padStart(2, '0') :
-          `${terrainData.width * Config.terrain.textureScale} × ${terrainData.height * Config.terrain.textureScale} km`;
-      $('secondary-label').textContent = level === 'galaxy' ? 'SECTEUR CONNU' : level === 'system' ? 'ÉTOILE' : 'TYPE';
-      $('secondary-value').textContent = level === 'galaxy' ? (known / galaxy.systems.length * 100).toFixed(1) + ' %' :
-        level === 'system' ? 'CLASSE ' + state.system.star.type : state.planet.kind.toUpperCase();
+      // Galaxy-wide totals: population of every colony and context gathered.
+      const population = root.OrbitColony.totalPopulation(state);
+      const contextText = fmt(Math.floor(state.contextPoints || 0));
+      $('stat-label').textContent = 'POPULATION';
+      if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
+      $('secondary-label').textContent = 'CONTEXTE';
+      if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
         level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';
       $('view-title').textContent = level === 'galaxy' ? 'Secteur Néréide' : level === 'system' ? state.system.name : state.planet.name;
@@ -408,18 +386,19 @@
         const definition = BuildingData.get(option.dataset.buildingType);
         const price = root.OrbitConstruction.costFor(option.dataset.buildingType) || {};
         const showPrice = root.OrbitConstruction.pricesEnabled();
-        const unique = definition?.placementRules?.uniquePerPlanet && (state.surfaceBuildings || [])
-          .some(building => building.type === definition.id && building.planetId === state.planet?.id);
-        option.hidden = false;
+        const unique = (definition?.placementRules?.uniquePerPlanet || definition?.placementRules?.uniqueInGame) &&
+          (state.surfaceBuildings || []).some(building => building.type === definition.id &&
+            (definition.placementRules.uniqueInGame || building.planetId === state.planet?.id));
+        // Buildings appear as the colony needs them.
+        option.hidden = !root.OrbitProgression.buildingUnlocked(state, option.dataset.buildingType);
         option.disabled = unique || !Inventory.canAfford(state.inventory, price);
         // Prices are masked for now: only the unique-base notice shows.
-        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée sur cette planète' : showPrice ? resourceSummary(price) : '';
+        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée' : showPrice ? resourceSummary(price) : '';
         if (costLabel && costLabel.textContent !== costText) costLabel.textContent = costText;
         if (costLabel) costLabel.hidden = !costText;
-        if (definition) option.title = unique ? 'Une seule base par planète.' : option.disabled
+        if (definition) option.title = unique ? 'Un seul exemplaire possible.' : option.disabled
           ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }
-      renderColonyStock(state);
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;

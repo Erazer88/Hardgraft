@@ -8,10 +8,11 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/resources.js', 'data/orbitalLogistics.js',
   'data/worldgen.js', 'data/buildings.js', 'world.js',
-  'data/roads.js', 'data/settlements.js', 'simulation/simulation.js', 'simulation/inventory.js',
+  'data/roads.js', 'data/colony.js', 'data/progression.js', 'simulation/simulation.js', 'simulation/inventory.js',
+  'simulation/composition.js', 'simulation/colony.js',
   'simulation/buildings.js', 'simulation/construction.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js',
-  'simulation/settlements.js', 'gameplay/exploration.js', 'state.js', 'storage/save.js',
+  'gameplay/exploration.js', 'gameplay/progression.js', 'state.js', 'storage/save.js',
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
@@ -236,66 +237,30 @@ test('general saves preserve buildings while legacy industrial graphs reset to t
     resourceId: machine.resourceId }))), [{ id: 'crusher-1', type: 'crusher', resourceId: 'iron' }]);
 });
 
-test('settlement saves use compact asset keys and restore buildings, routes and houses', () => {
+test('saves keep the colony, context and unlocks; saves from before the colony start a new game', () => {
   const state = State.create(), world = galaxy();
-  state.surfaceBuildings = [context.OrbitSurfaceBuilding.create({ id: 'launch-platform-1', type: 'launch_platform',
-    planetId: 'planet-1', x: 20, y: 30, constructionState: 'complete' })];
-  const network = context.OrbitRoadNetwork.create('planet-1');
-  const from = context.OrbitRoadNetwork.addNode(network, { x: 20, y: 30, buildingId: 'launch-platform-1' });
-  const to = context.OrbitRoadNetwork.addNode(network, { x: 120, y: 60, type: 'intersection' });
-  context.OrbitRoadNetwork.addSegment(network, { from: from.id, to: to.id,
-    points: [{ x: 20, y: 30 }, { x: 120, y: 60 }], builtLength: 35 });
-  state.roadNetworks['planet-1'] = network;
-  const settlement = context.OrbitSettlementSimulation.create('planet-1');
-  const roadId = 'planet-1:settlement-road:1';
-  settlement.roads.push({ id: roadId, type: 'branch', stage: 1, routeId: 'road-1',
-    anchor: { x: 40, y: 35 }, endpoint: { x: 80, y: 50 }, parentRoadId: null,
-    connectsToRoadId: null, roadClass: 'collector', neighborhoodId: 'neighborhood-1',
-    startHostId: 'main-1', startHostKind: 'main', startHostRouteId: 'road-1', startHostMeasure: 20,
-    fromNode: { kind: 'main', hostId: 'main-1', measure: 20, x: 40, y: 35 },
-    toNode: { kind: 'neighborhood', neighborhoodId: 'neighborhood-1', x: 80, y: 50 },
-    tangent: { x: .9, y: .4 }, points: [{ x: 40, y: 35 }, { x: 80, y: 50 }], length: 42.72, builtLength: 12 });
-  const houseAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/maison_01.webp');
-  const districtAsset = context.OrbitSettlementSimulation.assetKey('assets/settlements/village_ligne_droite.webp');
-  settlement.houses = Array.from({ length: 100 }, (_, index) => ({ id: `house-${index + 1}`, roadId,
-    neighborhoodId: 'neighborhood-1',
-    roadDistance: index + 1, x: 50 + index, y: 39, rotation: .2, asset: houseAsset }));
-  settlement.districts.push({ id: 'district-1', roadId, routeId: 'road-1', mainRoadAsset: false,
-    kind: 'center', neighborhoodId: 'neighborhood-1', roadDistance: 20,
-    x: 60, y: 42, rotation: .3, variant: 1, asset: districtAsset });
-  settlement.neighborhoods.push({ id: 'neighborhood-1', productionBuildingId: 'factory-1',
-    x: 80, y: 50, routeId: 'road-1', collectorRoadId: roadId, roadIds: [roadId] });
-  state.surfaceSettlements['planet-1'] = settlement;
-
+  const colony = context.OrbitSurfaceBuilding.create({ id: 'colony-1', type: 'colony', planetId: 'planet-1',
+    x: 20, y: 30, constructionState: 'complete' });
+  colony.colony.population = 200; colony.colony.tier = 1; colony.colony.cells = [5, 6, 7];
+  colony.inventory = { tar: 4 };
+  state.surfaceBuildings = [colony];
+  state.contextPoints = 12.5;
+  state.unlocks = { steps: ['landing', 'rock'], buildings: ['colony', 'extractor'], cards: ['drill'] };
   let stored;
   const storage = { getItem: () => stored, setItem: (_, value) => { stored = value; } };
   assert.equal(Save.save(storage, state, world), true);
   const saved = Save.load(storage);
-  assert.equal(saved.surfaceSettlements['planet-1'].houses[0].asset, 'house:maison_01');
-  assert.equal(saved.surfaceSettlements['planet-1'].districts[0].asset, 'district:village_ligne_droite');
-  assert.ok(stored.length < 25000, `100-house compact save is ${stored.length} characters`);
-
+  assert.equal(saved.version, Config.saveVersion);
   const restored = State.create();
   assert.equal(Save.restore(restored, galaxy(), saved), true);
-  assert.equal(restored.surfaceBuildings.length, 1);
-  assert.equal(restored.roadNetworks['planet-1'].segments.length, 1);
-  assert.equal(restored.surfaceSettlements['planet-1'].roads.length, 1);
-  assert.equal(restored.surfaceSettlements['planet-1'].houses.length, 100);
-  assert.equal(restored.surfaceSettlements['planet-1'].houses[0].asset, 'assets/settlements/maison_01.webp');
-  assert.equal(restored.surfaceSettlements['planet-1'].districts.length, 1);
-  assert.equal(restored.surfaceSettlements['planet-1'].roads[0].roadClass, 'collector');
-  assert.equal(restored.surfaceSettlements['planet-1'].roads[0].toNode.neighborhoodId, 'neighborhood-1');
-  assert.equal(restored.surfaceSettlements['planet-1'].neighborhoods[0].collectorRoadId, roadId);
+  assert.deepEqual(plain(restored.surfaceBuildings[0].colony), plain(colony.colony));
+  assert.equal(restored.contextPoints, 12.5);
+  assert.deepEqual(plain(restored.unlocks), plain(state.unlocks));
+  assert.equal(restored.context, null, 'the navigation context is untouched');
 
-  const legacy = plain(saved);
-  legacy.version = 6;
-  legacy.surfaceSettlements['planet-1'].houses[0].asset = 'assets/settlements/maison_01.webp';
-  const restoredLegacy = State.create();
-  assert.equal(Save.restore(restoredLegacy, galaxy(), legacy), true);
-  assert.equal(restoredLegacy.surfaceSettlements['planet-1'].houses.length, 100);
-  assert.equal(restoredLegacy.surfaceSettlements['planet-1'].houses[0].asset, 'assets/settlements/maison_01.webp');
+  stored = JSON.stringify({ ...saved, version: 9 });
+  assert.equal(Save.load(storage), null, 'a save from before the colony starts a new game');
 });
-
 test('unavailable storage, invalid saves and different seeds do not break a new session', () => {
   assert.equal(Save.load({ getItem() { throw new Error('Storage unavailable'); } }), null);
   assert.equal(Save.load({ getItem: () => '{broken' }), null);
@@ -417,7 +382,7 @@ test('a pumping station needs a shore and pumps salt water by the sea, fresh wat
   assert.match(inland.reason, /mer, un lac ou une rivière/);
 });
 
-test('only one landing base stands on a planet', () => {
+test('there is only one colony, and nothing is built inside its zone', () => {
   const placementContext = vm.createContext({});
   for (const relative of ['data/resources.js', 'data/buildings.js', 'data/roads.js', 'simulation/buildings.js',
     'simulation/roadGeometry.js', 'gameplay/buildingPlacement.js']) {
@@ -425,15 +390,19 @@ test('only one landing base stands on a planet', () => {
   }
   const { OrbitBuildingPlacement: Placement, OrbitBuildingData: Buildings } = placementContext;
   const width = 60, height = 40, terrain = { width, height, elevation: new Uint8Array(width * height).fill(140), seaLevel: 102 };
-  const validate = buildings => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get('landing_base'),
-    position: { x: 90, y: 60 }, planetId: 'p', buildings });
-  assert.equal(validate([]).valid, true);
-  assert.equal(validate([{ type: 'landing_base', planetId: 'other', x: 0, y: 0 }]).valid, true);
-  const second = validate([{ type: 'landing_base', planetId: 'p', x: 10, y: 10 }]);
-  assert.equal(second.valid, false);
-  assert.match(second.reason, /Une seule base/);
+  const validate = (type, x, buildings) => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get(type),
+    position: { x, y: 60 }, planetId: 'p', buildings });
+  assert.equal(validate('colony', 90, []).valid, true);
+  const elsewhere = validate('colony', 90, [{ type: 'colony', planetId: 'other', x: 0, y: 0 }]);
+  assert.equal(elsewhere.valid, false, 'one colony in the whole game');
+  const cells = [];
+  for (let y = 15; y <= 25; y++) for (let x = 25; x <= 35; x++) cells.push(y * width + x);
+  const colony = { type: 'colony', planetId: 'p', x: 90, y: 60, colony: { cells } };
+  const inside = validate('extractor', 95, [colony]);
+  assert.equal(inside.valid, false);
+  assert.match(inside.reason, /dans la colonie/);
+  assert.equal(validate('extractor', 150, [colony]).valid, true);
 });
-
 test('launch platforms spend less energy near the equator', () => {
   const logisticsContext = vm.createContext({});
   for (const relative of ['data/config.js', 'data/resources.js', 'data/orbitalLogistics.js']) {

@@ -13,7 +13,9 @@
       system: null, planet: null, camera: { x: 0, y: 0, zoom: .1 }, target: { x: 0, y: 0, zoom: .1 },
       paused: false, reveal: false, tool: 'pan', context: null,
       tracking: null, focusPlanet: null, surfaceBuildings: [], roadNetworks: {}, placement: null,
-      surfaceSettlements: {}, factoryPlans: {}, colonyMaterials: [], industryAccumulator: 0,
+      factoryPlans: {}, colonyMaterials: [], industryAccumulator: 0,
+      // Context points produced by the colony, and what its needs unlocked.
+      contextPoints: 0, unlocks: { steps: [], buildings: [], cards: [] },
       orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }

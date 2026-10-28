@@ -31,7 +31,7 @@
   // A destination receives once its plan has an entry: an input dock, or a
   // depot's input gate. Launch platforms always receive.
   function hasReceivingDock(state, building) {
-    if (building?.type === 'launch_platform' || building?.type === 'landing_base') return true;
+    if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
     return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry));
   }
@@ -42,25 +42,21 @@
     const transferred = new Map(), flows = [];
     const buildings = state.surfaceBuildings || [];
     const byId = new Map(buildings.map(building => [building.id, building]));
-    const deliver = (source, network, destinationId, resourceId, rawAmount) => {
+    const Mix = root.OrbitComposition;
+    const deliver = (source, network, destinationId, resourceId, rawAmount, sourceMix = null) => {
       const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
       const destination = byId.get(destinationId);
       if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
           !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
           !hasReceivingDock(state, destination) ||
           !hasBuiltLandPath(network, source.id, destination.id)) return false;
-      const credit = destination.type === 'landing_base' && root.OrbitOrbitalLogisticsData.constructionCredits?.[resourceId];
-      if (credit) {
-        // The landing base turns refined materials into construction stock.
-        state.inventory ||= {};
-        for (const [id, perUnit] of Object.entries(credit)) state.inventory[id] = (state.inventory[id] || 0) + perUnit * amount;
-        destination.receivedTotal ||= {};
-        destination.receivedTotal[resourceId] = (destination.receivedTotal[resourceId] || 0) + amount;
-      } else {
-        const stock = destination.type === 'launch_platform'
-          ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
-        stock[resourceId] = (stock[resourceId] || 0) + amount;
+      const stock = destination.type === 'launch_platform'
+        ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
+      // Rock arrives with the composition it left with.
+      if (Mix && destination.type !== 'launch_platform') {
+        Mix.add(destination.inventoryMix ||= {}, resourceId, resourceId, stock[resourceId] || 0, amount, Mix.of(sourceMix, resourceId));
       }
+      stock[resourceId] = (stock[resourceId] || 0) + amount;
       if (destination.type === 'launch_platform') {
         destination.launchReceivedTotal ||= {};
         destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
@@ -74,13 +70,19 @@
       const network = state.roadNetworks?.[source.planetId];
       if (source.dockStock && typeof source.dockStock === 'object') {
         for (const [resourceId, amount] of Object.entries(source.dockStock)) {
-          if (deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount)) delete source.dockStock[resourceId];
+          if (deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount, source.dockMix)) {
+            delete source.dockStock[resourceId];
+            if (source.dockMix) delete source.dockMix[resourceId];
+          }
         }
       }
       // A depot's output gates queue their units per destination building.
       for (const [destinationId, queue] of Object.entries(source.gateStock || {})) {
         for (const [resourceId, amount] of Object.entries(queue)) {
-          if (deliver(source, network, destinationId, resourceId, amount)) delete queue[resourceId];
+          if (deliver(source, network, destinationId, resourceId, amount, source.gateMix?.[destinationId])) {
+            delete queue[resourceId];
+            if (source.gateMix?.[destinationId]) delete source.gateMix[destinationId][resourceId];
+          }
         }
       }
     }

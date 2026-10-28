@@ -304,16 +304,6 @@
     return launched;
   }
 
-  // Refined cargo reaching the Ark becomes construction stock for the colony.
-  function creditConstruction(state, lot) {
-    const credit = Data.constructionCredits?.[lot.resourceId];
-    if (!credit) return;
-    state.inventory ||= {};
-    for (const [resourceId, perUnit] of Object.entries(credit)) {
-      state.inventory[resourceId] = (state.inventory[resourceId] || 0) + perUnit * lot.amount;
-    }
-  }
-
   // Platforms far from the equator spend more energy to reach orbit.
   function platformLaunchMW(platform) {
     const terrain = root.OrbitConfig?.terrain;
@@ -365,7 +355,6 @@
       if (lot.arrivalTime <= currentTime + EPSILON) {
         const hub = logistics.hubs[lot.systemId] ||= { id: `${lot.systemId}:ark`, stock: {} };
         hub.stock[lot.resourceId] = (hub.stock[lot.resourceId] || 0) + lot.amount;
-        creditConstruction(state, lot);
       } else remaining.push(lot);
     }
     logistics.transit = remaining;

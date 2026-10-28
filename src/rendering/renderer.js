@@ -47,7 +47,6 @@
       drawLine: line, drawCircle: circle, drawLabel: label,
       layers: {
         roads: root.OrbitRoadRenderer,
-        settlements: root.OrbitSettlementRenderer,
         buildings: root.OrbitBuildingRenderer,
         vehicles: root.OrbitVehicleRenderer
       }

@@ -49,6 +49,7 @@ aperçu publié comme contenant les changements d'une itération qui n'a pas ét
   modules et [`README.md`](README.md) pour lancer le jeu.
 - Processus industriels : [`docs/PROCESS_SYSTEM.md`](docs/PROCESS_SYSTEM.md).
 - Génération : [`docs/WORLDGEN.md`](docs/WORLDGEN.md).
-- Routes et quartiers : [`docs/ROAD_SYSTEM.md`](docs/ROAD_SYSTEM.md).
+- Routes : [`docs/ROAD_SYSTEM.md`](docs/ROAD_SYSTEM.md).
+- Colonie, population et déblocage : [`docs/COLONY.md`](docs/COLONY.md).
 - Les textes de `docs/reference/` conservent la conception et les plans historiques ;
   ils ne priment pas sur les décisions actuelles.

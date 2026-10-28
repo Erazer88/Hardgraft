@@ -19,7 +19,6 @@
       <div class="telemetry-heading"><span class="signal-light"></span><span>ATLAS ORBITAL</span><span class="version">01</span></div>
       <div class="telemetry-row"><span class="label" id="stat-label">SYSTÈMES</span><span id="stat-value">—</span></div>
       <div class="telemetry-row secondary"><span id="secondary-label">SECTEUR CONNU</span><span id="secondary-value">—</span></div>
-      <div class="colony-stock" id="colony-stock" role="status" aria-label="Matériaux de construction disponibles"></div>
     </div>
     <div class="header-actions">
       <button class="icon-button" id="pause-button" aria-label="Mettre les orbites en pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
@@ -156,17 +155,20 @@
   <script src="src/data/orbitalLogistics.js"></script>
   <script src="src/data/worldgen.js"></script>
   <script src="src/data/buildings.js"></script>
+  <script src="src/data/colony.js"></script>
+  <script src="src/data/progression.js"></script>
   <script src="src/data/roads.js"></script>
-  <script src="src/data/settlements.js"></script>
   <script src="src/data/surfaceStyle.js"></script>
   <script src="src/world.js"></script>
   <script src="src/world/system.js"></script>
   <script src="src/simulation/simulation.js"></script>
   <script src="src/simulation/inventory.js"></script>
   <script src="src/simulation/resourceStack.js"></script>
+  <script src="src/simulation/composition.js"></script>
   <script src="src/simulation/processGraph.js"></script>
   <script src="src/simulation/processSimulation.js"></script>
   <script src="src/simulation/depotRouting.js"></script>
+  <script src="src/simulation/colony.js"></script>
   <script src="src/simulation/buildings.js"></script>
   <script src="src/simulation/construction.js"></script>
   <script src="src/simulation/roadNetwork.js"></script>
@@ -176,9 +178,10 @@
   <script src="src/simulation/roadCostField.js"></script>
   <script src="src/simulation/roadPathfinder.js"></script>
   <script src="src/simulation/roadGeometry.js"></script>
-  <script src="src/simulation/settlements.js"></script>
   <script src="src/gameplay/exploration.js"></script>
   <script src="src/gameplay/buildingPlacement.js"></script>
+  <script src="src/gameplay/colonyZone.js"></script>
+  <script src="src/gameplay/progression.js"></script>
   <script src="src/gameplay/roadPlacement.js"></script>
   <script src="src/gameplay/industry.js"></script>
   <script src="src/gameplay/logistics.js"></script>
@@ -187,7 +190,6 @@
   <script src="src/navigation/camera.js"></script>
   <script src="src/rendering/buildingRenderer.js"></script>
   <script src="src/rendering/roadRenderer.js"></script>
-  <script src="src/rendering/settlementRenderer.js"></script>
   <script src="src/rendering/vehicleRenderer.js"></script>
   <script src="src/rendering/orbitalTrafficRenderer.js"></script>
   <script src="src/rendering/surfaceRenderer.js"></script>

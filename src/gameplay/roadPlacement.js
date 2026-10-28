@@ -74,9 +74,6 @@
 
   function sameSegmentGap(network, from, to) {
     const a = from?.connection, b = to?.connection;
-    if (a?.kind === 'settlement' && b?.kind === 'settlement' && a.id === b.id) {
-      return Math.abs(a.roadDistance - b.roadDistance);
-    }
     if (a?.kind === 'segment' && b?.kind === 'segment' && a.id === b.id) {
       return Network.distanceAlongSegment(network, a.id, from.point, to.point);
     }
@@ -185,10 +182,6 @@
         (node.connectionMode || 'land') === connectionMode);
       return existing || Network.addNode(network, { ...endpoint.point,
         type: connectionMode === 'marine' ? 'marine-port' : 'building', buildingId: endpoint.buildingId, connectionMode });
-    }
-    if (endpoint.kind === 'settlement') {
-      return network.nodes.find(node => node.type === 'settlement-connection' && distance(node, endpoint.point) < .5) ||
-        Network.addNode(network, { ...endpoint.point, type: 'settlement-connection' });
     }
     const target = endpoint.connection || Network.nearestConnection(network, endpoint.point, null, candidate =>
       candidate.kind === 'node' ? candidate.node.connectionMode !== 'marine' : candidate.segment.routeType !== 'marine');

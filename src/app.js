@@ -6,14 +6,13 @@
   const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
   const ResourceData = globalThis.OrbitResourceData, Inventory = globalThis.OrbitInventory;
   const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
+  const Colony = globalThis.OrbitColony, ColonyZone = globalThis.OrbitColonyZone, Progression = globalThis.OrbitProgression;
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const Logistics = globalThis.OrbitLogistics;
   const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
-  const SettlementSimulation = globalThis.OrbitSettlementSimulation;
-  const SettlementConfig = globalThis.OrbitSettlementConfig;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const surfaceAspect = Config.terrain.width / Config.terrain.height;
   const $ = id => document.getElementById(id);
@@ -46,6 +45,7 @@
         LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
+    isCardAvailable: definition => Progression.cardUnlocked(state, definition),
     onAddCard(building, definition) {
       const payment = Construction.payCard(building, state.inventory, Construction.cardCost(definition));
       if (payment.paid) { updateUI(); persist(); }
@@ -164,26 +164,6 @@
     }
     return record;
   }
-  function refreshSettlements(planetId) {
-    const network = state.roadNetworks[planetId];
-    if (!network) return false;
-    let found = null;
-    for (const context of contexts.values()) {
-      const planet = context.model.planets.find(candidate => candidate.id === planetId);
-      if (planet) { found = { context, planet }; break; }
-    }
-    if (!found) return false;
-    const record = prepareTerrain(found.planet, found.context);
-    record.roadCostField ||= RoadCostField.createBase(record.data, Config.terrain.textureScale);
-    const result = SettlementSimulation.grow(state.surfaceSettlements[planetId] || SettlementSimulation.create(planetId), {
-      planetId, seed: found.planet.seed, network,
-      buildings: state.surfaceBuildings.filter(building => building.planetId === planetId),
-      baseField: record.roadCostField, terrain: record.data
-    });
-    state.surfaceSettlements[planetId] = result.settlement;
-    if (result.changed) persist();
-    return result.changed;
-  }
   function surfaceFrame(planet = state.planet, context = state.context) {
     const record = prepareTerrain(planet, context);
     const texture = record.texture;
@@ -228,9 +208,10 @@
     state.inventory = Inventory.create(ResourceData.startingInventory);
     state.level = 'galaxy'; state.system = null; state.planet = null; state.selected = null;
     state.context = null; state.tracking = null; state.focusPlanet = null;
-    state.surfaceBuildings = []; state.roadNetworks = {}; state.surfaceSettlements = {}; state.factoryPlans = {};
+    state.surfaceBuildings = []; state.roadNetworks = {}; state.factoryPlans = {};
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
+    state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null);
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -320,7 +301,6 @@
     if (previousLevel !== state.level) {
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
       cancelRoadDrag();
-      if (state.level === 'surface' && state.planet) refreshSettlements(state.planet.id);
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -396,11 +376,11 @@
     state.surfaceBuildings.push(building);
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
-    toast(`${definition.label} posé. Assemblage en cours.${routeHint}`); updateUI(); persist();
+    toast(`${definition.label} : assemblage en cours.${routeHint}`); updateUI(); persist();
   }
   function chooseBuilding(type) {
     const definition = BuildingData.get(type);
-    if (!definition || state.level !== 'surface') return;
+    if (!definition || state.level !== 'surface' || !Progression.buildingUnlocked(state, type)) return;
     const shortage = Inventory.missing(state.inventory,
       Construction.costFor(type) || {});
     if (shortage === null || shortage.length) {
@@ -424,7 +404,7 @@
   function demolishSelectedBuilding() {
     const building = state.selected?.kind === 'building'
       ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
-    if (!building) return;
+    if (!building || BuildingData.get(building.type)?.indestructible) return;
     const refund = Construction.demolish(building, state.inventory);
     if (refund === null) return;
     for (const network of Object.values(state.roadNetworks)) RoadNetwork.detachBuilding(network, building.id);
@@ -452,30 +432,6 @@
     cardX = Math.max(8, Math.min(W - width - 8, cardX));
     cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
     return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
-  }
-
-  function nearestSettlementConnection(settlement, position) {
-    let best = null;
-    for (const road of settlement?.roads || []) {
-      let remaining = Number.isFinite(road.builtLength) ? Math.min(road.length, road.builtLength) : road.length;
-      let travelled = 0;
-      for (let edgeIndex = 1; edgeIndex < road.points.length && remaining > 1e-7; edgeIndex++) {
-        const a = road.points[edgeIndex - 1], b = road.points[edgeIndex];
-        const dx = b.x - a.x, dy = b.y - a.y, edgeLength = Math.hypot(dx, dy);
-        if (edgeLength <= 1e-9) continue;
-        const builtRatio = Math.min(1, remaining / edgeLength);
-        const builtX = dx * builtRatio, builtY = dy * builtRatio, lengthSquared = builtX * builtX + builtY * builtY;
-        const t = lengthSquared ? Math.max(0, Math.min(1,
-          ((position.x - a.x) * builtX + (position.y - a.y) * builtY) / lengthSquared)) : 0;
-        const point = { x: a.x + builtX * t, y: a.y + builtY * t };
-        const candidate = { road, point, distance: distance(position, point),
-          roadDistance: travelled + edgeLength * builtRatio * t };
-        if (!best || candidate.distance < best.distance) best = candidate;
-        remaining -= edgeLength * builtRatio;
-        travelled += edgeLength;
-      }
-    }
-    return best;
   }
 
   function roadEndpointAt(screenX, screenY, from = null) {
@@ -553,12 +509,6 @@
           : { kind: 'segment', id: connection.id, edgeIndex: connection.edgeIndex, t: connection.t };
         consider({ kind: 'road', point: { ...connection.point }, connection: target });
       }
-    }
-    if (state.camera.zoom * frame.scale >= SettlementConfig.render.minZoom) {
-      const settlementConnection = nearestSettlementConnection(state.surfaceSettlements[state.planet.id], position);
-      if (settlementConnection) consider({ kind: 'settlement', point: settlementConnection.point,
-        connection: { kind: 'settlement', id: settlementConnection.road.id,
-          roadDistance: settlementConnection.roadDistance } });
     }
     if (!closest) return null;
     return { kind: closest.kind, point: { ...closest.point }, connection: closest.connection };
@@ -659,7 +609,6 @@
     if (!planet) { toast('Aucun monde à surface solide dans ce système.'); return; }
     if (planet.kind === 'gazeuse') { toast('Cette géante gazeuse ne possède pas de surface solide.'); return; }
     prepareTerrain(planet); state.focusPlanet = planet; state.planet = planet; followPlanet(planet);
-    refreshSettlements(planet.id);
     clearSelection();
     const camera = surfaceCamera(planet);
     focusCamera(camera.x, camera.y, camera.zoom);
@@ -1053,15 +1002,50 @@
     return time;
   }
 
+  // The colony consumes what it received, gains population by tiers and
+  // spreads its zone; the needs it reveals unlock buildings and cards.
+  function advanceColony(seconds) {
+    for (const event of Colony.advance(state, seconds)) {
+      toast(`La colonie compte désormais ${formatAmount(event.population)} habitants.`);
+    }
+    growColonyZones();
+    const opened = Progression.advance(state);
+    const names = [...opened.buildings.map(type => BuildingData.get(type)?.label),
+      ...opened.cards.map(card => {
+        const [type, material] = card.split(':');
+        return globalThis.OrbitProcessData.get(type, material || 'rock')?.label;
+      })].filter(Boolean);
+    if (names.length && opened.buildings.some(type => type !== 'colony')) toast(`Nouveau : ${names.join(' · ')}.`);
+    else if (names.length && opened.cards.length) toast(`Nouvelles cartes : ${names.join(' · ')}.`);
+    if (names.length) updateUI();
+  }
+
+  // A colony's zone grows over its planet's terrain as it consumes.
+  function growColonyZones() {
+    const cellKm2 = Config.terrain.textureScale ** 2;
+    for (const colony of Colony.colonies(state)) {
+      if (colony.constructionState === 'planned') continue;
+      colony.colony = Colony.normalize(colony.colony);
+      const target = Colony.targetCells(colony.colony, cellKm2);
+      if (colony.colony.cells.length >= target) continue;
+      // Only terrain already generated: growing waits until the planet is seen.
+      let record = null;
+      for (const context of contexts.values()) if (context.terrains.has(colony.planetId)) record = context.terrains.get(colony.planetId);
+      if (!record) continue;
+      const cells = ColonyZone.grow(record.data, Config.terrain.textureScale, colony, state.surfaceBuildings, target);
+      if (cells.length !== colony.colony.cells.length) colony.colony.cells = cells;
+    }
+  }
+
   function frame(now) {
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
     Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
     if (!state.paused && !document.hidden) {
-      Construction.advance(state.surfaceBuildings, simulationDt, building => refreshSettlements(building.planetId));
-      RoadConstruction.advance(state.roadNetworks, simulationDt, planetId => refreshSettlements(planetId));
-      SettlementSimulation.advance(state.surfaceSettlements, simulationDt, refreshSettlements);
+      Construction.advance(state.surfaceBuildings, simulationDt);
+      RoadConstruction.advance(state.roadNetworks, simulationDt);
       globalThis.OrbitIndustry.advance(state, simulationDt);
+      advanceColony(simulationDt);
     }
     Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
     if (state.tracking) {

@@ -1,19 +1,11 @@
-# Processus industriels — filières par matériau
+# Processus industriels — roche à composition
 
-Cette référence décrit le graphe de processus actuellement chargé. Elle remplace
-l'ancienne usine limitée au fer ; les graphes sauvegardés en version antérieure à 5
-sont réinitialisés, tandis que les bâtiments et sauvegardes générales sont conservés.
+Cette référence décrit le graphe de processus actuellement chargé.
 
 ## Modèle
 
-Chaque bâtiment industriel possède un graphe indépendant. Son contexte géologique
-identifie le matériau extrait du sol sous le bâtiment ; chaque carte conserve aussi son `resourceId` afin
-que ses ports et sa recette restent cohérents après sauvegarde. `OrbitProcessData.get`
-résout la définition adaptée. Le Concasseur, le Broyeur et le Four de réduction gardent
-les mêmes identifiants et noms dans toutes les filières solides, mais leurs matières
-d'entrée et de sortie suivent ce matériau.
-
-Une connexion nomme ses deux machines et ses deux ports :
+Chaque bâtiment industriel possède un graphe indépendant de cartes reliées par leurs
+ports. Une connexion nomme ses deux machines et ses deux ports :
 
 ```js
 { id, fromMachineId, fromOutputId, toMachineId, toInputId }
@@ -21,54 +13,54 @@ Une connexion nomme ses deux machines et ses deux ports :
 
 Les connexions n'ont pas de débit indépendant. Elles transfèrent des unités entières
 entre buffers ; les cycles des machines déterminent le débit. Les quantités de toutes
-les recettes sont entières. Les machines peuvent avoir plusieurs entrées et sorties.
-Les boucles restent désactivées dans cette version, mais Concasseur et Broyeur sont des
-cartes distinctes pour permettre des retours de matière dans une évolution ultérieure.
+les recettes sont entières. Les boucles restent désactivées.
 
-## Cartes communes
+## Roche et composition
 
-| Carte | Entrée | Sortie / comportement | Débit N1 | Énergie |
+La Foreuse extrait de la **Roche brute** partout : chargée en minerai ou non, toute
+roche est de la roche brute. Ce qu'elle contient suit le sol sous l'Extracteur
+(`building.composition`, moyenne gaussienne sur 24 km ; le pétrole n'entre jamais dans
+la roche). La roche reste une seule ressource à chaque étape : `raw_rock` (brute),
+`crushed_rock` (concassée), `ground_rock` (broyée), `tailings` (résidus).
+
+**Mémoire.** Une unité ne porte pas sa propre composition : chaque *stock* (port de
+carte, inventaire de bâtiment, dock, file d'une porte de dépôt) garde une seule
+composition moyenne par ressource, pondérée par ses unités (`inputMix`, `outputMix`,
+`storedMix`, `inventoryMix`, `dockMix`, `gateMix`). Quand deux roches se mélangent, la
+moyenne se recalcule ; un stock vide l'oublie. La mémoire dépend du nombre de stocks,
+jamais du nombre d'unités en circulation (`src/simulation/composition.js`).
+
+**Séparation.** Un séparateur prend un lot de roche broyée et en tire son matériau en
+proportion de la teneur : `lot × teneur × 0,9` (`config.separation.recovery`). Les
+fractions s'accumulent d'un cycle à l'autre (`yieldCredit`) pour sortir des unités
+entières ; le reste du lot part en résidus, appauvris d'autant. Une roche sans fer ne
+donne pas de concentré de fer.
+
+## Cartes
+
+| Carte | Entrée | Sortie | Débit | Énergie |
 | --- | --- | --- | ---: | ---: |
-| Foreuse | Sol sous le bâtiment | Roche brute du matériau dominant, sans plafond nominal | Sans plafond | 2,5 MW |
-| Quai d'entrée | Stock reçu du réseau terrestre | Une matière choisie vers les machines, 1:1 | 2 u/s | 0 MW |
-| Concasseur | Roche brute du matériau | Minerai concassé, 1:1 | 2 u/s | 2 MW |
-| Broyeur | Minerai concassé | Minerai broyé, 1:1 | 2 u/s | 6 MW |
-| Four de réduction | Concentré adapté à la filière | Produit brut + laitier, ratio 2:1+1 | 2 u/s | 10 MW |
-| Réserve d'eau | Réserve infinie temporaire de la colonie | Eau, sans consommation d'énergie | Sans plafond | 0 MW |
-| Terril (ancienne carte) | Toute matière | Conservée pour les anciens plans ; retirée des catalogues | Sans débit | 0 MW |
-| Dock de sortie | Une matière par carte | Transfert vers le stock local du bâtiment | 2 u/s | 0 MW |
+| Foreuse | Sol de l'Extracteur | Roche brute (composition du sol) | Sans plafond | 2,5 MW |
+| Concasseur | Roche brute | Roche concassée, 1:1 | 2 u/s | 2 MW |
+| Broyeur | Roche concassée | Roche broyée, 1:1 | 2 u/s | 6 MW |
+| Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 2 u/s | 3 MW |
+| Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | 2 u/s | 3 MW |
+| Trieuse de carbone | 5 roches broyées | Charbon selon la teneur + résidus | 2 u/s | 3 MW |
+| Laveuse de silice | 20 roches broyées + 5 eaux | Silicium impur humide selon la teneur + résidus | 2 u/s | 3 MW |
+| Sécheur de silice | Silicium impur humide | Silicium impur sec, 1:1 | 2 u/s | 4 MW |
+| Lavage du charbon | 20 charbons + 5 eaux | 8 carbones + 12 boues | 2 u/s | 3 MW |
+| Four de réduction · fer / cuivre / silice | 2 concentrés | 1 métal brut + 1 laitier | 2 u/s | 10 MW |
+| Four à goudron | 4 roches concassées + 1 charbon | 1 goudron + 3 déchets | 2 u/s | 6 MW |
+| Laminoir | 10 fers bruts | 1 plaque de métal | 2 u/s | 8 MW |
+| Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | 2 u/s | 0 MW |
+| Dock de sortie | Une matière | Stock à envoyer par route | 2 u/s | 0 MW |
+| Réserve d'eau | Réserve infinie temporaire | Eau | Sans plafond | 0 MW |
+| Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s | 2,5 / 4 MW |
 
-Le débit 2 u/s est un maximum moyen ; les unités restent indivisibles et avancent par
-cycles. La réserve d'eau est un apport auxiliaire temporaire, sans réseau de tuyaux.
-Les réducteurs métallurgiques du Four sont abstraits : il ne consomme pas de carbone.
-
-## Filières
-
-| Matériau | Cartes de transformation | Recettes provisoires |
-| --- | --- | --- |
-| Fer | Foreuse → Concasseur → Broyeur → Séparateur magnétique → Four de réduction | 5 broyés → 2 concentrés de fer + 3 résidus ; 2 concentrés → 1 fer brut + 1 laitier |
-| Cuivre | Foreuse → Concasseur → Broyeur → Séparateur gravitaire → Four de réduction | 5 broyés → 2 concentrés de cuivre + 3 résidus ; 2 concentrés → 1 cuivre brut + 1 laitier |
-| Silice | Foreuse → Concasseur → Broyeur → Laveuse de silice → Sécheur de silice → Four de réduction | 20 broyés + 5 eaux → 8 siliciums impurs humides + 12 boues ; séchage 1:1 ; 2 siliciums secs → 1 silicium brut + 1 laitier |
-| Carbone | Foreuse → Concasseur → Broyeur → Trieuse de carbone → Lavage du charbon | 5 broyés → 2 charbons + 3 résidus ; 20 charbons + 5 eaux → 8 carbones + 12 boues |
-| Pétrole marin | Pompe pétrolière → Séparateur triphasé | 20 pétrole brut → 16 pétrole + 3 gaz + 1 déchet |
-
-Les filières solides reprennent pour l'instant le rendement de séparation du fer. Les
-quantités de séchage sont conservées à 1:1. La séparation du pétrole garde son ratio
-80/15/5. Les matières et sous-produits sont déclarés dans `src/data/resources.js` ; les
-ports, recettes, débits et consommations se trouvent dans `src/data/processes.js`.
-
-Il n'y a plus de gisements : un Extracteur se pose librement sur la terre ferme et
-enregistre la composition moyenne du sol qu'il draine (`composition`) : une moyenne
-pondérée (gaussienne) sur sa zone de captage (`catchmentRadius`, 24 km ; 30 km pour une
-plateforme), si bien que le déplacer de quelques kilomètres change à peine son rendement.
-Il en déduit le
-matériau exploitable le plus présent (`resourceId` : fer, cuivre, silice ou carbone) et
-sa part (`resourceShare`). L'interface n'affiche que des estimations (« ≈ 15 % », par pas
-de 5 % au-dessus de 10 %, de 1 % en dessous). La Foreuse lit ce `resourceId`. Une Plateforme pétrolière se
-pose librement en mer profonde, enregistre la part de pétrole du fond et utilise une
-Pompe pétrolière dédiée et son séparateur triphasé. La part ne modifie pas encore le
-débit : les rendements seront calibrés plus tard. La carte de Réserve d'eau ne mine pas le sol : elle fournit
-l'auxiliaire eau depuis la réserve infinie temporaire de la colonie.
+Seul l'Extracteur fore ; l'Usine reçoit par son Quai d'entrée. Les deux proposent les
+mêmes cartes de transformation. Les cartes apparaissent selon les besoins de la
+colonie (voir [`COLONY.md`](COLONY.md)) ; le réglage développeur « Tout débloquer »
+les montre toutes.
 
 ## Bâtiments spécialisés
 
@@ -97,8 +89,8 @@ Les autres cartes gardent au plus 20 unités. Le routage (`src/simulation/depotR
 ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvegardés.
 
 **Terril.** C'est un bâtiment qui reçoit les déchets par route (Quai d'entrée). Ses
-cartes : Retraitement par filière (fer, cuivre, silice, carbone : 10 déchets contenant le
-matériau → 1 minerai broyé, 4 MW) ou Incinérateur (2 déchets/s brûlés, produit jusqu'à
+cartes : Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW) ou
+Incinérateur (2 déchets/s brûlés, produit jusqu'à
 8 MW pour la planète, proportionnellement à son débit). Pas de débordement ni de
 pollution pour l'instant.
 
@@ -123,77 +115,26 @@ automatiquement ; le joueur peut choisir une autre matière du stock lorsque le 
 est débranché et son buffer vide. Le quai retire une unité du stock par cycle de 0,5 s,
 uniquement s'il est relié et dispose de place en aval. Plusieurs quais partagent le même
 stock sans dupliquer les unités. La matière sélectionnée et le buffer sont sauvegardés.
-Le catalogue des nouvelles machines suit la filière du premier quai configuré, sans
-modifier les recettes des machines déjà posées ni changer le matériau du sol.
-Les Plateformes de lancement reçoivent nativement et n'ont pas besoin de cette carte.
+Les Plateformes de lancement et la Colonie reçoivent nativement et n'ont pas besoin de
+cette carte.
 
 Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
 cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
 L'animation de la barre ne modifie pas la simulation.
 
-L'énergie reste simple : aucune ligne électrique interne. Chaque éolienne terminée
-fournit 32 MW à la planète, partagés entre les plans au prorata de leur demande ; une
-puissance insuffisante ralentit les cartes. La réserve d'eau infinie reste un mode
-temporaire du prototype.
-
 Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
-des matériaux de construction. La destination du Dock est choisie par matière parmi les
-usines et terrils terminés équipés d'un Quai d'entrée, les dépôts dotés d'une Porte
-d'entrée et les Plateformes de lancement terminées de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
+des matériaux de construction. La destination du Dock est choisie par matière parmi la
+Colonie, les usines et terrils terminés équipés d'un Quai d'entrée, les dépôts dotés
+d'une Porte d'entrée et les Plateformes de lancement terminées de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
 [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
-## Équilibrage du début de partie
+## Énergie et prix
 
-Objectif : environ 30 minutes de jeu avant le premier envoi à l'Arche. La colonie vit
-d'abord de sa base de débarquement ; la plateforme de lancement est le premier grand
-projet, qui demande les quatre matériaux.
-
-**Prix masqués pour l'instant** (`construction.pricesEnabled: false` dans
-`src/data/buildings.js`) : bâtiments et cartes ne coûtent rien et aucun prix n'est
-affiché. Les valeurs ci-dessous restent dans les données comme référence ; tant
-qu'elles sont masquées, rien ne retarde la plateforme et l'objectif des 30 minutes
-n'est pas tenu. Il n'y a plus de hausse de prix par exemplaire.
-
-- **Stock de débarquement** (`startingInventory`) : 120 fer, 60 cuivre, 0 silice,
-  6 carbone. De quoi poser une éolienne, une filière fer et une filière cuivre dans
-  leurs extracteurs. La silice et le carbone viennent de filières à monter.
-- **Base de débarquement** (gratuite, une par planète, 10 s) : ce qu'on lui livre par
-  route (Dock de sortie → base) devient du stock de construction pour les métaux bruts
-  et le carbone (`constructionCredits`, 1 pour 1). Le reste (résidus, minerais) reste
-  dans la base. L'Arche convertit de la même façon ce qu'elle reçoit.
-- **Bâtiments** (`src/data/buildings.js`) : coût de référence et durée d'assemblage ; la
-  démolition rend ce qui a été payé. Deux équipes de robots (`construction.crews`) :
-  deux chantiers avancent à la fois.
-
-| Bâtiment | Coût de référence (masqué) | Assemblage |
-| --- | --- | ---: |
-| Base de débarquement | gratuite | 10 s |
-| Éolienne | 12 fer, 8 cuivre, 2 carbone | 20 s |
-| Extracteur | 18 fer, 8 cuivre | 30 s |
-| Usine | 35 fer, 16 cuivre, 8 silice | 45 s |
-| Plateforme de lancement | 350 fer, 250 cuivre, 150 silice, 80 carbone | 90 s |
-| Dépôt | 12 fer, 4 cuivre | 20 s |
-| Station de pompage | 14 fer, 6 cuivre | 25 s |
-| Terril | 8 fer | 15 s |
-| Port | 24 fer, 12 cuivre | 40 s |
-| Plateforme pétrolière | 40 fer, 20 cuivre, 10 silice | 60 s |
-
-- **Cartes** (`cardCosts` dans `src/data/processes.js`) : payées à l'ajout, remboursées au
-  retrait ou à la démolition (`building.cardCostPaid`). Une filière fer complète
-  (foreuse, concasseur, broyeur, séparateur, four, trois docks pour le produit, les
-  résidus et le laitier) coûte 33 fer et 12 cuivre.
-- **Énergie** : une filière consomme 16,5 à 27,5 MW, une éolienne en fournit 32. Le
-  carbone de départ ne paie que deux éoliennes : la filière carbone vient tôt.
-- **Revenu** : une filière fer, cuivre ou silice produit 0,4 u/s (≈ 24/min), une
-  filière carbone ≈ 0,32 u/s.
-- **Repères** : premier fer crédité par la base moins de 2 minutes après le
-  débarquement (joueur instantané, testé). Un modèle de joueur efficace (filières
-  ajoutées dès qu'elles sont payables, éoliennes au besoin, 30 s à 2 min de
-  manipulation par filière) paierait la plateforme en une demi-heure environ ; ce
-  calcul supposait aussi une hausse de 30 % par exemplaire, retirée depuis. À refaire
-  quand les prix reviendront.
-
-Ces valeurs sont un premier réglage, à affiner en jouant.
+Chaque éolienne fournit 32 MW à sa planète ; le générateur de la colonie en fournit
+12, de quoi faire tourner un ou deux bâtiments. La puissance se partage entre les plans
+au prorata de leur demande ; une puissance insuffisante ralentit les cartes. Les prix
+des bâtiments et des cartes restent dans les données mais sont masqués
+(`construction.pricesEnabled: false`).
 
 ## Modules
 
@@ -202,7 +143,8 @@ Ces valeurs sont un premier réglage, à affiner en jouant.
 | `src/data/processes.js` | Cartes, ports, recettes par matériau, débits et énergie |
 | `src/data/resources.js` | Identifiants et noms des matières et sous-produits |
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
-| `src/simulation/processSimulation.js` | Cycles entiers, transferts, énergie et débits soutenables |
+| `src/simulation/composition.js` | Composition moyenne de la roche par stock |
+| `src/simulation/processSimulation.js` | Cycles entiers, transferts, rendements selon la teneur, énergie |
 | `src/simulation/depotRouting.js` | Flux mixtes du dépôt : portes, tampon, filtre, répartiteur, priorité |
 | `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
 | `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle et routage des Docks |

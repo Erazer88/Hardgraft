@@ -1,4 +1,4 @@
-# Routes de surface et quartiers décoratifs
+# Routes de surface
 
 Cette référence décrit les routes actuellement constructibles et les rues
 résidentielles décoratives. La seule interaction économique actuelle vérifie qu’un
@@ -11,16 +11,13 @@ n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle logistiq
 | Fichier | Responsabilité |
 | --- | --- |
 | `src/data/roads.js` | Coûts, vitesses et paramètres visuels |
-| `src/data/settlements.js` | Croissance et présentation des quartiers |
 | `src/simulation/roadNetwork.js` | Nœuds, segments, connexions, croisements, restauration |
 | `src/simulation/roadCostField.js` | Coût déterministe du terrain, des obstacles et des routes |
 | `src/simulation/roadPathfinder.js` | Recherche A* pondérée |
 | `src/simulation/roadGeometry.js` | Simplification, spline et validation du relief |
 | `src/simulation/roadConstruction.js` | Progression des travaux et dépendances entre segments |
-| `src/simulation/settlements.js` | Génération déterministe de rues et d'habitations décoratives |
 | `src/gameplay/roadPlacement.js` | Raccordement des extrémités, création et recalcul des itinéraires |
 | `src/rendering/roadRenderer.js` | Affichage des routes, connexions maritimes et intersections |
-| `src/rendering/settlementRenderer.js` | Affichage des rues secondaires et sprites de quartiers |
 
 ## Routes constructibles
 
@@ -96,23 +93,6 @@ gardent leurs points lumineux, les carrefours n'ont pas de marque propre, et cha
 franchissement de rivière porte deux rails de pont. Tous les
 réglages sont dans `src/data/roads.js`.
 
-## Quartiers résidentiels
-
-Les quartiers décoratifs se développent autour des bâtiments de production
-raccordés. La simulation conserve leurs centres, rues, collectrices, maisons et
-identifiants d'assets. Elle peut prolonger les rues et fermer des boucles lorsque
-le relief et la place disponible le permettent. Les trois modèles de maisons
-alternent le long des rues ; six sprites de rues représentent les formes en ligne,
-en T et en croix, en version village ou ville. Cette croissance ne simule pas de
-population et reste séparée du réseau manuel.
-
-L'ordre visuel de surface est : terrain et matériaux du sol, routes, bâtiments physiques,
-véhicules, ancres et cartes des bâtiments, sélection, labels. `developerSettings.js`
-permet de masquer routes et maisons pendant les ajustements visuels sans effacer
-leurs données.
-
 ## Vérifications
 
-- Croissance : `node --test tests/settlement-growth.test.cjs`.
-- Rendu de quartiers : `node --test tests/settlement-renderer.test.cjs`.
 - Comportement intégré, sauvegardes, navigation : `node --test tests/architecture.test.cjs`.

@@ -138,6 +138,9 @@
     }),
     // Placement guide of the launch platform: equator, favorable band,
     // parallels and meridians.
+    // The colony's built-up zone: neon flat tint, brighter near its edge.
+    colonyZone: Object.freeze({ pixelsPerCell: 4, fillOpacity: .26, edgeOpacity: .36, outlineWidthPx: 1.4,
+      glowWidthPx: 4.5, glowOpacity: .28, glowBlurPx: 10, labelSizePx: 10 }),
     latitudeGrid: Object.freeze({ parallelStepDegrees: 15, meridianStepDegrees: 30,
       equatorColor: '#ffd27b', bandFill: '#ffd27b14', lineColor: '#9fc4dc', lineOpacity: .32,
       labelColor: '#cfe0ea', labelSizePx: 9 }),
@@ -174,7 +177,7 @@
         glyphSizePx: 12.5,
         glyphLineWidthPx: 1.6,
         glyphColor: '#eefcff',
-        categoryColors: Object.freeze({ industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a', waste: '#c3a6e0' }),
+        categoryColors: Object.freeze({ colony: '#ffd27b', industry: '#ff9a5c', resource: '#ffcf6b', logistics: '#78f0ff', energy: '#b8ff7a', waste: '#c3a6e0' }),
         defaultColor: '#c9d6dc',
         selectedRingPx: 4,
         constructionColor: '#d7a66f',

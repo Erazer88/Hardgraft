@@ -6,6 +6,7 @@
   const Simulation = root.OrbitProcessSimulation;
   const Stack = root.OrbitResourceStack;
   const Routing = root.OrbitDepotRouting;
+  const Mix = root.OrbitComposition;
 
   function fraction(seed) {
     let hash = 2166136261;
@@ -14,10 +15,14 @@
   }
 
   function geology(state, building) {
-    // Extractors read the ground; a pumping station, the water of its shore.
-    if (!['extractor', 'oil_platform', 'water_station'].includes(building.type) || !building.resourceId) return null;
-    const id = `${building.planetId}:${building.resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
-    return { id, planetId: building.planetId, resourceId: building.resourceId,
+    // Extractors drill rock, whatever it holds; an oil platform pumps oil and a
+    // pumping station the water of its shore.
+    if (!['extractor', 'oil_platform', 'water_station'].includes(building.type)) return null;
+    const resourceId = building.type === 'extractor' ? 'rock' : building.resourceId;
+    if (!resourceId) return null;
+    const id = `${building.planetId}:${resourceId}:${building.x.toFixed(3)}:${building.y.toFixed(3)}`;
+    return { id, planetId: building.planetId, resourceId,
+      ...(building.type === 'extractor' && building.composition ? { composition: { ...building.composition } } : {}),
       hardness: Data.config.geology.hardnessRange[0] + fraction(state.seed + id) *
         (Data.config.geology.hardnessRange[1] - Data.config.geology.hardnessRange[0]),
       share: Number.isFinite(building.resourceShare) ? building.resourceShare : Data.config.geology.defaultShare };
@@ -60,6 +65,12 @@
         building.energyOutputWatts = Data.config.geothermalPowerMW * 1e6;
         entry.megawatts += Data.config.geothermalPowerMW;
       }
+      // The colony's own generator.
+      const generatorMW = root.OrbitBuildingData?.get(building.type)?.generatorMW || 0;
+      if (generatorMW) {
+        building.energyOutputWatts = generatorMW * 1e6;
+        entry.megawatts += generatorMW;
+      }
       power.set(building.planetId, entry);
       const savedGraph = state.factoryPlans[building.id];
       if (!savedGraph) continue;
@@ -72,6 +83,11 @@
       const demand = Simulation.demand(graph, building.inventory);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
+
+    // Supply and demand per planet, for the HUD and for unlocking turbines.
+    state.powerStatus = Object.fromEntries([...new Set([...power.keys(), ...demands.keys()])].map(planetId => [planetId, {
+      supplyMW: power.get(planetId)?.unlimited ? Infinity : power.get(planetId)?.megawatts || 0,
+      demandMW: demands.get(planetId) || 0 }]));
 
     for (const building of state.surfaceBuildings) {
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
@@ -89,6 +105,7 @@
       Simulation.advance(graph, seconds, {
         energyUnlimited: available.unlimited,
         externalStock: building.inventory ||= {},
+        externalMix: building.inventoryMix ||= {},
         energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
       });
       building.energyUse = graph.energyUsedMW * 1e6;
@@ -124,8 +141,12 @@
       const resource = source && Graph.definitionOf(source).outputPorts
         .find(port => port.id === connection.fromOutputId)?.resourceId;
       if (!resource) continue;
+      // Docked rock keeps its composition on the way out.
+      building.dockMix ||= {};
+      if (Mix) Mix.add(building.dockMix, resource, resource, building.dockStock[resource] || 0, amount, Mix.of(machine.inputMix, input.id));
       building.dockStock[resource] = (building.dockStock[resource] || 0) + amount;
       machine.inputBuffer[input.id] = 0;
+      if (Mix) Mix.prune(machine.inputMix, input.id, 0);
     }
   }
 

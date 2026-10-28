@@ -8,6 +8,7 @@
   // Every card holds its units in machine.storedResources.
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
+  const Mix = root.OrbitComposition;
   const definition = machine => Graph.definitionOf(machine);
   const total = held => Object.values(held).reduce((sum, amount) => sum + amount, 0);
 
@@ -17,12 +18,19 @@
     return Math.max(0, settings.cardCapacity - total(held));
   }
 
+  // Units leave with the composition of the card's stock (rock only).
   function take(machine, resourceId, amount) {
+    const composition = Mix?.of(machine.storedMix, resourceId);
     machine.storedResources[resourceId] -= amount;
-    if (machine.storedResources[resourceId] <= 0) delete machine.storedResources[resourceId];
+    if (machine.storedResources[resourceId] <= 0) {
+      delete machine.storedResources[resourceId];
+      Mix?.prune(machine.storedMix, resourceId, 0);
+    }
+    return composition;
   }
 
-  function give(machine, resourceId, amount) {
+  function give(machine, resourceId, amount, composition = null) {
+    Mix?.add(machine.storedMix ||= {}, resourceId, resourceId, machine.storedResources[resourceId] || 0, amount, composition);
     machine.storedResources[resourceId] = (machine.storedResources[resourceId] || 0) + amount;
   }
 
@@ -67,9 +75,10 @@
             for (const resourceId of Object.keys(stock).sort()) {
               if (machine.gateCredit < 1) break;
               if (!(stock[resourceId] >= 1) || room(machine, resourceId) < 1) continue;
+              const composition = Mix?.of(building.inventoryMix, resourceId);
               stock[resourceId] -= 1;
-              if (stock[resourceId] <= 0) delete stock[resourceId];
-              give(machine, resourceId, 1);
+              if (stock[resourceId] <= 0) { delete stock[resourceId]; Mix?.prune(building.inventoryMix, resourceId, 0); }
+              give(machine, resourceId, 1, composition);
               machine.gateCredit -= 1; machine.movedUnits++; moved = true;
             }
           }
@@ -84,7 +93,8 @@
           for (const resourceId of Object.keys(machine.storedResources).sort()) {
             const amount = Math.min(machine.storedResources[resourceId], Math.floor(machine.gateCredit));
             if (amount <= 0) continue;
-            take(machine, resourceId, amount);
+            const composition = take(machine, resourceId, amount);
+            Mix?.add((building.gateMix ||= {})[destinationId] ||= {}, resourceId, resourceId, queue[resourceId] || 0, amount, composition);
             queue[resourceId] = (queue[resourceId] || 0) + amount;
             machine.gateCredit -= amount; machine.movedUnits += amount;
           }
@@ -99,7 +109,7 @@
               if (target) { if (machine.splitSent) machine.splitSent[port] = (machine.splitSent[port] || 0) + 1; break; }
             }
             if (!target) break;
-            take(machine, resourceId, 1); give(target, resourceId, 1);
+            give(target, resourceId, 1, take(machine, resourceId, 1));
             machine.movedUnits++;
           }
         }

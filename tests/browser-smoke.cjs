@@ -412,27 +412,27 @@ async function checkDeveloperSettings(cdp, name) {
     groundMaterials: document.querySelector('#developer-setting-showGroundMaterials')?.checked,
     infiniteMinerals: document.querySelector('#developer-setting-infiniteMinerals')?.checked,
     showSurfaceRoads: document.querySelector('#developer-setting-showSurfaceRoads')?.checked,
-    showSurfaceHouses: document.querySelector('#developer-setting-showSurfaceHouses')?.checked
+    showSurfaceHouses: Boolean(document.querySelector('#developer-setting-showSurfaceHouses'))
   }))()`);
   assert.deepEqual(controls, { deposits: false, groundMaterials: true, infiniteMinerals: false,
-    showSurfaceRoads: true, showSurfaceHouses: true },
-    `${name} developer panel shows ground materials, roads and houses by default, without deposit settings`);
+    showSurfaceRoads: true, showSurfaceHouses: false },
+    `${name} developer panel shows ground materials and roads by default, without deposit or house settings`);
 
   const visibility = await cdp.evaluate(`(() => {
-    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
+    for (const id of ['showSurfaceRoads']) {
       const input = document.querySelector('#developer-setting-' + id);
       input.checked = false; input.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    const hidden = ['showSurfaceRoads', 'showSurfaceHouses'].map(id => window.OrbitDeveloperSettings.get(id));
-    for (const id of ['showSurfaceRoads', 'showSurfaceHouses']) {
+    const hidden = ['showSurfaceRoads'].map(id => window.OrbitDeveloperSettings.get(id));
+    for (const id of ['showSurfaceRoads']) {
       const input = document.querySelector('#developer-setting-' + id);
       input.checked = true; input.dispatchEvent(new Event('input', { bubbles: true }));
     }
-    return { hidden, restored: ['showSurfaceRoads', 'showSurfaceHouses']
+    return { hidden, restored: ['showSurfaceRoads']
       .map(id => window.OrbitDeveloperSettings.get(id)) };
   })()`);
-  assert.deepEqual(visibility, { hidden: [false, false], restored: [true, true] },
-    `${name} road and house visibility settings apply and restore immediately`);
+  assert.deepEqual(visibility, { hidden: [false], restored: [true] },
+    `${name} road visibility setting applies and restores immediately`);
 
   const infiniteMinerals = await cdp.evaluate(`(() => {
     const setting = document.querySelector('#developer-setting-infiniteMinerals');

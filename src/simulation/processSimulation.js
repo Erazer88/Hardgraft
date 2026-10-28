@@ -3,6 +3,7 @@
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
+  const Mix = root.OrbitComposition;
   const integer = value => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
   const CYCLE_EPSILON = 1e-9;
 
@@ -15,6 +16,26 @@
     return definition(machine).recipe?.inputs.find(item => item.inputId === inputId)?.amount || 1;
   }
   function primaryInput(machine) { return definition(machine).recipe?.inputs[0] || null; }
+  // Rock extracted here has the composition of the ground below the building.
+  function groundMix(graph) { return graph.geology?.composition ? Mix.normalize(graph.geology.composition) : Mix.plainRock; }
+  function addMix(mixes, key, resourceId, held, amount, composition) {
+    if (Mix) Mix.add(mixes, key, resourceId, held, amount, composition);
+  }
+  // Expected units of a grade-dependent output per unit of input.
+  function yieldShare(machine, item) {
+    const primary = primaryInput(machine);
+    const composition = Mix ? Mix.of(machine.inputMix, primary?.inputId) : {};
+    return Math.min(1, (composition[item.yieldOf] || 0) * Data.config.separation.recovery);
+  }
+  function expectedAmount(machine, item, batch) {
+    if (item.yieldOf) return batch * yieldShare(machine, item);
+    if (item.remainder) {
+      const taken = definition(machine).recipe.outputs.filter(other => other.yieldOf)
+        .reduce((sum, other) => sum + batch * yieldShare(machine, other), 0);
+      return Math.max(0, batch - taken);
+    }
+    return item.amount;
+  }
   function sourceAvailable(graph, machine) {
     const def = definition(machine);
     return !def.usesGround || graph.geology?.resourceId === machine.resourceId;
@@ -82,7 +103,7 @@
         let cycleRate = Math.min(nominalCycleRate, ...(feedCycleRates.length ? feedCycleRates : [0]));
         if (!outputsReady(machine)) cycleRate = 0;
         machine.currentRate = primary ? primary.amount * cycleRate : 0;
-        for (const item of recipe.outputs) rates[item.outputId] = cycleRate * item.amount;
+        for (const item of recipe.outputs) rates[item.outputId] = cycleRate * expectedAmount(machine, item, primary?.amount || 0);
       }
       outputRates.set(machine.id, rates);
       if (def.source) machine.currentRate = Object.values(rates).reduce((sum, value) => sum + value, 0);
@@ -117,18 +138,22 @@
         const needed = inputBatch(to, input.id);
         const room = Math.max(0, Data.config.inputCapacity - to.inputBuffer[input.id]);
         const amount = integer(Math.min(room, Math.max(0, needed - to.inputBuffer[input.id])));
+        addMix(to.inputMix ||= {}, input.id, out.resourceId, to.inputBuffer[input.id], amount, groundMix(graph));
         to.inputBuffer[input.id] += amount;
         continue;
       }
       const amount = integer(Math.min(from.outputBuffer[out.id],
         Data.config.inputCapacity - to.inputBuffer[input.id]));
       if (!amount) continue;
+      // The rock keeps its composition from one card to the next.
+      addMix(to.inputMix ||= {}, input.id, out.resourceId, to.inputBuffer[input.id], amount, Mix?.of(from.outputMix, out.id));
       from.outputBuffer[out.id] -= amount;
       to.inputBuffer[input.id] += amount;
+      Mix?.prune(from.outputMix, out.id, from.outputBuffer[out.id]);
     }
   }
 
-  function runMachine(graph, machine, powerRatio, externalStock) {
+  function runMachine(graph, machine, powerRatio, externalStock, externalMix = {}) {
     const def = definition(machine);
     machine.energyMW = 0;
     if (def.externalInput) {
@@ -141,7 +166,9 @@
       machine.cycleProgress += Data.config.fixedStepSeconds * def.throughput;
       while (machine.cycleProgress + CYCLE_EPSILON >= 1 && integer(externalStock[resourceId]) > 0 &&
           machine.outputBuffer.material < Data.config.outputCapacity) {
+        addMix(machine.outputMix ||= {}, 'material', resourceId, machine.outputBuffer.material, 1, Mix?.of(externalMix, resourceId));
         externalStock[resourceId] -= 1;
+        Mix?.prune(externalMix, resourceId, externalStock[resourceId]);
         machine.outputBuffer.material += 1;
         machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
       }
@@ -183,6 +210,7 @@
         machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
         while (machine.cycleProgress + CYCLE_EPSILON >= 1 &&
           machine.outputBuffer[outputId] < Data.config.outputCapacity) {
+          addMix(machine.outputMix ||= {}, outputId, def.outputPorts[0].resourceId, machine.outputBuffer[outputId], 1, groundMix(graph));
           machine.outputBuffer[outputId] += 1;
           machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
         }
@@ -204,13 +232,50 @@
       def.throughput * (def.energyMW > 0 ? powerRatio : 1)) / primary.amount : 0;
     machine.cycleProgress += Data.config.fixedStepSeconds * cycleRate;
     while (machine.cycleProgress + CYCLE_EPSILON >= 1 && inputsReady(machine) && outputsReady(machine)) {
-      for (const item of def.recipe.inputs) machine.inputBuffer[item.inputId] -= item.amount;
-      for (const item of def.recipe.outputs) machine.outputBuffer[item.outputId] += item.amount;
+      runCycle(machine, def);
       machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
     }
   }
 
-  function tick(graph, externalStock) {
+  // One recipe cycle. Rock outputs keep the composition of the rock consumed;
+  // a separator emits whole units of concentrate as the grade allows (the
+  // fraction carries over to the next cycle) and the rest as tailings,
+  // depleted of what was taken.
+  function runCycle(machine, def) {
+    const primary = primaryInput(machine), batch = primary?.amount || 0;
+    const rock = Mix ? Mix.of(machine.inputMix, primary?.inputId) : null;
+    machine.yieldCredit ||= {};
+    const produced = {}, taken = {};
+    for (const item of def.recipe.outputs) {
+      if (!item.yieldOf) continue;
+      const credit = (machine.yieldCredit[item.outputId] || 0) + batch * Math.min(1, (rock?.[item.yieldOf] || 0) * Data.config.separation.recovery);
+      produced[item.outputId] = Math.min(batch, Math.floor(credit + 1e-9));
+      machine.yieldCredit[item.outputId] = Math.max(0, credit - produced[item.outputId]);
+      taken[item.yieldOf] = (taken[item.yieldOf] || 0) + produced[item.outputId];
+    }
+    const extracted = Object.values(produced).reduce((sum, amount) => sum + amount, 0);
+    for (const item of def.recipe.outputs) {
+      if (item.remainder) produced[item.outputId] = Math.max(0, batch - extracted);
+      else if (!item.yieldOf) produced[item.outputId] = item.amount;
+    }
+    for (const item of def.recipe.inputs) {
+      machine.inputBuffer[item.inputId] -= item.amount;
+      Mix?.prune(machine.inputMix, item.inputId, machine.inputBuffer[item.inputId]);
+    }
+    for (const item of def.recipe.outputs) {
+      const amount = produced[item.outputId];
+      if (!amount) continue;
+      let composition = rock;
+      if (item.remainder && rock) {
+        // Taking E units of a material out of N leaves (N·share − E) of it in N − E units.
+        for (const [material, units] of Object.entries(taken)) composition = Mix.deplete(composition, material, units / Math.max(1, batch));
+      }
+      addMix(machine.outputMix ||= {}, item.outputId, item.resourceId, machine.outputBuffer[item.outputId], amount, composition);
+      machine.outputBuffer[item.outputId] += amount;
+    }
+  }
+
+  function tick(graph, externalStock, externalMix) {
     graph.tick++;
     estimateRates(graph, 1, externalStock);
     graph.energyDemandMW = demand(graph, externalStock);
@@ -221,7 +286,7 @@
     graph.energyUsedMW = 0;
     for (const machine of Graph.topologicalOrder(graph)) {
       estimateRates(graph, ratio, externalStock);
-      runMachine(graph, machine, ratio, externalStock);
+      runMachine(graph, machine, ratio, externalStock, externalMix);
       graph.energyUsedMW += machine.energyMW;
     }
     graph.energyDemandMW = demand(graph, externalStock);
@@ -235,7 +300,7 @@
     graph.accumulator += seconds;
     let count = 0;
     while (graph.accumulator + 1e-9 >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {
-      tick(graph, context.externalStock || {});
+      tick(graph, context.externalStock || {}, context.externalMix || {});
       graph.accumulator = Math.max(0, graph.accumulator - Data.config.fixedStepSeconds);
       count++;
     }

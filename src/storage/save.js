@@ -3,58 +3,14 @@
   const config = root.OrbitConfig;
   const copy = value => JSON.parse(JSON.stringify(value));
 
-  // Houses are kept both in the settlement-wide list and on each road for
-  // rendering. The settlement-wide list is authoritative when restoring, so
-  // omit the per-road copies from saves to keep localStorage usage bounded.
-  function snapshotSettlements(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    const compactAsset = asset => root.OrbitSettlementSimulation?.assetKey(asset) ?? asset;
-    return Object.fromEntries(Object.entries(value).map(([planetId, settlement]) => {
-      if (!settlement || typeof settlement !== 'object') return [planetId, settlement];
-      return [planetId, {
-        version: settlement.version,
-        planetId: settlement.planetId,
-        generatedStage: settlement.generatedStage,
-        roads: (settlement.roads || []).map(road => ({
-          id: road.id, type: road.type, stage: road.stage, routeId: road.routeId,
-          roadClass: road.roadClass, neighborhoodId: road.neighborhoodId,
-          anchor: road.anchor, endpoint: road.endpoint, parentRoadId: road.parentRoadId,
-          connectsToRoadId: road.connectsToRoadId, startHostId: road.startHostId,
-          startHostKind: road.startHostKind, startHostRouteId: road.startHostRouteId,
-          startHostMeasure: road.startHostMeasure, endHostId: road.endHostId,
-          endHostKind: road.endHostKind, endHostRouteId: road.endHostRouteId,
-          endHostMeasure: road.endHostMeasure, fromNode: road.fromNode, toNode: road.toNode,
-          tangent: road.tangent, endTangent: road.endTangent,
-          points: road.points, length: road.length, builtLength: road.builtLength
-        })),
-        houses: (settlement.houses || []).map(house => ({
-          id: house.id, roadId: house.roadId, neighborhoodId: house.neighborhoodId,
-          roadDistance: house.roadDistance,
-          x: house.x, y: house.y, rotation: house.rotation, asset: compactAsset(house.asset)
-        })),
-        districts: (settlement.districts || []).map(district => ({
-          id: district.id, roadId: district.roadId, routeId: district.routeId,
-          mainRoadAsset: district.mainRoadAsset, kind: district.kind,
-          neighborhoodId: district.neighborhoodId, degree: district.degree,
-          roadDistance: district.roadDistance, widthWorld: district.widthWorld,
-          x: district.x, y: district.y, rotation: district.rotation,
-          variant: district.variant, asset: compactAsset(district.asset)
-        })),
-        neighborhoods: (settlement.neighborhoods || []).map(neighborhood => ({
-          id: neighborhood.id, productionBuildingId: neighborhood.productionBuildingId,
-          x: neighborhood.x, y: neighborhood.y, routeId: neighborhood.routeId,
-          collectorRoadId: neighborhood.collectorRoadId, roadIds: neighborhood.roadIds
-        }))
-      }];
-    }));
-  }
-
   function load(storage) {
     try {
       const saved = JSON.parse(storage.getItem(config.storageKey) || 'null');
       if (!saved || typeof saved !== 'object' || !['string', 'number'].includes(typeof saved.seed)) return null;
-      // App releases often change without changing the save schema. Keep unknown
-      // versions available for best-effort restoration rather than starting over.
+      // App releases often change without changing the save schema, so newer
+      // or unknown versions are restored best-effort. Saves older than the
+      // colony (minimumSaveVersion) start a new game.
+      if (!(Number(saved.version) >= (config.minimumSaveVersion || 0))) return null;
       return saved;
     } catch (_) { return null; }
   }
@@ -79,7 +35,8 @@
       surfaceBuildings: copy(state.surfaceBuildings || []), roadNetworks: copy(state.roadNetworks || {}),
       orbitalLogistics: root.OrbitOrbitalTransit.snapshot(state.orbitalLogistics),
       factoryPlans: snapshotFactoryPlans(state.factoryPlans, state.surfaceBuildings),
-      surfaceSettlements: snapshotSettlements(state.surfaceSettlements),
+      contextPoints: state.contextPoints || 0,
+      unlocks: copy(state.unlocks || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -110,7 +67,8 @@
     }
     state.roadNetworks = restoreRoadNetworks(saved.roadNetworks, state.surfaceBuildings);
     state.factoryPlans = restoreFactoryPlans(saved.factoryPlans, state.surfaceBuildings);
-    state.surfaceSettlements = restoreSettlements(saved.surfaceSettlements);
+    state.contextPoints = Number.isFinite(saved.contextPoints) && saved.contextPoints >= 0 ? saved.contextPoints : 0;
+    state.unlocks = root.OrbitProgression ? root.OrbitProgression.restoreUnlocks(saved.unlocks) : copy(saved.unlocks || {});
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
@@ -171,17 +129,6 @@
     for (const [planetId, saved] of Object.entries(value)) {
       const network = root.OrbitRoadNetwork.restore(saved, planetId, buildings);
       if (network) result[planetId] = network;
-    }
-    return result;
-  }
-
-  function restoreSettlements(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value) || !root.OrbitSettlementSimulation) return {};
-    const result = {};
-    for (const [planetId, saved] of Object.entries(value)) {
-      if (typeof planetId === 'string' && planetId) {
-        result[planetId] = root.OrbitSettlementSimulation.restore(saved, planetId);
-      }
     }
     return result;
   }

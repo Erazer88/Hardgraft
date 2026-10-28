@@ -17,13 +17,18 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 ## Décisions actives
 
 - Les bâtiments et ressources appartiennent à la surface d'une planète. Les routes
-  manuelles forment le réseau logistique terrestre ; les quartiers décoratifs et
-  leurs rues restent visuels et indépendants.
+  manuelles forment le réseau logistique terrestre. L'ancien système de maisons et de
+  quartiers décoratifs est supprimé.
+- La Colonie est le premier bâtiment, unique et indestructible. Elle abrite la
+  population (100 au départ, par paliers), produit du contexte (1/min) et grandit en
+  zone néon avec les ressources qu'on lui livre : roche brute, puis goudron, puis
+  plaques de métal. Les bâtiments et les cartes apparaissent quand ses besoins les
+  appellent. Voir [`COLONY.md`](COLONY.md).
 - Les processus industriels sont simulés par cycles, buffers entiers, recettes,
   connexions explicites et débits configurés. Voir
   [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 - Le modèle de transport cible agrège les transferts entre bâtiments. Actuellement,
-  le Dock transfère vers une usine ou un terril avec Quai d'entrée, un dépôt avec
+  le Dock transfère vers la Colonie, une usine ou un terril avec Quai d'entrée, un dépôt avec
   Porte d'entrée ou une Plateforme de lancement lorsqu'une route construite les relie ;
   le dépôt répartit ce qu'il reçoit par ses Portes de sortie. Les routes n'ont pas de capacité ni de durée.
   Leur tracé suit le relief affiché (vallées, lacets sur les pentes, ponts sur les
@@ -42,25 +47,21 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   [`WORLDGEN.md`](WORLDGEN.md).
 - Plus de gisements ni de champ de pétrole : chaque zone du sol a sa composition
   (roche + fer, cuivre, silice, carbone ; pétrole en mer), plus concentrée selon le
-  terrain, lissée sur quelques kilomètres. Extracteurs et plateformes se posent
-  librement et extraient le matériau le plus présent dans leur zone de captage
-  (moyenne sur 24 à 30 km, affichée en « ≈ »), sans placement au pixel près. Les minerais suivent des veines ramifiées issues de nœuds
+  terrain, lissée sur quelques kilomètres. Les Extracteurs se posent librement et
+  forent de la roche brute qui garde la composition moyenne de leur zone (24 km) ;
+  chaque stock de roche garde une composition moyenne et les séparateurs en tirent leur
+  matériau selon la teneur. Les minerais suivent des veines ramifiées issues de nœuds
   riches. La carte de teneur (isolignes et aplats colorés) sera plus tard révélée par
   un scan progressif ; les ratios et rendements restent à calibrer.
 - Bâtiments spécialisés : Station de pompage (eau salée en mer, douce en lac ou
   rivière), Dépôt répartiteur, Terril (retraitement à faible rendement ou incinération
   productrice d'énergie, sans débordement ni pollution), Plateforme de lancement moins
-  coûteuse en énergie près de l'équateur. Colonie, contexte et pollution viendront
-  plus tard. Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
-- Début de partie : base de débarquement gratuite qui convertit les métaux bruts
-  livrés par route en stock de construction, deux équipes de robots, énergie éolienne
-  limitée (32 MW ≈ une filière). Les prix des bâtiments et des cartes sont masqués pour
-  l'instant (`pricesEnabled: false`) : rien n'est facturé ni affiché, et l'objectif
-  d'environ 30 minutes avant l'Arche n'est donc pas tenu. Voir
-  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md). Voir « Équilibrage du début de partie » dans
-  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md). Le réglage développeur « Minerais infinis »
-  lève les coûts pour tester ; la carte Réserve d'eau reste une source infinie
-  temporaire.
+  coûteuse en énergie près de l'équateur ; pas de pollution pour l'instant. Voir
+  [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+- Deux équipes de robots construisent ; énergie limitée (générateur de colonie 12 MW,
+  éolienne 32 MW). Les prix des bâtiments et des cartes sont masqués
+  (`pricesEnabled: false`) : rien n'est facturé ni affiché, il n'y a pas de stock de
+  construction. La carte Réserve d'eau reste une source infinie temporaire.
 
 ## Points d'entrée et vérification
 
@@ -69,7 +70,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 | Monde et graine | `src/world.js`, `src/data/worldgen.js` | `node --test src/world.test.cjs` |
 | Caméra et navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
 | Processus industriels | `src/simulation/processGraph.js`, `src/simulation/processSimulation.js` | `node --test tests/process-simulation.test.cjs` |
-| Routes et quartiers | `src/simulation/roadNetwork.js`, `src/simulation/settlements.js` | `node --test tests/settlement-growth.test.cjs tests/settlement-renderer.test.cjs` |
+| Colonie et déblocage | `src/simulation/colony.js`, `src/gameplay/progression.js`, `src/gameplay/colonyZone.js` | `node --test tests/orbital-logistics.test.cjs` |
+| Routes | `src/simulation/roadNetwork.js`, `src/gameplay/roadPlacement.js` | `node --test tests/architecture.test.cjs` |
 | Sauvegardes | `src/storage/save.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
 | Export autonome | `build.py`, `index.html` | `python3 build.py` |
 

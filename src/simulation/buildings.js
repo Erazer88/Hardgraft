@@ -62,10 +62,13 @@
     const integerStock = value => value && typeof value === 'object' && !Array.isArray(value)
       ? Object.fromEntries(Object.entries(value).filter(([, amount]) => Number.isInteger(amount) && amount > 0)) : {};
     const dockStock = integerStock(properties.dockStock);
+    // Average composition of the rock in each stock (src/simulation/composition.js).
+    const mixes = value => root.OrbitComposition ? root.OrbitComposition.restore(value) : {};
+    const inventoryMix = mixes(properties.inventoryMix), dockMix = mixes(properties.dockMix);
+    const gateMix = properties.gateMix && typeof properties.gateMix === 'object' && !Array.isArray(properties.gateMix)
+      ? Object.fromEntries(Object.entries(properties.gateMix).map(([id, value]) => [id, mixes(value)])) : {};
     const launchStock = integerStock(properties.launchStock);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
-    // Materials a landing base turned into construction stock.
-    const receivedTotal = integerStock(properties.receivedTotal);
     // Units a depot's output gates queued, per destination building.
     const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
       ? Object.fromEntries(Object.entries(properties.gateStock).map(([id, queue]) => [id, integerStock(queue)])
@@ -118,10 +121,12 @@
       logisticsNodeId,
       inventory: { ...inventory },
       dockStock,
+      inventoryMix,
+      dockMix,
+      gateMix,
       dockDestinations,
       launchStock,
       launchReceivedTotal,
-      receivedTotal,
       gateStock,
       exportEnabled,
       exportCursorResourceId,
@@ -135,7 +140,9 @@
       upgradeLevel,
       status,
       customName,
-      createdAt
+      createdAt,
+      // Population, tier, consumption and zone cells of the colony.
+      ...(definition.id === 'colony' && root.OrbitColony ? { colony: root.OrbitColony.normalize(properties.colony) } : {})
     };
   }
 

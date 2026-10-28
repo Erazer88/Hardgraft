@@ -8,11 +8,11 @@ const { test } = require('node:test');
 
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
-  'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
+  'simulation/composition.js', 'data/colony.js', 'data/progression.js', 'simulation/colony.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -221,31 +221,33 @@ test('a stale dispatch clock is repaired without resetting stock or existing tra
   assert.equal(state.orbitalLogistics.hubs.home.stock.iron_slag, 3);
 });
 
-test('road delivery feeds a receiving factory processor through its input dock', () => {
-  const { factory, state } = fixture({ dockStock: { copper_ore_raw: 8 },
-    dockDestinations: { copper_ore_raw: 'receiver' } });
+test('road delivery feeds a receiving factory processor through its input dock, composition included', () => {
+  const { factory, state } = fixture({ dockStock: { raw_rock: 8 }, dockDestinations: { raw_rock: 'receiver' } });
+  factory.dockMix = { raw_rock: { copper: .3, rock: .7 } };
   const receiver = Building.create({ id: 'receiver', type: 'factory', planetId, x: 120, y: 10,
     constructionState: 'complete' });
   state.surfaceBuildings.push(receiver, { id: 'wind', type: 'wind_turbine', planetId, constructionState: 'complete' });
-  state.seed = 'received-copper'; state.factoryPlans = {};
+  state.seed = 'received-rock'; state.factoryPlans = {};
   const Graph = context.OrbitProcessGraph, Industry = context.OrbitIndustry;
   const graph = Industry.ensureGraph(state, receiver);
   Graph.addMachine(graph, { id: 'input', type: 'input_dock' });
-  Graph.addMachine(graph, { id: 'crusher', type: 'crusher', resourceId: 'copper' });
+  Graph.addMachine(graph, { id: 'crusher', type: 'crusher' });
   const network = state.roadNetworks[planetId];
   const sourceNode = network.nodes.find(node => node.buildingId === factory.id);
   const receiverNode = Road.addNode(network, { x: receiver.x, y: receiver.y, buildingId: receiver.id });
   Road.addSegment(network, { from: sourceNode.id, to: receiverNode.id,
     points: [{ x: factory.x, y: factory.y }, { x: receiver.x, y: receiver.y }], builtLength: 110 });
   Network.transferDockStockToBuildings(state);
-  assert.equal(receiver.inventory.copper_ore_raw, 8);
+  assert.equal(receiver.inventory.raw_rock, 8);
+  assert.deepEqual(plain(receiver.inventoryMix.raw_rock), { copper: .3, rock: .7 });
   Industry.ensureGraph(state, receiver);
   assert.equal(Graph.connect(graph, { id: 'import', fromMachineId: 'input', fromOutputId: 'material',
-    toMachineId: 'crusher', toInputId: 'raw_ore' }).ok, true);
+    toMachineId: 'crusher', toInputId: 'rock' }).ok, true);
   for (let i = 0; i < 7; i++) Industry.advance(state, 1);
-  assert.equal(receiver.inventory.copper_ore_raw, 0);
-  assert.equal(graph.machines[1].outputBuffer.crushed_ore, 8);
-  assert.equal(factory.dockStock.copper_ore_raw, undefined);
+  assert.equal(receiver.inventory.raw_rock || 0, 0);
+  assert.equal(graph.machines[1].outputBuffer.rock, 8);
+  assert.deepEqual(plain(graph.machines[1].outputMix.rock), { copper: .3, rock: .7 });
+  assert.equal(factory.dockStock.raw_rock, undefined);
 });
 
 test('each whole-unit transit lot arrives at its exact simulation time and is saved without render state', () => {
@@ -507,17 +509,6 @@ test('cards are paid from the colony stock, refunded on removal and with their b
   assert.deepEqual(plain(saved.cardCostPaid), { iron: 4 });
 });
 
-test('refined cargo reaching the Ark becomes construction stock', () => {
-  const { platform, state } = fixture({ dockStock: {}, dockDestinations: {} });
-  state.inventory = {};
-  platform.launchStock = { raw_iron: 12, iron_tailings: 5 };
-  platform.exportEnabled = { raw_iron: true, iron_tailings: true };
-  for (let time = 0; time <= 120; time += 1) Logistics.advance(state, time, systems, true);
-  assert.equal(state.orbitalLogistics.hubs.home.stock.raw_iron, 12);
-  assert.equal(state.orbitalLogistics.hubs.home.stock.iron_tailings, 5);
-  assert.deepEqual(plain(state.inventory), { iron: 12 }, 'only refined materials are credited');
-});
-
 test('building and card prices are masked for now, their reference values kept in the data', () => {
   assert.equal(Construction.pricesEnabled(), false);
   assert.deepEqual(plain(Construction.costFor('launch_platform')), {});
@@ -530,47 +521,101 @@ test('building and card prices are masked for now, their reference values kept i
   assert.deepEqual(plain(inventory), { iron: 1 }, 'nothing is charged');
 });
 
-test('the landing base turns refined materials into construction stock within two minutes of landing', () => {
-  const state = { seed: 'early', inventory: Inventory.create(Resources.startingInventory), surfaceBuildings: [],
-    factoryPlans: {}, roadNetworks: {}, orbitalLogistics: Transit.createState() };
-  const build = (id, type, x, y, extra = {}) => {
-    const building = Building.create({ id, type, planetId, x, y, ...extra });
-    assert.equal(Construction.start(building, state.inventory, Construction.costFor(type)).started, true, id);
-    state.surfaceBuildings.push(building); return building;
-  };
-  const base = build('base', 'landing_base', 200, 620);
-  build('wind', 'wind_turbine', 0, 0);
-  const extractor = build('extractor', 'extractor', 100, 620, { resourceId: 'iron' });
+// ---- Colony and progression ----
+const Colony = context.OrbitColony, ColonyData = context.OrbitColonyData, Progression = context.OrbitProgression;
+const ColonyZone = context.OrbitColonyZone;
+
+test('the colony consumes what it receives tier by tier and produces context', () => {
+  const colony = Building.create({ id: 'colony', type: 'colony', planetId, x: 0, y: 0, constructionState: 'complete' });
+  assert.deepEqual(plain(colony.colony), { population: 100, tier: 0, progress: {}, consumed: 0, cells: [] });
+  const state = { surfaceBuildings: [colony], contextPoints: 0 };
+  Colony.advance(state, 60);
+  assert.ok(Math.abs(state.contextPoints - 1) < 1e-9, 'one context point per minute');
+  colony.inventory = { raw_rock: 300, tar: 10 };
+  assert.deepEqual(plain(Colony.advance(state, 1)), []);
+  assert.equal(colony.colony.progress.raw_rock, 300);
+  assert.equal(colony.inventory.raw_rock, undefined, 'consumed rock disappears');
+  assert.equal(colony.inventory.tar, 10, 'what the tier does not ask for waits in reserve');
+  colony.inventory.raw_rock = 250;
+  const events = Colony.advance(state, 1);
+  assert.equal(events.length, 1);
+  assert.equal(colony.colony.population, ColonyData.tiers[0].population);
+  assert.equal(colony.colony.tier, 1);
+  assert.equal(colony.inventory.raw_rock, 50);
+  Colony.advance(state, 1);
+  assert.equal(colony.colony.progress.tar, 10, 'the next tier takes the tar already in reserve');
+  assert.equal(Colony.totalPopulation(state), 200);
+  const saved = Building.create(plain(colony));
+  assert.deepEqual(plain(saved.colony), plain(colony.colony));
+});
+
+test('the colony zone grows over land around its spot, avoiding water and other buildings', () => {
+  const width = 60, height = 50, elevation = new Uint8Array(width * height).fill(140);
+  for (let y = 0; y < height; y++) for (let x = 40; x < width; x++) elevation[y * width + x] = 90;
+  const terrain = { width, height, elevation, seaLevel: 102 };
+  const colony = Building.create({ id: 'colony', type: 'colony', planetId, x: 90, y: 75, constructionState: 'complete' });
+  const factory = Building.create({ id: 'factory', type: 'factory', planetId, x: 30, y: 75, constructionState: 'complete' });
+  const target = Colony.targetCells(colony.colony, 9);
+  assert.equal(target, Math.round(ColonyData.zone.baseKm2 / 9));
+  const cells = ColonyZone.grow(terrain, 3, colony, [colony, factory], target);
+  assert.equal(cells.length, target);
+  const blocked = ColonyZone.blockedCells(terrain, 3, colony, [colony, factory]);
+  assert.ok(cells.every(cell => elevation[cell] > 102 && !blocked.has(cell)), 'no water, no building');
+  colony.colony.cells = cells;
+  const bigger = ColonyZone.grow(terrain, 3, colony, [colony, factory], target + 20);
+  assert.ok(cells.every(cell => bigger.includes(cell)), 'the zone only gains cells');
+  assert.equal(bigger.length, target + 20);
+});
+
+test('buildings and cards appear as the colony needs them', () => {
+  const state = { surfaceBuildings: [], unlocks: null, powerStatus: {} };
+  Progression.advance(state);
+  assert.deepEqual(plain(state.unlocks.buildings), ['colony'], 'the colony comes first');
+  assert.equal(Progression.buildingUnlocked(state, 'extractor'), false);
+  const colony = Building.create({ id: 'colony', type: 'colony', planetId, x: 0, y: 0 });
+  state.surfaceBuildings.push(colony);
+  const opened = Progression.advance(state);
+  assert.deepEqual(plain(opened), { buildings: ['extractor'], cards: ['drill', 'output_dock'] });
+  assert.equal(Progression.cardUnlocked(state, Processes.get('crusher')), false);
+  state.powerStatus = { [planetId]: { supplyMW: 12, demandMW: 20 } };
+  assert.deepEqual(plain(Progression.advance(state).buildings), ['wind_turbine']);
+  colony.colony.tier = 1;
+  const tar = Progression.advance(state);
+  assert.ok(tar.buildings.includes('factory') && tar.cards.includes('tar_furnace') && tar.cards.includes('carbon_separator'));
+  colony.colony.tier = 2;
+  Progression.advance(state);
+  assert.equal(Progression.cardUnlocked(state, Processes.get('reduction_furnace', 'iron')), true);
+  assert.equal(Progression.cardUnlocked(state, Processes.get('reduction_furnace', 'copper')), false, 'only the iron furnace');
+  assert.equal(Progression.buildingUnlocked(state, 'launch_platform'), false, 'the Ark comes later');
+  assert.deepEqual(plain(Progression.restoreUnlocks(plain(state.unlocks))), plain(state.unlocks));
+});
+
+test('the first tier: rock drilled and sent by road reaches the colony and raises its population', () => {
+  const state = { seed: 'early', inventory: {}, surfaceBuildings: [], factoryPlans: {}, roadNetworks: {},
+    orbitalLogistics: Transit.createState(), contextPoints: 0 };
+  const colony = Building.create({ id: 'colony', type: 'colony', planetId, x: 200, y: 620, constructionState: 'complete' });
+  const extractor = Building.create({ id: 'extractor', type: 'extractor', planetId, x: 100, y: 620,
+    constructionState: 'complete', composition: { iron: .1, rock: .9 } });
+  state.surfaceBuildings.push(colony, extractor);
   const network = Road.create(planetId);
   state.roadNetworks[planetId] = network;
   const from = Road.addNode(network, { x: 100, y: 620, buildingId: extractor.id });
-  const to = Road.addNode(network, { x: 200, y: 620, buildingId: base.id });
+  const to = Road.addNode(network, { x: 200, y: 620, buildingId: colony.id });
   Road.addSegment(network, { from: from.id, to: to.id, points: [{ x: 100, y: 620 }, { x: 200, y: 620 }], builtLength: 100 });
-  const lineCards = ['drill', 'crusher', 'grinder', 'magnetic_separator', 'reduction_furnace', 'output_dock', 'output_dock', 'output_dock'];
-  let ironBefore = null, firstCredit = null, time = 0;
-  for (let tick = 1; tick <= 3000; tick++) {
-    time = tick / 10;
-    Construction.advance(state.surfaceBuildings, .1);
-    if (extractor.constructionState === 'complete' && !state.factoryPlans[extractor.id]?.machines.length) {
-      const graph = Industry.ensureGraph(state, extractor);
-      lineCards.forEach((type, index) => {
-        assert.equal(Construction.payCard(extractor, state.inventory, Processes.get(type, 'iron').cost).paid, true);
-        Graph.addMachine(graph, { id: `m${index}`, type, x: 0, y: 0 });
-      });
-      [['m0', 'raw_ore', 'm1', 'raw_ore'], ['m1', 'crushed_ore', 'm2', 'crushed_ore'], ['m2', 'ground_ore', 'm3', 'ground_ore'],
-        ['m3', 'concentrate', 'm4', 'concentrate'], ['m4', 'product', 'm5', 'material'], ['m3', 'residue', 'm6', 'material'],
-        ['m4', 'slag', 'm7', 'material']].forEach(([a, out, b, input], index) => assert.equal(Graph.connect(graph,
-        { id: `l${index}`, fromMachineId: a, fromOutputId: out, toMachineId: b, toInputId: input }).ok, true));
-      extractor.dockDestinations = { raw_iron: base.id, iron_tailings: base.id };
-      ironBefore = state.inventory.iron;
-    }
-    Industry.advance(state, .1);
+  const graph = Industry.ensureGraph(state, extractor);
+  Graph.addMachine(graph, { id: 'drill', type: 'drill', x: 0, y: 0 });
+  Graph.addMachine(graph, { id: 'dock', type: 'output_dock', x: 0, y: 0 });
+  assert.equal(Graph.connect(graph, { id: 'l', fromMachineId: 'drill', fromOutputId: 'rock', toMachineId: 'dock', toInputId: 'material' }).ok, true);
+  extractor.dockDestinations = { raw_rock: colony.id };
+  let time = 0;
+  while (colony.colony.tier === 0 && time < 600) {
+    time += 1;
+    Industry.advance(state, 1);
     Logistics.advance(state, time, systems, true);
-    if (firstCredit === null && ironBefore !== null && state.inventory.iron > ironBefore) firstCredit = time;
+    Colony.advance(state, 1);
   }
-  assert.ok(firstCredit !== null && firstCredit <= 120, `first iron credited at ${firstCredit} s`);
-  const perMinute = (state.inventory.iron - ironBefore) / ((time - firstCredit) / 60);
-  assert.ok(perMinute > 20 && perMinute < 28, `one line yields ≈ 24 iron/min (${perMinute})`);
-  assert.equal(base.receivedTotal.raw_iron > 0, true);
-  assert.ok(base.inventory.iron_tailings > 0, 'tailings stay in the base, not in the construction stock');
+  assert.equal(colony.colony.tier, 1, 'the colony reached its first tier');
+  assert.ok(time >= 200 && time <= 300, `500 raw rock take about four minutes with one drill (${time} s)`);
+  assert.ok(state.powerStatus[planetId].supplyMW >= 12, 'the colony generator powers the drill');
+  assert.equal(colony.colony.population, 200);
 });

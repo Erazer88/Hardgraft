@@ -41,14 +41,13 @@
       ctx.moveTo(x - size * .28, y - size * .35); ctx.lineTo(x, y - size * .63); ctx.lineTo(x + size * .28, y - size * .35);
       ctx.moveTo(x - size * .64, y + size * .4); ctx.lineTo(x + size * .64, y + size * .4); ctx.stroke(); return;
     }
-    if (icon === 'base') {
-      // A lander: dome on three legs.
-      ctx.arc(x, y - size * .05, size * .42, Math.PI, 0); ctx.lineTo(x - size * .42, y - size * .05);
-      ctx.moveTo(x - size * .3, y + size * .05); ctx.lineTo(x - size * .62, y + size * .58);
-      ctx.moveTo(x + size * .3, y + size * .05); ctx.lineTo(x + size * .62, y + size * .58);
-      ctx.moveTo(x, y + size * .05); ctx.lineTo(x, y + size * .5);
-      ctx.moveTo(x - size * .78, y + size * .58); ctx.lineTo(x - size * .46, y + size * .58);
-      ctx.moveTo(x + size * .46, y + size * .58); ctx.lineTo(x + size * .78, y + size * .58); ctx.stroke(); return;
+    if (icon === 'colony') {
+      // Three domes on one ground line.
+      ctx.moveTo(x - size * .78, y + size * .5); ctx.lineTo(x + size * .78, y + size * .5);
+      ctx.moveTo(x - size * .62, y + size * .5); ctx.arc(x - size * .38, y + size * .5, size * .24, Math.PI, 0);
+      ctx.moveTo(x - size * .2, y + size * .5); ctx.arc(x + size * .08, y + size * .5, size * .4, Math.PI, 0);
+      ctx.moveTo(x + size * .5, y + size * .5); ctx.arc(x + size * .64, y + size * .5, size * .14, Math.PI, 0);
+      ctx.stroke(); return;
     }
     if (icon === 'water-pump') {
       ctx.moveTo(x - size * .45, y + size * .5); ctx.lineTo(x - size * .45, y - size * .3); ctx.lineTo(x + size * .2, y - size * .3);
@@ -187,6 +186,110 @@
     return { anchor, x, y, width, height: style.cardHeightPx };
   }
 
+  // The colony's zone, rendered once per size into an offscreen tint and an
+  // outline, then drawn at the current zoom.
+  const zoneCache = new Map();
+  const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function zoneShape(building, terrainWidth, color) {
+    const cells = building.colony.cells, key = `${cells.length}:${color}`;
+    const cached = zoneCache.get(building.id);
+    if (cached?.key === key) return cached;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cell of cells) {
+      const x = cell % terrainWidth, y = (cell / terrainWidth) | 0;
+      minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+    }
+    const pad = 3, fx = minX - pad, fy = minY - pad, fw = maxX - minX + 1 + pad * 2, fh = maxY - minY + 1 + pad * 2;
+    let field = new Float32Array(fw * fh);
+    for (const cell of cells) field[(((cell / terrainWidth) | 0) - fy) * fw + (cell % terrainWidth) - fx] = 1;
+    for (let pass = 0; pass < 2; pass++) {
+      const next = new Float32Array(fw * fh);
+      for (let y = 1; y < fh - 1; y++) for (let x = 1; x < fw - 1; x++) {
+        let sum = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) sum += field[(y + dy) * fw + x + dx] * (dx && dy ? .5 : dx || dy ? 1 : 2);
+        next[y * fw + x] = sum / 8;
+      }
+      field = next;
+    }
+    const at = (u, v) => {
+      const x = u - fx, y = v - fy, ix = Math.floor(x), iy = Math.floor(y), tx = x - ix, ty = y - iy;
+      if (ix < 0 || iy < 0 || ix >= fw - 1 || iy >= fh - 1) return 0;
+      const i = iy * fw + ix;
+      return (field[i] * (1 - tx) + field[i + 1] * tx) * (1 - ty) + (field[i + fw] * (1 - tx) + field[i + fw + 1] * tx) * ty;
+    };
+    const style = Style.colonyZone, scale = style.pixelsPerCell;
+    const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(fw * scale, fh * scale)
+      : Object.assign(document.createElement('canvas'), { width: fw * scale, height: fh * scale });
+    const context = canvas.getContext('2d'), image = context.createImageData(fw * scale, fh * scale);
+    const [r, g, b] = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16));
+    for (let py = 0; py < fh * scale; py++) for (let px = 0; px < fw * scale; px++) {
+      const value = at(fx - .5 + (px + .5) / scale, fy - .5 + (py + .5) / scale);
+      const inside = smoothstep(.46, .54, value);
+      if (!inside) continue;
+      const edge = 1 - smoothstep(.5, .82, value), i = (py * fw * scale + px) * 4;
+      image.data[i] = r; image.data[i + 1] = g; image.data[i + 2] = b;
+      image.data[i + 3] = Math.round(255 * inside * (style.fillOpacity + style.edgeOpacity * edge));
+    }
+    context.putImageData(image, 0, 0);
+    // Outline: marching squares on the smoothed field, in cell coordinates.
+    const segments = [];
+    for (let y = 0; y < fh - 1; y++) for (let x = 0; x < fw - 1; x++) {
+      const values = [field[y * fw + x], field[y * fw + x + 1], field[(y + 1) * fw + x + 1], field[(y + 1) * fw + x]];
+      const corners = [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], points = [];
+      for (let edge = 0; edge < 4; edge++) {
+        const a = values[edge], bValue = values[(edge + 1) % 4];
+        if ((a < .5) === (bValue < .5)) continue;
+        const t = (.5 - a) / (bValue - a), from = corners[edge], to = corners[(edge + 1) % 4];
+        points.push([fx + from[0] + (to[0] - from[0]) * t, fy + from[1] + (to[1] - from[1]) * t]);
+      }
+      if (points.length === 2) segments.push(points);
+      if (points.length === 4) segments.push([points[0], points[1]], [points[2], points[3]]);
+    }
+    const shape = { key, canvas, left: fx - .5, top: fy - .5, width: fw, height: fh, segments };
+    zoneCache.set(building.id, shape);
+    return shape;
+  }
+
+  function renderColonyZones(frame) {
+    const terrain = frame.terrain, scale = root.OrbitConfig?.terrain?.textureScale || 3;
+    if (!terrain) return;
+    const ctx = frame.context, style = Style.colonyZone, color = Style.buildings.pin.categoryColors.colony;
+    for (const building of visibleBuildings(frame)) {
+      if (building.type !== 'colony' || !building.colony?.cells?.length) continue;
+      const shape = zoneShape(building, terrain.width, color);
+      const a = frame.project(shape.left * scale, shape.top * scale);
+      const b = frame.project((shape.left + shape.width) * scale, (shape.top + shape.height) * scale);
+      if (b.x < 0 || b.y < 0 || a.x > frame.viewport.width || a.y > frame.viewport.height) continue;
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(shape.canvas, a.x, a.y, b.x - a.x, b.y - a.y);
+      ctx.lineCap = 'round'; ctx.strokeStyle = color; ctx.shadowColor = color;
+      for (const [width, opacity, blur] of [[style.glowWidthPx, style.glowOpacity, style.glowBlurPx], [style.outlineWidthPx, 1, 0]]) {
+        ctx.lineWidth = width; ctx.globalAlpha = opacity; ctx.shadowBlur = blur;
+        ctx.beginPath();
+        for (const [p, q] of shape.segments) {
+          const from = frame.project(p[0] * scale, p[1] * scale), to = frame.project(q[0] * scale, q[1] * scale);
+          ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // The colony's population, under its beacon.
+  function drawPopulation(frame, building) {
+    const ctx = frame.context, style = Style.colonyZone, pin = Style.buildings.pin, head = pinGeometry(frame, building).head;
+    const text = `${new Intl.NumberFormat('fr-FR').format(building.colony?.population || 0)} HAB.`;
+    ctx.save();
+    ctx.font = `600 ${style.labelSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const y = head.y + pin.headRadiusPx + 6, width = ctx.measureText(text).width + 12;
+    ctx.fillStyle = pin.readoutFill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - 3, width, style.labelSizePx + 7, 4); ctx.fill();
+    ctx.fillStyle = pin.categoryColors.colony; ctx.fillText(text, head.x, y + 1);
+    ctx.restore();
+  }
+
   // Where the launch platform pays least to reach orbit: the equator, the
   // favorable band around it, parallels and meridians with their degrees.
   function renderLatitudeGrid(frame) {
@@ -229,10 +332,12 @@
   }
 
   function renderPhysical(frame) {
+    renderColonyZones(frame);
     renderLatitudeGrid(frame);
     for (const building of visibleBuildings(frame)) {
       const definition = Data.get(building.type);
       if (definition) drawFootprint(frame, building, definition);
+      if (building.type === 'colony') drawPopulation(frame, building);
     }
     const preview = frame.state.placement;
     if (frame.state.tool === 'build' && preview) {

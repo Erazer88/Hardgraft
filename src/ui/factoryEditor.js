@@ -39,7 +39,7 @@
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
-    onAddCard = null, onRemoveCard = null } = {}) {
+    onAddCard = null, onRemoveCard = null, isCardAvailable = () => true } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -508,6 +508,8 @@
       palette.replaceChildren();
       for (const def of Data.catalog(activeBuilding?.type || 'factory',
         processingResource())) {
+        // Cards appear as the colony needs them.
+        if (!isCardAvailable(def)) continue;
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
         if (def.contextResourceId) button.dataset.resourceId = def.contextResourceId;
@@ -632,7 +634,7 @@
     }
 
     paletteToggle.addEventListener('click', () => {
-      if (palette.dataset.context !== processingResource()) addPalette();
+      addPalette();
       setPaletteOpen(paletteOverlay.hidden);
     });
     paletteClose.addEventListener('click', () => {

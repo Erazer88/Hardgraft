@@ -26,12 +26,12 @@ test('developer settings drop the removed relief contour preferences', () => {
 test('developer settings expose terrain display controls and drop the removed deposit settings', () => {
   const { settings } = loadSettings('{"depositMarkerSizePercent":150,"depositIronColor":"#abcdef"}');
   assert.equal(settings.get('showSurfaceRoads'), true);
-  assert.equal(settings.get('showSurfaceHouses'), true);
+  assert.equal(settings.get('showSurfaceHouses'), undefined, 'the house system is gone');
   assert.equal(settings.get('showGroundMaterials'), true);
   assert.equal(settings.get('infiniteMinerals'), false);
   assert.equal(settings.get('depositMarkerSizePercent'), undefined);
   assert.equal(settings.get('depositIronColor'), undefined);
-  for (const id of ['showSurfaceRoads', 'showSurfaceHouses', 'showGroundMaterials', 'infiniteMinerals']) {
+  for (const id of ['showSurfaceRoads', 'showGroundMaterials', 'infiniteMinerals']) {
     assert.equal(settings.definitions.find(definition => definition.id === id).type, 'checkbox');
   }
   assert.equal(settings.definitions.some(definition => definition.id.startsWith('deposit')), false);
@@ -60,22 +60,19 @@ test('display and resource settings validate, persist, notify controls, and rese
   assert.equal(settings.set('showGroundMaterials', false), false);
   assert.equal(settings.set('infiniteMinerals', true), true);
   assert.equal(settings.set('showSurfaceRoads', false), false);
-  assert.equal(settings.set('showSurfaceHouses', false), false);
   assert.deepEqual(changes, [['showGroundMaterials', false], ['infiniteMinerals', true],
-    ['showSurfaceRoads', false], ['showSurfaceHouses', false]]);
+    ['showSurfaceRoads', false]]);
   assert.equal(readStored().showGroundMaterials, false);
   assert.equal(readStored().infiniteMinerals, true);
   assert.equal(readStored().showSurfaceRoads, false);
-  assert.equal(readStored().showSurfaceHouses, false);
 
   settings.reset();
   assert.equal(settings.get('showGroundMaterials'), true);
   assert.equal(settings.get('infiniteMinerals'), false);
   assert.equal(settings.get('showSurfaceRoads'), true);
-  assert.equal(settings.get('showSurfaceHouses'), true);
   assert.equal(readStored().showGroundMaterials, true);
   assert.equal(readStored().infiniteMinerals, false);
   assert.deepEqual(changes.slice(-5).map(([id]) => id).sort(), [
-    'infiniteMinerals', 'showGroundMaterials', 'showSurfaceHouses', 'showSurfaceRoads', 'simulationSpeed'
+    'infiniteMinerals', 'showGroundMaterials', 'showSurfaceRoads', 'simulationSpeed', 'unlockEverything'
   ].sort());
 });

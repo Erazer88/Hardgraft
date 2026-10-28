@@ -17,7 +17,6 @@ version = json.loads((ROOT / 'package.json').read_text())['version']
 )
 html = (ROOT / 'index.html').read_text()
 html = html.replace('<link rel="stylesheet" href="styles.css">', '<style>' + (ROOT / 'styles.css').read_text() + '</style>')
-embedded_settlement_assets = {}
 def embed_script(match):
     # Follow the HTML load order: adding a module never requires a second list.
     relative = match.group(1)
@@ -28,7 +27,7 @@ def embed_script(match):
     return '<script>\n' + js + '\n</script>'
 
 html = re.sub(r'<script src="([^"]+)"></script>', embed_script, html)
-for asset in sorted((ROOT / 'assets').rglob('*')):
+for asset in sorted((ROOT / 'assets').rglob('*')) if (ROOT / 'assets').exists() else []:
     if not asset.is_file():
         continue
     relative = asset.relative_to(ROOT).as_posix()
@@ -36,11 +35,6 @@ for asset in sorted((ROOT / 'assets').rglob('*')):
     encoded = base64.b64encode(asset.read_bytes()).decode('ascii')
     data_url = f'data:{mime};base64,{encoded}'
     html = html.replace(relative, data_url)
-    if asset.parent == ROOT / 'assets' / 'settlements' and asset.name.startswith(('village_', 'ville_')):
-        embedded_settlement_assets[relative] = data_url
-if embedded_settlement_assets:
-    manifest = '<script>globalThis.OrbitEmbeddedAssets = ' + json.dumps(embedded_settlement_assets) + ';</script>'
-    html = html.replace('</head>', manifest + '</head>')
 destination = OUT / 'nereide-prototype.html'
 destination.write_text(html)
 (OUT / 'nereide-zoom-continu.html').write_text(html)

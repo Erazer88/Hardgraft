@@ -5,7 +5,9 @@
   root.OrbitConfig = Object.freeze({
     defaultSeed: 'NEREIDE-01',
     storageKey: 'nereide-atlas-v1',
-    saveVersion: 9,
+    saveVersion: 10,
+    // Saves made before the colony and population (version 10) start a new game.
+    minimumSaveVersion: 10,
     camera: Object.freeze({ minZoom: .025, maxZoom: 2000000, easingRate: 9 }),
     simulation: Object.freeze({ maxFrameSeconds: .05 }),
     exploration: Object.freeze({ initialRadius: 590, scanRadius: 680, durationMs: 1900, detectionRatio: .84 }),

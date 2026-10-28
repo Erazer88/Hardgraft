@@ -2,7 +2,7 @@
 
 Prototype mobile de navigation spatiale et d'industrie, optimisé pour le paysage. Explorez une galaxie procédurale, examinez les cartes topographiques et construisez des chaînes de processus à l'intérieur des bâtiments.
 
-Les captures de contrôle temporaires ne sont pas versionnées. Les images des bâtiments et des quartiers utilisées en jeu restent dans `assets/`. Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
+Les captures de contrôle temporaires ne sont pas versionnées. Les textes de conception d'origine sont conservés dans [docs/reference](docs/reference) comme archives ; ils ne décrivent pas toujours l'implémentation actuelle.
 
 ## Développement
 
@@ -44,7 +44,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Can
 - Le bouton route active le tracé manuel : faites glisser depuis un bâtiment ou une route jusqu'à un autre bâtiment ou point de route. Avant l'accrochage à une arrivée, un trait guide blanc opaque et pointillé relie le départ au doigt, sans pouvoir être validé. Il devient continu après accrochage à une cible valide et suit le relief. Après relâchement, une lumière pulsée accompagne le front de construction. Deux doigts annulent l'aperçu en cours et permettent de zoomer ou déplacer la carte ; le bouton route reste actif.
 - Une plateforme pétrolière se relie uniquement à un port de surface en faisant glisser l'outil route d'un bâtiment à l'autre. Un port peut recevoir plusieurs liaisons maritimes, qui partagent son point d'amarrage sûr au large ; l'approche rejoint le quai perpendiculairement. Les lignes maritimes ne s'accrochent pas à leur milieu et ne créent pas de carrefour en mer. Elles prennent le chemin navigable le plus court, contournent les terres sans zigzag et s'affichent en pointillés blancs à 60 % d'opacité.
 - Tout nouveau tracé terrestre qui coupe une autre route terrestre crée un carrefour au point exact du croisement, même si le joueur continue jusqu'à une autre destination. Les segments se raccordent au nœud et la construction conserve sa progression depuis le départ. Les routes maritimes restent isolées jusqu'à leurs extrémités port et plateforme.
-- Après le raccordement des bâtiments de production, des quartiers décoratifs se développent autour d'eux. Chaque quartier forme un graphe de rues collectrices et locales ; des boucles se créent lorsque le relief et la place disponible le permettent. Les maisons bordent les rues et alternent les trois modèles WebP. Six modules de rues — village ou ville, en ligne, en T ou en croix — sont choisis selon la forme et la densité du quartier. Cette croissance visuelle reste séparée du réseau routier manuel et n'ajoute pas de simulation de population.
+- La colonie est le premier bâtiment : elle abrite la population, produit du contexte et grandit en zone néon avec la roche brute, le goudron puis les plaques de métal qu'on lui livre par route. Les bâtiments et les cartes apparaissent quand elle en a besoin (voir [docs/COLONY.md](docs/COLONY.md)).
 - Le menu permet de reprendre l'exploration, de réinitialiser la progression avec la même graine, de saisir une autre graine ou d'afficher tous les systèmes.
 - L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 

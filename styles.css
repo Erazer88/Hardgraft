@@ -266,13 +266,3 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-viewport-hint{right:7px;bottom:6px;font-size:6px}
 }
 
-/* Construction materials, always visible under the telemetry. */
-.colony-stock{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:11px;padding-top:10px;border-top:1px solid var(--line)}
-.colony-stock-item{display:flex;flex-direction:column;gap:3px;min-width:0}
-.colony-stock-item span{display:flex;align-items:center;gap:4px;font-size:7px;letter-spacing:1px;color:var(--muted)}
-.colony-stock-item i{width:5px;height:5px;border-radius:50%;background:var(--material);box-shadow:0 0 6px var(--material);flex-shrink:0}
-.colony-stock-item strong{font-size:13px;font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums;transition:color .6s}
-.colony-stock-item.gain strong{color:#9ff0b8;transition:none}
-.colony-stock-item.loss strong{color:var(--accent);transition:none}
-.colony-stock-item.short strong{color:#e57870}
-@media(max-width:600px){.colony-stock{margin-top:9px;padding-top:8px}.colony-stock-item span{font-size:6.5px;letter-spacing:.6px}.colony-stock-item strong{font-size:11px}}

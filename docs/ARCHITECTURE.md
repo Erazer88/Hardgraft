@@ -21,7 +21,8 @@ minimales par tâche sont dans [`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
 Points d'entrée spécialisés :
 
 - `docs/PROCESS_SYSTEM.md` décrit le graphe industriel et son moteur.
-- `docs/ROAD_SYSTEM.md` décrit les routes constructibles et les quartiers décoratifs.
+- `docs/ROAD_SYSTEM.md` décrit les routes constructibles.
+- `docs/COLONY.md` décrit la colonie, la population, le contexte et le déblocage.
 - `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → plateforme et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
@@ -83,9 +84,9 @@ la mise en forme dans l'UI).
 - `src/rendering/surfaceRenderer.js` gère la texture néon, le trait de côte vectoriel
   et les couches de surface. Le tracé du littoral est le prochain candidat d'extraction
   s'il évolue indépendamment.
-- `src/simulation/settlements.js` et `roadNetwork.js` sont volumineux mais portent
-  chacun un modèle cohérent (croissance urbaine décorative, topologie et migration du
-  réseau). Une extraction doit suivre une responsabilité modifiée, pas un seuil de lignes.
+- `src/simulation/roadNetwork.js` est volumineux mais porte un modèle cohérent
+  (topologie et migration du réseau). Une extraction doit suivre une responsabilité
+  modifiée, pas un seuil de lignes.
 
 ## Validation
 
