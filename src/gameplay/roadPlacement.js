@@ -160,7 +160,7 @@
       }
     } else {
       const rawPath = Pathfinder.findPath(field, terrain, routeFrom.point, routeTo.point);
-      route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater });
+      route = Geometry.create(rawPath, terrain, baseField.textureScale, buildings, { allowDeepWater, bridgeField: baseField });
     }
     if (!route) return { connected: false, reason: 'Aucun tracé valide ne relie ces deux points.' };
     return { connected: true, from: routeFrom, to: routeTo, routeType: isMarine ? 'marine' : 'land', ...route };

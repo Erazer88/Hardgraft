@@ -36,6 +36,10 @@
     }),
     obstacles: Object.freeze({
       maxWaterDepth: 16,
+      // Deep water narrower than this many routing cells (6 km each) between
+      // two shores can be bridged; bridge cells cost bridgeMultiplier.
+      bridgeMaxSpanCells: 6,
+      bridgeMultiplier: 30,
       buildingClearance: 2
     }),
     search: Object.freeze({ maxExpandedStates: 500000, heuristicWeight: 1.6 }),

@@ -118,6 +118,18 @@
     });
   }
 
+  // Deep water a land road may cross: a bridge cell of the cost field, or
+  // next to one (smoothing may stray a little off the routing cells).
+  function onBridge(field, point) {
+    if (!field?.bridge) return false;
+    const x = Math.round(point.x / field.cellWorld), y = Math.round(point.y / field.cellWorld);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < field.width && ny < field.height && field.bridge[ny * field.width + nx]) return true;
+    }
+    return false;
+  }
+
   function valid(points, terrain, textureScale, buildings = [], options = {}) {
     const rules = Config.obstacles, maxX = (terrain.width - 1) * textureScale, maxY = (terrain.height - 1) * textureScale;
     let previous = null, previousHeight = 0, previousWater = false;
@@ -126,7 +138,7 @@
       const elevation = elevationAt(terrain, textureScale, point.x, point.y), height = reliefAt(terrain, textureScale, point.x, point.y);
       const water = elevation <= terrain.seaLevel;
       if (options.waterOnly && !water) return false;
-      if (!options.allowDeepWater && elevation < terrain.seaLevel - rules.maxWaterDepth) return false;
+      if (!options.allowDeepWater && elevation < terrain.seaLevel - rules.maxWaterDepth && !onBridge(options.bridgeField, point)) return false;
       for (const building of buildings) {
         const footprint = Buildings.get(building.type)?.footprint;
         if (!footprint) continue;
@@ -137,7 +149,10 @@
       }
       if (previous) {
         const horizontalCells = Math.max(EPSILON, distance(previous, point) / textureScale);
-        if (!(water && previousWater) && Math.abs(height - previousHeight) / horizontalCells > Config.weights.maxSlopePerHeightCell) return false;
+        // A bridge leaves the shore over deep water: its deck does not follow the sea floor.
+        const bridging = onBridge(options.bridgeField, point) || onBridge(options.bridgeField, previous);
+        if (!(water && previousWater) && !bridging &&
+          Math.abs(height - previousHeight) / horizontalCells > Config.weights.maxSlopePerHeightCell) return false;
       }
       previous = point; previousHeight = height; previousWater = water;
     }

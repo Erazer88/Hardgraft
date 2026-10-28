@@ -419,6 +419,26 @@ test('launch platforms spend less energy near the equator', () => {
   assert.equal(Logistics.launchEnergyMW(20), tropic);
 });
 
+test('a land road bridges a narrow strait between two shores, but not a wide sea', () => {
+  const roadContext = vm.createContext({});
+  for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js',
+    'simulation/roadCostField.js', 'simulation/roadPathfinder.js', 'simulation/roadGeometry.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), roadContext);
+  }
+  const { OrbitRoadCostField: Field, OrbitRoadPathfinder: Pathfinder, OrbitRoadGeometry: Geometry } = roadContext;
+  const scale = 3, width = 120, height = 60;
+  const strait = gap => {
+    const elevation = new Uint8Array(width * height).fill(130);
+    for (let y = 0; y < height; y++) for (let x = 60 - gap / 2; x < 60 + gap / 2; x++) elevation[y * width + x] = 60;
+    const terrain = { width, height, seaLevel: 102, elevation, relief: elevation, rivers: [] };
+    const base = Field.createBase(terrain, scale), from = { x: 60, y: 90 }, to = { x: 300, y: 90 };
+    const field = Field.withNetwork(base, null, [], [from, to], null, {});
+    return Geometry.create(Pathfinder.findPath(field, terrain, from, to), terrain, scale, [], { bridgeField: base });
+  };
+  assert.ok(strait(10), 'a 30 km strait is bridged');
+  assert.equal(strait(40), null, 'a 120 km sea is not');
+});
+
 test('roads wind up steep slopes and cross drawn rivers once, on a bridge', () => {
   const roadContext = vm.createContext({});
   for (const relative of ['data/config.js', 'data/resources.js', 'data/buildings.js', 'data/roads.js',

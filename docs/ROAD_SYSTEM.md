@@ -89,7 +89,10 @@ Rien ne court quand le jeu est en pause.
 
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan
 (`render.glowPasses`) sous un cœur blanc. Les chaussées sur l'eau peu profonde
-gardent leurs points lumineux, les carrefours n'ont pas de marque propre, et chaque
+gardent leurs points lumineux, comme les ponts : une eau profonde plus étroite que
+`obstacles.bridgeMaxSpanCells` routages (6 × 6 km) entre deux rives peut être franchie par
+une route terrestre, à un coût élevé (`bridgeMultiplier`) ; une mer plus large reste
+réservée aux voies maritimes. Les carrefours n'ont pas de marque propre, et chaque
 franchissement de rivière porte deux rails de pont. Tous les
 réglages sont dans `src/data/roads.js`.
 

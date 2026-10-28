@@ -36,11 +36,12 @@
         if (x >= 0 && y >= 0 && x < width && y < height) river[y * width + x] = 1;
       }
     }
+    const deep = new Uint8Array(count), bridge = new Uint8Array(count);
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const index = y * width + x, elevation = elevations[index];
       const depth = seaLevel - terrain.elevation[Math.min(terrain.height - 1, y * step) * terrain.width +
         Math.min(terrain.width - 1, x * step)];
-      if (depth > Config.obstacles.maxWaterDepth) { blocked[index] = 1; costs[index] = Infinity; continue; }
+      if (depth > Config.obstacles.maxWaterDepth) { blocked[index] = 1; costs[index] = Infinity; deep[index] = 1; continue; }
       let localTotal = 0, localCount = 0;
       for (let oy = -radius; oy <= radius; oy++) for (let ox = -radius; ox <= radius; ox++) {
         localTotal += valueAt(x + ox, y + oy); localCount++;
@@ -56,12 +57,36 @@
       if (depth > 0) cost *= weights.shallowWaterMultiplier;
       costs[index] = Math.max(weights.roadReuse, cost);
     }
+    // Bridges: deep water with shore on two opposite sides within a short span
+    // opens to roads, at a high cost. Straits wider than the span stay closed.
+    const span = Config.obstacles.bridgeMaxSpanCells;
+    const reach = (x, y, dx, dy) => {
+      for (let step = 1; step <= span; step++) {
+        const nx = x + dx * step, ny = y + dy * step;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) return Infinity;
+        if (!deep[ny * width + nx]) return step;
+      }
+      return Infinity;
+    };
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const index = y * width + x;
+      if (!deep[index]) continue;
+      for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+        // Length of the gap along this axis, in routing cells.
+        const across = (reach(x, y, dx, dy) + reach(x, y, -dx, -dy) - 1) * Math.hypot(dx, dy);
+        if (across <= span) {
+          bridge[index] = 1; blocked[index] = 0;
+          costs[index] = weights.landBase * Config.obstacles.bridgeMultiplier;
+          break;
+        }
+      }
+    }
     // The cheapest cell bounds the A* heuristic without overestimating.
     let minimumCost = Infinity;
     for (let index = 0; index < count; index++) if (costs[index] < minimumCost) minimumCost = costs[index];
     return { width, height, count, step, textureScale, cellWorld: step * textureScale,
       terrainWidth: terrain.width, terrainHeight: terrain.height, seaLevel,
-      costs, blocked, elevations, water, slopeX, slopeY, river, minimumCost };
+      costs, blocked, elevations, water, slopeX, slopeY, river, bridge, minimumCost };
   }
 
   // Sea lanes: only water is open, and water near the shore costs more, so
