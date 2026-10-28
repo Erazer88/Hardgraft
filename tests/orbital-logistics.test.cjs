@@ -619,3 +619,22 @@ test('the first tier: rock drilled and sent by road reaches the colony and raise
   assert.ok(state.powerStatus[planetId].supplyMW >= 12, 'the colony generator powers the drill');
   assert.equal(colony.colony.population, 200);
 });
+
+test('goods cross the sea between two ports: trucks, ship, trucks', () => {
+  const at = (id, type, x) => Building.create({ id, type, planetId, x, y: 10, constructionState: 'complete' });
+  const mine = at('mine', 'extractor', 0), portA = at('port-a', 'surface_port', 100);
+  const portB = at('port-b', 'surface_port', 300), factory = at('factory-2', 'factory', 400);
+  mine.dockStock = { coal: 6 }; mine.dockDestinations = { coal: factory.id };
+  const network = Road.create(planetId);
+  const node = (building, mode = 'land') => Road.addNode(network, { x: building.x, y: 10, buildingId: building.id, connectionMode: mode });
+  const road = (a, b, built, type = 'land') => Road.addSegment(network, { from: a.id, to: b.id, routeType: type,
+    points: [{ x: a.x, y: 10 }, { x: b.x, y: 10 }], builtLength: built });
+  road(node(mine), node(portA), 100);
+  road(node(portA, 'marine'), node(portB, 'marine'), 200, 'marine');
+  road(node(portB), node(factory), 100);
+  const state = { surfaceBuildings: [mine, portA, portB, factory], roadNetworks: { [planetId]: network },
+    factoryPlans: { [factory.id]: { machines: [{ type: 'input_dock' }] } } };
+  assert.equal(Network.hasBuiltLandPath(network, mine.id, factory.id), true);
+  Network.transferDockStockToBuildings(state);
+  assert.equal(factory.inventory.coal, 6);
+});

@@ -4,19 +4,26 @@
   const BUILD_EPSILON = 1e-6;
   const ALLOWED_DOCK_DESTINATIONS = root.OrbitOrbitalLogisticsData.dockDestinationTypes;
 
+  // Built route between two buildings: roads, and sea lanes between ports,
+  // which hand goods from ships to trucks (a building's land and marine
+  // nodes are the same place). An oil platform ships through its sea lane.
   function hasBuiltLandPath(network, fromBuildingId, toBuildingId) {
     if (!network || fromBuildingId === toBuildingId) return false;
-    const starts = network.nodes.filter(node => node.buildingId === fromBuildingId && node.connectionMode !== 'marine');
-    const targets = new Set(network.nodes.filter(node => node.buildingId === toBuildingId && node.connectionMode !== 'marine')
-      .map(node => node.id));
+    const starts = network.nodes.filter(node => node.buildingId === fromBuildingId);
+    const targets = new Set(network.nodes.filter(node => node.buildingId === toBuildingId).map(node => node.id));
     if (!starts.length || !targets.size) return false;
     const edges = new Map();
+    const link = (from, to) => { const list = edges.get(from) || []; list.push(to); edges.set(from, list); };
     for (const segment of network.segments || []) {
-      if (segment.routeType === 'marine' || !Number.isFinite(segment.length) ||
-          !Number.isFinite(segment.builtLength) || segment.builtLength + BUILD_EPSILON < segment.length) continue;
-      const a = edges.get(segment.from) || []; a.push(segment.to); edges.set(segment.from, a);
-      const b = edges.get(segment.to) || []; b.push(segment.from); edges.set(segment.to, b);
+      if (!Number.isFinite(segment.length) || !Number.isFinite(segment.builtLength) ||
+          segment.builtLength + BUILD_EPSILON < segment.length) continue;
+      link(segment.from, segment.to); link(segment.to, segment.from);
     }
+    const byBuilding = new Map();
+    for (const node of network.nodes) if (node.buildingId) {
+      const list = byBuilding.get(node.buildingId) || []; list.push(node.id); byBuilding.set(node.buildingId, list);
+    }
+    for (const ids of byBuilding.values()) for (const a of ids) for (const b of ids) if (a !== b) link(a, b);
     const visited = new Set(starts.map(node => node.id)), queue = [...visited];
     while (queue.length) {
       const current = queue.shift();
