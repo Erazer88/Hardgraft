@@ -153,6 +153,7 @@
     const groundText = ghost ? frame.state.placement?.groundText : selected ? frame.state.selected.groundText : null;
     if (groundText) drawGroundReadout(frame, building, definition, groundText, color);
     drawPin(frame, building, definition, ghost);
+    if (!ghost && building.customName) drawName(frame, building, color);
     if (ghost) {
       const head = pinGeometry(frame, building).head;
       ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
@@ -161,6 +162,18 @@
         head.x + pinGeometry(frame, building).radius + 6, head.y);
       ctx.restore();
     }
+  }
+
+  // The building's name, just above its beacon.
+  function drawName(frame, building, color) {
+    const ctx = frame.context, style = Style.buildings.name, { head, radius } = pinGeometry(frame, building);
+    ctx.save();
+    ctx.font = `600 ${style.sizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const y = head.y - radius - style.gapPx, width = ctx.measureText(building.customName).width + 10;
+    ctx.fillStyle = style.fill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - style.sizePx - 4, width, style.sizePx + 6, 3); ctx.fill();
+    ctx.fillStyle = color; ctx.fillText(building.customName, head.x, y + 1);
+    ctx.restore();
   }
 
   function drawGroundReadout(frame, building, definition, text, color) {
@@ -385,7 +398,7 @@
       drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc', definition.icon);
       ctx.font = `${style.titleSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
+      ctx.fillText(building.customName || definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
       ctx.font = `${style.valueSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
       ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);

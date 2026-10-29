@@ -266,3 +266,9 @@ body[data-level="surface"] .corner-note{display:none}
   .factory-viewport-hint{right:7px;bottom:6px;font-size:6px}
 }
 
+
+/* Building name, editable in place in the inspector. */
+.building-name-input{width:100%;margin:6px 0 8px;padding:4px 6px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--ink);font-family:var(--mono);font-size:19px;letter-spacing:.5px}
+.building-name-input:hover{border-color:var(--line)}
+.building-name-input:focus{outline:none;border-color:#7fabc06b;background:#0b1928}
+@media(max-width:600px){.building-name-input{font-size:17px}}

@@ -6,6 +6,7 @@
   const BuildingData = globalThis.OrbitBuildingData, BuildingModel = globalThis.OrbitSurfaceBuilding;
   const ResourceData = globalThis.OrbitResourceData, Inventory = globalThis.OrbitInventory;
   const BuildingPlacement = globalThis.OrbitBuildingPlacement, Construction = globalThis.OrbitConstruction;
+  const BuildingNames = globalThis.OrbitBuildingNames;
   const Colony = globalThis.OrbitColony, ColonyZone = globalThis.OrbitColonyZone, Progression = globalThis.OrbitProgression;
   const RoadNetwork = globalThis.OrbitRoadNetwork, RoadCostField = globalThis.OrbitRoadCostField;
   const RoadConstruction = globalThis.OrbitRoadConstruction;
@@ -211,7 +212,7 @@
     state.surfaceBuildings = []; state.roadNetworks = {}; state.factoryPlans = {};
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
-    state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null);
+    state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null); state.nameCounters = {};
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -220,6 +221,7 @@
     terrainData = null; terrainTexture = null;
     contexts.clear();
     const restored = Save.restore(state, galaxy, restoring, performance.now());
+    if (restored) BuildingNames.ensureNames(state);
     nextBuildingId = state.surfaceBuildings.reduce((next, building) => {
       const suffix = Number(building.id.match(/-(\d+)$/)?.[1]);
       return Number.isFinite(suffix) ? Math.max(next, suffix + 1) : next;
@@ -364,7 +366,7 @@
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort,
+      waterPort: preview.waterPort, customName: BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -849,6 +851,16 @@
     if (building) factoryEditor.open(building, globalThis.OrbitIndustry.ensureGraph(state, building));
   };
   $('factory-editor-close').onclick = () => factoryEditor.close();
+  // Renaming the selected building: Enter or leaving the field keeps the name.
+  $('building-name').addEventListener('change', event => {
+    const building = state.selected?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+    if (!building) return;
+    const name = BuildingNames.clean(event.target.value);
+    if (name) { building.customName = name; state.selected.customName = name; persist(); }
+    event.target.value = building.customName || '';
+  });
+  $('building-name').addEventListener('keydown', event => { if (event.key === 'Enter') event.target.blur(); });
   $('demolish-button').onclick = demolishSelectedBuilding;
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();

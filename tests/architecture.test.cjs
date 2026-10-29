@@ -509,3 +509,21 @@ test('sea lanes round a continent offshore and stop at enclosed lakes', () => {
   assert.ok(nearShore / lane.length < .2, 'the lane keeps off the shore');
   assert.equal(Pathfinder.findPath(field, terrain, west, { x: 80 * 3, y: 55 * 3 }), null, 'an enclosed lake is not reachable');
 });
+
+test('buildings are named per type across the whole game, and older buildings get a name', () => {
+  const namesContext = vm.createContext({});
+  for (const relative of ['data/resources.js', 'data/buildings.js', 'gameplay/buildingNames.js']) {
+    vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), namesContext);
+  }
+  const Names = namesContext.OrbitBuildingNames;
+  const state = { surfaceBuildings: [
+    { type: 'factory', planetId: 'a', customName: 'Usine 4' },
+    { type: 'factory', planetId: 'b', customName: null },
+    { type: 'launch_platform', planetId: 'b', customName: 'Mon port spatial' }] };
+  Names.ensureNames(state);
+  assert.equal(state.surfaceBuildings[1].customName, 'Usine 5', 'counts go on from the highest default name');
+  assert.equal(Names.nextName(state, 'factory'), 'Usine 6');
+  assert.equal(Names.nextName(state, 'launch_platform'), 'Plateforme de lancement 1');
+  assert.equal(Names.clean('   '), null);
+  assert.equal(Names.clean('  Forge   du   nord '), 'Forge du nord');
+});

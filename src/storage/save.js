@@ -36,6 +36,7 @@
       orbitalLogistics: root.OrbitOrbitalTransit.snapshot(state.orbitalLogistics),
       factoryPlans: snapshotFactoryPlans(state.factoryPlans, state.surfaceBuildings),
       contextPoints: state.contextPoints || 0,
+      nameCounters: copy(state.nameCounters || {}),
       unlocks: copy(state.unlocks || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
@@ -68,6 +69,8 @@
     state.roadNetworks = restoreRoadNetworks(saved.roadNetworks, state.surfaceBuildings);
     state.factoryPlans = restoreFactoryPlans(saved.factoryPlans, state.surfaceBuildings);
     state.contextPoints = Number.isFinite(saved.contextPoints) && saved.contextPoints >= 0 ? saved.contextPoints : 0;
+    state.nameCounters = Object.fromEntries(Object.entries(saved.nameCounters || {})
+      .filter(([type, count]) => type && Number.isInteger(count) && count > 0));
     state.unlocks = root.OrbitProgression ? root.OrbitProgression.restoreUnlocks(saved.unlocks) : copy(saved.unlocks || {});
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;

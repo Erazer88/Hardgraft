@@ -294,6 +294,8 @@
       $('platform-logistics').hidden = !isLaunchPlatform;
       $('orbital-hub-logistics').hidden = !isArk;
       $('demolish-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.indestructible);
+      $('selection-name').hidden = isBuilding;
+      $('building-name').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
@@ -326,6 +328,9 @@
         const definition = BuildingData.get(item.type);
         $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
         $('selection-name').textContent = item.customName || definition?.label || 'BÂTIMENT';
+        // The name is edited in place.
+        const nameInput = $('building-name');
+        if (document.activeElement !== nameInput) nameInput.value = item.customName || '';
         $('selection-info').textContent = '';
         $('selection-meta').textContent = '';
         if (!isLaunchPlatform) renderBuildingReadout(item);

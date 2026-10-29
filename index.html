@@ -32,6 +32,7 @@
   <aside class="inspector panel" id="inspector" hidden>
     <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <h2 id="selection-name">Néréide</h2>
+    <input class="building-name-input" id="building-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du bâtiment" hidden>
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <div class="building-readout" id="building-readout" hidden>
@@ -182,6 +183,7 @@
   <script src="src/gameplay/buildingPlacement.js"></script>
   <script src="src/gameplay/colonyZone.js"></script>
   <script src="src/gameplay/progression.js"></script>
+  <script src="src/gameplay/buildingNames.js"></script>
   <script src="src/gameplay/roadPlacement.js"></script>
   <script src="src/gameplay/industry.js"></script>
   <script src="src/gameplay/logistics.js"></script>
