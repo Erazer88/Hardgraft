@@ -122,9 +122,9 @@
         pauseMs: 500,
         // At most this many links pulse at once (the most recently used).
         maxLinks: 12,
-        cruiseMsPerKm: 8,
+        cruiseMsPerKm: 2.7,
         startSpeedFraction: .2,
-        accelerationMs: 800,
+        accelerationMs: 270,
         seaSlowdown: 4,
         // Tail length: the distance covered in this time, in screen pixels at most.
         tailMs: 90,
