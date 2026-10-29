@@ -187,8 +187,8 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-link.pending{stroke:#efa35a;stroke-dasharray:6 6}
 .factory-nodes{position:absolute;inset:0;pointer-events:none}
 .factory-node{position:absolute;z-index:1;width:258px;height:162px;overflow:visible;border:1px solid #506d8560;border-radius:6px;background:linear-gradient(145deg,#18283d,#101d30 72%);box-shadow:0 8px 22px #0005;color:#c8d6e1;pointer-events:auto;touch-action:none;user-select:none}
-.factory-node-output-dock{height:222px}
-.factory-node-input-dock{height:252px}
+.factory-node-output-dock{height:252px}
+.factory-node-input-dock{height:282px}
 .factory-received-stock{display:block;max-height:28px;overflow:auto;color:#8fcabf;font-size:8px;line-height:12px;touch-action:pan-y;user-select:text}
 .factory-node.selected{border-color:#71c4dfb3;box-shadow:0 0 0 2px #44b9da26,0 8px 24px #0006}
 .factory-node-header{display:flex;align-items:center;gap:8px;height:34px;padding:5px 8px;border-bottom:1px solid #a5c3da14;cursor:grab;touch-action:none}
@@ -272,3 +272,14 @@ body[data-level="surface"] .corner-note{display:none}
 .building-name-input:hover{border-color:var(--line)}
 .building-name-input:focus{outline:none;border-color:#7fabc06b;background:#0b1928}
 @media(max-width:600px){.building-name-input{font-size:17px}}
+
+/* Jump from a dock to the plan of the building it trades with. */
+.factory-dock-jumps{display:flex;flex-wrap:wrap;gap:4px}
+.factory-dock-jumps:empty{display:none}
+.factory-dock-jump{min-height:24px;max-width:100%;padding:3px 8px;border:1px solid #78f0ff55;border-radius:3px;background:#0e2536;color:#9fe8f5;font:8px var(--mono);letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:manipulation}
+.factory-dock-jump:hover{background:#163448;border-color:#78f0ffaa}
+/* Switching between building plans. */
+.factory-editor.factory-switch-out .factory-viewport{animation:factory-switch-out .18s ease-in forwards}
+.factory-editor.factory-switch-in .factory-viewport{animation:factory-switch-in .26s ease-out}
+@keyframes factory-switch-out{to{opacity:0;transform:translateX(-6%) scale(.97)}}
+@keyframes factory-switch-in{from{opacity:0;transform:translateX(6%) scale(.97)}to{opacity:1;transform:none}}

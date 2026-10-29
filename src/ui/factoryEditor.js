@@ -3,7 +3,7 @@
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
-  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 222, inputDockHeight: 252 });
+  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 252, inputDockHeight: 282 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
   const BLOCK_ART = Object.freeze({
@@ -39,7 +39,8 @@
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
-    onAddCard = null, onRemoveCard = null, isCardAvailable = () => true } = {}) {
+    onAddCard = null, onRemoveCard = null, isCardAvailable = () => true,
+    getSources = () => [], onOpenBuilding = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -263,6 +264,7 @@
       if (select.disabled !== disabled) select.disabled = disabled;
       const title = disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
       if (select.title !== title) select.title = title;
+      updateJumps(card, machine.importResourceId ? getSources(activeBuilding, machine.importResourceId) : [], '←');
       card.querySelector('[data-received-stock]').textContent = `STOCK REÇU · ${Object.entries(stock)
         .filter(([, amount]) => amount > 0).map(([id, amount]) => `${root.OrbitResourceData.get(id)?.label || id} : ${amount} u`).join(' · ') || 'VIDE'}`;
     }
@@ -274,6 +276,24 @@
       return source && typeOf(source).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
     }
 
+    // Buttons that open the plan of the buildings a dock trades with.
+    function updateJumps(card, buildings, arrow) {
+      const holder = card?.querySelector('[data-jumps]');
+      if (!holder) return;
+      const targets = buildings.filter(building => building && root.OrbitBuildingData.processTypes.includes(building.type)).slice(0, 3);
+      const key = targets.map(building => `${building.id}:${building.customName}`).join('|');
+      if (holder.dataset.key === key) return;
+      holder.dataset.key = key;
+      holder.replaceChildren(...targets.map(building => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'factory-dock-jump'; button.dataset.jumpBuilding = building.id;
+        const name = building.customName || root.OrbitBuildingData.get(building.type)?.label || 'Bâtiment';
+        button.textContent = arrow === '←' ? `← ${name}` : `${name} →`;
+        button.setAttribute('aria-label', `Ouvrir les cartes de ${name}`);
+        return button;
+      }));
+    }
+
     function updateDockDestination(machine) {
       if (!typeOf(machine).externalOutput) return;
       const select = cards.get(machine.id)?.querySelector('[data-dock-destination]');
@@ -281,6 +301,7 @@
       const resourceId = connectedDockResource(machine);
       const options = getDestinations(activeBuilding) || [];
       const selected = resourceId ? activeBuilding?.dockDestinations?.[resourceId] || '' : '';
+      updateJumps(cards.get(machine.id), selected ? [options.find(option => option.id === selected)] : [], '→');
       const routeKey = JSON.stringify([resourceId, options.map(option => option.id), selected]);
       if (select.dataset.routeKey === routeKey) return;
       select.dataset.routeKey = routeKey;
@@ -359,7 +380,8 @@
         if (def.externalInput) select.dataset.dockResource = machine.id;
         else select.dataset.dockDestination = machine.id;
         select.setAttribute('aria-label', def.externalInput ? 'Choisir la ressource reçue à envoyer aux machines' : 'Choisir le bâtiment destinataire pour cette ressource');
-        destination.append(label, select);
+        const jumps = document.createElement('div'); jumps.className = 'factory-dock-jumps'; jumps.dataset.jumps = '';
+        destination.append(label, select, jumps);
         dockControl = destination;
       }
       const rate = document.createElement('div'); rate.className = 'factory-readout-row';
@@ -644,6 +666,24 @@
       $('factory-editor-close').focus();
     }
 
+    // Goes to another building's plan: the current one slides away, the next
+    // one comes in.
+    let switching = null;
+    function switchTo(building, savedPlan) {
+      if (editor.hidden) { open(building, savedPlan); return; }
+      clearTimeout(switching);
+      persist();
+      editor.classList.remove('factory-switch-in');
+      editor.classList.add('factory-switch-out');
+      switching = setTimeout(() => {
+        open(building, savedPlan);
+        editor.classList.remove('factory-switch-out');
+        void editor.offsetWidth;
+        editor.classList.add('factory-switch-in');
+        switching = setTimeout(() => editor.classList.remove('factory-switch-in'), 260);
+      }, 180);
+    }
+
     function close() {
       if (editor.hidden) return;
       setPaletteOpen(false);
@@ -691,6 +731,8 @@
       }
     });
     viewport.addEventListener('click', event => {
+      const jump = event.target.closest('[data-jump-building]');
+      if (jump) { onOpenBuilding?.(jump.dataset.jumpBuilding); return; }
       const button = event.target.closest('[data-remove-machine]');
       if (button) removeMachine(button.dataset.removeMachine);
     });
@@ -737,7 +779,7 @@
       status(destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
     });
 
-    return Object.freeze({ open, close, refresh, refreshProgress: refresh,
+    return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh,
       isOpen: () => !editor.hidden,
       getViewportState: () => ({ camera: viewportController.camera(), mode: viewportController.mode() }) });
   }

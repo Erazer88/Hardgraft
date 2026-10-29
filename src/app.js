@@ -47,6 +47,18 @@
         BuildingData.get(candidate.type)?.roadRequired);
     },
     isCardAvailable: definition => Progression.cardUnlocked(state, definition),
+    // Buildings sending this resource to the building: docks and depot gates.
+    getSources(building, resourceId) {
+      return state.surfaceBuildings.filter(source => source.id !== building.id && source.planetId === building.planetId &&
+        (source.dockDestinations?.[resourceId] === building.id ||
+          state.factoryPlans[source.id]?.machines?.some(machine => machine.type === 'depot_output' && machine.config?.destinationId === building.id)));
+    },
+    onOpenBuilding(buildingId) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      if (!building || !BuildingData.processTypes.includes(building.type)) return;
+      if (state.selected?.kind === 'building') state.selected = { kind: 'building', ...building };
+      factoryEditor.switchTo(building, globalThis.OrbitIndustry.ensureGraph(state, building));
+    },
     onAddCard(building, definition) {
       const payment = Construction.payCard(building, state.inventory, Construction.cardCost(definition));
       if (payment.paid) { updateUI(); persist(); }
