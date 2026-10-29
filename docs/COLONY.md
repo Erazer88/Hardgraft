@@ -31,6 +31,16 @@ Le panneau de la colonie affiche ces flux (✓ tenu, ✗ en retard).
 La population ne baisse pas et n'a pas d'autre effet pour l'instant. Les paliers
 suivants (cumuls de plusieurs ressources) viendront plus tard.
 
+## Menu de la colonie
+
+Un clic sur la colonie ouvre son propre menu (`src/ui/colonyPanel.js`) : nom modifiable,
+frise des paliers de population, contexte, quantités du palier en cours (barre,
+débit reçu et temps estimé), flux requis (débit reçu face au débit demandé, retard),
+arrivées de la dernière minute par ressource et par fournisseur, réserve, total
+consommé, zone (surface, cible, maximum) et énergie de la planète. Les débits viennent
+des totaux reçus que la logistique tient sur chaque destination (`receivedTotal`,
+`receivedFrom`, non sauvegardés), mesurés sur la dernière minute de jeu.
+
 ## Zone
 
 La colonie occupe une zone qui grandit avec ce qu'elle a consommé : 600 km² au départ,

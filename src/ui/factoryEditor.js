@@ -122,7 +122,7 @@
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
       if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
       if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
-      if (def.externalOutput) return `${fmt(def.throughput)} u/s · EXPORT`;
+      if (def.externalOutput) return 'CONNECTEUR · DÉBIT ILLIMITÉ';
       const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
       return `${throughput} · ${fmt(def.energyMW)} MW`;
     }
@@ -173,7 +173,7 @@
         return rock ? `TENEUR ${names[graded.yieldOf] || graded.yieldOf} ≈ ${Math.round((rock[graded.yieldOf] || 0) * 100)} % · ` : '';
       })() : '';
       cycleLabel.textContent = gradeText + (def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
-        : def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
+        : def.externalInput ? 'CONNECTEUR LOGIQUE · SANS LIMITE'
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : def.source ? (def.usesGround ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')

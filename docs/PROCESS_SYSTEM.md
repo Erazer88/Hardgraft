@@ -52,8 +52,8 @@ donne pas de concentré de fer.
 | Four de réduction · fer / cuivre / silice | 2 concentrés | 1 métal brut + 1 laitier | 2 u/s | 10 MW |
 | Four à goudron | 4 roches concassées + 1 charbon | 1 goudron + 3 déchets | 2 u/s | 6 MW |
 | Laminoir | 10 fers bruts | 1 plaque de métal | 2 u/s | 8 MW |
-| Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | 6 u/s | 0 MW |
-| Dock de sortie | Une matière | Stock à envoyer par route | 6 u/s | 0 MW |
+| Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | Illimité (connecteur) | 0 MW |
+| Dock de sortie | Une matière | Stock à envoyer par route | Illimité (connecteur) | 0 MW |
 | Réserve d'eau | Réserve infinie temporaire | Eau | Sans plafond | 0 MW |
 | Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s | 2,5 / 4 MW |
 

@@ -74,7 +74,8 @@
         const target = link && byId.get(link.toMachineId);
         const available = integer(externalStock[machine.importResourceId]) + integer(machine.outputBuffer.material);
         const ready = target && (definition(target).sink || outputsReady(target));
-        machine.currentRate = available && ready && machine.outputBuffer.material < Data.config.outputCapacity ? def.throughput : 0;
+        // Docks are logical connectors: without a throughput they pass whatever fits.
+        machine.currentRate = available && ready && machine.outputBuffer.material < Data.config.outputCapacity ? def.throughput ?? Infinity : 0;
         rates.material = machine.currentRate;
       } else if (def.sink) {
         const incomingRate = graph.connections.reduce((sum, connection) => {
@@ -83,7 +84,7 @@
         }, 0);
         const inputId = def.inputPorts[0]?.id;
         const hasBufferedUnits = inputId && machine.inputBuffer[inputId] > 0;
-        machine.currentRate = def.storesResources ? incomingRate : Math.min(def.throughput,
+        machine.currentRate = def.storesResources || def.throughput == null ? incomingRate : Math.min(def.throughput,
           incomingRate > 0 || hasBufferedUnits ? Math.max(incomingRate, hasBufferedUnits ? def.throughput : 0) : 0);
       } else if (def.source) {
         const outgoing = graph.connections.find(connection => connection.fromMachineId === machine.id);
@@ -163,7 +164,8 @@
           graph.connections.some(link => link.fromMachineId === machine.id)) { machine.state = 'output_full'; return; }
       if (!integer(externalStock[resourceId]) || !machine.currentRate) { machine.state = 'waiting_input'; return; }
       machine.state = 'active';
-      machine.cycleProgress += Data.config.fixedStepSeconds * def.throughput;
+      // Without a throughput, the dock fills its buffer at once.
+      machine.cycleProgress = def.throughput == null ? Infinity : machine.cycleProgress + Data.config.fixedStepSeconds * def.throughput;
       while (machine.cycleProgress + CYCLE_EPSILON >= 1 && integer(externalStock[resourceId]) > 0 &&
           machine.outputBuffer.material < Data.config.outputCapacity) {
         addMix(machine.outputMix ||= {}, 'material', resourceId, machine.outputBuffer.material, 1, Mix?.of(externalMix, resourceId));
@@ -172,6 +174,7 @@
         machine.outputBuffer.material += 1;
         machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
       }
+      if (def.throughput == null) machine.cycleProgress = 0;
       return;
     }
     if (def.sink) {

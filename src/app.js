@@ -74,6 +74,14 @@
       return true;
     }
   });
+  const colonyPanel = globalThis.OrbitColonyPanel.create(document, {
+    onRename(buildingId, value) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      const name = BuildingNames.clean(value);
+      if (building && name) { building.customName = name; persist(); }
+    },
+    onClose() { if (state.selected?.kind === 'building' && state.selected.type === 'colony') state.selected = null; }
+  });
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -314,7 +322,7 @@
     }
     if (previousLevel !== state.level) {
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-      cancelRoadDrag();
+      cancelRoadDrag(); colonyPanel.close();
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -335,7 +343,7 @@
   function clearSelection() {
     cancelRoadDrag();
     state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-    $('inspector').hidden = true; $('toast').classList.remove('visible');
+    $('inspector').hidden = true; $('toast').classList.remove('visible'); colonyPanel.close();
   }
   function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
@@ -412,6 +420,13 @@
   function selectSurfaceBuilding(building) {
     cancelRoadDrag();
     state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
+    // The colony opens its own menu.
+    if (building.type === 'colony') {
+      state.selected = { kind: 'building', ...building, groundText: null };
+      $('inspector').hidden = true;
+      colonyPanel.open(building, state); updateUI(); return;
+    }
+    colonyPanel.close();
     state.selected = { kind: 'building', ...building, groundText: siteReadout(building) };
     hud.showSelection(state.selected, { state }); updateUI();
   }
@@ -959,6 +974,7 @@
       return;
     }
     if (e.key === 'Escape') {
+      if (colonyPanel.isOpen()) { colonyPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
@@ -1085,7 +1101,7 @@
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
-    if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); lastHUD = now; }
+    if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); lastHUD = now; }
     requestAnimationFrame(frame);
   }
 

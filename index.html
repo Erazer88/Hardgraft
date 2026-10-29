@@ -60,6 +60,13 @@
     <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
   </aside>
+  <section class="colony-panel panel" id="colony-panel" role="dialog" aria-label="Colonie" hidden>
+    <header class="colony-panel-header">
+      <div><span>COLONIE</span><input class="building-name-input" id="colony-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom de la colonie"></div>
+      <button class="text-icon" id="colony-panel-close" aria-label="Fermer le menu de la colonie">×</button>
+    </header>
+    <div class="colony-panel-body" id="colony-panel-body"></div>
+  </section>
   <section class="factory-editor" id="factory-editor" role="dialog" aria-modal="true"
       aria-labelledby="factory-editor-title" hidden>
     <header class="factory-editor-header">
@@ -199,6 +206,7 @@
   <script src="src/ui/hud.js"></script>
   <script src="src/ui/factoryViewport.js"></script>
   <script src="src/ui/factoryEditor.js"></script>
+  <script src="src/ui/colonyPanel.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>
 </body>

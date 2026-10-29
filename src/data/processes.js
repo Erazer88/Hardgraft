@@ -143,7 +143,8 @@
   const utilities = {
     input_dock: {
       id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources du réseau routier et alimente les machines.', externalInput: true,
-      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: 6, energyMW: 0
+      // Docks are logical connectors: no throughput limit.
+      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: null, energyMW: 0
     },
     terril: {
       id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
@@ -153,7 +154,7 @@
     output_dock: {
       id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', description: 'Envoie sa ressource vers un bâtiment relié par route.', sink: true, externalOutput: true,
       inputPorts: [input('material', 'Sortie planétaire', null, { acceptsAnyResource: true })],
-      outputPorts: [], recipe: null, throughput: 6, energyMW: 0
+      outputPorts: [], recipe: null, throughput: null, energyMW: 0
     }
   };
 

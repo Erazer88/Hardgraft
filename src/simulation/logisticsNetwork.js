@@ -68,6 +68,12 @@
         destination.launchReceivedTotal ||= {};
         destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
       }
+      // Running totals received, overall and per source (runtime only), from
+      // which panels derive live rates.
+      destination.receivedTotal ||= {};
+      destination.receivedTotal[resourceId] = (destination.receivedTotal[resourceId] || 0) + amount;
+      const fromSource = (destination.receivedFrom ||= {})[source.id] ||= {};
+      fromSource[resourceId] = (fromSource[resourceId] || 0) + amount;
       flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
       transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
       return true;
