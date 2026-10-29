@@ -125,7 +125,7 @@
         cruiseMsPerKm: 2.7,
         startSpeedFraction: .2,
         accelerationMs: 270,
-        seaSlowdown: 4,
+        seaSlowdown: 1,
         // Tail length: the distance covered in this time, in screen pixels at most.
         tailMs: 90,
         tailMaxPx: 46,

@@ -83,8 +83,8 @@ le dernier instant où chaque liaison a servi (état d'exécution, non sauvegard
 `vehicleRenderer.js` fait courir des impulsions lumineuses sur le plus court chemin
 construit, de l'angle de la balise source à celui de la destination, tant que la
 liaison a servi depuis moins de `render.transit.activeSeconds`. Chaque impulsion part
-lentement puis accélère jusqu'à une vitesse de croisière plafonnée (`cruiseMsPerKm`, quatre
-fois plus lente sur les voies maritimes, `seaSlowdown`) jusqu'à « percuter » la balise cible, marquée
+lentement puis accélère jusqu'à une vitesse de croisière plafonnée (`cruiseMsPerKm`, la
+même sur les voies maritimes ; `seaSlowdown` peut les ralentir) jusqu'à « percuter » la balise cible, marquée
 d'un anneau qui s'élargit. Une seule impulsion circule à la fois par liaison : la
 suivante part après l'impact (`pauseMs`), au plus tôt toutes les `intervalMs` ; seules
 les `maxLinks` liaisons les plus récemment utilisées s'animent.
