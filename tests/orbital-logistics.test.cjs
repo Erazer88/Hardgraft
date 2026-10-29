@@ -645,6 +645,12 @@ test('goods cross the sea between two ports: trucks, ship, trucks', () => {
   const state = { surfaceBuildings: [mine, portA, portB, factory], roadNetworks: { [planetId]: network },
     factoryPlans: { [factory.id]: { machines: [{ type: 'input_dock' }] } } };
   assert.equal(Network.hasBuiltLandPath(network, mine.id, factory.id), true);
+  const pulse = vm.createContext({});
+  vm.runInContext(readFileSync(resolve(__dirname, '../src/rendering/vehicleRenderer.js'), 'utf8'), pulse);
+  const route = pulse.OrbitVehicleRenderer.routeBetween(network, mine.id, factory.id);
+  assert.ok(route && route.length >= 4, 'transfer pulses follow the road, the sea lane and the road again');
+  assert.deepEqual(plain(route[0]), { x: 0, y: 10 });
+  assert.deepEqual(plain(route.at(-1)), { x: 400, y: 10 });
   Network.transferDockStockToBuildings(state);
   assert.equal(factory.inventory.coal, 6);
 });
