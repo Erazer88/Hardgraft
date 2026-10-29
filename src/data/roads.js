@@ -116,7 +116,12 @@
       // the link stays active.
       transit: Object.freeze({
         activeSeconds: 5,
+        // One pulse per link at a time: a new one leaves at most every
+        // intervalMs, and never before the last has struck (+ pauseMs).
         intervalMs: 1300,
+        pauseMs: 500,
+        // At most this many links pulse at once (the most recently used).
+        maxLinks: 12,
         cruiseMsPerKm: 8,
         startSpeedFraction: .2,
         accelerationMs: 800,

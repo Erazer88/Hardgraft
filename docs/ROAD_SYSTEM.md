@@ -85,7 +85,9 @@ construit, de l'angle de la balise source à celui de la destination, tant que l
 liaison a servi depuis moins de `render.transit.activeSeconds`. Chaque impulsion part
 lentement puis accélère jusqu'à une vitesse de croisière plafonnée (`cruiseMsPerKm`, quatre
 fois plus lente sur les voies maritimes, `seaSlowdown`) jusqu'à « percuter » la balise cible, marquée
-d'un anneau qui s'élargit ; elles reviennent à intervalle régulier (`intervalMs`).
+d'un anneau qui s'élargit. Une seule impulsion circule à la fois par liaison : la
+suivante part après l'impact (`pauseMs`), au plus tôt toutes les `intervalMs` ; seules
+les `maxLinks` liaisons les plus récemment utilisées s'animent.
 Rien ne court quand le jeu est en pause.
 
 Les routes terrestres sont un fil lumineux : deux passes de halo cyan

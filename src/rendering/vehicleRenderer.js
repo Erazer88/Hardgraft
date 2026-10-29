@@ -112,8 +112,10 @@
     const buildings = new Map((state.surfaceBuildings || []).map(building => [building.id, building]));
     const corner = root.OrbitRoadRenderer?.beaconCorner;
     const ctx = frame.context, now = frame.now || 0;
-    for (const [key, lastTime] of Object.entries(activity)) {
-      if (simulationTime - lastTime > style.activeSeconds) continue;
+    // Only the most recently used links pulse, so a busy colony stays readable.
+    const links = Object.entries(activity).filter(([, lastTime]) => simulationTime - lastTime <= style.activeSeconds)
+      .sort((a, b) => b[1] - a[1]).slice(0, style.maxLinks);
+    for (const [key] of links) {
       const [sourceId, destinationId] = key.split('>');
       const source = buildings.get(sourceId), destination = buildings.get(destinationId);
       if (!source || !destination || source.planetId !== frame.planet.id) continue;
@@ -139,13 +141,15 @@
         const span = effective[index] - effective[index - 1] || 1, t = Math.max(0, Math.min(1, (distance - effective[index - 1]) / span));
         return lengths[index - 1] + (lengths[index] - lengths[index - 1]) * t;
       };
-      const offset = pairPhase(key) * style.intervalMs;
+      // One pulse at a time per link: the next leaves once the last has struck
+      // (and a short pause), however long the route.
+      const period = Math.max(style.intervalMs, duration + style.impactMs + style.pauseMs);
+      const offset = pairPhase(key) * period;
       ctx.save();
       ctx.lineCap = 'round';
-      // Every pulse still running or striking its target.
-      const latest = Math.floor((now - offset) / style.intervalMs);
-      for (let pulse = latest; pulse >= 0 && now - (offset + pulse * style.intervalMs) < duration + style.impactMs; pulse--) {
-        const age = now - (offset + pulse * style.intervalMs);
+      const latest = Math.floor((now - offset) / period);
+      for (let pulse = latest; pulse >= 0 && now - (offset + pulse * period) < duration + style.impactMs; pulse--) {
+        const age = now - (offset + pulse * period);
         if (age < 0) continue;
         if (age >= duration) {
           // The strike: a ring that widens and fades on the destination beacon.
