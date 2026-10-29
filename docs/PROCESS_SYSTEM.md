@@ -42,7 +42,7 @@ donne pas de concentré de fer.
 | --- | --- | --- | ---: | ---: |
 | Foreuse (une par extracteur) | Sol de l'Extracteur | Roche brute (composition du sol) | 6 u/s | 2,5 MW |
 | Concasseur | Roche brute | Roche concassée, 1:1 | 6 u/s | 2 MW |
-| Broyeur | Roche concassée | Roche broyée, 1:1 | 2 u/s | 6 MW |
+| Broyeur | Roche concassée | Roche broyée, 1:1 | 6 u/s | 6 MW |
 | Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 2 u/s | 3 MW |
 | Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | 2 u/s | 3 MW |
 | Trieuse de carbone | 5 roches broyées | Charbon selon la teneur + résidus | 2 u/s | 3 MW |

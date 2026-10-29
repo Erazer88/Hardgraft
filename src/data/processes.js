@@ -69,7 +69,7 @@
     grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit la roche concassée en poudre fine, prête à séparer.',
       inputPorts: [input('rock', 'Roche concassée', 'crushed_rock')], outputPorts: [output('rock', 'Roche broyée', 'ground_rock')],
       recipe: { inputs: [rockInput()], outputs: [{ outputId: 'rock', resourceId: 'ground_rock', amount: 1 }] },
-      throughput: 2, energyMW: 6 },
+      throughput: 6, energyMW: 6 },
     magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
       description: 'Attire le fer hors de la roche broyée, selon sa teneur ; le reste part en résidus.',
       ...separator('iron'), throughput: 2, energyMW: 3 },
