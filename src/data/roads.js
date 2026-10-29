@@ -110,15 +110,20 @@
       marineOpacity: .85,
       marineWidthPx: 2.4,
       marineDashPx: Object.freeze([.1, 5.5]),
-      // Transfers along a road: light pulses that start slowly, accelerate
-      // and strike the destination beacon, while the link stays active.
+      // Transfers along a road: light pulses that start slowly, accelerate up
+      // to a cruise speed they never exceed (cruiseMsPerKm on land, seaSlowdown
+      // times slower on sea lanes) and strike the destination beacon, while
+      // the link stays active.
       transit: Object.freeze({
         activeSeconds: 5,
         intervalMs: 1300,
-        durationMs: Object.freeze([700, 1700]),
-        durationPerKm: 3,
-        easePower: 2.6,
-        tailPx: 46,
+        cruiseMsPerKm: 8,
+        startSpeedFraction: .2,
+        accelerationMs: 800,
+        seaSlowdown: 4,
+        // Tail length: the distance covered in this time, in screen pixels at most.
+        tailMs: 90,
+        tailMaxPx: 46,
         tailSteps: 10,
         headRadiusPx: 2.6,
         color: '#f4feff',

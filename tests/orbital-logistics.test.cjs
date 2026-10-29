@@ -649,8 +649,13 @@ test('goods cross the sea between two ports: trucks, ship, trucks', () => {
   vm.runInContext(readFileSync(resolve(__dirname, '../src/rendering/vehicleRenderer.js'), 'utf8'), pulse);
   const route = pulse.OrbitVehicleRenderer.routeBetween(network, mine.id, factory.id);
   assert.ok(route && route.length >= 4, 'transfer pulses follow the road, the sea lane and the road again');
-  assert.deepEqual(plain(route[0]), { x: 0, y: 10 });
-  assert.deepEqual(plain(route.at(-1)), { x: 400, y: 10 });
+  assert.deepEqual(plain(route[0]), { x: 0, y: 10, sea: false });
+  assert.deepEqual(plain(route.at(-1)), { x: 400, y: 10, sea: false });
+  assert.ok(route.some(point => point.sea) && route.some(point => !point.sea), 'the sea stretch is marked');
+  const style = { cruiseMsPerKm: 8, startSpeedFraction: .2, accelerationMs: 800 };
+  const travel = pulse.OrbitVehicleRenderer.travelTime;
+  assert.ok(Math.abs(travel(style, 1000) - travel(style, 500) - 500 * 8) < 1e-6, 'past the ramp, speed holds at its cap');
+  assert.ok(travel(style, 10) > 10 * 8, 'the start is slower than the cruise');
   Network.transferDockStockToBuildings(state);
   assert.equal(factory.inventory.coal, 6);
 });

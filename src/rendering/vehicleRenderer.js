@@ -59,8 +59,10 @@
       const legs = [];
       for (let node = reached; previous.has(node); node = previous.get(node).from) legs.unshift(previous.get(node).edge);
       points = [];
+      // Each point remembers whether the stretch leading to it is at sea.
       for (const leg of legs) {
-        const part = leg.forward ? leg.segment.points : leg.segment.points.slice().reverse();
+        const sea = leg.segment.routeType === 'marine';
+        const part = (leg.forward ? leg.segment.points : leg.segment.points.slice().reverse()).map(point => ({ x: point.x, y: point.y, sea }));
         points.push(...(points.length ? part.slice(1) : part));
       }
     }
@@ -83,6 +85,26 @@
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   }
 
+  // Distance covered (in effective km) after `time` ms: the speed rises from
+  // startSpeedFraction to the cruise speed over accelerationMs, then holds.
+  function travelled(style, time) {
+    const cruise = 1 / style.cruiseMsPerKm, ramp = style.accelerationMs, start = style.startSpeedFraction;
+    if (time <= ramp) return cruise * (start * time + (1 - start) * time * time / (2 * ramp));
+    return cruise * (start * ramp + (1 - start) * ramp / 2) + cruise * (time - ramp);
+  }
+
+  function travelTime(style, distance) {
+    const cruise = 1 / style.cruiseMsPerKm, ramp = style.accelerationMs, start = style.startSpeedFraction;
+    const rampDistance = travelled(style, ramp);
+    if (distance > rampDistance) return ramp + (distance - rampDistance) / cruise;
+    const a = cruise * (1 - start) / (2 * ramp), b = cruise * start;
+    return (-b + Math.sqrt(b * b + 4 * a * distance)) / (2 * a);
+  }
+
+  function speedAt(style, time) {
+    return (style.startSpeedFraction + (1 - style.startSpeedFraction) * Math.min(1, time / style.accelerationMs)) / style.cruiseMsPerKm;
+  }
+
   function render(frame) {
     const state = frame.state, network = state.roadNetworks?.[frame.planet.id], activity = state.transportActivity;
     if (!network || !activity || state.paused) return;
@@ -101,11 +123,22 @@
       const points = corner
         ? [corner(frame, source, route[0]), ...route, corner(frame, destination, route[route.length - 1])] : route;
       const screen = points.map(point => frame.project(point.x, point.y)), lengths = [0];
-      for (let i = 1; i < screen.length; i++) lengths.push(lengths[i - 1] + Math.hypot(screen[i].x - screen[i - 1].x, screen[i].y - screen[i - 1].y));
-      const total = lengths[lengths.length - 1];
-      if (total < 4) continue;
-      const routeKm = route.slice(1).reduce((sum, point, i) => sum + Math.hypot(point.x - route[i].x, point.y - route[i].y), 0);
-      const duration = Math.max(style.durationMs[0], Math.min(style.durationMs[1], style.durationMs[0] + routeKm * style.durationPerKm));
+      // Effective distance along the route: sea lanes count seaSlowdown times.
+      const effective = [0];
+      for (let i = 1; i < screen.length; i++) {
+        lengths.push(lengths[i - 1] + Math.hypot(screen[i].x - screen[i - 1].x, screen[i].y - screen[i - 1].y));
+        const km = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+        effective.push(effective[i - 1] + km * (points[i].sea ? style.seaSlowdown : 1));
+      }
+      if (lengths[lengths.length - 1] < 4) continue;
+      const routeLength = effective[effective.length - 1], duration = travelTime(style, routeLength);
+      // Screen distance at an effective distance along the route.
+      const screenAt = distance => {
+        let index = 1;
+        while (index < effective.length - 1 && effective[index] < distance) index++;
+        const span = effective[index] - effective[index - 1] || 1, t = Math.max(0, Math.min(1, (distance - effective[index - 1]) / span));
+        return lengths[index - 1] + (lengths[index] - lengths[index - 1]) * t;
+      };
       const offset = pairPhase(key) * style.intervalMs;
       ctx.save();
       ctx.lineCap = 'round';
@@ -123,10 +156,9 @@
           ctx.beginPath(); ctx.arc(center.x, center.y, style.impactRadiusPx * (.7 + impact * .9), 0, Math.PI * 2); ctx.stroke();
           continue;
         }
-        // Slow start, then a quick acceleration into the target.
-        const progress = Math.pow(age / duration, style.easePower), head = progress * total;
-        const speed = style.easePower * Math.pow(age / duration, style.easePower - 1);
-        const tail = style.tailPx * Math.min(1.6, .25 + speed * .55);
+        // Slow start, then a capped cruise speed into the target.
+        const reached = Math.min(routeLength, travelled(style, age)), head = screenAt(reached);
+        const tail = Math.min(style.tailMaxPx, head - screenAt(Math.max(0, reached - speedAt(style, age) * style.tailMs)));
         ctx.shadowColor = style.glowColor; ctx.shadowBlur = style.glowBlurPx;
         for (let step = 0; step < style.tailSteps; step++) {
           const from = Math.max(0, head - tail * (step + 1) / style.tailSteps), to = Math.max(0, head - tail * step / style.tailSteps);
@@ -145,5 +177,5 @@
     }
   }
 
-  root.OrbitVehicleRenderer = Object.freeze({ render, routeBetween });
+  root.OrbitVehicleRenderer = Object.freeze({ render, routeBetween, travelTime });
 })(globalThis);
