@@ -17,7 +17,7 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 
 | Palier | Demande | Population atteinte |
 | --- | --- | ---: |
-| 1 | 500 roches brutes | 200 |
+| 1 | 1 000 roches brutes | 200 |
 | 2 | 150 goudrons | 400 |
 | 3 | 25 plaques de métal | 800 |
 
@@ -61,5 +61,5 @@ pétrolière viendront avec les paliers suivants.
 ## Repères
 
 Avec une seule foreuse (6 u/s) reliée par route à la colonie, le palier 1 prend
-environ une minute et demie (testé). Les sauvegardes antérieures à la colonie (version 10) démarrent une
+environ trois minutes. Les sauvegardes antérieures à la colonie (version 10) démarrent une
 nouvelle partie.

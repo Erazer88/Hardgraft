@@ -17,7 +17,7 @@
     // flows are met.
     flowPerMinute: { raw_rock: 30, tar: 5, metal_plate: 1 },
     tiers: [
-      { population: 200, needs: { raw_rock: 500 } },
+      { population: 200, needs: { raw_rock: 1000 } },
       { population: 400, needs: { tar: 150 } },
       { population: 800, needs: { metal_plate: 25 } }
     ]

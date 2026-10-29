@@ -536,7 +536,7 @@ test('the colony consumes what it receives tier by tier and produces context', (
   assert.equal(colony.colony.progress.raw_rock, 300);
   assert.equal(colony.inventory.raw_rock, undefined, 'consumed rock disappears');
   assert.equal(colony.inventory.tar, 10, 'what the tier does not ask for waits in reserve');
-  colony.inventory.raw_rock = 250;
+  colony.inventory.raw_rock = ColonyData.tiers[0].needs.raw_rock - 300 + 50;
   const events = Colony.advance(state, 1);
   assert.equal(events.length, 1);
   assert.equal(colony.colony.population, ColonyData.tiers[0].population);
@@ -625,7 +625,7 @@ test('the first tier: rock drilled and sent by road reaches the colony and raise
     Colony.advance(state, 1);
   }
   assert.equal(colony.colony.tier, 1, 'the colony reached its first tier');
-  assert.ok(time >= 60 && time <= 150, `500 raw rock take about a minute and a half with one drill at 6/s (${time} s)`);
+  assert.ok(time >= 150 && time <= 240, `1 000 raw rock take about three minutes with one drill at 6/s (${time} s)`);
   assert.ok(state.powerStatus[planetId].supplyMW >= 12, 'the colony generator powers the drill');
   assert.equal(colony.colony.population, 200);
 });
