@@ -167,7 +167,14 @@
       // centered on the exact spot; roads join it at a corner. Sizes are
       // screen pixels, fixed at every zoom; the outline follows the category.
       pin: Object.freeze({
+        // Size at zoomReference (px per km); it follows the zoom
+        // (scale = (zoom / zoomReference) ^ zoomExponent, within minScale–maxScale),
+        // so beacons stay small over the whole planet and grow close up.
         headRadiusPx: 12.5,
+        zoomReference: 1.6,
+        zoomExponent: .8,
+        minScale: .45,
+        maxScale: 2.2,
         fill: '#0b1a2c',
         lineWidthPx: 1.8,
         // A dark rim under the colored outline keeps the head readable on pale strata.

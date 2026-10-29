@@ -420,7 +420,8 @@
     const localZoom = state.camera.zoom * frame.scale;
     const footprintRadius = Math.max(definition.footprint.width, definition.footprint.height) * localZoom / 2 + 7;
     // The beacon's hexagon sits on the building's spot.
-    if (Math.hypot(x - anchor.x, y - anchor.y) <= SurfaceStyle.buildings.pin.headRadiusPx + 6) return true;
+    const pinRadius = SurfaceStyle.buildings.pin.headRadiusPx * (globalThis.OrbitBuildingRenderer?.pinScale({ zoom: localZoom }) ?? 1);
+    if (Math.hypot(x - anchor.x, y - anchor.y) <= pinRadius + 6) return true;
     if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
     if (building.constructionState === 'complete') return false;
 

@@ -82,10 +82,16 @@
     ctx.beginPath(); ctx.moveTo(x - size * .7, y + size * .48); ctx.lineTo(x + size * .75, y + size * .48); ctx.stroke();
   }
 
+  // Beacon scale at this zoom: smaller far out, larger close up.
+  function pinScale(frame) {
+    const pin = Style.buildings.pin, zoom = Number.isFinite(frame?.zoom) && frame.zoom > 0 ? frame.zoom : pin.zoomReference;
+    return Math.max(pin.minScale, Math.min(pin.maxScale, (zoom / pin.zoomReference) ** pin.zoomExponent));
+  }
+
   // Beacon geometry, in screen pixels: the hexagon sits on the building's spot.
   function pinGeometry(frame, building) {
-    const ground = frame.project(building.x, building.y);
-    return { ground, head: ground, radius: Style.buildings.pin.headRadiusPx };
+    const ground = frame.project(building.x, building.y), scale = pinScale(frame);
+    return { ground, head: ground, radius: Style.buildings.pin.headRadiusPx * scale, scale };
   }
 
   function hexagon(ctx, x, y, radius) {
@@ -99,7 +105,7 @@
   }
 
   function drawPin(frame, building, definition, ghost = false) {
-    const ctx = frame.context, pin = Style.buildings.pin, { head, radius } = pinGeometry(frame, building);
+    const ctx = frame.context, pin = Style.buildings.pin, { head, radius, scale } = pinGeometry(frame, building);
     const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
     const complete = ghost || building.constructionState === 'complete';
     const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870')
@@ -113,7 +119,7 @@
     ctx.fillStyle = pin.fill; ctx.fill();
     ctx.lineWidth = pin.lineWidthPx; ctx.setLineDash(complete ? [] : [3, 2.5]); ctx.stroke(); ctx.setLineDash([]);
     ctx.shadowBlur = 0;
-    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx, pin.glyphColor, definition.icon, pin.glyphLineWidthPx);
+    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx * scale, pin.glyphColor, definition.icon, pin.glyphLineWidthPx * Math.sqrt(scale));
     if (!complete) {
       // Construction progress runs around the head.
       const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
@@ -152,7 +158,7 @@
       ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
       ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(`${definition.label} · EMPLACEMENT ${frame.state.placement?.valid ? 'VALIDE' : 'INVALIDE'}`,
-        head.x + Style.buildings.pin.headRadiusPx + 6, head.y);
+        head.x + pinGeometry(frame, building).radius + 6, head.y);
       ctx.restore();
     }
   }
@@ -168,7 +174,7 @@
     ctx.globalAlpha = 1;
     ctx.font = `${pin.readoutSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const y = ground.y + pin.headRadiusPx + 8, width = ctx.measureText(text).width + 14;
+    const y = ground.y + pinGeometry(frame, building).radius + 8, width = ctx.measureText(text).width + 14;
     ctx.fillStyle = pin.readoutFill;
     ctx.beginPath(); ctx.roundRect(ground.x - width / 2, y - 3, width, pin.readoutSizePx + 7, 4); ctx.fill();
     ctx.strokeStyle = color; ctx.lineWidth = .8; ctx.stroke();
@@ -284,7 +290,7 @@
     ctx.save();
     ctx.font = `600 ${style.labelSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const y = head.y + pin.headRadiusPx + 6, width = ctx.measureText(text).width + 12;
+    const y = head.y + pinGeometry(frame, building).radius + 6, width = ctx.measureText(text).width + 12;
     ctx.fillStyle = pin.readoutFill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - 3, width, style.labelSizePx + 7, 4); ctx.fill();
     ctx.fillStyle = pin.categoryColors.colony; ctx.fillText(text, head.x, y + 1);
     ctx.restore();
@@ -392,5 +398,5 @@
     }
   }
 
-  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards, pinGeometry });
+  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards, pinGeometry, pinScale });
 })(globalThis);

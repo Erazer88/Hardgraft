@@ -184,7 +184,7 @@
   // The beacon corner a road joins: the hexagon corner facing its port, in
   // world units (the beacon has a fixed screen size).
   function beaconCorner(frame, building, toward) {
-    const radius = root.OrbitSurfaceStyle?.buildings?.pin?.headRadiusPx || 0;
+    const radius = (root.OrbitSurfaceStyle?.buildings?.pin?.headRadiusPx || 0) * (root.OrbitBuildingRenderer?.pinScale(frame) ?? 1);
     const direction = Math.atan2(toward.y - building.y, toward.x - building.x);
     const corner = Math.PI / 6 + Math.round((direction - Math.PI / 6) / (Math.PI / 3)) * Math.PI / 3;
     return { x: building.x + Math.cos(corner) * radius / frame.zoom, y: building.y + Math.sin(corner) * radius / frame.zoom };
