@@ -164,14 +164,21 @@
       cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
       const held = Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0);
-      cycleLabel.textContent = def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
+      // A separator shows the grade of the rock it works: nothing comes out of barren rock.
+      const graded = def.recipe?.outputs.find(item => item.yieldOf);
+      const gradeText = graded ? (() => {
+        const rock = machine.inputMix?.[def.recipe.inputs[0].inputId];
+        const names = { iron: 'FER', copper: 'CUIVRE', silicon: 'SILICE', carbon: 'CARBONE' };
+        return rock ? `TENEUR ${names[graded.yieldOf] || graded.yieldOf} ≈ ${Math.round((rock[graded.yieldOf] || 0) * 100)} % · ` : '';
+      })() : '';
+      cycleLabel.textContent = gradeText + (def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
         : def.externalInput ? `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : def.source ? (def.usesGround ? 'EXTRACTION CONTINUE' : 'ALIMENTATION CONTINUE')
         : def.externalOutput ? 'TRANSFERT VERS LA PLANÈTE'
         : def.sink ? `DESTRUCTION · CYCLE ${Math.floor(machine.cycleProgress * 100)} %`
-          : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`;
+          : `CYCLE · ${Math.floor(machine.cycleProgress * 100)} %`);
       for (const port of def.inputPorts) {
         const label = card.querySelector(`[data-input-label="${port.id}"]`);
         if (label) {
