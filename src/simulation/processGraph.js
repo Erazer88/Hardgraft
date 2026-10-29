@@ -158,6 +158,10 @@
   function addMachine(graph, value) {
     const machine = createMachine(value, graph.geology?.resourceId);
     if (!machine || graph.machines.some(item => item.id === machine.id)) return { ok: false, reason: 'Machine invalide.' };
+    const limit = definitionOf(machine).maxPerBuilding;
+    if (limit && graph.machines.filter(item => item.type === machine.type).length >= limit) {
+      return { ok: false, reason: `${definitionOf(machine).label} : ${limit} par bâtiment au plus.` };
+    }
     graph.machines.push(machine);
     return { ok: true, machine };
   }

@@ -52,7 +52,9 @@
 
   const templates = {
     drill: { id: 'drill', label: 'FOREUSE', mark: 'FO', description: 'Extrait la roche du sol ; elle garde la composition du terrain.', source: true, usesGround: true,
-      inputPorts: [], outputPorts: [output('rock', 'Roche brute', 'raw_rock')], recipe: null, throughput: null, energyMW: 2.5 },
+      // One drill per extractor (maxPerBuilding); extractors may stand side by side.
+      inputPorts: [], outputPorts: [output('rock', 'Roche brute', 'raw_rock')], recipe: null, throughput: 6, energyMW: 2.5,
+      maxPerBuilding: 1 },
     oil_pump: { id: 'oil_pump', label: 'POMPE PÉTROLIÈRE', mark: 'PP', description: 'Pompe le pétrole brut des fonds marins.', source: true, usesGround: true,
       inputPorts: [], outputPorts: [output('raw_oil', 'Pétrole brut', 'raw_oil')], recipe: null,
       throughput: 2, energyMW: 2.5 },
@@ -62,7 +64,8 @@
     crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en roche concassée, sans séparer les matières.',
       inputPorts: [input('rock', 'Roche brute', 'raw_rock')], outputPorts: [output('rock', 'Roche concassée', 'crushed_rock')],
       recipe: { inputs: [rockInput()], outputs: [{ outputId: 'rock', resourceId: 'crushed_rock', amount: 1 }] },
-      throughput: 2, energyMW: 2 },
+      // Matched to the drill it sits next to.
+      throughput: 6, energyMW: 2 },
     grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit la roche concassée en poudre fine, prête à séparer.',
       inputPorts: [input('rock', 'Roche concassée', 'crushed_rock')], outputPorts: [output('rock', 'Roche broyée', 'ground_rock')],
       recipe: { inputs: [rockInput()], outputs: [{ outputId: 'rock', resourceId: 'ground_rock', amount: 1 }] },
@@ -140,7 +143,7 @@
   const utilities = {
     input_dock: {
       id: 'input_dock', label: 'QUAI D’ENTRÉE', mark: 'QE', description: 'Reçoit les ressources du réseau routier et alimente les machines.', externalInput: true,
-      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: 2, energyMW: 0
+      inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: 6, energyMW: 0
     },
     terril: {
       id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
@@ -150,7 +153,7 @@
     output_dock: {
       id: 'output_dock', label: 'DOCK DE SORTIE', mark: 'DS', description: 'Envoie sa ressource vers un bâtiment relié par route.', sink: true, externalOutput: true,
       inputPorts: [input('material', 'Sortie planétaire', null, { acceptsAnyResource: true })],
-      outputPorts: [], recipe: null, throughput: 2, energyMW: 0
+      outputPorts: [], recipe: null, throughput: 6, energyMW: 0
     }
   };
 
@@ -198,9 +201,11 @@
     depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 }
   };
 
-  // Rock lines are the same everywhere: the ground decides what they yield.
-  // Furnaces are listed once per metal.
-  const rockCatalog = ['drill', 'crusher', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
+  // Each card belongs to one kind of building: the extractor drills and
+  // crushes on site, the factory grinds, sorts, washes and smelts. Only the
+  // docks appear in both. Furnaces are listed once per metal.
+  const extractorCatalog = ['drill', 'crusher', 'output_dock'];
+  const factoryCatalog = ['input_dock', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
     'water_supply', 'silicon_washer', 'silicon_dryer', 'carbon_washer', ['reduction_furnace', 'iron'],
     ['reduction_furnace', 'copper'], ['reduction_furnace', 'silicon'], 'tar_furnace', 'rolling_mill', 'output_dock'];
   const oilCatalog = ['oil_pump', 'triphasic_separator', 'output_dock'];
@@ -276,7 +281,7 @@
     return resourceId ? 'rock' : null;
   }
   const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
-  freeze(config); freeze(materials); freeze(rockCatalog); freeze(oilCatalog); freeze(templates); freeze(depotCards); freeze(waterCatalog); freeze(cardCosts);
+  freeze(config); freeze(materials); freeze(extractorCatalog); freeze(factoryCatalog); freeze(oilCatalog); freeze(templates); freeze(depotCards); freeze(waterCatalog); freeze(cardCosts);
 
   root.OrbitProcessData = Object.freeze({
     config, definitions, utilities: frozenUtilities, statuses, materials,
@@ -291,8 +296,8 @@
       }
       const entry = item => Array.isArray(item) ? get(item[0], item[1]) : get(item, 'rock');
       if (buildingType === 'oil_platform') return oilCatalog.map(type => get(type, 'oil')).filter(Boolean);
-      if (buildingType === 'extractor') return rockCatalog.map(entry).filter(Boolean);
-      if (buildingType === 'factory') return [get('input_dock', 'rock'), ...rockCatalog.filter(item => item !== 'drill').map(entry)].filter(Boolean);
+      if (buildingType === 'extractor') return extractorCatalog.map(entry).filter(Boolean);
+      if (buildingType === 'factory') return factoryCatalog.map(entry).filter(Boolean);
       return [];
     }
   });

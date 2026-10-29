@@ -60,6 +60,6 @@ pétrolière viendront avec les paliers suivants.
 
 ## Repères
 
-Avec une seule foreuse reliée par route à la colonie, le palier 1 prend environ
-4 minutes (testé). Les sauvegardes antérieures à la colonie (version 10) démarrent une
+Avec une seule foreuse (6 u/s) reliée par route à la colonie, le palier 1 prend
+environ une minute et demie (testé). Les sauvegardes antérieures à la colonie (version 10) démarrent une
 nouvelle partie.

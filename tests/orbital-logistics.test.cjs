@@ -625,7 +625,7 @@ test('the first tier: rock drilled and sent by road reaches the colony and raise
     Colony.advance(state, 1);
   }
   assert.equal(colony.colony.tier, 1, 'the colony reached its first tier');
-  assert.ok(time >= 200 && time <= 300, `500 raw rock take about four minutes with one drill (${time} s)`);
+  assert.ok(time >= 60 && time <= 150, `500 raw rock take about a minute and a half with one drill at 6/s (${time} s)`);
   assert.ok(state.powerStatus[planetId].supplyMW >= 12, 'the colony generator powers the drill');
   assert.equal(colony.colony.population, 200);
 });

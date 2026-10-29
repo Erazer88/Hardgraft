@@ -54,15 +54,15 @@ function advance(graph, seconds, context = { energyUnlimited: true }) {
 const integral = graph => graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
   .every(Number.isInteger));
 
-test('rock lines are the same everywhere; furnaces come once per metal', () => {
-  assert.deepEqual(plain(Data.catalog('extractor').map(def => def.contextResourceId ? `${def.id}:${def.contextResourceId}` : def.id)), [
-    'drill', 'crusher', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator', 'water_supply',
-    'silicon_washer', 'silicon_dryer', 'carbon_washer', 'reduction_furnace:iron', 'reduction_furnace:copper',
-    'reduction_furnace:silicon', 'tar_furnace', 'rolling_mill', 'output_dock'
-  ]);
-  const factory = Data.catalog('factory').map(def => def.id);
-  assert.equal(factory[0], 'input_dock');
-  assert.equal(factory.includes('drill'), false, 'only extractors drill');
+test('extractors drill and crush, factories do the rest; only docks are shared; furnaces come once per metal', () => {
+  const name = def => def.contextResourceId ? `${def.id}:${def.contextResourceId}` : def.id;
+  assert.deepEqual(plain(Data.catalog('extractor').map(name)), ['drill', 'crusher', 'output_dock']);
+  const factory = Data.catalog('factory').map(name);
+  assert.deepEqual(plain(factory), ['input_dock', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
+    'water_supply', 'silicon_washer', 'silicon_dryer', 'carbon_washer', 'reduction_furnace:iron', 'reduction_furnace:copper',
+    'reduction_furnace:silicon', 'tar_furnace', 'rolling_mill', 'output_dock']);
+  const shared = Data.catalog('extractor').map(name).filter(id => factory.includes(id));
+  assert.deepEqual(plain(shared), ['output_dock'], 'no processing card in both');
   assert.deepEqual(plain(Data.catalog('oil_platform').map(def => def.id)), ['oil_pump', 'triphasic_separator', 'output_dock']);
   assert.deepEqual(plain(Data.catalog('waste_heap').map(def => def.id)), ['input_dock', 'reprocessor', 'incinerator', 'output_dock']);
   for (const def of [...Data.catalog('factory'), ...Data.catalog('extractor'), ...Data.catalog('oil_platform')]) {
@@ -71,7 +71,8 @@ test('rock lines are the same everywhere; furnaces come once per metal', () => {
       assert.ok(Number.isInteger(part.amount) && part.amount > 0, `${def.id} quantities are positive integers`);
     }
   }
-  assert.equal(Data.get('drill').throughput, null, 'the drill has no nominal rate ceiling');
+  assert.equal(Data.get('drill').throughput, 6);
+  assert.equal(Data.get('drill').maxPerBuilding, 1);
   assert.equal(Data.get('drill').outputPorts[0].resourceId, 'raw_rock');
   assert.equal(Data.get('reduction_furnace', 'copper').label, 'FOUR DE RÉDUCTION · CUIVRE');
   assert.equal(Data.get('reduction_furnace', 'rock').contextResourceId, 'iron', 'a furnace defaults to iron');
@@ -99,13 +100,13 @@ test('old industrial plans reset without migrating their graph schema', () => {
   assert.deepEqual(plain(reset.machines), []);
 });
 
-test('the crusher processes two whole units per second and the rock keeps its composition', () => {
+test('the crusher processes six whole units per second and the rock keeps its composition', () => {
   const graph = Graph.create(), crusher = machine(graph, 'crusher', 'crusher');
-  crusher.inputBuffer.rock = 4;
+  crusher.inputBuffer.rock = 10;
   crusher.inputMix = { rock: { iron: .2, rock: .8 } };
   advance(graph, 1);
-  assert.equal(crusher.inputBuffer.rock, 2);
-  assert.equal(crusher.outputBuffer.rock, 2);
+  assert.equal(crusher.inputBuffer.rock, 4);
+  assert.equal(crusher.outputBuffer.rock, 6);
   assert.deepEqual(plain(crusher.outputMix.rock), { iron: .2, rock: .8 });
 });
 
@@ -205,15 +206,15 @@ test('carbon washing and petroleum separation keep their fixed yields', () => {
   assert.equal(separator.outputBuffer.waste, 1);
 });
 
-test('the crusher is the line bottleneck and energy shortage scales it down', () => {
+test('the grinder is the line bottleneck and energy shortage scales it down', () => {
   const graph = chain();
   advance(graph, 10); advance(graph, 10);
-  assert.equal(graph.machines.find(item => item.id === 'crusher').currentRate, 2);
+  assert.equal(graph.machines.find(item => item.id === 'grinder').currentRate, 2);
   assert.ok(graph.machines.find(item => item.id === 'furnace').outputBuffer.product > 0);
   const starved = chain();
   advance(starved, 5, { energyAvailableMW: Simulation.demand(starved) / 2 });
-  const starvedRate = starved.machines.find(item => item.id === 'crusher').currentRate;
-  assert.ok(starvedRate > 0 && starvedRate < 2, `half the power slows the crusher (${starvedRate})`);
+  const starvedRate = starved.machines.find(item => item.id === 'grinder').currentRate;
+  assert.ok(starvedRate > 0 && starvedRate < 2, `half the power slows the grinder (${starvedRate})`);
   assert.ok(integral(graph) && integral(starved));
 });
 
@@ -227,7 +228,7 @@ test('an unconnected byproduct can fill its buffer and stops the recipe safely',
 
 test('machines show the four essential states and stop without power', () => {
   const graph = Graph.create(), crusher = machine(graph, 'crusher', 'crusher');
-  crusher.inputBuffer.rock = 2;
+  crusher.inputBuffer.rock = 10;
   advance(graph, .5, { energyAvailableMW: 0 });
   assert.equal(crusher.state, 'no_energy');
   advance(graph, .5);
@@ -499,4 +500,12 @@ test('an output dock takes several links of one same resource, never two resourc
   const state = { seed: 'docks', surfaceBuildings: [building], factoryPlans: { factory: graph } };
   Industry.advance(state, .1);
   assert.equal(building.dockStock.crushed_rock, 7);
+});
+
+test('one drill per extractor', () => {
+  const graph = Graph.create({ geology: { resourceId: 'rock', composition: IRON_ROCK } });
+  machine(graph, 'drill', 'drill');
+  const second = Graph.addMachine(graph, { id: 'drill-2', type: 'drill', x: 0, y: 0 });
+  assert.equal(second.ok, false);
+  assert.match(second.reason, /1 par bâtiment/);
 });

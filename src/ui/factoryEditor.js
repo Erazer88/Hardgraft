@@ -537,6 +537,8 @@
         processingResource())) {
         // Cards appear as the colony needs them.
         if (!isCardAvailable(def)) continue;
+        // A card with a per-building limit (one drill) leaves the menu once placed.
+        if (def.maxPerBuilding && machines.filter(item => item.type === def.id).length >= def.maxPerBuilding) continue;
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'factory-block-add'; button.dataset.addMachine = def.id;
         if (def.contextResourceId) button.dataset.resourceId = def.contextResourceId;

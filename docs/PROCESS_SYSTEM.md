@@ -40,8 +40,8 @@ donne pas de concentré de fer.
 
 | Carte | Entrée | Sortie | Débit | Énergie |
 | --- | --- | --- | ---: | ---: |
-| Foreuse | Sol de l'Extracteur | Roche brute (composition du sol) | Sans plafond | 2,5 MW |
-| Concasseur | Roche brute | Roche concassée, 1:1 | 2 u/s | 2 MW |
+| Foreuse (une par extracteur) | Sol de l'Extracteur | Roche brute (composition du sol) | 6 u/s | 2,5 MW |
+| Concasseur | Roche brute | Roche concassée, 1:1 | 6 u/s | 2 MW |
 | Broyeur | Roche concassée | Roche broyée, 1:1 | 2 u/s | 6 MW |
 | Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 2 u/s | 3 MW |
 | Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | 2 u/s | 3 MW |
@@ -52,13 +52,16 @@ donne pas de concentré de fer.
 | Four de réduction · fer / cuivre / silice | 2 concentrés | 1 métal brut + 1 laitier | 2 u/s | 10 MW |
 | Four à goudron | 4 roches concassées + 1 charbon | 1 goudron + 3 déchets | 2 u/s | 6 MW |
 | Laminoir | 10 fers bruts | 1 plaque de métal | 2 u/s | 8 MW |
-| Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | 2 u/s | 0 MW |
-| Dock de sortie | Une matière | Stock à envoyer par route | 2 u/s | 0 MW |
+| Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | 6 u/s | 0 MW |
+| Dock de sortie | Une matière | Stock à envoyer par route | 6 u/s | 0 MW |
 | Réserve d'eau | Réserve infinie temporaire | Eau | Sans plafond | 0 MW |
 | Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s | 2,5 / 4 MW |
 
-Seul l'Extracteur fore ; l'Usine reçoit par son Quai d'entrée. Les deux proposent les
-mêmes cartes de transformation. Les cartes apparaissent selon les besoins de la
+Chaque carte a son bâtiment : l'Extracteur fore et concasse sur place (Foreuse, une
+seule par extracteur, Concasseur, Dock de sortie) ; l'Usine fait le reste (Quai
+d'entrée, Broyeur, séparateurs, laveuses, sécheur, fours, four à goudron, laminoir,
+Dock de sortie). Seuls les docks sont communs. Pour forer plus, on pose plusieurs
+extracteurs côte à côte. Les cartes apparaissent selon les besoins de la
 colonie (voir [`COLONY.md`](COLONY.md)) ; le réglage développeur « Tout débloquer »
 les montre toutes.
 
