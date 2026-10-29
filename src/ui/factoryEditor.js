@@ -118,7 +118,7 @@
 
     function baseSpecification(def) {
       if (def.externalInput) return 'RÉSEAU TERRESTRE';
-      if (def.gate) return `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
+      if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE · SANS LIMITE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
       if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
       if (def.storesResources) return 'STOCKAGE ILLIMITÉ';

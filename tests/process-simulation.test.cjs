@@ -206,15 +206,16 @@ test('carbon washing and petroleum separation keep their fixed yields', () => {
   assert.equal(separator.outputBuffer.waste, 1);
 });
 
-test('the separator is the line bottleneck and energy shortage scales it down', () => {
+test('the whole rock line runs at six units per second and energy shortage slows it down', () => {
   const graph = chain();
-  advance(graph, 6); advance(graph, 6);
-  assert.equal(graph.machines.find(item => item.id === 'separator').currentRate, 2);
+  advance(graph, 3);
+  for (const id of ['crusher', 'grinder', 'separator']) assert.equal(graph.machines.find(item => item.id === id).currentRate, 6, id);
+  advance(graph, 2);
   assert.ok(graph.machines.find(item => item.id === 'furnace').outputBuffer.product > 0);
   const starved = chain();
-  advance(starved, 5, { energyAvailableMW: Simulation.demand(starved) / 2 });
+  advance(starved, 3, { energyAvailableMW: Simulation.demand(starved) / 2 });
   const starvedRate = starved.machines.find(item => item.id === 'separator').currentRate;
-  assert.ok(starvedRate > 0 && starvedRate < 2, `half the power slows the separator (${starvedRate})`);
+  assert.ok(starvedRate > 0 && starvedRate < 6, `half the power slows the separator (${starvedRate})`);
   assert.ok(integral(graph) && integral(starved));
 });
 

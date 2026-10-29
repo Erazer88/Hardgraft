@@ -17,7 +17,8 @@
     // Water pumps: salt water flows faster than fresh water (first drafts).
     waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },
     // Depot routing cards: gate rate, per-card holding and buffer capacity.
-    depot: { gateThroughput: 4, cardCapacity: 20, bufferCapacity: 200, splitRatios: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
+    // Depot cards are logical sorters: gates have no throughput limit (null).
+    depot: { gateThroughput: null, cardCapacity: 20, bufferCapacity: 200, splitRatios: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
     // Ground under an extractor: rock hardness, and the share of the extracted
     // material assumed when a building has none recorded.
     geology: { hardnessRange: [.8, 1.8], defaultShare: .1 },
@@ -72,7 +73,7 @@
       throughput: 6, energyMW: 6 },
     magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
       description: 'Attire le fer hors de la roche broyée, selon sa teneur ; le reste part en résidus.',
-      ...separator('iron'), throughput: 2, energyMW: 3 },
+      ...separator('iron'), throughput: 6, energyMW: 3 },
     gravity_separator: { id: 'gravity_separator', label: 'SÉPARATEUR GRAVITAIRE', mark: 'SG',
       description: 'Concentre le cuivre de la roche broyée, selon sa teneur ; le reste part en résidus.',
       ...separator('copper'), throughput: 2, energyMW: 3 },

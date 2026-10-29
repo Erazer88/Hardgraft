@@ -43,7 +43,7 @@ donne pas de concentré de fer.
 | Foreuse (une par extracteur) | Sol de l'Extracteur | Roche brute (composition du sol) | 6 u/s | 2,5 MW |
 | Concasseur | Roche brute | Roche concassée, 1:1 | 6 u/s | 2 MW |
 | Broyeur | Roche concassée | Roche broyée, 1:1 | 6 u/s | 6 MW |
-| Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 2 u/s | 3 MW |
+| Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 6 u/s | 3 MW |
 | Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | 2 u/s | 3 MW |
 | Trieuse de carbone | 5 roches broyées | Charbon selon la teneur + résidus | 2 u/s | 3 MW |
 | Laveuse de silice | 20 roches broyées + 5 eaux | Silicium impur humide selon la teneur + résidus | 2 u/s | 3 MW |
@@ -81,12 +81,12 @@ accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
 
 | Carte | Rôle | Réglage |
 | --- | --- | --- |
-| Porte d'entrée | Tire le stock reçu (`building.inventory`), à tour de rôle par ressource, 4 u/s | — |
+| Porte d'entrée | Tire le stock reçu (`building.inventory`), à tour de rôle par ressource, sans limite de débit | — |
 | Tampon | Garde jusqu'à 200 unités par ressource | — |
 | Filtre | Ressource choisie → sortie 1, le reste → sortie 2 | Ressource filtrée |
 | Répartiteur | Partage selon un pourcentage (10 à 90 %) | Part A/B |
 | Priorité | Remplit la sortie prioritaire, puis déborde | — |
-| Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), 4 u/s | Destination |
+| Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), sans limite de débit | Destination |
 
 Les autres cartes gardent au plus 20 unités. Le routage (`src/simulation/depotRouting.js`)
 ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvegardés.

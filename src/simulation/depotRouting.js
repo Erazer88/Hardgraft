@@ -48,6 +48,12 @@
     return ['out'];
   }
 
+  // Units a gate may move this step; logical gates (no throughput) move all.
+  function gateCredit(machine, settings, step) {
+    if (settings.gateThroughput == null) return Infinity;
+    return Math.min(settings.gateThroughput, (machine.gateCredit || 0) + settings.gateThroughput * step);
+  }
+
   function advance(graph, seconds, building) {
     const step = Data.config.fixedStepSeconds, settings = Data.config.depot;
     graph.accumulator = (graph.accumulator || 0) + seconds;
@@ -67,7 +73,7 @@
         const gate = definition(machine).gate;
         if (gate === 'input') {
           // Draw received stock, one unit at a time across resources.
-          machine.gateCredit = Math.min(settings.gateThroughput, (machine.gateCredit || 0) + settings.gateThroughput * step);
+          machine.gateCredit = gateCredit(machine, settings, step);
           const stock = building.inventory ||= {};
           let moved = true;
           while (moved && machine.gateCredit >= 1) {
@@ -85,7 +91,7 @@
         }
         if (gate === 'output') {
           // Queue held units for the chosen destination.
-          machine.gateCredit = Math.min(settings.gateThroughput, (machine.gateCredit || 0) + settings.gateThroughput * step);
+          machine.gateCredit = gateCredit(machine, settings, step);
           const destinationId = machine.config?.destinationId;
           if (!destinationId) continue;
           building.gateStock ||= {};
