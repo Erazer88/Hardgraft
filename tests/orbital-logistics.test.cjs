@@ -659,3 +659,22 @@ test('goods cross the sea between two ports: trucks, ship, trucks', () => {
   Network.transferDockStockToBuildings(state);
   assert.equal(factory.inventory.coal, 6);
 });
+
+test('demolishing a building removes its own roads, up to the first junction', () => {
+  const network = Road.create(planetId);
+  const a = Road.addNode(network, { x: 0, y: 0, buildingId: 'a' });
+  const p = Road.addNode(network, { x: 50, y: 0, type: 'intersection' });
+  const j = Road.addNode(network, { x: 100, y: 0, type: 'intersection' });
+  const b = Road.addNode(network, { x: 200, y: 0, buildingId: 'b' });
+  const c = Road.addNode(network, { x: 100, y: 100, buildingId: 'c' });
+  const road = (from, to) => Road.addSegment(network, { from: from.id, to: to.id,
+    points: [{ x: from.x, y: from.y }, { x: to.x, y: to.y }], builtLength: Math.hypot(to.x - from.x, to.y - from.y) });
+  road(a, p); road(p, j); road(j, b); road(j, c);
+  assert.equal(Road.removeBuildingRoads(network, 'a'), 2, 'a → p → junction');
+  assert.equal(network.segments.length, 2, 'the junction still joins b and c');
+  assert.equal(network.nodes.some(node => node.id === p.id || node.id === a.id), false);
+  assert.equal(Network.hasBuiltLandPath(network, 'b', 'c'), true);
+  assert.equal(Road.removeBuildingRoads(network, 'b'), 1);
+  assert.equal(Road.removeBuildingRoads(network, 'c'), 1, 'the last road goes with the last building');
+  assert.equal(network.segments.length, 0);
+});

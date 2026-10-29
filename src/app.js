@@ -436,7 +436,11 @@
     if (!building || BuildingData.get(building.type)?.indestructible) return;
     const refund = Construction.demolish(building, state.inventory);
     if (refund === null) return;
-    for (const network of Object.values(state.roadNetworks)) RoadNetwork.detachBuilding(network, building.id);
+    // Its own roads go with it; roads shared beyond a junction stay.
+    for (const network of Object.values(state.roadNetworks)) {
+      RoadNetwork.removeBuildingRoads(network, building.id);
+      RoadNetwork.detachBuilding(network, building.id);
+    }
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
     globalThis.OrbitIndustry.reclaimBuilding(state, building);
     state.selected = null; $('inspector').hidden = true;

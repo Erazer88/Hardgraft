@@ -229,6 +229,35 @@
     return buildingNodes.length;
   }
 
+  // Removes the roads that only served a building: from each of its nodes,
+  // along the road, up to the first junction or other building. Shared roads
+  // beyond a junction stay. Returns the number of segments removed.
+  function removeBuildingRoads(network, buildingId) {
+    if (!network || typeof buildingId !== 'string' || !Array.isArray(network.nodes) ||
+        !Array.isArray(network.segments)) return 0;
+    const removed = new Set();
+    const nodes = new Map(network.nodes.map(node => [node.id, node]));
+    const remaining = id => network.segments.filter(segment => !removed.has(segment.id) && (segment.from === id || segment.to === id));
+    const stack = network.nodes.filter(node => node.buildingId === buildingId).map(node => node.id);
+    while (stack.length) {
+      const id = stack.pop();
+      for (const segment of remaining(id)) {
+        removed.add(segment.id);
+        const other = nodes.get(segment.from === id ? segment.to : segment.from);
+        // A plain point along the road, now a dead end: keep removing, unless
+        // what is left there leads to another building (its own road).
+        const next = other && !other.buildingId ? remaining(other.id) : [];
+        const leadsToBuilding = next.length === 1 && nodes.get(next[0].from === other.id ? next[0].to : next[0].from)?.buildingId;
+        if (next.length === 1 && !leadsToBuilding) stack.push(other.id);
+      }
+    }
+    if (!removed.size) return 0;
+    network.segments = network.segments.filter(segment => !removed.has(segment.id));
+    const used = new Set(network.segments.flatMap(segment => [segment.from, segment.to]));
+    network.nodes = network.nodes.filter(node => used.has(node.id) || (node.buildingId && node.buildingId !== buildingId));
+    return removed.size;
+  }
+
   function nodeById(network, id) { return network.nodes.find(node => node.id === id) || null; }
   function segmentById(network, id) { return network.segments.find(segment => segment.id === id) || null; }
 
@@ -588,7 +617,7 @@
   }
 
   root.OrbitRoadNetwork = Object.freeze({ create, addNode, addSegment, nodeById, segmentById,
-    detachBuilding,
+    detachBuilding, removeBuildingRoads,
     nearestConnection, firstContact, connectToTarget, connectRouteCrossings, splitPolylineAtNodes,
     replaceSegmentPoints, restore, lengthOf,
     nearestBuiltConnection, distanceAlongSegment });
