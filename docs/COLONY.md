@@ -36,10 +36,10 @@ suivants (cumuls de plusieurs ressources) viendront plus tard.
 Un clic sur la colonie ouvre son propre menu (`src/ui/colonyPanel.js`) : nom modifiable,
 frise des paliers de population, contexte, quantités du palier en cours (barre,
 débit reçu et temps estimé), flux requis (débit reçu face au débit demandé, retard),
-arrivées de la dernière minute par ressource et par fournisseur, réserve, total
+arrivées par ressource et par fournisseur, réserve, total
 consommé, zone (surface, cible, maximum) et énergie de la planète. Les débits viennent
 des totaux reçus que la logistique tient sur chaque destination (`receivedTotal`,
-`receivedFrom`, non sauvegardés), mesurés sur la dernière minute de jeu.
+`receivedFrom`, non sauvegardés), en moyenne glissante sur les 30 dernières secondes de jeu.
 
 ## Zone
 

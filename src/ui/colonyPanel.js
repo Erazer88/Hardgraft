@@ -5,8 +5,8 @@
   // needs and how fast it arrives, the flows it requires, its reserve, the
   // buildings supplying it, its zone and power. Rates are measured from the
   // running totals the logistics keep on the colony (receivedTotal and
-  // receivedFrom), over the last minute of simulation time.
-  const WINDOW_SECONDS = 60;
+  // receivedFrom), as a moving average over the last 30 s of simulation time.
+  const WINDOW_SECONDS = 30;
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -114,7 +114,7 @@
       }
 
       // What arrives now, and from where.
-      const incoming = section('ARRIVÉES · DERNIÈRE MINUTE');
+      const incoming = section('ARRIVÉES · MOYENNE SUR 30 S');
       const arriving = Object.entries(live.resources).filter(([, rate]) => rate > .05).sort((a, b) => b[1] - a[1]);
       if (!arriving.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
       for (const [id, rate] of arriving) row(incoming, resourceName(id), `${fmt(rate)} / min`);
