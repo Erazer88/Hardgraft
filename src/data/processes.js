@@ -201,11 +201,11 @@
     depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 }
   };
 
-  // Each card belongs to one kind of building: the extractor drills and
-  // crushes on site, the factory grinds, sorts, washes and smelts. Only the
-  // docks appear in both. Furnaces are listed once per metal.
-  const extractorCatalog = ['drill', 'crusher', 'output_dock'];
-  const factoryCatalog = ['input_dock', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
+  // Each card belongs to one kind of building: the extractor drills, crushes
+  // and grinds on site, the factory sorts, washes and smelts. Only the docks
+  // appear in both. Furnaces are listed once per metal.
+  const extractorCatalog = ['drill', 'crusher', 'grinder', 'output_dock'];
+  const factoryCatalog = ['input_dock', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
     'water_supply', 'silicon_washer', 'silicon_dryer', 'carbon_washer', ['reduction_furnace', 'iron'],
     ['reduction_furnace', 'copper'], ['reduction_furnace', 'silicon'], 'tar_furnace', 'rolling_mill', 'output_dock'];
   const oilCatalog = ['oil_pump', 'triphasic_separator', 'output_dock'];

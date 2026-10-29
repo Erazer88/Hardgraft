@@ -54,11 +54,11 @@ function advance(graph, seconds, context = { energyUnlimited: true }) {
 const integral = graph => graph.machines.every(item => [...Object.values(item.inputBuffer), ...Object.values(item.outputBuffer)]
   .every(Number.isInteger));
 
-test('extractors drill and crush, factories do the rest; only docks are shared; furnaces come once per metal', () => {
+test('extractors drill, crush and grind, factories do the rest; only docks are shared; furnaces come once per metal', () => {
   const name = def => def.contextResourceId ? `${def.id}:${def.contextResourceId}` : def.id;
-  assert.deepEqual(plain(Data.catalog('extractor').map(name)), ['drill', 'crusher', 'output_dock']);
+  assert.deepEqual(plain(Data.catalog('extractor').map(name)), ['drill', 'crusher', 'grinder', 'output_dock']);
   const factory = Data.catalog('factory').map(name);
-  assert.deepEqual(plain(factory), ['input_dock', 'grinder', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
+  assert.deepEqual(plain(factory), ['input_dock', 'magnetic_separator', 'gravity_separator', 'carbon_separator',
     'water_supply', 'silicon_washer', 'silicon_dryer', 'carbon_washer', 'reduction_furnace:iron', 'reduction_furnace:copper',
     'reduction_furnace:silicon', 'tar_furnace', 'rolling_mill', 'output_dock']);
   const shared = Data.catalog('extractor').map(name).filter(id => factory.includes(id));

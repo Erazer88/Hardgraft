@@ -57,9 +57,9 @@ donne pas de concentré de fer.
 | Réserve d'eau | Réserve infinie temporaire | Eau | Sans plafond | 0 MW |
 | Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s | 2,5 / 4 MW |
 
-Chaque carte a son bâtiment : l'Extracteur fore et concasse sur place (Foreuse, une
-seule par extracteur, Concasseur, Dock de sortie) ; l'Usine fait le reste (Quai
-d'entrée, Broyeur, séparateurs, laveuses, sécheur, fours, four à goudron, laminoir,
+Chaque carte a son bâtiment : l'Extracteur fore, concasse et broie sur place (Foreuse,
+une seule par extracteur, Concasseur, Broyeur, Dock de sortie) ; l'Usine fait le reste
+(Quai d'entrée, séparateurs, laveuses, sécheur, fours, four à goudron, laminoir,
 Dock de sortie). Seuls les docks sont communs. Pour forer plus, on pose plusieurs
 extracteurs côte à côte. Les cartes apparaissent selon les besoins de la
 colonie (voir [`COLONY.md`](COLONY.md)) ; le réglage développeur « Tout débloquer »
