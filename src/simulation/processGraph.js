@@ -136,8 +136,17 @@
     if (graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id)) {
       return { ok: false, reason: 'Cette sortie est déjà reliée.' };
     }
-    if (!input.mixed && (!definitionOf(to).sink || definitionOf(to).externalOutput) && graph.connections.some(connection =>
-      connection.toMachineId === to.id && connection.toInputId === input.id)) {
+    const linked = graph.connections.filter(connection => connection.toMachineId === to.id && connection.toInputId === input.id);
+    if (definitionOf(to).externalOutput && linked.length) {
+      // An output dock takes several links of one same resource.
+      const docked = linked.map(connection => {
+        const source = graph.machines.find(machine => machine.id === connection.fromMachineId);
+        return source && definitionOf(source).outputPorts.find(port => port.id === connection.fromOutputId)?.resourceId;
+      });
+      if (docked.some(resourceId => resourceId !== output.resourceId)) {
+        return { ok: false, reason: 'Ce dock envoie déjà une autre ressource.' };
+      }
+    } else if (!input.mixed && !definitionOf(to).sink && linked.length) {
       return { ok: false, reason: 'Cette entrée est déjà reliée.' };
     }
     if (reaches(graph, to.id, from.id)) return { ok: false, reason: 'Les boucles sont désactivées dans l’usine V1.' };

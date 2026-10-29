@@ -484,3 +484,19 @@ test('a depot priority card fills its first output before overflowing', () => {
   assert.equal(primary.storedResources.raw_iron, 60, 'the unconnected buffer keeps everything');
   assert.equal(depot.gateStock?.['factory-b']?.raw_iron || 0, 0);
 });
+
+test('an output dock takes several links of one same resource, never two resources', () => {
+  const graph = Graph.create();
+  const a = machine(graph, 'a', 'crusher'), b = machine(graph, 'b', 'crusher', 100);
+  machine(graph, 'grinder', 'grinder', 200);
+  machine(graph, 'dock', 'output_dock', 300);
+  connect(graph, 'a-dock', 'a', 'rock', 'dock', 'material');
+  connect(graph, 'b-dock', 'b', 'rock', 'dock', 'material');
+  assert.equal(Graph.connect(graph, { id: 'g-dock', fromMachineId: 'grinder', fromOutputId: 'rock',
+    toMachineId: 'dock', toInputId: 'material' }).ok, false, 'ground rock is another resource');
+  a.outputBuffer.rock = 3; b.outputBuffer.rock = 4;
+  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {}, dockStock: {} };
+  const state = { seed: 'docks', surfaceBuildings: [building], factoryPlans: { factory: graph } };
+  Industry.advance(state, .1);
+  assert.equal(building.dockStock.crushed_rock, 7);
+});

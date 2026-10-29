@@ -431,16 +431,19 @@
 
     function freeInputs(machine) {
       const def = typeOf(machine);
-      return def.inputPorts.filter(input => (def.sink && !def.externalOutput) || !connections.some(connection =>
+      // Sinks, and output docks (one resource, several links), stay open.
+      return def.inputPorts.filter(input => def.sink || !connections.some(connection =>
         connection.toMachineId === machine.id && connection.toInputId === input.id));
     }
 
-    // Whether the output being dragged can feed this input.
-    function accepts(input) {
+    // Whether the output being dragged can feed this input of this machine.
+    function accepts(input, machine) {
       const source = pendingConnection?.source, from = source && machineById(source.machineId);
       const output = from && typeOf(from).outputPorts.find(port => port.id === source.outputId);
       if (!output) return true;
       if (output.mixed || input.mixed) return Boolean(output.mixed && input.mixed);
+      const docked = machine && typeOf(machine).externalOutput ? connectedDockResource(machine) : null;
+      if (docked) return docked === output.resourceId;
       return input.acceptsAnyResource || input.resourceId === output.resourceId;
     }
 
@@ -454,13 +457,13 @@
         const bounds = port.getBoundingClientRect();
         const distance = Math.hypot(clientX - (bounds.left + bounds.width / 2), clientY - (bounds.top + bounds.height / 2));
         if (distance >= 46) continue;
-        const rank = (accepts(input) ? 0 : 1000) + distance;
+        const rank = (accepts(input, machine) ? 0 : 1000) + distance;
         if (!best || rank < best.rank) best = { rank, machineId: machine.id, inputId: input.id };
       }
       if (best) return { machineId: best.machineId, inputId: best.inputId };
       for (const machine of machines) {
         const bounds = cards.get(machine.id)?.getBoundingClientRect();
-        const input = freeInputs(machine).find(accepts);
+        const input = freeInputs(machine).find(input => accepts(input, machine));
         if (!input || !bounds) continue;
         if (clientX >= bounds.left + bounds.width * .2 && clientX <= bounds.right - bounds.width * .2 &&
             clientY >= bounds.top + bounds.height * .2 && clientY <= bounds.bottom - bounds.height * .2) {
