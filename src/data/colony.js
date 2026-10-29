@@ -11,7 +11,11 @@
     // never over water or other buildings, one terrain cell (9 km²) at a time.
     // layerStep matches the relief bands drawn on the map.
     zone: { baseKm2: 600, km2PerUnit: 1, maxKm2: 6000, layers: 1, layerStep: 16, reachFactor: 1.6, buildingMarginCells: 1 },
-    // Each tier consumes what it needs, then raises the population.
+    // Each tier consumes what it needs, then raises the population. From the
+    // next tier on, what earlier tiers asked for must keep arriving as a
+    // steady flow (per minute): a tier's needs only progress while those
+    // flows are met.
+    flowPerMinute: { raw_rock: 30, tar: 5, metal_plate: 1 },
     tiers: [
       { population: 200, needs: { raw_rock: 500 } },
       { population: 400, needs: { tar: 150 } },

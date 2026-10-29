@@ -21,6 +21,13 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 | 2 | 150 goudrons | 400 |
 | 3 | 25 plaques de métal | 800 |
 
+À partir du palier 2, ce que demandaient les paliers précédents doit continuer
+d'arriver en flux régulier (`flowPerMinute`) : roche brute 30/min au palier 2, roche
+brute 30/min et goudron 5/min au palier 3. Le dû de chaque flux grandit avec le temps
+(au plus deux minutes de retard) et se paie en unités entières avec ce qui arrive. Les
+quantités du palier n'avancent que tant que chaque flux a moins d'une minute de retard.
+Le panneau de la colonie affiche ces flux (✓ tenu, ✗ en retard).
+
 La population ne baisse pas et n'a pas d'autre effet pour l'instant. Les paliers
 suivants (cumuls de plusieurs ressources) viendront plus tard.
 

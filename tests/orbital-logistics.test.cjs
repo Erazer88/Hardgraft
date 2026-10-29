@@ -527,7 +527,7 @@ const ColonyZone = context.OrbitColonyZone;
 
 test('the colony consumes what it receives tier by tier and produces context', () => {
   const colony = Building.create({ id: 'colony', type: 'colony', planetId, x: 0, y: 0, constructionState: 'complete' });
-  assert.deepEqual(plain(colony.colony), { population: 100, tier: 0, progress: {}, consumed: 0, cells: [] });
+  assert.deepEqual(plain(colony.colony), { population: 100, tier: 0, progress: {}, consumed: 0, cells: [], owed: {} });
   const state = { surfaceBuildings: [colony], contextPoints: 0 };
   Colony.advance(state, 60);
   assert.ok(Math.abs(state.contextPoints - 1) < 1e-9, 'one context point per minute');
@@ -544,6 +544,16 @@ test('the colony consumes what it receives tier by tier and produces context', (
   assert.equal(colony.inventory.raw_rock, 50);
   Colony.advance(state, 1);
   assert.equal(colony.colony.progress.tar, 10, 'the next tier takes the tar already in reserve');
+  assert.deepEqual(plain(Colony.flows(1)), { raw_rock: ColonyData.flowPerMinute.raw_rock }, 'rock is now a flow');
+  assert.deepEqual(plain(Colony.flows(2)), { raw_rock: ColonyData.flowPerMinute.raw_rock, tar: ColonyData.flowPerMinute.tar });
+  colony.inventory = { tar: 5 };
+  Colony.advance(state, 120);
+  assert.equal(Colony.flowsMet(colony.colony), false, 'two minutes without rock: the flow is behind');
+  assert.equal(colony.colony.progress.tar, 10, 'needs wait while a flow is behind');
+  colony.inventory = { raw_rock: 200, tar: 5 };
+  Colony.advance(state, 1);
+  assert.equal(Colony.flowsMet(colony.colony), true);
+  assert.equal(colony.colony.progress.tar, 15, 'the tier progresses again once rock flows');
   assert.equal(Colony.totalPopulation(state), 200);
   const saved = Building.create(plain(colony));
   assert.deepEqual(plain(saved.colony), plain(colony.colony));

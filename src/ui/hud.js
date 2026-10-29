@@ -163,6 +163,10 @@
       if (tier) {
         rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, Object.entries(tier.needs)
           .map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`).join('  /  ')]);
+        // Earlier needs as steady flows; the tier only progresses while they hold.
+        const flows = Object.entries(root.OrbitColony.flows(colony.tier));
+        if (flows.length) rows.push([root.OrbitColony.flowsMet(colony) ? 'FLUX REQUIS · TENUS' : 'FLUX REQUIS · EN RETARD',
+          flows.map(([id, rate]) => `${resourceName(id)} ${fmt(rate)} / min${(colony.owed[id] || 0) >= rate ? ' ✗' : ' ✓'}`).join('  /  ')]);
       } else rows.push(['PALIERS', 'Tous atteints pour l’instant']);
       const stock = inventoryEntries(building, 'inventory');
       if (stock.length) rows.push(['EN RÉSERVE', stock.map(item => `${item.name} · ${fmtDecimal(item.amount)}`).join('  /  ')]);

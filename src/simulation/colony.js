@@ -15,7 +15,21 @@
       ? Object.fromEntries(Object.entries(value.progress).filter(([id, amount]) => id && isInteger(amount) && amount > 0)) : {};
     const consumed = isInteger(value?.consumed) ? value.consumed : 0;
     const cells = Array.isArray(value?.cells) ? value.cells.filter(isInteger) : [];
-    return { population, tier, progress, consumed, cells };
+    // Units each flow is behind (what should have arrived and did not).
+    const owed = value?.owed && typeof value.owed === 'object' && !Array.isArray(value.owed)
+      ? Object.fromEntries(Object.entries(value.owed).filter(([id, amount]) => id && Number.isFinite(amount) && amount > 0)) : {};
+    return { population, tier, progress, consumed, cells, owed };
+  }
+
+  // Steady flows a tier asks for: everything the earlier tiers needed.
+  function flows(tierIndex) {
+    const resources = new Set(Data.tiers.slice(0, tierIndex).flatMap(tier => Object.keys(tier.needs)));
+    return Object.fromEntries([...resources].map(id => [id, Data.flowPerMinute[id] || 0]).filter(([, rate]) => rate > 0));
+  }
+
+  // A flow is met while it is less than a minute behind.
+  function flowsMet(colony) {
+    return Object.entries(flows(colony.tier)).every(([id, rate]) => (colony.owed[id] || 0) < rate);
   }
 
   const colonies = state => (state.surfaceBuildings || []).filter(building => building.type === 'colony');
@@ -37,18 +51,30 @@
       const tier = Data.tiers[colony.tier];
       if (!tier) continue;
       const stock = building.inventory ||= {};
-      for (const [resourceId, need] of Object.entries(tier.needs)) {
-        const take = Math.min(Math.floor(stock[resourceId] || 0), need - (colony.progress[resourceId] || 0));
-        if (take <= 0) continue;
-        stock[resourceId] -= take;
+      const take = (resourceId, wanted) => {
+        const amount = Math.min(Math.floor(stock[resourceId] || 0), Math.floor(wanted));
+        if (amount <= 0) return 0;
+        stock[resourceId] -= amount;
         if (stock[resourceId] <= 0) { delete stock[resourceId]; if (building.inventoryMix) delete building.inventoryMix[resourceId]; }
-        colony.progress[resourceId] = (colony.progress[resourceId] || 0) + take;
-        colony.consumed += take;
+        colony.consumed += amount;
+        return amount;
+      };
+      // Flows first: what is owed grows with time (at most two minutes' worth)
+      // and is paid in whole units from what arrived.
+      for (const [resourceId, rate] of Object.entries(flows(colony.tier))) {
+        const owed = Math.min(2 * rate, (colony.owed[resourceId] || 0) + rate * seconds / 60);
+        const left = owed - take(resourceId, owed);
+        if (left > 0) colony.owed[resourceId] = left; else delete colony.owed[resourceId];
+      }
+      if (!flowsMet(colony)) continue;
+      for (const [resourceId, need] of Object.entries(tier.needs)) {
+        const taken = take(resourceId, need - (colony.progress[resourceId] || 0));
+        if (taken) colony.progress[resourceId] = (colony.progress[resourceId] || 0) + taken;
       }
       if (Object.entries(tier.needs).every(([id, amount]) => (colony.progress[id] || 0) >= amount)) {
         colony.tier += 1;
         colony.population = tier.population;
-        colony.progress = {};
+        colony.progress = {}; colony.owed = {};
         events.push({ kind: 'tier', buildingId: building.id, tier: colony.tier, population: colony.population });
       }
     }
@@ -66,5 +92,5 @@
     return Math.max(1, Math.round(km2 / cellKm2));
   }
 
-  root.OrbitColony = Object.freeze({ normalize, needs, advance, totalPopulation, targetCells, colonies });
+  root.OrbitColony = Object.freeze({ normalize, needs, flows, flowsMet, advance, totalPopulation, targetCells, colonies });
 })(globalThis);
