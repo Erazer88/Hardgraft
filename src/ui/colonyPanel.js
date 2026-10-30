@@ -7,8 +7,18 @@
   // running totals the logistics keep on the colony (receivedTotal and
   // receivedFrom), as a moving average over the last 30 s of simulation time.
   const WINDOW_SECONDS = 30;
-  const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
-  const fmt = value => numberFormat.format(Number.isFinite(value) ? value : 0);
+  // Whole numbers only; the panel redraws every REDRAW_MS so values stay readable.
+  const REDRAW_MS = 5000;
+  const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+  const fmt = value => numberFormat.format(Number.isFinite(value) ? Math.round(value) : 0);
+  // Units scale like bytes: u, ku, Mu, Gu, Tu.
+  const SCALES = ['', 'k', 'M', 'G', 'T'];
+  function units(value, suffix = '') {
+    let amount = Number.isFinite(value) ? Math.max(0, value) : 0, scale = 0;
+    while (Math.round(amount) >= 1000 && scale < SCALES.length - 1) { amount /= 1000; scale++; }
+    return `${fmt(amount)} ${SCALES[scale]}u${suffix}`;
+  }
+  const perMinute = value => units(value, '/min');
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   function create(document, { onRename = () => {}, onClose = () => {} } = {}) {
@@ -88,7 +98,7 @@
       });
       people.append(steps);
       row(people, 'HABITANTS', `${fmt(colony.population)}`, tier ? `prochain palier : ${fmt(tier.population)}` : 'tous les paliers atteints');
-      row(people, 'CONTEXTE', `${fmt(Math.floor(state.contextPoints || 0))}`, `+${fmt(Data.contextPerMinute)} / min`);
+      row(people, 'CONTEXTE', `${fmt(Math.floor(state.contextPoints || 0))}`, `+${fmt(Data.contextPerMinute)}/min`);
 
       // What the current tier still needs, with its incoming rate and an estimate.
       if (tier) {
@@ -96,8 +106,8 @@
         const flowsMet = Colony.flowsMet(colony);
         for (const [id, amount] of Object.entries(tier.needs)) {
           const done = colony.progress[id] || 0, rate = live.resources[id] || 0, left = amount - done;
-          const eta = !flowsMet ? 'bloqué : flux en retard' : rate > .05 ? `≈ ${fmt(left / rate)} min restantes` : 'aucune arrivée récente';
-          row(needs, resourceName(id), `${fmt(done)} / ${fmt(amount)}`, `${fmt(rate)} / min reçus · ${eta}`);
+          const eta = !flowsMet ? 'bloqué : flux en retard' : rate > .05 ? `≈ ${fmt(Math.max(1, left / rate))} min restantes` : 'aucune arrivée récente';
+          row(needs, resourceName(id), `${units(done)} / ${units(amount)}`, `${perMinute(rate)} reçus · ${eta}`);
           needs.append(bar(done, amount, null, 'gold'));
         }
         const flows = Object.entries(Colony.flows(colony.tier));
@@ -105,8 +115,8 @@
           const required = section(`FLUX REQUIS · ${flowsMet ? 'TENUS' : 'EN RETARD'}`);
           for (const [id, rate] of flows) {
             const incoming = live.resources[id] || 0, owed = colony.owed[id] || 0;
-            row(required, resourceName(id), `${fmt(incoming)} / ${fmt(rate)} par min`,
-              owed >= rate ? `en retard de ${fmt(owed)} u` : 'tenu');
+            row(required, resourceName(id), `${perMinute(incoming)} / ${perMinute(rate)}`,
+              owed >= rate ? `en retard de ${units(owed)}` : 'tenu');
             required.append(bar(incoming, Math.max(rate * 2, incoming), rate, owed >= rate ? 'late' : 'ok'));
           }
           required.append(element('p', 'colony-note', 'Les quantités n’avancent que si chaque flux a moins d’une minute de retard.'));
@@ -117,7 +127,7 @@
       const incoming = section('ARRIVÉES · MOYENNE SUR 30 S');
       const arriving = Object.entries(live.resources).filter(([, rate]) => rate > .05).sort((a, b) => b[1] - a[1]);
       if (!arriving.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
-      for (const [id, rate] of arriving) row(incoming, resourceName(id), `${fmt(rate)} / min`);
+      for (const [id, rate] of arriving) row(incoming, resourceName(id), perMinute(rate));
       const suppliers = Object.entries(live.sources).map(([sourceId, perResource]) => {
         const source = state.surfaceBuildings.find(candidate => candidate.id === sourceId);
         const total = Object.values(perResource).reduce((sum, rate) => sum + rate, 0);
@@ -127,7 +137,7 @@
         const from = section('FOURNISSEURS');
         for (const { source, perResource } of suppliers) {
           row(from, source.customName || source.type, Object.entries(perResource).filter(([, rate]) => rate > .05)
-            .map(([id, rate]) => `${resourceName(id)} ${fmt(rate)}/min`).join(' · '));
+            .map(([id, rate]) => `${resourceName(id)} ${perMinute(rate)}`).join(' · '));
         }
       }
 
@@ -135,8 +145,8 @@
       const reserve = section('RÉSERVE');
       const stock = Object.entries(building.inventory || {}).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]);
       if (!stock.length) reserve.append(element('p', 'colony-note', 'Tout ce qui arrive est consommé.'));
-      for (const [id, amount] of stock) row(reserve, resourceName(id), `${fmt(amount)} u`);
-      row(reserve, 'CONSOMMÉ AU TOTAL', `${fmt(colony.consumed)} u`);
+      for (const [id, amount] of stock) row(reserve, resourceName(id), units(amount));
+      row(reserve, 'CONSOMMÉ AU TOTAL', units(colony.consumed));
 
       // Zone and power.
       const ground = section('TERRITOIRE ET ÉNERGIE');
@@ -159,6 +169,7 @@
       if (sampledId !== building.id) { samples = []; sampledId = building.id; }
       colonyId = building.id;
       panel.hidden = false;
+      renderedAt = performance.now();
       render(state);
     }
 
@@ -168,8 +179,17 @@
       onClose();
     }
 
+    let renderedAt = 0;
     function refresh(state) {
-      if (!panel.hidden) { render(state); return; }
+      if (!panel.hidden) {
+        const now = performance.now();
+        if (now - renderedAt >= REDRAW_MS) { renderedAt = now; render(state); }
+        else {
+          const building = state.surfaceBuildings.find(candidate => candidate.id === colonyId);
+          if (building) rates(state, building); else close();
+        }
+        return;
+      }
       const building = (state.surfaceBuildings || []).find(candidate => candidate.type === 'colony');
       if (!building) return;
       if (sampledId !== building.id) { samples = []; sampledId = building.id; }

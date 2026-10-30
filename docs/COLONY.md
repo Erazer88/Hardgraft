@@ -39,7 +39,8 @@ débit reçu et temps estimé), flux requis (débit reçu face au débit demand�
 arrivées par ressource et par fournisseur, réserve, total
 consommé, zone (surface, cible, maximum) et énergie de la planète. Les débits viennent
 des totaux reçus que la logistique tient sur chaque destination (`receivedTotal`,
-`receivedFrom`, non sauvegardés), en moyenne glissante sur les 30 dernières secondes de jeu.
+`receivedFrom`, non sauvegardés), en moyenne glissante sur les 30 dernières secondes de jeu ; le menu se redessine toutes les
+5 s, en nombres entiers avec unités d'échelle (u, ku, Mu, Gu).
 
 ## Zone
 
