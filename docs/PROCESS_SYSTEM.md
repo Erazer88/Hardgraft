@@ -91,11 +91,12 @@ accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
 Les autres cartes gardent au plus 20 unités. Le routage (`src/simulation/depotRouting.js`)
 ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvegardés.
 
-**Terril.** C'est un bâtiment qui reçoit les déchets par route (Quai d'entrée). Ses
-cartes : Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW) ou
-Incinérateur (2 déchets/s brûlés, produit jusqu'à
-8 MW pour la planète, proportionnellement à son débit). Pas de débordement ni de
-pollution pour l'instant.
+**Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
+Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
+Incinérateur (2 déchets/s brûlés, jusqu'à 8 MW rendus à la planète au prorata de son
+débit) et Dock de sortie. Pas de débordement ni de pollution pour l'instant. L'ancienne
+carte Terril (stock illimité dans l'usine) reste dans les données mais n'est plus dans
+aucun catalogue.
 
 **Plateforme de lancement.** L'énergie d'un lancement croît avec la latitude :
 `5 MW + 0,14 MW/°` (`launchSite` dans `src/data/orbitalLogistics.js`, la carte couvre
@@ -108,30 +109,36 @@ la latitude et la puissance de lancement.
 Les machines de traitement ont des buffers entiers de 20 unités par port. Un cycle ne
 commence que si tous ses ingrédients entiers sont présents et s'il y a de la place pour
 tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de matière.
-Le Terril accepte plusieurs connexions sur son entrée partagée et stocke sans limite
-chaque ressource reçue. Il n'a ni cycle ni débit et ses stocks sont enregistrés dans le
-graphe. Le Dock accepte plusieurs connexions entrantes, toutes de la même matière, qu'il exporte. Tant que sa
-matière n'a pas de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui
-l'alimente s'arrête.
-Le Quai d'entrée rend une usine disponible dans le menu de destination des Docks de
-sortie. Il affiche les matières livrées dans `building.inventory` et possède une sortie
-`material` raccordable aux machines. La première matière reçue est sélectionnée
-automatiquement ; le joueur peut choisir une autre matière du stock lorsque le quai
-est débranché et son buffer vide. Le quai retire une unité du stock par cycle de 0,5 s,
-uniquement s'il est relié et dispose de place en aval. Plusieurs quais partagent le même
-stock sans dupliquer les unités. La matière sélectionnée et le buffer sont sauvegardés.
-Les Plateformes de lancement et la Colonie reçoivent nativement et n'ont pas besoin de
-cette carte.
+Une simulation avance au plus 100 pas de 0,1 s par appel (`maxTicksPerAdvance`).
 
-Chaque carte montre les ports, le débit actuel, l'énergie, l'état et la progression du
-cycle. États essentiels : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`.
-L'animation de la barre ne modifie pas la simulation.
+**Docks et quais.** Ce sont des connecteurs logiques, sans limite de débit. Le Dock de
+sortie accepte plusieurs connexions entrantes, toutes de la même matière, et déplace
+les unités vers `building.dockStock` (distinct de l'inventaire reçu). Sa destination
+est choisie par matière parmi la Colonie, les usines et terrils terminés équipés d'un
+Quai d'entrée, les dépôts dotés d'une Porte d'entrée et les Plateformes de lancement
+terminées de la planète, reliés par un chemin construit. Tant que sa matière n'a pas
+de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui l'alimente
+s'arrête. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
-Le Dock déplace les unités vers `building.dockStock`, distinct de l'inventaire reçu et
-des matériaux de construction. La destination du Dock est choisie par matière parmi la
-Colonie, les usines et terrils terminés équipés d'un Quai d'entrée, les dépôts dotés
-d'une Porte d'entrée et les Plateformes de lancement terminées de la planète ; une route terrestre entièrement construite est nécessaire. Référence :
-[`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
+Le Quai d'entrée rend un bâtiment disponible comme destination. Il affiche les
+matières livrées dans `building.inventory` et possède une sortie `material` raccordable
+aux machines. La première matière reçue est sélectionnée automatiquement ; le joueur
+peut en choisir une autre lorsque le quai est débranché et son buffer vide. Plusieurs
+quais partagent le même stock sans dupliquer les unités. La Colonie et les Plateformes
+de lancement reçoivent nativement, sans cette carte.
+
+Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire et un
+Quai d'entrée un bouton vers ses bâtiments sources ; le changement de bâtiment se fait
+par un court glissement.
+
+**Lecture des cartes.** Chaque carte montre ses ports, son débit, son énergie, son état
+et sa barre de traitement. États : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`,
+`SANS ÉNERGIE`, `SANS DESTINATION`. L'affichage est lissé (un état actif est tenu
+1,2 s, le débit lissé sur 0,7 s) pour ne pas clignoter à haut débit. La barre compte
+les unités traitées par blocs et repart de zéro sans animation de retour : bloc de
+1 u sous 100 u/s, puis 0,1 ku, 1 ku, 0,1 Mu… selon le débit (`BAR_BLOCKS`). Son libellé
+donne « TRAITÉ / EXTRAIT / ENVOYÉ · total · BARRE bloc » ; un séparateur affiche aussi la
+teneur moyenne de sa roche. L'affichage ne modifie pas la simulation.
 
 ## Énergie et prix
 
@@ -152,7 +159,8 @@ des bâtiments et des cartes restent dans les données mais sont masqués
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, rendements selon la teneur, énergie |
 | `src/simulation/depotRouting.js` | Flux mixtes du dépôt : portes, tampon, filtre, répartiteur, priorité |
 | `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
-| `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle et routage des Docks |
+| `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle, routage des Docks et lecture lissée |
+| `src/ui/factoryViewport.js` | Gestes de la vue industrielle (glisser, pincer, molette) |
 | `src/storage/save.js` | Sauvegarde des bâtiments et graphes industriels versionnés |
 
 La simulation ne dépend ni du DOM ni de Canvas. La vérification ciblée du moteur est :

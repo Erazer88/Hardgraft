@@ -42,6 +42,15 @@ l'aperçu testable dans Firefox. Préférer RawGithack ; si le service est indis
 utiliser HTMLPreview. Ne pas présenter un aperçu inaccessible comme testable, ni un
 aperçu publié comme contenant les changements d'une itération qui n'a pas été poussée.
 
+**Session actuelle (demande de l'utilisateur, prime sur le workflow ci-dessus).**
+Répondre toujours en français. Chaque itération qui modifie le jeu est une livraison
+légère : tests ciblés, version mineure suivante dans `package.json`,
+`python3 build.py`, suppression de l'ancien `dist/nereide-zoom-continu-<ancienne>.html`,
+commit, push sur `claude/neon-style-visual-layer-a3c4vz` (pas de pull request). Finir
+chaque réponse par la version en cours et le lien permanent
+`https://raw.githack.com/Erazer88/Hardgraft/<sha complet>/dist/nereide-zoom-continu-<version>.html`.
+Une question ou une proposition sans code ne change pas de version.
+
 ## Repères rapides
 
 - Commencer par [`docs/CURRENT_CONTEXT.md`](docs/CURRENT_CONTEXT.md), puis lire seulement

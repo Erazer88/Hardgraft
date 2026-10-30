@@ -1,10 +1,9 @@
 # Routes de surface
 
-Cette référence décrit les routes actuellement constructibles et les rues
-résidentielles décoratives. La seule interaction économique actuelle vérifie qu’un
-chemin terrestre terminé relie un Dock à une Plateforme de lancement. Les routes
-n’imposent aucun débit ni temps de trajet terrestre. Pour le modèle logistique, voir
-[`CURRENT_CONTEXT.md`](CURRENT_CONTEXT.md).
+Cette référence décrit les routes terrestres et les voies maritimes constructibles. Leur
+seul rôle économique est de relier un Dock de sortie à son bâtiment destinataire : un
+chemin entièrement construit est requis, mais les routes n'imposent ni débit ni temps
+de trajet. Pour le modèle logistique, voir [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ## Modules
 
@@ -37,11 +36,19 @@ bâtiments sont évitées. Deux ports qui ne donnent pas sur la même étendue d
 lac fermé et la mer) sont refusés immédiatement. Les couloirs s'affichent en
 pointillés lumineux.
 
-Pour les exports orbitaux, `src/simulation/logisticsNetwork.js` parcourt uniquement
-les segments terrestres dont `builtLength` atteint `length`. Le stock dédié `dockStock`
-est transféré instantanément vers la plateforme de la même planète. Les segments en
-construction et les liaisons maritimes ne connectent pas ces stocks ; les routes ne
-consomment ni ressources de construction ni autres inventaires.
+Pour la logistique, `src/simulation/logisticsNetwork.js` parcourt les segments dont
+`builtLength` atteint `length`, terrestres comme maritimes ; les nœuds d'un même
+bâtiment (route et amarrage d'un port) sont reliés entre eux, si bien qu'une voie
+maritime entre deux ports prolonge le réseau routier. Le stock dédié `dockStock` est
+transféré instantanément vers le bâtiment destinataire de la même planète. Les
+segments en construction ne comptent pas ; les routes ne consomment ni ressources ni
+inventaires.
+
+**Démolition.** Démolir un bâtiment retire aussi ses routes propres
+(`roadNetwork.removeBuildingRoads`) : depuis chacun de ses nœuds, le long de la route,
+jusqu'au premier carrefour ou autre bâtiment. Les tronçons partagés au-delà d'un
+carrefour restent, comme ceux qui mènent à un autre bâtiment ; le bâtiment est ensuite
+détaché du réseau (`detachBuilding`).
 
 Le placement construit un champ de coût déterministe à partir du relief, des
 obstacles et des routes existantes. A* choisit un trajet ; la géométrie est ensuite
@@ -81,11 +88,13 @@ mais la route le montre : `logisticsNetwork.js` renvoie chaque flux (source,
 destination, ressource), `gameplay/logistics.js` note dans `state.transportActivity`
 le dernier instant où chaque liaison a servi (état d'exécution, non sauvegardé), et
 `vehicleRenderer.js` fait courir des impulsions lumineuses sur le plus court chemin
-construit, de l'angle de la balise source à celui de la destination, tant que la
-liaison a servi depuis moins de `render.transit.activeSeconds`. Chaque impulsion part
-lentement puis accélère jusqu'à une vitesse de croisière plafonnée (`cruiseMsPerKm`, la
-même sur les voies maritimes ; `seaSlowdown` peut les ralentir) jusqu'à « percuter » la balise cible, marquée
-d'un anneau qui s'élargit. Une seule impulsion circule à la fois par liaison : la
+construit (voies maritimes comprises), de l'angle de la balise source à celui de la
+destination, tant que la liaison a servi depuis moins de `render.transit.activeSeconds`.
+L'affichage est purement informatif : il ne crée aucune route et ne transporte rien.
+Chaque impulsion part à 20 % de sa vitesse puis accélère (`accelerationMs`) jusqu'à une
+vitesse de croisière plafonnée (`cruiseMsPerKm`, la même sur les voies maritimes ;
+`seaSlowdown` peut les ralentir), avec une traîne bornée (`tailMs`, `tailMaxPx`),
+jusqu'à « percuter » la balise cible, marquée d'un anneau qui s'élargit. Une seule impulsion circule à la fois par liaison : la
 suivante part après l'impact (`pauseMs`), au plus tôt toutes les `intervalMs` ; seules
 les `maxLinks` liaisons les plus récemment utilisées s'animent.
 Rien ne court quand le jeu est en pause.

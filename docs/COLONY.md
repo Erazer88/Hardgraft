@@ -26,10 +26,10 @@ d'arriver en flux régulier (`flowPerMinute`) : roche brute 500/min au palier 2,
 brute 500/min et goudron 50/min au palier 3. Le dû de chaque flux grandit avec le temps
 (au plus deux minutes de retard) et se paie en unités entières avec ce qui arrive. Les
 quantités du palier n'avancent que tant que chaque flux a moins d'une minute de retard.
-Le panneau de la colonie affiche ces flux (✓ tenu, ✗ en retard).
+Le menu de la colonie affiche ces flux (tenus ou en retard).
 
-La population ne baisse pas et n'a pas d'autre effet pour l'instant. Les paliers
-suivants (cumuls de plusieurs ressources) viendront plus tard.
+La population ne baisse pas et n'a pas d'autre effet pour l'instant. Après le dernier
+palier, aucun flux n'est plus exigé ; les paliers suivants viendront plus tard.
 
 ## Menu de la colonie
 

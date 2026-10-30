@@ -23,7 +23,7 @@ Points d'entrée spécialisés :
 - `docs/PROCESS_SYSTEM.md` décrit le graphe industriel et son moteur.
 - `docs/ROAD_SYSTEM.md` décrit les routes constructibles.
 - `docs/COLONY.md` décrit la colonie, la population, le contexte et le déblocage.
-- `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → plateforme et le transit vers l’Arche.
+- `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → bâtiment destinataire et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
 Les fichiers importants comprennent `src/data/processes.js`,
@@ -31,6 +31,18 @@ Les fichiers importants comprennent `src/data/processes.js`,
 `src/gameplay/industry.js`, `src/navigation/camera.js`,
 `src/rendering/renderer.js`, `src/rendering/surfaceRenderer.js`,
 `src/ui/factoryEditor.js`, `src/ui/factoryViewport.js` et `src/app.js`.
+
+Modules de la colonie et de la progression :
+
+| Fichier | Responsabilité |
+| --- | --- |
+| `src/data/colony.js`, `src/data/progression.js` | Paliers, flux, zone ; étapes de déblocage |
+| `src/simulation/colony.js` | Consommation, flux dus, paliers, population, contexte |
+| `src/simulation/composition.js` | Composition moyenne de la roche par stock |
+| `src/gameplay/colonyZone.js` | Croissance de la zone de la colonie sur le terrain |
+| `src/gameplay/progression.js` | Déblocage des bâtiments et cartes, restauration |
+| `src/gameplay/buildingNames.js` | Noms par défaut numérotés par type (`state.nameCounters`) |
+| `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
 
 ## Dépendances et chargement
 
@@ -62,15 +74,14 @@ retracées en vecteurs depuis ce même terrain pour rester nettes au zoom. Il n'
 terrain haute résolution, ni worker, ni couche WebGL.
 
 Les bâtiments ne sont pas dessinés : `buildingRenderer.js` les signale par des balises
-de point d'intérêt de taille fixe à l'écran (`OrbitSurfaceStyle.buildings.pin`) : un
-hexagone portant l'icône du bâtiment, coloré selon sa catégorie et centré sur
-l'emplacement exact ; les routes le rejoignent par l'angle tourné vers elles. La
-construction progresse en arc autour de l'hexagone ; la sélection ajoute un hexagone
-orange. L'aperçu de placement montre en plus l'emprise au sol. Le clic sur l'hexagone
-sélectionne le bâtiment. Pendant le placement d'une foreuse, et lorsqu'elle est
-sélectionnée, son rayon de captage est tracé en pointillés et une étiquette sous
-l'hexagone donne les minerais qu'elle draine (texte préparé par `app.js`, qui garde
-la mise en forme dans l'UI).
+de point d'intérêt (`OrbitSurfaceStyle.buildings.pin`) : un hexagone portant l'icône du
+bâtiment, coloré selon sa catégorie et centré sur l'emplacement exact ; les routes le
+rejoignent par l'angle tourné vers elles. La balise grossit et rétrécit avec le zoom
+(`pinScale` : référence 1,6, exposant 0,8, bornée entre 0,45 et 2,2) et porte le nom du
+bâtiment au-dessus. La construction progresse en arc autour de l'hexagone ; la
+sélection ajoute un hexagone orange. L'aperçu de placement montre en plus l'emprise au
+sol. Le clic sur l'hexagone sélectionne le bâtiment (la Colonie ouvre son menu). La
+zone de la colonie est dessinée en aplat doré sous les balises, avec sa population.
 
 ## Modules denses et limites de refactorisation
 

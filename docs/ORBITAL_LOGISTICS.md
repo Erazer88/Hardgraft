@@ -1,27 +1,36 @@
-# Logistique orbitale V1
+# Logistique planétaire et orbitale
 
-Cette tranche relie les sorties d’une usine au stock de l’Arche. Elle ne simule ni
-transport terrestre physique, ni flux Hub → planète.
+Cette tranche relie les Docks de sortie à leurs destinations de surface, puis les
+Plateformes de lancement au stock de l’Arche. Elle ne simule ni transport terrestre
+physique, ni flux Hub → planète.
 
 ## Flux
 
 ```text
-Dock de sortie → dockStock → destination choisie au quai
-                → route terrestre terminée → inventaire du bâtiment destinataire
+Dock de sortie → dockStock → destination choisie au dock
+                → chemin construit (routes, voies maritimes via les ports)
+                → inventaire du bâtiment destinataire (Colonie, usine, terril, dépôt)
                 → Plateforme de lancement → lot spatial entier → arrivée → stock de l’Arche
 ```
 
 `building.dockStock` est distinct de `building.inventory` et de l’inventaire de
 construction global. Dans l’éditeur de processus, chaque Dock de sortie choisit une
-destination pour sa ressource parmi les usines et les Plateformes de lancement terminées
-de la planète. Une usine doit contenir une carte Quai d'entrée ; les Plateformes de
-lancement reçoivent nativement. Les autres bâtiments ne sont pas des destinations en V1.
-Un chemin terrestre entièrement construit est requis ; les segments en construction et les routes
-maritimes ne comptent pas. Le transfert reste instantané et agrégé, sans débit de route
-ni véhicules économiques. Une usine reçoit la matière dans son inventaire ; une
+destination pour sa ressource parmi les bâtiments terminés de la planète qui
+reçoivent : la Colonie (nativement), les usines et terrils dotés d'un Quai d'entrée,
+les dépôts dotés d'une Porte d'entrée et les Plateformes de lancement (nativement).
+Un chemin entièrement construit est requis ; il peut emprunter des voies maritimes
+entre ports, mais pas les segments en construction. Un Dock sans destination pour sa
+matière n'absorbe rien. Le transfert reste instantané et agrégé, sans débit de route
+ni véhicules économiques. Un bâtiment reçoit la matière dans son inventaire ; une
 Plateforme de lancement la reçoit dans `launchStock`. Le Quai d'entrée affiche
-l'inventaire reçu de l'usine et en retire des unités pour alimenter sa sortie interne
-raccordée à une machine ; il ne crée aucune matière.
+l'inventaire reçu et en retire des unités pour alimenter sa sortie interne raccordée
+à une machine ; il ne crée aucune matière.
+
+Chaque destination tient des compteurs d'exécution, non sauvegardés :
+`receivedTotal` (par ressource) et `receivedFrom` (par source et ressource). Le menu de
+la colonie en tire ses débits. Chaque transfert note aussi sa liaison dans
+`state.transportActivity`, que le rendu montre en impulsions sur la route
+([`ROAD_SYSTEM.md`](ROAD_SYSTEM.md)).
 
 La destination est configurée au Dock, et non sur la plateforme. Toute ressource
 transportable peut être routée ; une plateforme lance automatiquement chaque matière
@@ -74,7 +83,7 @@ matière et ne pilote pas la simulation.
 | Fichier | Responsabilité |
 | --- | --- |
 | `src/data/orbitalLogistics.js` | Capacité, énergie et durées de transit |
-| `src/simulation/logisticsNetwork.js` | Chemin terrestre terminé et transfert Dock → bâtiment destinataire |
+| `src/simulation/logisticsNetwork.js` | Chemin construit (terre et mer) et transfert Dock → bâtiment destinataire |
 | `src/simulation/orbitalTransit.js` | Corridors, lots, arrivées, mesures et géométrie orbitale pure |
 | `src/gameplay/logistics.js` | Orchestration des destinations de quai, du lancement et des états de plateforme |
 | `src/rendering/orbitalTrafficRenderer.js` | Dessin de l’Arche et des cargos sans effet économique |
