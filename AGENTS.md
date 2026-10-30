@@ -47,9 +47,8 @@ Répondre toujours en français. Chaque itération qui modifie le jeu est une li
 légère : tests ciblés, version mineure suivante dans `package.json`,
 `python3 build.py`, suppression de l'ancien `dist/nereide-zoom-continu-<ancienne>.html`,
 commit, push sur `claude/neon-style-visual-layer-a3c4vz` (pas de pull request). Finir
-chaque réponse par la version en cours et le lien permanent
-`https://raw.githack.com/Erazer88/Hardgraft/<sha complet>/dist/nereide-zoom-continu-<version>.html`.
-Donner aussi le lien stable vers la dernière version :
+chaque réponse par la version en cours et le lien stable vers la dernière version, sans
+lien versionné ni vérification :
 `https://htmlpreview.github.io/?https://github.com/Erazer88/Hardgraft/blob/claude/neon-style-visual-layer-a3c4vz/dist/nereide-zoom-continu.html`.
 Une question ou une proposition sans code ne change pas de version.
 
