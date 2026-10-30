@@ -15,7 +15,7 @@
     // next tier on, what earlier tiers asked for must keep arriving as a
     // steady flow (per minute): a tier's needs only progress while those
     // flows are met.
-    flowPerMinute: { raw_rock: 30, tar: 5, metal_plate: 1 },
+    flowPerMinute: { raw_rock: 500, tar: 50, metal_plate: 1 },
     tiers: [
       { population: 200, needs: { raw_rock: 1000 } },
       { population: 400, needs: { tar: 150 } },

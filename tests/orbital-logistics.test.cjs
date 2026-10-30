@@ -550,7 +550,7 @@ test('the colony consumes what it receives tier by tier and produces context', (
   Colony.advance(state, 120);
   assert.equal(Colony.flowsMet(colony.colony), false, 'two minutes without rock: the flow is behind');
   assert.equal(colony.colony.progress.tar, 10, 'needs wait while a flow is behind');
-  colony.inventory = { raw_rock: 200, tar: 5 };
+  colony.inventory = { raw_rock: 3 * ColonyData.flowPerMinute.raw_rock, tar: 5 };
   Colony.advance(state, 1);
   assert.equal(Colony.flowsMet(colony.colony), true);
   assert.equal(colony.colony.progress.tar, 15, 'the tier progresses again once rock flows');
