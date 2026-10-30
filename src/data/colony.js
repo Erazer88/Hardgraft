@@ -19,7 +19,9 @@
     tiers: [
       { population: 200, needs: { raw_rock: 1000 } },
       { population: 400, needs: { tar: 150 } },
-      { population: 800, needs: { metal_plate: 25 } }
+      { population: 800, needs: { metal_plate: 25 } },
+      // Asks for a building rather than goods: an assembled hub on its planet.
+      { population: 1600, needs: {}, requires: ['launch_platform'] }
     ]
   };
 

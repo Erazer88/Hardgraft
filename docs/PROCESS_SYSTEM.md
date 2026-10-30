@@ -136,6 +136,20 @@ Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinatair
 Quai d'entrée un bouton vers ses bâtiments sources ; le changement de bâtiment se fait
 par un court glissement.
 
+**Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans
+enregistrés. « Sélectionner une région » passe en mode sélection : un glisser trace un
+rectangle, les cartes touchées sont retenues avec leurs liaisons internes et leurs
+réglages (filtres, quais), puis enregistrées sous un nom. Toucher un blueprint pose,
+au centre de la vue et à l'écart des cartes présentes, celles de ses cartes que le
+catalogue du bâtiment accepte (déblocage et limite par bâtiment compris). Les blueprints
+vivent dans la bibliothèque du joueur (`src/storage/library.js`), à part de la
+sauvegarde, et survivent à une nouvelle partie.
+
+**Bâtiments enregistrés.** Sur la fiche d'un bâtiment, « ENREGISTRER » copie son type,
+son nom et ses cartes (sans stocks ni destinations) dans l'onglet « ENREGISTRÉS » du
+menu +. Le poser crée le bâtiment avec ce nom (numéroté s'il est déjà pris) et ses
+cartes ; seules restent celles que son catalogue accepte à cet endroit.
+
 **Lecture des cartes.** Chaque carte montre ses ports, son débit, son énergie, son état
 et sa barre de traitement. États : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`,
 `SANS ÉNERGIE`, `SANS DESTINATION`. L'affichage est lissé (un état actif est tenu

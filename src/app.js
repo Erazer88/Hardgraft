@@ -34,6 +34,11 @@
     return entries.length ? entries.map(([id, amount]) => `${resourceName(id)} ${formatAmount(amount)}`).join(' · ') : 'aucun matériau';
   }
   const state = globalThis.OrbitState.create();
+  // The player's saved buildings and blueprints, kept outside the game save.
+  const Library = globalThis.OrbitLibrary;
+  state.library = Library.load(globalThis.localStorage);
+  state.buildMenuTab = 'catalog';
+  const saveLibrary = () => Library.save(globalThis.localStorage, state.library);
   const factoryEditor = globalThis.OrbitFactoryEditor.create(document, {
     onSave(buildingId, plan) {
       state.factoryPlans[buildingId] = plan;
@@ -41,12 +46,17 @@
     },
     getDestinations(building) {
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
-        candidate.planetId === building.planetId && candidate.constructionState === 'complete' &&
+        candidate.planetId === building.planetId && ['complete', 'supplying'].includes(candidate.constructionState) &&
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
         LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     isCardAvailable: definition => Progression.cardUnlocked(state, definition),
+    library: {
+      blueprints: () => state.library.blueprints,
+      add(blueprint) { Library.add(state.library.blueprints, blueprint); saveLibrary(); },
+      remove(id) { state.library.blueprints = state.library.blueprints.filter(item => item.id !== id); saveLibrary(); }
+    },
     // Buildings sending this resource to the building: docks and depot gates.
     getSources(building, resourceId) {
       return state.surfaceBuildings.filter(source => source.id !== building.id && source.planetId === building.planetId &&
@@ -392,10 +402,12 @@
       return;
     }
     const definition = BuildingData.get(preview.type);
+    // A saved building comes back with its name and its cards.
+    const template = state.placementTemplate?.type === preview.type ? state.placementTemplate : null;
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, customName: BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -405,11 +417,35 @@
       updateUI(); return;
     }
     state.surfaceBuildings.push(building);
+    if (template?.plan.machines.length && BuildingData.processTypes.includes(building.type)) {
+      // Only the cards this building can hold here come back (a station on
+      // fresh water has no desalinator); they work its ground's material.
+      const ground = globalThis.OrbitIndustry.geology(state, building);
+      const catalog = globalThis.OrbitProcessData.catalog(building.type, ground?.resourceId);
+      const match = item => catalog.find(def => def.id === item.type && (!def.contextResourceId || def.contextResourceId === item.resourceId));
+      let machineCount = 0, linkCount = 0;
+      state.factoryPlans[building.id] = globalThis.OrbitProcessGraph.create({ version: globalThis.OrbitProcessData.config.version,
+        geology: ground, ...Library.instantiate(template.plan, { machineId: () => `machine-${++machineCount}`,
+          connectionId: () => `link-${++linkCount}`, accept: item => Boolean(match(item)),
+          resource: item => match(item).contextResourceId || ground?.resourceId || item.resourceId }) });
+    }
+    state.placementTemplate = null;
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
-    toast(`${definition.label} : assemblage en cours.${routeHint}`); updateUI(); persist();
+    toast(building.constructionState === 'supplying'
+      ? `${definition.label} : chantier ouvert. Livrez-lui par route ${Object.entries(definition.constructionNeeds)
+        .map(([id, amount]) => `${formatAmount(amount)} ${resourceName(id)}`).join(', ')}.`
+      : `${definition.label} : assemblage en cours.${routeHint}`); updateUI(); persist();
   }
-  function chooseBuilding(type) {
+  // The saved name, numbered if another building already carries it.
+  function freeName(name) {
+    const taken = new Set(state.surfaceBuildings.map(building => building.customName));
+    if (!taken.has(name)) return name;
+    let index = 2;
+    while (taken.has(`${name} (${index})`)) index++;
+    return `${name} (${index})`.slice(-BuildingNames.maxLength);
+  }
+  function chooseBuilding(type, template = null) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface' || !Progression.buildingUnlocked(state, type)) return;
     const shortage = Inventory.missing(state.inventory,
@@ -421,9 +457,10 @@
     }
     cancelRoadDrag();
     state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
+    state.placementTemplate = template;
     $('inspector').hidden = true;
     updateBuildingPreview(W / 2, H / 2, type);
-    toast(`Déplacez l’aperçu de ${definition.label} et touchez pour le poser.`);
+    toast(`Déplacez l’aperçu de ${template ? template.name : definition.label} et touchez pour le poser.`);
     updateUI();
   }
   function selectSurfaceBuilding(building) {
@@ -883,6 +920,29 @@
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
+  $('build-tab-catalog').onclick = () => { state.buildMenuTab = 'catalog'; updateUI(); };
+  $('build-tab-saved').onclick = () => { state.buildMenuTab = 'saved'; updateUI(); };
+  $('saved-buildings').addEventListener('click', event => {
+    const remove = event.target.closest('[data-delete-saved-building]');
+    if (remove) {
+      state.library.buildings = state.library.buildings.filter(item => item.id !== remove.dataset.deleteSavedBuilding);
+      saveLibrary(); updateUI(); return;
+    }
+    const option = event.target.closest('[data-saved-building-id]');
+    const template = option && state.library.buildings.find(item => item.id === option.dataset.savedBuildingId);
+    if (template) chooseBuilding(template.type, template);
+  });
+  // Saves the selected building (type, name and cards) to the build menu.
+  $('save-building-button').onclick = () => {
+    const building = state.selected?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+    if (!building) return;
+    const template = Library.add(state.library.buildings, Library.buildingTemplate(building, state.factoryPlans[building.id]));
+    saveLibrary();
+    const cards = template.plan.machines.length;
+    toast(`${template.name} enregistré${cards ? ` avec ${cards} carte${cards > 1 ? 's' : ''}` : ''} : menu +, onglet « Enregistrés ».`);
+    updateUI();
+  };
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('factory-edit-button').onclick = () => {
@@ -983,7 +1043,7 @@
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (factoryEditor.isOpen()) {
-      if (e.key === 'Escape') { factoryEditor.close(); e.preventDefault(); }
+      if (e.key === 'Escape') { if (!factoryEditor.dismiss()) factoryEditor.close(); e.preventDefault(); }
       return;
     }
     if (e.key === 'Escape') {

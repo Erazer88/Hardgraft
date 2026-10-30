@@ -20,13 +20,24 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 | 1 | 1 000 roches brutes | 200 |
 | 2 | 150 goudrons | 400 |
 | 3 | 25 plaques de métal | 800 |
+| 4 | un hub (plateforme de lancement) assemblé sur sa planète | 1 600 |
 
 À partir du palier 2, ce que demandaient les paliers précédents doit continuer
 d'arriver en flux régulier (`flowPerMinute`) : roche brute 500/min au palier 2, roche
-brute 500/min et goudron 25/min au palier 3. Le dû de chaque flux grandit avec le temps
+brute 500/min et goudron 25/min au palier 3, plus 1 plaque/min au palier 4. Le dû de chaque flux grandit avec le temps
 (au plus deux minutes de retard) et se paie en unités entières avec ce qui arrive. Les
 quantités du palier n'avancent que tant que chaque flux a moins d'une minute de retard.
 Le menu de la colonie affiche ces flux (tenus ou en retard).
+
+Un palier peut demander un bâtiment plutôt que des ressources (`requires`) : le palier 4
+attend un hub assemblé sur la planète de la colonie, ses flux étant tenus.
+
+**Le hub** (`launch_platform`) se bâtit avec des ressources livrées par route
+(`constructionNeeds`, valeurs provisoires) : 25 plaques de métal, 50 goudrons,
+15 cuivres bruts, 15 silicium bruts et 100 eaux douces. Posé, il devient un chantier
+(`constructionState: 'supplying'`) que les Docks de sortie peuvent choisir comme
+destination ; il ne prend que ce qui lui manque. Une fois tout livré, les robots
+l'assemblent (2 s). Sa fiche, sa balise et le menu de la colonie montrent l'avancement.
 
 La population ne baisse pas et n'a pas d'autre effet pour l'instant. Après le dernier
 palier, aucun flux n'est plus exigé ; les paliers suivants viendront plus tard.
@@ -65,10 +76,11 @@ affiché verrouillé (`src/data/progression.js`, `src/gameplay/progression.js`) 
 | Une planète manque d'énergie | Éolienne | — |
 | Palier 1 atteint (elle demande du goudron) | Usine, Terril, Port | Concasseur, Broyeur, Trieuse de carbone, Four à goudron, Quai d'entrée, Retraitement, Incinérateur |
 | Palier 2 atteint (elle demande des plaques) | Dépôt | Séparateur magnétique, Four · fer, Laminoir, cartes du dépôt |
+| Palier 3 atteint, 800 habitants (elle demande le hub) | Station de pompage, Hub | Séparateur gravitaire, Four · cuivre, Laveuse et sécheur de silice, Four · silice, Pompe, Dessalinisateur |
 
 Un court message signale ce qui apparaît. Le réglage développeur « Tout débloquer »
-montre tout. La plateforme de lancement, la station de pompage et la plateforme
-pétrolière viendront avec les paliers suivants.
+montre tout. La plateforme pétrolière et la Réserve d'eau infinie restent hors
+progression.
 
 ## Repères
 

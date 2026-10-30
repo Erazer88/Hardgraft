@@ -122,7 +122,10 @@
     drawGlyph(ctx, head.x, head.y, pin.glyphSizePx * scale, pin.glyphColor, definition.icon, pin.glyphLineWidthPx * Math.sqrt(scale));
     if (!complete) {
       // Construction progress runs around the head.
-      const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
+      // A site waiting for deliveries shows how much of them arrived.
+      const done = building.constructionState === 'supplying'
+        ? root.OrbitConstruction?.supplyFraction(building) || 0 : building.constructionProgress || 0;
+      const progress = Math.max(0, Math.min(1, done));
       ctx.strokeStyle = pin.constructionColor; ctx.lineWidth = pin.progressWidthPx; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.arc(head.x, head.y, radius + 4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
     }
@@ -402,7 +405,8 @@
       ctx.fillText(building.customName || definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
       ctx.font = `${root.OrbitTextScale.px(style.valueSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
-      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
+      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.constructionState === 'supplying' ? 'CHANTIER · LIVRAISONS'
+        : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
       const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
       const barWidth = Math.max(10, card.width - (barX - card.x) - style.cardPaddingPx);
       ctx.fillStyle = '#52687866'; ctx.fillRect(barX, barY, barWidth, style.activityBarHeightPx);

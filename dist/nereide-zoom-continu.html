@@ -344,11 +344,49 @@ body[data-level="surface"] .corner-note{display:none}
 .alert-item p{margin:5px 0 0;color:#8ea9b8;font-size:calc(9px*var(--ta) + var(--tb));line-height:1.45}
 @media(orientation:landscape) and (max-height:600px){.alerts{top:calc(62px + var(--safe-top))}}
 
+/* Building sheet actions side by side; build menu tabs and saved buildings. */
+.building-actions{display:flex;gap:6px}
+.building-actions .factory-edit-button{flex:1 1 0;min-width:0;padding-left:6px;padding-right:6px}
+.build-menu-tabs{display:flex;gap:4px;margin:0 0 8px}
+.build-menu-tabs button{flex:1;padding:7px 6px;border:1px solid #829eaf22;border-radius:4px;background:#101e2b8a;color:#7f9cad;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.build-menu-tabs button.active{border-color:#efa35a8c;color:#f1c28e;background:#2a1d1066}
+.build-menu-tabs span{opacity:.8}
+.saved-building{position:relative;display:flex;min-width:0}
+.saved-building .build-option{flex:1;min-width:0;padding-right:24px}
+.saved-building-remove{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:3px;color:#7d97a6;font-size:calc(14px*var(--ta) + var(--tb));line-height:1}
+.saved-building-remove:hover{background:#9a4a4242;color:#f1a59a}
+.saved-buildings-empty{grid-column:1/-1;margin:4px;color:#7e9bad;font-size:calc(9px*var(--ta) + var(--tb));line-height:1.5}
+
+/* Factory editor: blueprints next to "add a block", region selection. */
+.factory-add-block-trigger{left:calc(50% - 4px);transform:translateX(-100%)}
+.factory-blueprints-trigger{left:calc(50% + 4px);min-width:0;transform:none}
+.factory-selecting .factory-add-block-trigger{display:none}
+.factory-selecting .factory-viewport{cursor:crosshair}
+.factory-selection-rect{position:absolute;z-index:3;border:2px dashed #efa35a;border-radius:4px;background:#efa35a14;pointer-events:none}
+.factory-node.in-selection{border-color:#efa35acc;box-shadow:0 0 0 2px #efa35a55,0 8px 22px #0005}
+.factory-selection-bar{position:absolute;z-index:7;left:50%;bottom:calc(10px + var(--safe-bottom));display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;width:min(560px,calc(100% - 16px));padding:8px;border:1px solid #efa35a66;border-radius:8px;background:#0b1928f0;box-shadow:0 8px 30px #0008;transform:translateX(-50%)}
+.factory-selection-bar span{flex:1 1 100%;color:#f1c28e;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px;text-align:center}
+.factory-selection-bar input{flex:1 1 140px;min-width:0;padding:7px 8px;border:1px solid #7495a54d;border-radius:4px;background:#061321;color:#d6e5eb;font-family:var(--mono);font-size:calc(10px*var(--ta) + var(--tb))}
+.factory-selection-bar button{padding:8px 10px;border:1px solid #72bac579;border-radius:4px;background:#174257;color:#d3e8ed;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.factory-selection-bar button:disabled{opacity:.45;cursor:default}
+#factory-selection-cancel{border-color:#7495a54d;background:transparent;color:#9cb5c2}
+.factory-blueprint-list{display:flex;flex-direction:column;gap:6px;min-height:0;padding:10px;overflow:auto;overscroll-behavior:contain}
+.factory-blueprint-entry{position:relative;display:flex}
+.factory-blueprint{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;padding:10px 34px 10px 12px;border:1px solid #728da02b;border-radius:6px;background:linear-gradient(150deg,#13263a,#0d1b2a);color:#bed0d8;text-align:left}
+.factory-blueprint:disabled{opacity:.5;cursor:default}
+.factory-blueprint:not(:disabled):hover{border-color:#6bb8c18c}
+.factory-blueprint strong{color:#d7e7ee;font-size:calc(9px*var(--ta) + var(--tb));font-weight:600;letter-spacing:.6px}
+.factory-blueprint small{color:#86a1b1;font-size:calc(8px*var(--ta) + var(--tb))}
+.factory-blueprint-new{padding-right:12px;border-style:dashed;border-color:#efa35a66}
+.factory-blueprint-new strong{color:#f1c28e}
+.factory-blueprint-remove{position:absolute;top:50%;right:6px;width:26px;height:26px;margin-top:-13px;border-radius:4px;color:#7d97a6;font-size:calc(15px*var(--ta) + var(--tb));line-height:1}
+.factory-blueprint-remove:hover{background:#9a4a4242;color:#f1a59a}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
-   keep everything in view at a glance. */
-@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}
+   keep everything in view at a glance; a building's sheet grows least. */
+@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.inspector.building-panel{--ta:.85;--tb:.5px}.factory-add-block-trigger{min-width:150px;padding:0 12px}.factory-blueprints-trigger{min-width:0}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}
 </style>
 </head>
 <body>
@@ -390,15 +428,23 @@ body[data-level="surface"] .corner-note{display:none}
       <section class="logistics-card"><strong>ÉNERGIE</strong><div id="hub-energy-data"></div></section>
       <section class="logistics-card"><strong>FLUX ENTRANTS</strong><div id="hub-incoming-data"></div></section>
     </div>
-    <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
+    <div class="building-actions">
+      <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
+      <button class="factory-edit-button" id="save-building-button" type="button" aria-label="Enregistrer le bâtiment avec son nom et ses cartes" hidden>ENREGISTRER</button>
+    </div>
     <button class="demolish-button" id="demolish-button" hidden>DÉMOLIR · RÉCUPÉRER 100 %</button>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
   <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
     <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong id="build-menu-title">INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
+    <div class="build-menu-tabs" role="tablist" aria-label="Catalogue ou bâtiments enregistrés">
+      <button type="button" role="tab" id="build-tab-catalog" aria-selected="true">INFRASTRUCTURES</button>
+      <button type="button" role="tab" id="build-tab-saved" aria-selected="false">ENREGISTRÉS <span id="saved-buildings-count">0</span></button>
+    </div>
     <p class="build-menu-hint" id="build-menu-hint" hidden></p>
     <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
+    <div class="build-options saved-buildings" id="saved-buildings" hidden></div>
   </aside>
   <div class="alerts" id="alerts" hidden>
     <button class="alerts-toggle" id="alerts-toggle" aria-expanded="false" aria-controls="alerts-list" aria-label="Problèmes en cours"><span aria-hidden="true">⚠</span><span id="alerts-count">0</span><span class="alerts-label">PROBLÈMES</span></button>
@@ -432,6 +478,7 @@ body[data-level="surface"] .corner-note{display:none}
             <g id="factory-link-layer"></g>
           </svg>
           <div class="factory-nodes" id="factory-nodes"></div>
+          <div class="factory-selection-rect" id="factory-selection-rect" hidden></div>
         </div>
         <div class="factory-empty" id="factory-empty">
           <span class="factory-empty-mark">＋</span>
@@ -451,10 +498,31 @@ body[data-level="surface"] .corner-note{display:none}
         <div class="factory-block-list" id="factory-block-list"></div>
       </section>
     </div>
+    <div class="factory-palette-overlay" id="factory-blueprints-overlay" hidden>
+      <section class="factory-palette" aria-labelledby="factory-blueprints-title">
+        <header class="factory-palette-heading">
+          <div><span>PLANS ENREGISTRÉS</span><strong id="factory-blueprints-title">BLUEPRINTS</strong></div>
+          <small>TOUCHER POUR POSER</small>
+          <button id="factory-blueprints-close" type="button" aria-label="Fermer les blueprints">×</button>
+        </header>
+        <div class="factory-blueprint-list" id="factory-blueprint-list"></div>
+      </section>
+    </div>
+    <div class="factory-selection-bar" id="factory-selection-bar" hidden>
+      <span id="factory-selection-count">GLISSEZ POUR ENTOURER DES CARTES</span>
+      <input id="factory-selection-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du blueprint">
+      <button type="button" id="factory-selection-save" disabled>ENREGISTRER</button>
+      <button type="button" id="factory-selection-cancel">ANNULER</button>
+    </div>
     <button class="factory-add-block-trigger" id="factory-add-block-toggle" type="button"
         aria-controls="factory-palette-overlay" aria-expanded="false" aria-label="Ajouter un bloc au processus">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       <span>AJOUTER UN BLOC</span>
+    </button>
+    <button class="factory-add-block-trigger factory-blueprints-trigger" id="factory-blueprints-toggle" type="button"
+        aria-controls="factory-blueprints-overlay" aria-expanded="false" aria-label="Blueprints : poser ou enregistrer une région de cartes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
+      <span>BLUEPRINTS</span>
     </button>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -501,7 +569,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.103.0";
+globalThis.OrbitVersion = "0.104.0";
 
 </script>
   <script>
@@ -1293,8 +1361,11 @@ globalThis.OrbitVersion = "0.103.0";
     },
     launch_platform: {
       id: 'launch_platform', label: 'PLATEFORME DE LANCEMENT', shortLabel: 'PL', category: 'logistics', icon: 'hub',
-      description: 'Reçoit les stocks des Docks reliés par route et les exporte vers l’Arche.',
+      description: 'Le hub : se bâtit avec des ressources livrées par route, puis exporte vers l’Arche ce qu’il reçoit.',
       functions: { exportsToOrbit: true },
+      // Its site waits for these deliveries (by road, like any destination)
+      // before the robots assemble it. First draft.
+      constructionNeeds: { metal_plate: 25, tar: 50, raw_copper: 15, raw_silicon: 15, water: 100 },
       cost: { iron: 350, copper: 250, silicon: 150, carbon: 80 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },
@@ -1403,7 +1474,9 @@ globalThis.OrbitVersion = "0.103.0";
     tiers: [
       { population: 200, needs: { raw_rock: 1000 } },
       { population: 400, needs: { tar: 150 } },
-      { population: 800, needs: { metal_plate: 25 } }
+      { population: 800, needs: { metal_plate: 25 } },
+      // Asks for a building rather than goods: an assembled hub on its planet.
+      { population: 1600, needs: {}, requires: ['launch_platform'] }
     ]
   };
 
@@ -1440,7 +1513,11 @@ globalThis.OrbitVersion = "0.103.0";
     // Metal plates: iron sorted out, smelted and rolled; a depot to share flows.
     { id: 'plates', when: { tier: 2 }, buildings: ['storage'],
       cards: ['magnetic_separator', 'reduction_furnace:iron', 'rolling_mill', 'depot_input', 'depot_output', 'depot_buffer',
-        'depot_filter', 'depot_splitter', 'depot_priority'] }
+        'depot_filter', 'depot_splitter', 'depot_priority'] },
+    // The hub: built from plates, tar, copper, silicon and fresh water.
+    { id: 'hub', when: { tier: 3 }, buildings: ['water_station', 'launch_platform'],
+      cards: ['gravity_separator', 'reduction_furnace:copper', 'silicon_washer', 'silicon_dryer', 'reduction_furnace:silicon',
+        'water_pump', 'desalinator'] }
   ];
 
   function freeze(value) {
@@ -4125,6 +4202,13 @@ globalThis.OrbitVersion = "0.103.0";
 
   const colonies = state => (state.surfaceBuildings || []).filter(building => building.type === 'colony');
 
+  // Buildings a tier asks for (tier.requires): each must stand assembled on
+  // the colony's planet. Returns, per type, whether it does.
+  function requirements(state, building, tier) {
+    return Object.fromEntries((tier?.requires || []).map(type => [type, (state.surfaceBuildings || []).some(candidate =>
+      candidate.type === type && candidate.planetId === building.planetId && candidate.constructionState === 'complete')]));
+  }
+
   // What the current tier still asks for, or null once every tier is done.
   function needs(colony) {
     const tier = Data.tiers[colony?.tier ?? 0];
@@ -4162,7 +4246,8 @@ globalThis.OrbitVersion = "0.103.0";
         const taken = take(resourceId, need - (colony.progress[resourceId] || 0));
         if (taken) colony.progress[resourceId] = (colony.progress[resourceId] || 0) + taken;
       }
-      if (Object.entries(tier.needs).every(([id, amount]) => (colony.progress[id] || 0) >= amount)) {
+      if (Object.entries(tier.needs).every(([id, amount]) => (colony.progress[id] || 0) >= amount) &&
+          Object.values(requirements(state, building, tier)).every(Boolean)) {
         colony.tier += 1;
         colony.population = tier.population;
         colony.progress = {}; colony.owed = {};
@@ -4183,7 +4268,7 @@ globalThis.OrbitVersion = "0.103.0";
     return Math.max(1, Math.round(km2 / cellKm2));
   }
 
-  root.OrbitColony = Object.freeze({ normalize, needs, flows, flowsMet, advance, totalPopulation, targetCells, colonies });
+  root.OrbitColony = Object.freeze({ normalize, needs, flows, flowsMet, requirements, advance, totalPopulation, targetCells, colonies });
 })(globalThis);
 
 </script>
@@ -4192,7 +4277,8 @@ globalThis.OrbitVersion = "0.103.0";
   'use strict';
 
   const Data = root.OrbitBuildingData;
-  const constructionStates = Object.freeze(['planned', 'constructing', 'complete']);
+  // A site with constructionNeeds is "supplying" until its deliveries arrive.
+  const constructionStates = Object.freeze(['planned', 'supplying', 'constructing', 'complete']);
   const isFiniteNumber = value => typeof value === 'number' && Number.isFinite(value);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -4258,6 +4344,7 @@ globalThis.OrbitVersion = "0.103.0";
     const gateMix = properties.gateMix && typeof properties.gateMix === 'object' && !Array.isArray(properties.gateMix)
       ? Object.fromEntries(Object.entries(properties.gateMix).map(([id, value]) => [id, mixes(value)])) : {};
     const launchStock = integerStock(properties.launchStock);
+    const constructionSupplied = integerStock(properties.constructionSupplied);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
     // Units a depot's output gates queued, per destination building.
     const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
@@ -4304,6 +4391,7 @@ globalThis.OrbitVersion = "0.103.0";
       constructionProgress: clamp(progress, 0, 1),
       constructionDurationSeconds,
       demolitionRefundRate,
+      constructionSupplied,
       costPaid: costPaid ? { ...costPaid } : null,
       cardCostPaid,
       roadPort,
@@ -4375,9 +4463,49 @@ globalThis.OrbitVersion = "0.103.0";
     building.constructionDurationSeconds = definition.constructionDurationSeconds || defaultDurationSeconds;
     building.demolitionRefundRate = definition.demolitionRefundRate ?? 1;
     building.constructionProgress = 0;
+    // A site that needs deliveries waits for them before the robots come.
+    if (Object.keys(definition.constructionNeeds || {}).length) {
+      building.constructionState = 'supplying';
+      building.status = 'supplying';
+      building.constructionSupplied = {};
+    } else {
+      building.constructionState = 'constructing';
+      building.status = 'building';
+    }
+    return { started: true, missing: [] };
+  }
+
+  // What a supplying site still waits for, per resource.
+  function needsLeft(building) {
+    const needs = Buildings.get(building?.type)?.constructionNeeds || {};
+    return Object.fromEntries(Object.entries(needs).map(([id, amount]) =>
+      [id, Math.max(0, amount - (building.constructionSupplied?.[id] || 0))]).filter(([, left]) => left > 0));
+  }
+
+  // Share of a site's deliveries received, from 0 to 1.
+  function supplyFraction(building) {
+    const needs = Object.entries(Buildings.get(building?.type)?.constructionNeeds || {});
+    const total = needs.reduce((sum, [, amount]) => sum + amount, 0);
+    if (!total) return 1;
+    return needs.reduce((sum, [id, amount]) => sum + Math.min(amount, building.constructionSupplied?.[id] || 0), 0) / total;
+  }
+
+  // Moves what reached a supplying site (its inventory) into its supplies;
+  // once complete, the site goes to the robots.
+  function supply(building) {
+    const supplied = building.constructionSupplied ||= {}, stock = building.inventory ||= {};
+    for (const [id, left] of Object.entries(needsLeft(building))) {
+      const amount = Math.min(left, Math.floor(stock[id] || 0));
+      if (amount <= 0) continue;
+      supplied[id] = (supplied[id] || 0) + amount;
+      stock[id] -= amount;
+      if (stock[id] <= 0) delete stock[id];
+    }
+    if (Object.keys(needsLeft(building)).length) return false;
     building.constructionState = 'constructing';
     building.status = 'building';
-    return { started: true, missing: [] };
+    building.constructionProgress = 0;
+    return true;
   }
 
   // Sites progress in the order they were started, as many at once as there
@@ -4387,6 +4515,7 @@ globalThis.OrbitVersion = "0.103.0";
     const crews = Buildings.construction?.crews ?? Infinity;
     let busy = 0;
     for (const building of buildings) {
+      if (building.constructionState === 'supplying') supply(building);
       if (building.constructionState !== 'constructing') continue;
       if (busy >= crews) { building.status = 'queued'; continue; }
       busy++;
@@ -4440,7 +4569,7 @@ globalThis.OrbitVersion = "0.103.0";
     return refund;
   }
 
-  root.OrbitConstruction = Object.freeze({ start, costFor, cardCost, pricesEnabled, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
+  root.OrbitConstruction = Object.freeze({ start, needsLeft, supplyFraction, costFor, cardCost, pricesEnabled, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
 })(globalThis);
 
 </script>
@@ -5111,6 +5240,13 @@ globalThis.OrbitVersion = "0.103.0";
 
   // A destination receives once its plan has an entry: an input dock, or a
   // depot's input gate. Launch platforms always receive.
+  // A site under construction takes what it still waits for, nothing more.
+  function siteRoom(destination, resourceId) {
+    if (destination.constructionState !== 'supplying') return null;
+    const left = root.OrbitConstruction?.needsLeft(destination)?.[resourceId] || 0;
+    return Math.max(0, left - Math.floor(destination.inventory?.[resourceId] || 0));
+  }
+
   function hasReceivingDock(state, building) {
     if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
@@ -5124,21 +5260,27 @@ globalThis.OrbitVersion = "0.103.0";
     const buildings = state.surfaceBuildings || [];
     const byId = new Map(buildings.map(building => [building.id, building]));
     const Mix = root.OrbitComposition;
+    // Returns how many units reached the destination.
     const deliver = (source, network, destinationId, resourceId, rawAmount, sourceMix = null) => {
-      const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
+      const offered = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
       const destination = byId.get(destinationId);
-      if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
-          !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+      if (!offered || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
+          !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) ||
+          !['complete', 'supplying'].includes(destination.constructionState) ||
           !hasReceivingDock(state, destination) ||
-          !hasBuiltLandPath(network, source.id, destination.id)) return false;
-      const stock = destination.type === 'launch_platform'
+          !hasBuiltLandPath(network, source.id, destination.id)) return 0;
+      const room = siteRoom(destination, resourceId);
+      const amount = room === null ? offered : Math.min(offered, room);
+      if (!amount) return 0;
+      const site = destination.constructionState === 'supplying';
+      const stock = destination.type === 'launch_platform' && !site
         ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
       // Rock arrives with the composition it left with.
       if (Mix && destination.type !== 'launch_platform') {
         Mix.add(destination.inventoryMix ||= {}, resourceId, resourceId, stock[resourceId] || 0, amount, Mix.of(sourceMix, resourceId));
       }
       stock[resourceId] = (stock[resourceId] || 0) + amount;
-      if (destination.type === 'launch_platform') {
+      if (destination.type === 'launch_platform' && !site) {
         destination.launchReceivedTotal ||= {};
         destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
       }
@@ -5150,26 +5292,30 @@ globalThis.OrbitVersion = "0.103.0";
       fromSource[resourceId] = (fromSource[resourceId] || 0) + amount;
       flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
       transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
-      return true;
+      return amount;
+    };
+    // Takes what was delivered out of a source stock (and its composition once empty).
+    const settle = (stock, mixes, resourceId, delivered) => {
+      if (!delivered) return;
+      stock[resourceId] -= delivered;
+      if (stock[resourceId] > 0) return;
+      delete stock[resourceId];
+      if (mixes) delete mixes[resourceId];
     };
     for (const source of buildings) {
       if (source.constructionState !== 'complete') continue;
       const network = state.roadNetworks?.[source.planetId];
       if (source.dockStock && typeof source.dockStock === 'object') {
         for (const [resourceId, amount] of Object.entries(source.dockStock)) {
-          if (deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount, source.dockMix)) {
-            delete source.dockStock[resourceId];
-            if (source.dockMix) delete source.dockMix[resourceId];
-          }
+          settle(source.dockStock, source.dockMix, resourceId,
+            deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount, source.dockMix));
         }
       }
       // A depot's output gates queue their units per destination building.
       for (const [destinationId, queue] of Object.entries(source.gateStock || {})) {
         for (const [resourceId, amount] of Object.entries(queue)) {
-          if (deliver(source, network, destinationId, resourceId, amount, source.gateMix?.[destinationId])) {
-            delete queue[resourceId];
-            if (source.gateMix?.[destinationId]) delete source.gateMix[destinationId][resourceId];
-          }
+          settle(queue, source.gateMix?.[destinationId], resourceId,
+            deliver(source, network, destinationId, resourceId, amount, source.gateMix?.[destinationId]));
         }
       }
     }
@@ -7564,6 +7710,102 @@ globalThis.OrbitVersion = "0.103.0";
 (function (root) {
   'use strict';
 
+  // The player's library, kept apart from the game save so it outlives a new
+  // game: saved buildings (type, name and cards, placed again from the build
+  // menu) and blueprints (a region of cards, placed again inside a building).
+  const STORAGE_KEY = 'nereide-atlas-library-v1';
+  const LIMIT = 40;
+  const copy = value => JSON.parse(JSON.stringify(value));
+  const uid = (prefix, now) => `${prefix}-${now.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const text = value => typeof value === 'string' && value.trim() ? value.trim().slice(0, 32) : null;
+
+  // The cards of a plan, without their stocks: positions relative to the
+  // top-left card, links between kept cards only. `ids` keeps a subset.
+  function planTemplate(plan, ids = null) {
+    const keep = ids ? new Set(ids) : null;
+    const machines = (plan?.machines || []).filter(machine => !keep || keep.has(machine.id));
+    if (!machines.length) return { machines: [], connections: [] };
+    const minX = Math.min(...machines.map(machine => machine.x)), minY = Math.min(...machines.map(machine => machine.y));
+    const kept = new Set(machines.map(machine => machine.id));
+    return {
+      machines: machines.map(machine => ({ key: machine.id, type: machine.type, resourceId: machine.resourceId || null,
+        dx: machine.x - minX, dy: machine.y - minY,
+        ...(machine.config ? { config: copy(machine.config) } : {}),
+        ...(machine.importResourceId ? { importResourceId: machine.importResourceId } : {}) })),
+      connections: (plan.connections || []).filter(link => kept.has(link.fromMachineId) && kept.has(link.toMachineId))
+        .map(link => ({ from: link.fromMachineId, fromOutputId: link.fromOutputId, to: link.toMachineId, toInputId: link.toInputId }))
+    };
+  }
+
+  function buildingTemplate(building, plan, now = Date.now()) {
+    return { id: uid('building', now), type: building.type, name: text(building.customName) || building.type,
+      plan: planTemplate(plan), savedAt: now };
+  }
+
+  function blueprint(name, buildingType, plan, ids, now = Date.now()) {
+    return { id: uid('blueprint', now), name: text(name) || 'Blueprint', buildingType,
+      ...planTemplate(plan, ids), savedAt: now };
+  }
+
+  // Plain machines and connections from a template, with fresh ids, placed
+  // from `origin`; `accept` may leave cards out (their links go with them) and
+  // `resource` names the material each card works in its new building.
+  function instantiate(template, { origin = { x: 80, y: 80 }, machineId, connectionId, accept = () => true,
+    resource = item => item.resourceId } = {}) {
+    const ids = new Map(), machines = [];
+    for (const item of template?.machines || []) {
+      if (!accept(item)) continue;
+      const id = machineId(item);
+      ids.set(item.key, id);
+      const resourceId = resource(item);
+      machines.push({ id, type: item.type, ...(resourceId ? { resourceId } : {}),
+        x: origin.x + item.dx, y: origin.y + item.dy,
+        ...(item.config ? { config: copy(item.config) } : {}),
+        ...(item.importResourceId ? { importResourceId: item.importResourceId } : {}) });
+    }
+    const connections = (template?.connections || []).filter(link => ids.has(link.from) && ids.has(link.to))
+      .map(link => ({ id: connectionId(link), fromMachineId: ids.get(link.from), fromOutputId: link.fromOutputId,
+        toMachineId: ids.get(link.to), toInputId: link.toInputId }));
+    return { machines, connections };
+  }
+
+  const validPlan = value => Array.isArray(value?.machines) && value.machines.every(machine =>
+    typeof machine?.key === 'string' && typeof machine.type === 'string' && Number.isFinite(machine.dx) && Number.isFinite(machine.dy)) &&
+    Array.isArray(value.connections);
+
+  function normalize(value) {
+    const buildings = (Array.isArray(value?.buildings) ? value.buildings : [])
+      .filter(item => typeof item?.id === 'string' && typeof item.type === 'string' && text(item.name) && validPlan(item.plan));
+    const blueprints = (Array.isArray(value?.blueprints) ? value.blueprints : [])
+      .filter(item => typeof item?.id === 'string' && text(item.name) && validPlan(item));
+    return { buildings: buildings.slice(0, LIMIT), blueprints: blueprints.slice(0, LIMIT) };
+  }
+
+  function load(storage) {
+    try { return normalize(JSON.parse(storage?.getItem(STORAGE_KEY) || 'null')); }
+    catch (_) { return normalize(null); }
+  }
+
+  function save(storage, library) {
+    try { storage.setItem(STORAGE_KEY, JSON.stringify(normalize(library))); return true; }
+    catch (_) { return false; }
+  }
+
+  // Newest first, at most LIMIT entries.
+  function add(list, item) {
+    list.unshift(item);
+    list.splice(LIMIT);
+    return item;
+  }
+
+  root.OrbitLibrary = Object.freeze({ planTemplate, buildingTemplate, blueprint, instantiate, normalize, load, save, add, limit: LIMIT });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   function project(point, camera, viewport) {
     return { x: viewport.width / 2 + (point.x - camera.x) * camera.zoom,
       y: viewport.height / 2 + (point.y - camera.y) * camera.zoom };
@@ -7764,7 +8006,10 @@ globalThis.OrbitVersion = "0.103.0";
     drawGlyph(ctx, head.x, head.y, pin.glyphSizePx * scale, pin.glyphColor, definition.icon, pin.glyphLineWidthPx * Math.sqrt(scale));
     if (!complete) {
       // Construction progress runs around the head.
-      const progress = Math.max(0, Math.min(1, building.constructionProgress || 0));
+      // A site waiting for deliveries shows how much of them arrived.
+      const done = building.constructionState === 'supplying'
+        ? root.OrbitConstruction?.supplyFraction(building) || 0 : building.constructionProgress || 0;
+      const progress = Math.max(0, Math.min(1, done));
       ctx.strokeStyle = pin.constructionColor; ctx.lineWidth = pin.progressWidthPx; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.arc(head.x, head.y, radius + 4, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
     }
@@ -8044,7 +8289,8 @@ globalThis.OrbitVersion = "0.103.0";
       ctx.fillText(building.customName || definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
       ctx.font = `${root.OrbitTextScale.px(style.valueSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
-      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
+      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.constructionState === 'supplying' ? 'CHANTIER · LIVRAISONS'
+        : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
       const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
       const barWidth = Math.max(10, card.width - (barX - card.x) - style.cardPaddingPx);
       ctx.fillStyle = '#52687866'; ctx.fillRect(barX, barY, barWidth, style.activityBarHeightPx);
@@ -10033,8 +10279,9 @@ globalThis.OrbitVersion = "0.103.0";
       const rows = [['POPULATION', `${fmt(colony.population)} habitants`],
         ['CONTEXTE', `+${fmtDecimal(root.OrbitColonyData.contextPerMinute)} / min`]];
       if (tier) {
-        rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, Object.entries(tier.needs)
-          .map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`).join('  /  ')]);
+        rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, [
+          ...Object.entries(tier.needs).map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`),
+          ...(tier.requires || []).map(type => `${BuildingData.get(type)?.label || type} assemblé`)].join('  /  ')]);
         // Earlier needs as steady flows; the tier only progresses while they hold.
         const flows = Object.entries(root.OrbitColony.flows(colony.tier));
         if (flows.length) rows.push([root.OrbitColony.flowsMet(colony) ? 'FLUX REQUIS · TENUS' : 'FLUX REQUIS · EN RETARD',
@@ -10096,6 +10343,11 @@ globalThis.OrbitVersion = "0.103.0";
       };
       const rows = byType[building.type] || [];
       if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
+      if (building.constructionState === 'supplying') {
+        const needs = BuildingData.get(building.type)?.constructionNeeds || {};
+        rows.unshift(['CHANTIER · RESSOURCES À LIVRER', Object.entries(needs).map(([id, amount]) =>
+          `${resourceName(id)} ${fmt(Math.min(amount, building.constructionSupplied?.[id] || 0))} / ${fmt(amount)}`).join('  /  ')]);
+      }
       if (building.constructionState === 'constructing') {
         rows.unshift(['ASSEMBLAGE', building.status === 'queued' ? 'En attente d’une équipe de robots'
           : `${Math.round((building.constructionProgress || 0) * 100)} %`]);
@@ -10169,6 +10421,8 @@ globalThis.OrbitVersion = "0.103.0";
       $('selection-name').hidden = isBuilding;
       $('building-name').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
+      // Any building but the unique colony can be saved to the build menu.
+      $('save-building-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.placementRules?.uniqueInGame);
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
       if (state.level === 'galaxy') {
@@ -10280,6 +10534,7 @@ globalThis.OrbitVersion = "0.103.0";
         if (definition) option.title = unique ? 'Un seul exemplaire possible.' : option.disabled
           ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }
+      renderBuildMenuTabs(state);
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
@@ -10309,6 +10564,50 @@ globalThis.OrbitVersion = "0.103.0";
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
+    }
+
+    // The build menu's second tab: buildings the player saved (state.library),
+    // placed again with their name and cards.
+    let savedSignature = null;
+    function renderBuildMenuTabs(state) {
+      const saved = state.library?.buildings || [], tab = state.buildMenuTab === 'saved' ? 'saved' : 'catalog';
+      for (const [id, name] of [['build-tab-catalog', 'catalog'], ['build-tab-saved', 'saved']]) {
+        $(id).classList.toggle('active', tab === name);
+        $(id).setAttribute('aria-selected', String(tab === name));
+      }
+      $('build-options').hidden = tab !== 'catalog';
+      $('resource-stock').hidden = tab !== 'catalog';
+      $('saved-buildings').hidden = tab !== 'saved';
+      $('saved-buildings-count').textContent = String(saved.length);
+      const available = saved.map(item => root.OrbitProgression.buildingUnlocked(state, item.type));
+      const signature = JSON.stringify([saved.map(item => [item.id, item.name]), available]);
+      if (signature === savedSignature) return;
+      savedSignature = signature;
+      const list = $('saved-buildings');
+      if (!saved.length) {
+        const empty = document.createElement('p'); empty.className = 'saved-buildings-empty';
+        empty.textContent = 'Aucun bâtiment enregistré. Touchez un bâtiment, puis « Enregistrer le bâtiment ».';
+        list.replaceChildren(empty); return;
+      }
+      list.replaceChildren(...saved.map((item, index) => {
+        const definition = BuildingData.get(item.type);
+        const entry = document.createElement('div'); entry.className = 'saved-building';
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'build-option'; button.dataset.savedBuildingId = item.id;
+        button.disabled = !available[index] || !definition;
+        const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition?.shortLabel || '?';
+        const copy = document.createElement('span'); copy.className = 'build-option-copy';
+        const title = document.createElement('strong'); title.textContent = item.name;
+        const cards = item.plan.machines.length;
+        const description = document.createElement('small');
+        description.textContent = `${definition?.label || item.type}${cards ? ` · ${cards} carte${cards > 1 ? 's' : ''}` : ''}${available[index] ? '' : ' · pas encore disponible'}`;
+        copy.append(title, description); button.append(icon, copy);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'saved-building-remove'; remove.dataset.deleteSavedBuilding = item.id;
+        remove.setAttribute('aria-label', `Retirer ${item.name} des bâtiments enregistrés`); remove.textContent = '×';
+        entry.append(button, remove);
+        return entry;
+      }));
     }
 
     return Object.freeze({ toast, showSelection, update, compositionText });
@@ -10407,6 +10706,14 @@ globalThis.OrbitVersion = "0.103.0";
       const target = event.target;
       if (target.closest?.('[data-remove-machine], [data-jump-building], select, input, textarea')) return;
 
+      // While choosing a region, any drag draws the selection rectangle.
+      if (actions.isSelecting?.()) {
+        const start = worldPoint(event.clientX, event.clientY);
+        gesture = { mode: 'select', pointerId: event.pointerId, start };
+        actions.onSelectionChange?.({ x0: start.x, y0: start.y, x1: start.x, y1: start.y }, false);
+        capture(event); event.preventDefault(); return;
+      }
+
       const output = outputTarget(target);
       if (output) {
         const existing = (output.linkId === undefined ? actions.findConnectionFrom?.(output.machineId, output.outputId)
@@ -10480,6 +10787,9 @@ globalThis.OrbitVersion = "0.103.0";
       const dx = event.clientX - gesture.startX, dy = event.clientY - gesture.startY;
       if (gesture.mode === 'pan') {
         apply({ ...camera, x: gesture.origin.x + dx, y: gesture.origin.y + dy });
+      } else if (gesture.mode === 'select') {
+        const point = worldPoint(event.clientX, event.clientY);
+        actions.onSelectionChange?.({ x0: gesture.start.x, y0: gesture.start.y, x1: point.x, y1: point.y }, false);
       } else if (gesture.mode === 'machine') {
         gesture.moved ||= Math.abs(dx) + Math.abs(dy) > 2;
         actions.onMachineMove?.(gesture.machineId, {
@@ -10514,7 +10824,10 @@ globalThis.OrbitVersion = "0.103.0";
       if (gesture.pointerId !== event.pointerId) return;
       const finished = gesture;
       gesture = { mode: 'idle' };
-      if (finished.mode === 'machine') {
+      if (finished.mode === 'select') {
+        const point = worldPoint(event.clientX, event.clientY);
+        actions.onSelectionChange?.({ x0: finished.start.x, y0: finished.start.y, x1: point.x, y1: point.y }, true);
+      } else if (finished.mode === 'machine') {
         if (finished.moved) actions.onMachineEnd?.(finished.machineId);
       } else if (finished.mode === 'connection') {
         const target = inputTarget(event.target, event.clientX, event.clientY);
@@ -10628,7 +10941,7 @@ globalThis.OrbitVersion = "0.103.0";
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
     onAddCard = null, onRemoveCard = null, isCardAvailable = () => true,
-    getSources = () => [], onOpenBuilding = null } = {}) {
+    getSources = () => [], onOpenBuilding = null, library = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -10676,6 +10989,7 @@ globalThis.OrbitVersion = "0.103.0";
     function status(message) { $('factory-editor-status').textContent = message; }
 
     function setPaletteOpen(open) {
+      if (open) setBlueprintsOpen(false);
       paletteOverlay.hidden = !open;
       paletteToggle.setAttribute('aria-expanded', String(open));
       paletteToggle.setAttribute('aria-label', open ? 'Fermer le menu des blocs' : 'Ajouter un bloc au processus');
@@ -11180,6 +11494,8 @@ globalThis.OrbitVersion = "0.103.0";
           for (const machine of machines) updateMachineReadout(machine);
         }
       },
+      isSelecting: () => selecting,
+      onSelectionChange: selectRegion,
       onConnectionDrop(source, target, previous, detached) {
         if (target) {
           const result = Graph.connect(graph, { id: `link-${nextConnectionId++}`,
@@ -11293,7 +11609,8 @@ globalThis.OrbitVersion = "0.103.0";
     function open(building, savedPlan) {
       activeBuilding = building;
       shown.clear();
-      setPaletteOpen(false);
+      setPaletteOpen(false); setBlueprintsOpen(false);
+      if (selecting) endSelection();
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -11331,13 +11648,148 @@ globalThis.OrbitVersion = "0.103.0";
 
     function close() {
       if (editor.hidden) return;
-      setPaletteOpen(false);
+      setPaletteOpen(false); setBlueprintsOpen(false);
+      if (selecting) endSelection();
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
       pendingConnection = null; cards.clear();
       nodeLayer.replaceChildren(); linkLayer.replaceChildren();
       $('factory-edit-button').focus();
+    }
+
+    // ---- Blueprints: a region of cards saved by name, placed again in any
+    // building whose catalog holds them. Kept in the player's library. ----
+    const blueprintsOverlay = $('factory-blueprints-overlay'), blueprintsToggle = $('factory-blueprints-toggle');
+    const blueprintList = $('factory-blueprint-list'), selectionBar = $('factory-selection-bar');
+    const selectionRect = $('factory-selection-rect'), selectionName = $('factory-selection-name');
+    let selecting = false, selectedIds = [];
+
+    function setBlueprintsOpen(open) {
+      blueprintsOverlay.hidden = !open;
+      blueprintsToggle.setAttribute('aria-expanded', String(open));
+      if (open) { setPaletteOpen(false); renderBlueprints(); }
+    }
+
+    // The cards of a blueprint this building can hold now, by template key.
+    function fittingCards(blueprint) {
+      const catalog = Data.catalog(activeBuilding?.type || 'factory', processingResource());
+      const counts = new Map(machines.map(machine => [machine.type, 0]));
+      for (const machine of machines) counts.set(machine.type, counts.get(machine.type) + 1);
+      const fitting = new Map();
+      for (const item of blueprint.machines) {
+        const def = catalog.find(candidate => candidate.id === item.type &&
+          (!candidate.contextResourceId || candidate.contextResourceId === item.resourceId));
+        if (!def || !isCardAvailable(def)) continue;
+        if (def.maxPerBuilding && (counts.get(def.id) || 0) >= def.maxPerBuilding) continue;
+        counts.set(def.id, (counts.get(def.id) || 0) + 1);
+        fitting.set(item.key, def);
+      }
+      return fitting;
+    }
+
+    function renderBlueprints() {
+      const select = document.createElement('button');
+      select.type = 'button'; select.className = 'factory-blueprint factory-blueprint-new'; select.dataset.selectRegion = '';
+      select.innerHTML = '<strong>＋ SÉLECTIONNER UNE RÉGION</strong><small>Entourez des cartes du plan pour les enregistrer.</small>';
+      const items = (library?.blueprints() || []).map(blueprint => {
+        const fitting = fittingCards(blueprint).size, total = blueprint.machines.length;
+        const entry = document.createElement('div'); entry.className = 'factory-blueprint-entry';
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'factory-blueprint'; button.dataset.blueprintId = blueprint.id;
+        button.disabled = !fitting;
+        const name = document.createElement('strong'); name.textContent = blueprint.name;
+        const detail = document.createElement('small');
+        detail.textContent = `${total} carte${total > 1 ? 's' : ''} · ${blueprint.connections.length} liaison${blueprint.connections.length > 1 ? 's' : ''}` +
+          (fitting === total ? '' : fitting ? ` · ${fitting} posables ici` : ' · aucune carte posable ici');
+        button.append(name, detail);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'factory-blueprint-remove'; remove.dataset.deleteBlueprint = blueprint.id;
+        remove.setAttribute('aria-label', `Supprimer le blueprint ${blueprint.name}`); remove.textContent = '×';
+        entry.append(button, remove);
+        return entry;
+      });
+      blueprintList.replaceChildren(select, ...items);
+    }
+
+    function startSelection() {
+      setBlueprintsOpen(false); setPaletteOpen(false);
+      selecting = true; selectedIds = [];
+      editor.classList.add('factory-selecting');
+      selectionBar.hidden = false;
+      selectionName.value = `Blueprint ${(library?.blueprints().length || 0) + 1}`;
+      updateSelection();
+      status('GLISSEZ POUR ENTOURER DES CARTES');
+    }
+
+    function endSelection() {
+      selecting = false; selectedIds = [];
+      editor.classList.remove('factory-selecting');
+      selectionBar.hidden = true; selectionRect.hidden = true;
+      updateSelection();
+    }
+
+    function updateSelection() {
+      for (const [id, card] of cards) card.classList.toggle('in-selection', selectedIds.includes(id));
+      $('factory-selection-count').textContent = selectedIds.length
+        ? `${selectedIds.length} CARTE${selectedIds.length > 1 ? 'S' : ''}` : 'GLISSEZ POUR ENTOURER DES CARTES';
+      $('factory-selection-save').disabled = !selectedIds.length;
+    }
+
+    // The rectangle drawn on the plan (world units); the cards it touches.
+    function selectRegion(rect) {
+      const left = Math.min(rect.x0, rect.x1), top = Math.min(rect.y0, rect.y1);
+      const width = Math.abs(rect.x1 - rect.x0), height = Math.abs(rect.y1 - rect.y0);
+      Object.assign(selectionRect.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+      selectionRect.hidden = false;
+      selectedIds = machines.filter(machine => machine.x < left + width && machine.x + NODE.width > left &&
+        machine.y < top + height && machine.y + heightOf(machine) > top).map(machine => machine.id);
+      updateSelection();
+    }
+
+    function saveSelection() {
+      if (!selectedIds.length || !library) return;
+      const name = selectionName.value.replace(/\s+/g, ' ').trim() || `Blueprint ${library.blueprints().length + 1}`;
+      const blueprint = root.OrbitLibrary.blueprint(name, activeBuilding?.type, { machines, connections }, selectedIds);
+      library.add(blueprint);
+      endSelection();
+      status(`BLUEPRINT ENREGISTRÉ · ${blueprint.name}`);
+    }
+
+    // Places a blueprint's fitting cards in view, clear of the cards already there.
+    function placeBlueprint(blueprint) {
+      const fitting = fittingCards(blueprint);
+      if (!fitting.size || !activeBuilding) { status('AUCUNE CARTE DE CE BLUEPRINT NE VA ICI'); return; }
+      const kept = blueprint.machines.filter(item => fitting.has(item.key));
+      const width = Math.max(...kept.map(item => item.dx)) + NODE.width;
+      const height = Math.max(...kept.map(item => item.dy + heightOf({ type: item.type, resourceId: item.resourceId })));
+      const bounds = viewport.getBoundingClientRect();
+      const center = viewportController.worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      const origin = { x: clamp(center.x - width / 2, 8, WORLD.width - width - 8), y: clamp(center.y - height / 2, 8, WORLD.height - height - 8) };
+      const overlaps = () => machines.some(machine => origin.x < machine.x + NODE.width + 12 && machine.x < origin.x + width + 12 &&
+        origin.y < machine.y + heightOf(machine) + 12 && machine.y < origin.y + height + 12);
+      for (let step = 0; step < 40 && overlaps(); step++) origin.y = Math.min(WORLD.height - height - 8, origin.y + 60);
+      const definitions = new Map();
+      const placed = root.OrbitLibrary.instantiate(blueprint, { origin, accept: item => fitting.has(item.key),
+        machineId: item => { const id = `machine-${nextMachineId++}`; definitions.set(id, fitting.get(item.key)); return id; },
+        connectionId: () => `link-${nextConnectionId++}`,
+        resource: item => fitting.get(item.key).contextResourceId || processingResource() });
+      let count = 0;
+      for (const value of placed.machines) {
+        const def = definitions.get(value.id);
+        const payment = onAddCard ? onAddCard(activeBuilding, def) : { paid: true };
+        if (!payment.paid) continue;
+        const result = Graph.addMachine(graph, value);
+        if (!result.ok) { onRemoveCard?.(activeBuilding, def); continue; }
+        if (value.config) result.machine.config = { ...result.machine.config, ...value.config };
+        if (value.importResourceId && result.machine.importResourceId !== undefined) result.machine.importResourceId = value.importResourceId;
+        count++;
+      }
+      for (const link of placed.connections) Graph.connect(graph, link);
+      machines = graph.machines; connections = graph.connections;
+      renderNodes(); persist();
+      const skipped = blueprint.machines.length - count;
+      status(`BLUEPRINT POSÉ · ${blueprint.name} · ${count} CARTE${count > 1 ? 'S' : ''}${skipped ? ` · ${skipped} HORS CATALOGUE ICI` : ''}`);
     }
 
     function refresh() {
@@ -11361,6 +11813,20 @@ globalThis.OrbitVersion = "0.103.0";
         paletteToggle.focus({ preventScroll: true });
       }
     });
+    blueprintsToggle.addEventListener('click', () => setBlueprintsOpen(blueprintsOverlay.hidden));
+    $('factory-blueprints-close').addEventListener('click', () => setBlueprintsOpen(false));
+    blueprintsOverlay.addEventListener('click', event => {
+      if (event.target === blueprintsOverlay) { setBlueprintsOpen(false); return; }
+      if (event.target.closest('[data-select-region]')) { startSelection(); return; }
+      const remove = event.target.closest('[data-delete-blueprint]');
+      if (remove) { library?.remove(remove.dataset.deleteBlueprint); renderBlueprints(); return; }
+      const button = event.target.closest('[data-blueprint-id]');
+      const blueprint = button && library?.blueprints().find(item => item.id === button.dataset.blueprintId);
+      if (blueprint) { setBlueprintsOpen(false); placeBlueprint(blueprint); }
+    });
+    $('factory-selection-save').addEventListener('click', saveSelection);
+    $('factory-selection-cancel').addEventListener('click', () => { endSelection(); status('SÉLECTION ANNULÉE'); });
+    selectionName.addEventListener('keydown', event => { if (event.key === 'Enter') saveSelection(); });
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !paletteOverlay.hidden) {
         event.preventDefault();
@@ -11424,7 +11890,14 @@ globalThis.OrbitVersion = "0.103.0";
       status(destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
     });
 
-    return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh,
+    // Escape first leaves a selection or the blueprints; returns whether it did.
+    function dismiss() {
+      if (selecting) { endSelection(); status('SÉLECTION ANNULÉE'); return true; }
+      if (!blueprintsOverlay.hidden) { setBlueprintsOpen(false); return true; }
+      return false;
+    }
+
+    return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh, dismiss,
       isOpen: () => !editor.hidden,
       getViewportState: () => ({ camera: viewportController.camera(), mode: viewportController.mode() }) });
   }
@@ -11542,8 +12015,18 @@ globalThis.OrbitVersion = "0.103.0";
 
       // What the current tier still needs, with its incoming rate and an estimate.
       if (tier) {
-        const needs = section(`PALIER ${colony.tier + 1} · QUANTITÉS`);
+        const needs = section(`PALIER ${colony.tier + 1} · ${Object.keys(tier.needs).length ? 'QUANTITÉS' : 'OBJECTIF'}`);
         const flowsMet = Colony.flowsMet(colony);
+        // Buildings the tier asks for, with the progress of their site.
+        for (const [type, standing] of Object.entries(Colony.requirements(state, building, tier))) {
+          const label = root.OrbitBuildingData.get(type)?.label || type;
+          const site = state.surfaceBuildings.find(candidate => candidate.type === type && candidate.planetId === building.planetId &&
+            candidate.constructionState !== 'complete');
+          const supply = site && root.OrbitConstruction ? root.OrbitConstruction.supplyFraction(site) : 0;
+          row(needs, label, standing ? 'ASSEMBLÉ' : site ? `CHANTIER ${fmt(supply * 100)} %` : 'À CONSTRUIRE',
+            standing ? '' : site ? 'ses ressources arrivent par route' : 'à poser et alimenter par route');
+          needs.append(bar(standing ? 1 : supply, 1, null, 'gold'));
+        }
         for (const [id, amount] of Object.entries(tier.needs)) {
           const done = colony.progress[id] || 0, rate = live.resources[id] || 0, left = amount - done;
           const eta = !flowsMet ? 'bloqué : flux en retard' : rate > .05 ? `≈ ${fmt(Math.max(1, left / rate))} min restantes` : 'aucune arrivée récente';
@@ -11890,6 +12373,11 @@ globalThis.OrbitVersion = "0.103.0";
     return entries.length ? entries.map(([id, amount]) => `${resourceName(id)} ${formatAmount(amount)}`).join(' · ') : 'aucun matériau';
   }
   const state = globalThis.OrbitState.create();
+  // The player's saved buildings and blueprints, kept outside the game save.
+  const Library = globalThis.OrbitLibrary;
+  state.library = Library.load(globalThis.localStorage);
+  state.buildMenuTab = 'catalog';
+  const saveLibrary = () => Library.save(globalThis.localStorage, state.library);
   const factoryEditor = globalThis.OrbitFactoryEditor.create(document, {
     onSave(buildingId, plan) {
       state.factoryPlans[buildingId] = plan;
@@ -11897,12 +12385,17 @@ globalThis.OrbitVersion = "0.103.0";
     },
     getDestinations(building) {
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
-        candidate.planetId === building.planetId && candidate.constructionState === 'complete' &&
+        candidate.planetId === building.planetId && ['complete', 'supplying'].includes(candidate.constructionState) &&
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
         LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     isCardAvailable: definition => Progression.cardUnlocked(state, definition),
+    library: {
+      blueprints: () => state.library.blueprints,
+      add(blueprint) { Library.add(state.library.blueprints, blueprint); saveLibrary(); },
+      remove(id) { state.library.blueprints = state.library.blueprints.filter(item => item.id !== id); saveLibrary(); }
+    },
     // Buildings sending this resource to the building: docks and depot gates.
     getSources(building, resourceId) {
       return state.surfaceBuildings.filter(source => source.id !== building.id && source.planetId === building.planetId &&
@@ -12248,10 +12741,12 @@ globalThis.OrbitVersion = "0.103.0";
       return;
     }
     const definition = BuildingData.get(preview.type);
+    // A saved building comes back with its name and its cards.
+    const template = state.placementTemplate?.type === preview.type ? state.placementTemplate : null;
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, customName: BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -12261,11 +12756,35 @@ globalThis.OrbitVersion = "0.103.0";
       updateUI(); return;
     }
     state.surfaceBuildings.push(building);
+    if (template?.plan.machines.length && BuildingData.processTypes.includes(building.type)) {
+      // Only the cards this building can hold here come back (a station on
+      // fresh water has no desalinator); they work its ground's material.
+      const ground = globalThis.OrbitIndustry.geology(state, building);
+      const catalog = globalThis.OrbitProcessData.catalog(building.type, ground?.resourceId);
+      const match = item => catalog.find(def => def.id === item.type && (!def.contextResourceId || def.contextResourceId === item.resourceId));
+      let machineCount = 0, linkCount = 0;
+      state.factoryPlans[building.id] = globalThis.OrbitProcessGraph.create({ version: globalThis.OrbitProcessData.config.version,
+        geology: ground, ...Library.instantiate(template.plan, { machineId: () => `machine-${++machineCount}`,
+          connectionId: () => `link-${++linkCount}`, accept: item => Boolean(match(item)),
+          resource: item => match(item).contextResourceId || ground?.resourceId || item.resourceId }) });
+    }
+    state.placementTemplate = null;
     state.placement = null; state.tool = 'pan'; state.buildMenuOpen = false;
     const routeHint = definition.roadRequired ? ' Tracez une route manuellement pour le relier.' : '';
-    toast(`${definition.label} : assemblage en cours.${routeHint}`); updateUI(); persist();
+    toast(building.constructionState === 'supplying'
+      ? `${definition.label} : chantier ouvert. Livrez-lui par route ${Object.entries(definition.constructionNeeds)
+        .map(([id, amount]) => `${formatAmount(amount)} ${resourceName(id)}`).join(', ')}.`
+      : `${definition.label} : assemblage en cours.${routeHint}`); updateUI(); persist();
   }
-  function chooseBuilding(type) {
+  // The saved name, numbered if another building already carries it.
+  function freeName(name) {
+    const taken = new Set(state.surfaceBuildings.map(building => building.customName));
+    if (!taken.has(name)) return name;
+    let index = 2;
+    while (taken.has(`${name} (${index})`)) index++;
+    return `${name} (${index})`.slice(-BuildingNames.maxLength);
+  }
+  function chooseBuilding(type, template = null) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface' || !Progression.buildingUnlocked(state, type)) return;
     const shortage = Inventory.missing(state.inventory,
@@ -12277,9 +12796,10 @@ globalThis.OrbitVersion = "0.103.0";
     }
     cancelRoadDrag();
     state.buildMenuOpen = false; state.tool = 'build'; state.selected = null;
+    state.placementTemplate = template;
     $('inspector').hidden = true;
     updateBuildingPreview(W / 2, H / 2, type);
-    toast(`Déplacez l’aperçu de ${definition.label} et touchez pour le poser.`);
+    toast(`Déplacez l’aperçu de ${template ? template.name : definition.label} et touchez pour le poser.`);
     updateUI();
   }
   function selectSurfaceBuilding(building) {
@@ -12739,6 +13259,29 @@ globalThis.OrbitVersion = "0.103.0";
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
+  $('build-tab-catalog').onclick = () => { state.buildMenuTab = 'catalog'; updateUI(); };
+  $('build-tab-saved').onclick = () => { state.buildMenuTab = 'saved'; updateUI(); };
+  $('saved-buildings').addEventListener('click', event => {
+    const remove = event.target.closest('[data-delete-saved-building]');
+    if (remove) {
+      state.library.buildings = state.library.buildings.filter(item => item.id !== remove.dataset.deleteSavedBuilding);
+      saveLibrary(); updateUI(); return;
+    }
+    const option = event.target.closest('[data-saved-building-id]');
+    const template = option && state.library.buildings.find(item => item.id === option.dataset.savedBuildingId);
+    if (template) chooseBuilding(template.type, template);
+  });
+  // Saves the selected building (type, name and cards) to the build menu.
+  $('save-building-button').onclick = () => {
+    const building = state.selected?.kind === 'building'
+      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+    if (!building) return;
+    const template = Library.add(state.library.buildings, Library.buildingTemplate(building, state.factoryPlans[building.id]));
+    saveLibrary();
+    const cards = template.plan.machines.length;
+    toast(`${template.name} enregistré${cards ? ` avec ${cards} carte${cards > 1 ? 's' : ''}` : ''} : menu +, onglet « Enregistrés ».`);
+    updateUI();
+  };
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('factory-edit-button').onclick = () => {
@@ -12839,7 +13382,7 @@ globalThis.OrbitVersion = "0.103.0";
   $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (factoryEditor.isOpen()) {
-      if (e.key === 'Escape') { factoryEditor.close(); e.preventDefault(); }
+      if (e.key === 'Escape') { if (!factoryEditor.dismiss()) factoryEditor.close(); e.preventDefault(); }
       return;
     }
     if (e.key === 'Escape') {

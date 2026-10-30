@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'simulation/resourceStack.js', 'data/processes.js', 'data/buildings.js',
   'simulation/composition.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js',
-  'gameplay/industry.js']) {
+  'gameplay/industry.js', 'storage/library.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitProcessData;
@@ -568,4 +568,27 @@ test('an output dock without a destination takes nothing and stops what feeds it
   extractor.dockDestinations = { raw_rock: 'colony' };
   for (let i = 0; i < 2; i++) Industry.advance(state, 1);
   assert.ok(extractor.dockStock.raw_rock > 0, 'it works once its resource has a destination');
+});
+
+test('a blueprint keeps a region of cards and their links, and comes back with fresh ids', () => {
+  const Library = context.OrbitLibrary;
+  const graph = Graph.create({ version: Data.config.version });
+  machine(graph, 'dock', 'input_dock', 100).importResourceId = 'raw_rock';
+  machine(graph, 'crusher', 'crusher', 400);
+  machine(graph, 'grinder', 'grinder', 700);
+  connect(graph, 'a', 'dock', 'material', 'crusher', 'rock');
+  connect(graph, 'b', 'crusher', 'rock', 'grinder', 'rock');
+  const blueprint = Library.blueprint('  Ligne   ', 'factory', graph, ['dock', 'crusher']);
+  assert.equal(blueprint.name, 'Ligne');
+  assert.deepEqual(plain(blueprint.machines.map(item => [item.type, item.dx])), [['input_dock', 0], ['crusher', 300]]);
+  assert.equal(blueprint.connections.length, 1, 'only links inside the region');
+  let next = 0;
+  const placed = Library.instantiate(blueprint, { origin: { x: 50, y: 60 }, machineId: () => `m-${++next}`, connectionId: () => 'l-1' });
+  const copy = Graph.create({ version: Data.config.version, ...placed });
+  assert.deepEqual(plain(copy.machines.map(item => [item.id, item.type, item.x, item.y])), [['m-1', 'input_dock', 50, 60], ['m-2', 'crusher', 350, 60]]);
+  assert.equal(copy.machines[0].importResourceId, 'raw_rock');
+  assert.equal(copy.connections.length, 1);
+  const library = Library.normalize({ buildings: [Library.buildingTemplate({ type: 'factory', customName: 'Usine 1' }, graph)], blueprints: [blueprint, { bad: true }] });
+  assert.equal(library.buildings[0].plan.machines.length, 3);
+  assert.equal(library.blueprints.length, 1);
 });

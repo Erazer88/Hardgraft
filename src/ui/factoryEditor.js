@@ -40,7 +40,7 @@
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
     onAddCard = null, onRemoveCard = null, isCardAvailable = () => true,
-    getSources = () => [], onOpenBuilding = null } = {}) {
+    getSources = () => [], onOpenBuilding = null, library = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
     const world = $('factory-world'), nodeLayer = $('factory-nodes'), linkLayer = $('factory-link-layer');
@@ -88,6 +88,7 @@
     function status(message) { $('factory-editor-status').textContent = message; }
 
     function setPaletteOpen(open) {
+      if (open) setBlueprintsOpen(false);
       paletteOverlay.hidden = !open;
       paletteToggle.setAttribute('aria-expanded', String(open));
       paletteToggle.setAttribute('aria-label', open ? 'Fermer le menu des blocs' : 'Ajouter un bloc au processus');
@@ -592,6 +593,8 @@
           for (const machine of machines) updateMachineReadout(machine);
         }
       },
+      isSelecting: () => selecting,
+      onSelectionChange: selectRegion,
       onConnectionDrop(source, target, previous, detached) {
         if (target) {
           const result = Graph.connect(graph, { id: `link-${nextConnectionId++}`,
@@ -705,7 +708,8 @@
     function open(building, savedPlan) {
       activeBuilding = building;
       shown.clear();
-      setPaletteOpen(false);
+      setPaletteOpen(false); setBlueprintsOpen(false);
+      if (selecting) endSelection();
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -743,13 +747,148 @@
 
     function close() {
       if (editor.hidden) return;
-      setPaletteOpen(false);
+      setPaletteOpen(false); setBlueprintsOpen(false);
+      if (selecting) endSelection();
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
       pendingConnection = null; cards.clear();
       nodeLayer.replaceChildren(); linkLayer.replaceChildren();
       $('factory-edit-button').focus();
+    }
+
+    // ---- Blueprints: a region of cards saved by name, placed again in any
+    // building whose catalog holds them. Kept in the player's library. ----
+    const blueprintsOverlay = $('factory-blueprints-overlay'), blueprintsToggle = $('factory-blueprints-toggle');
+    const blueprintList = $('factory-blueprint-list'), selectionBar = $('factory-selection-bar');
+    const selectionRect = $('factory-selection-rect'), selectionName = $('factory-selection-name');
+    let selecting = false, selectedIds = [];
+
+    function setBlueprintsOpen(open) {
+      blueprintsOverlay.hidden = !open;
+      blueprintsToggle.setAttribute('aria-expanded', String(open));
+      if (open) { setPaletteOpen(false); renderBlueprints(); }
+    }
+
+    // The cards of a blueprint this building can hold now, by template key.
+    function fittingCards(blueprint) {
+      const catalog = Data.catalog(activeBuilding?.type || 'factory', processingResource());
+      const counts = new Map(machines.map(machine => [machine.type, 0]));
+      for (const machine of machines) counts.set(machine.type, counts.get(machine.type) + 1);
+      const fitting = new Map();
+      for (const item of blueprint.machines) {
+        const def = catalog.find(candidate => candidate.id === item.type &&
+          (!candidate.contextResourceId || candidate.contextResourceId === item.resourceId));
+        if (!def || !isCardAvailable(def)) continue;
+        if (def.maxPerBuilding && (counts.get(def.id) || 0) >= def.maxPerBuilding) continue;
+        counts.set(def.id, (counts.get(def.id) || 0) + 1);
+        fitting.set(item.key, def);
+      }
+      return fitting;
+    }
+
+    function renderBlueprints() {
+      const select = document.createElement('button');
+      select.type = 'button'; select.className = 'factory-blueprint factory-blueprint-new'; select.dataset.selectRegion = '';
+      select.innerHTML = '<strong>＋ SÉLECTIONNER UNE RÉGION</strong><small>Entourez des cartes du plan pour les enregistrer.</small>';
+      const items = (library?.blueprints() || []).map(blueprint => {
+        const fitting = fittingCards(blueprint).size, total = blueprint.machines.length;
+        const entry = document.createElement('div'); entry.className = 'factory-blueprint-entry';
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'factory-blueprint'; button.dataset.blueprintId = blueprint.id;
+        button.disabled = !fitting;
+        const name = document.createElement('strong'); name.textContent = blueprint.name;
+        const detail = document.createElement('small');
+        detail.textContent = `${total} carte${total > 1 ? 's' : ''} · ${blueprint.connections.length} liaison${blueprint.connections.length > 1 ? 's' : ''}` +
+          (fitting === total ? '' : fitting ? ` · ${fitting} posables ici` : ' · aucune carte posable ici');
+        button.append(name, detail);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'factory-blueprint-remove'; remove.dataset.deleteBlueprint = blueprint.id;
+        remove.setAttribute('aria-label', `Supprimer le blueprint ${blueprint.name}`); remove.textContent = '×';
+        entry.append(button, remove);
+        return entry;
+      });
+      blueprintList.replaceChildren(select, ...items);
+    }
+
+    function startSelection() {
+      setBlueprintsOpen(false); setPaletteOpen(false);
+      selecting = true; selectedIds = [];
+      editor.classList.add('factory-selecting');
+      selectionBar.hidden = false;
+      selectionName.value = `Blueprint ${(library?.blueprints().length || 0) + 1}`;
+      updateSelection();
+      status('GLISSEZ POUR ENTOURER DES CARTES');
+    }
+
+    function endSelection() {
+      selecting = false; selectedIds = [];
+      editor.classList.remove('factory-selecting');
+      selectionBar.hidden = true; selectionRect.hidden = true;
+      updateSelection();
+    }
+
+    function updateSelection() {
+      for (const [id, card] of cards) card.classList.toggle('in-selection', selectedIds.includes(id));
+      $('factory-selection-count').textContent = selectedIds.length
+        ? `${selectedIds.length} CARTE${selectedIds.length > 1 ? 'S' : ''}` : 'GLISSEZ POUR ENTOURER DES CARTES';
+      $('factory-selection-save').disabled = !selectedIds.length;
+    }
+
+    // The rectangle drawn on the plan (world units); the cards it touches.
+    function selectRegion(rect) {
+      const left = Math.min(rect.x0, rect.x1), top = Math.min(rect.y0, rect.y1);
+      const width = Math.abs(rect.x1 - rect.x0), height = Math.abs(rect.y1 - rect.y0);
+      Object.assign(selectionRect.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+      selectionRect.hidden = false;
+      selectedIds = machines.filter(machine => machine.x < left + width && machine.x + NODE.width > left &&
+        machine.y < top + height && machine.y + heightOf(machine) > top).map(machine => machine.id);
+      updateSelection();
+    }
+
+    function saveSelection() {
+      if (!selectedIds.length || !library) return;
+      const name = selectionName.value.replace(/\s+/g, ' ').trim() || `Blueprint ${library.blueprints().length + 1}`;
+      const blueprint = root.OrbitLibrary.blueprint(name, activeBuilding?.type, { machines, connections }, selectedIds);
+      library.add(blueprint);
+      endSelection();
+      status(`BLUEPRINT ENREGISTRÉ · ${blueprint.name}`);
+    }
+
+    // Places a blueprint's fitting cards in view, clear of the cards already there.
+    function placeBlueprint(blueprint) {
+      const fitting = fittingCards(blueprint);
+      if (!fitting.size || !activeBuilding) { status('AUCUNE CARTE DE CE BLUEPRINT NE VA ICI'); return; }
+      const kept = blueprint.machines.filter(item => fitting.has(item.key));
+      const width = Math.max(...kept.map(item => item.dx)) + NODE.width;
+      const height = Math.max(...kept.map(item => item.dy + heightOf({ type: item.type, resourceId: item.resourceId })));
+      const bounds = viewport.getBoundingClientRect();
+      const center = viewportController.worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      const origin = { x: clamp(center.x - width / 2, 8, WORLD.width - width - 8), y: clamp(center.y - height / 2, 8, WORLD.height - height - 8) };
+      const overlaps = () => machines.some(machine => origin.x < machine.x + NODE.width + 12 && machine.x < origin.x + width + 12 &&
+        origin.y < machine.y + heightOf(machine) + 12 && machine.y < origin.y + height + 12);
+      for (let step = 0; step < 40 && overlaps(); step++) origin.y = Math.min(WORLD.height - height - 8, origin.y + 60);
+      const definitions = new Map();
+      const placed = root.OrbitLibrary.instantiate(blueprint, { origin, accept: item => fitting.has(item.key),
+        machineId: item => { const id = `machine-${nextMachineId++}`; definitions.set(id, fitting.get(item.key)); return id; },
+        connectionId: () => `link-${nextConnectionId++}`,
+        resource: item => fitting.get(item.key).contextResourceId || processingResource() });
+      let count = 0;
+      for (const value of placed.machines) {
+        const def = definitions.get(value.id);
+        const payment = onAddCard ? onAddCard(activeBuilding, def) : { paid: true };
+        if (!payment.paid) continue;
+        const result = Graph.addMachine(graph, value);
+        if (!result.ok) { onRemoveCard?.(activeBuilding, def); continue; }
+        if (value.config) result.machine.config = { ...result.machine.config, ...value.config };
+        if (value.importResourceId && result.machine.importResourceId !== undefined) result.machine.importResourceId = value.importResourceId;
+        count++;
+      }
+      for (const link of placed.connections) Graph.connect(graph, link);
+      machines = graph.machines; connections = graph.connections;
+      renderNodes(); persist();
+      const skipped = blueprint.machines.length - count;
+      status(`BLUEPRINT POSÉ · ${blueprint.name} · ${count} CARTE${count > 1 ? 'S' : ''}${skipped ? ` · ${skipped} HORS CATALOGUE ICI` : ''}`);
     }
 
     function refresh() {
@@ -773,6 +912,20 @@
         paletteToggle.focus({ preventScroll: true });
       }
     });
+    blueprintsToggle.addEventListener('click', () => setBlueprintsOpen(blueprintsOverlay.hidden));
+    $('factory-blueprints-close').addEventListener('click', () => setBlueprintsOpen(false));
+    blueprintsOverlay.addEventListener('click', event => {
+      if (event.target === blueprintsOverlay) { setBlueprintsOpen(false); return; }
+      if (event.target.closest('[data-select-region]')) { startSelection(); return; }
+      const remove = event.target.closest('[data-delete-blueprint]');
+      if (remove) { library?.remove(remove.dataset.deleteBlueprint); renderBlueprints(); return; }
+      const button = event.target.closest('[data-blueprint-id]');
+      const blueprint = button && library?.blueprints().find(item => item.id === button.dataset.blueprintId);
+      if (blueprint) { setBlueprintsOpen(false); placeBlueprint(blueprint); }
+    });
+    $('factory-selection-save').addEventListener('click', saveSelection);
+    $('factory-selection-cancel').addEventListener('click', () => { endSelection(); status('SÉLECTION ANNULÉE'); });
+    selectionName.addEventListener('keydown', event => { if (event.key === 'Enter') saveSelection(); });
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !paletteOverlay.hidden) {
         event.preventDefault();
@@ -836,7 +989,14 @@
       status(destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
     });
 
-    return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh,
+    // Escape first leaves a selection or the blueprints; returns whether it did.
+    function dismiss() {
+      if (selecting) { endSelection(); status('SÉLECTION ANNULÉE'); return true; }
+      if (!blueprintsOverlay.hidden) { setBlueprintsOpen(false); return true; }
+      return false;
+    }
+
+    return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh, dismiss,
       isOpen: () => !editor.hidden,
       getViewportState: () => ({ camera: viewportController.camera(), mode: viewportController.mode() }) });
   }

@@ -32,9 +32,49 @@
     building.constructionDurationSeconds = definition.constructionDurationSeconds || defaultDurationSeconds;
     building.demolitionRefundRate = definition.demolitionRefundRate ?? 1;
     building.constructionProgress = 0;
+    // A site that needs deliveries waits for them before the robots come.
+    if (Object.keys(definition.constructionNeeds || {}).length) {
+      building.constructionState = 'supplying';
+      building.status = 'supplying';
+      building.constructionSupplied = {};
+    } else {
+      building.constructionState = 'constructing';
+      building.status = 'building';
+    }
+    return { started: true, missing: [] };
+  }
+
+  // What a supplying site still waits for, per resource.
+  function needsLeft(building) {
+    const needs = Buildings.get(building?.type)?.constructionNeeds || {};
+    return Object.fromEntries(Object.entries(needs).map(([id, amount]) =>
+      [id, Math.max(0, amount - (building.constructionSupplied?.[id] || 0))]).filter(([, left]) => left > 0));
+  }
+
+  // Share of a site's deliveries received, from 0 to 1.
+  function supplyFraction(building) {
+    const needs = Object.entries(Buildings.get(building?.type)?.constructionNeeds || {});
+    const total = needs.reduce((sum, [, amount]) => sum + amount, 0);
+    if (!total) return 1;
+    return needs.reduce((sum, [id, amount]) => sum + Math.min(amount, building.constructionSupplied?.[id] || 0), 0) / total;
+  }
+
+  // Moves what reached a supplying site (its inventory) into its supplies;
+  // once complete, the site goes to the robots.
+  function supply(building) {
+    const supplied = building.constructionSupplied ||= {}, stock = building.inventory ||= {};
+    for (const [id, left] of Object.entries(needsLeft(building))) {
+      const amount = Math.min(left, Math.floor(stock[id] || 0));
+      if (amount <= 0) continue;
+      supplied[id] = (supplied[id] || 0) + amount;
+      stock[id] -= amount;
+      if (stock[id] <= 0) delete stock[id];
+    }
+    if (Object.keys(needsLeft(building)).length) return false;
     building.constructionState = 'constructing';
     building.status = 'building';
-    return { started: true, missing: [] };
+    building.constructionProgress = 0;
+    return true;
   }
 
   // Sites progress in the order they were started, as many at once as there
@@ -44,6 +84,7 @@
     const crews = Buildings.construction?.crews ?? Infinity;
     let busy = 0;
     for (const building of buildings) {
+      if (building.constructionState === 'supplying') supply(building);
       if (building.constructionState !== 'constructing') continue;
       if (busy >= crews) { building.status = 'queued'; continue; }
       busy++;
@@ -97,5 +138,5 @@
     return refund;
   }
 
-  root.OrbitConstruction = Object.freeze({ start, costFor, cardCost, pricesEnabled, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
+  root.OrbitConstruction = Object.freeze({ start, needsLeft, supplyFraction, costFor, cardCost, pricesEnabled, advance, demolish, payCard, refundCard, durationSeconds: defaultDurationSeconds });
 })(globalThis);

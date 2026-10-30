@@ -70,8 +70,11 @@
     },
     launch_platform: {
       id: 'launch_platform', label: 'PLATEFORME DE LANCEMENT', shortLabel: 'PL', category: 'logistics', icon: 'hub',
-      description: 'Reçoit les stocks des Docks reliés par route et les exporte vers l’Arche.',
+      description: 'Le hub : se bâtit avec des ressources livrées par route, puis exporte vers l’Arche ce qu’il reçoit.',
       functions: { exportsToOrbit: true },
+      // Its site waits for these deliveries (by road, like any destination)
+      // before the robots assemble it. First draft.
+      constructionNeeds: { metal_plate: 25, tar: 50, raw_copper: 15, raw_silicon: 15, water: 100 },
       cost: { iron: 350, copper: 250, silicon: 150, carbon: 80 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 42, height: 36 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 18 },

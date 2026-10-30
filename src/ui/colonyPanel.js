@@ -106,8 +106,18 @@
 
       // What the current tier still needs, with its incoming rate and an estimate.
       if (tier) {
-        const needs = section(`PALIER ${colony.tier + 1} · QUANTITÉS`);
+        const needs = section(`PALIER ${colony.tier + 1} · ${Object.keys(tier.needs).length ? 'QUANTITÉS' : 'OBJECTIF'}`);
         const flowsMet = Colony.flowsMet(colony);
+        // Buildings the tier asks for, with the progress of their site.
+        for (const [type, standing] of Object.entries(Colony.requirements(state, building, tier))) {
+          const label = root.OrbitBuildingData.get(type)?.label || type;
+          const site = state.surfaceBuildings.find(candidate => candidate.type === type && candidate.planetId === building.planetId &&
+            candidate.constructionState !== 'complete');
+          const supply = site && root.OrbitConstruction ? root.OrbitConstruction.supplyFraction(site) : 0;
+          row(needs, label, standing ? 'ASSEMBLÉ' : site ? `CHANTIER ${fmt(supply * 100)} %` : 'À CONSTRUIRE',
+            standing ? '' : site ? 'ses ressources arrivent par route' : 'à poser et alimenter par route');
+          needs.append(bar(standing ? 1 : supply, 1, null, 'gold'));
+        }
         for (const [id, amount] of Object.entries(tier.needs)) {
           const done = colony.progress[id] || 0, rate = live.resources[id] || 0, left = amount - done;
           const eta = !flowsMet ? 'bloqué : flux en retard' : rate > .05 ? `≈ ${fmt(Math.max(1, left / rate))} min restantes` : 'aucune arrivée récente';

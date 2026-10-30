@@ -37,6 +37,13 @@
 
   // A destination receives once its plan has an entry: an input dock, or a
   // depot's input gate. Launch platforms always receive.
+  // A site under construction takes what it still waits for, nothing more.
+  function siteRoom(destination, resourceId) {
+    if (destination.constructionState !== 'supplying') return null;
+    const left = root.OrbitConstruction?.needsLeft(destination)?.[resourceId] || 0;
+    return Math.max(0, left - Math.floor(destination.inventory?.[resourceId] || 0));
+  }
+
   function hasReceivingDock(state, building) {
     if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
@@ -50,21 +57,27 @@
     const buildings = state.surfaceBuildings || [];
     const byId = new Map(buildings.map(building => [building.id, building]));
     const Mix = root.OrbitComposition;
+    // Returns how many units reached the destination.
     const deliver = (source, network, destinationId, resourceId, rawAmount, sourceMix = null) => {
-      const amount = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
+      const offered = Number.isInteger(rawAmount) && rawAmount > 0 ? rawAmount : 0;
       const destination = byId.get(destinationId);
-      if (!amount || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
-          !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) || destination.constructionState !== 'complete' ||
+      if (!offered || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
+          !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) ||
+          !['complete', 'supplying'].includes(destination.constructionState) ||
           !hasReceivingDock(state, destination) ||
-          !hasBuiltLandPath(network, source.id, destination.id)) return false;
-      const stock = destination.type === 'launch_platform'
+          !hasBuiltLandPath(network, source.id, destination.id)) return 0;
+      const room = siteRoom(destination, resourceId);
+      const amount = room === null ? offered : Math.min(offered, room);
+      if (!amount) return 0;
+      const site = destination.constructionState === 'supplying';
+      const stock = destination.type === 'launch_platform' && !site
         ? (destination.launchStock ||= {}) : (destination.inventory ||= {});
       // Rock arrives with the composition it left with.
       if (Mix && destination.type !== 'launch_platform') {
         Mix.add(destination.inventoryMix ||= {}, resourceId, resourceId, stock[resourceId] || 0, amount, Mix.of(sourceMix, resourceId));
       }
       stock[resourceId] = (stock[resourceId] || 0) + amount;
-      if (destination.type === 'launch_platform') {
+      if (destination.type === 'launch_platform' && !site) {
         destination.launchReceivedTotal ||= {};
         destination.launchReceivedTotal[resourceId] = (destination.launchReceivedTotal[resourceId] || 0) + amount;
       }
@@ -76,26 +89,30 @@
       fromSource[resourceId] = (fromSource[resourceId] || 0) + amount;
       flows.push({ sourceId: source.id, destinationId: destination.id, resourceId, amount });
       transferred.set(`${destination.id}:${resourceId}`, (transferred.get(`${destination.id}:${resourceId}`) || 0) + amount);
-      return true;
+      return amount;
+    };
+    // Takes what was delivered out of a source stock (and its composition once empty).
+    const settle = (stock, mixes, resourceId, delivered) => {
+      if (!delivered) return;
+      stock[resourceId] -= delivered;
+      if (stock[resourceId] > 0) return;
+      delete stock[resourceId];
+      if (mixes) delete mixes[resourceId];
     };
     for (const source of buildings) {
       if (source.constructionState !== 'complete') continue;
       const network = state.roadNetworks?.[source.planetId];
       if (source.dockStock && typeof source.dockStock === 'object') {
         for (const [resourceId, amount] of Object.entries(source.dockStock)) {
-          if (deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount, source.dockMix)) {
-            delete source.dockStock[resourceId];
-            if (source.dockMix) delete source.dockMix[resourceId];
-          }
+          settle(source.dockStock, source.dockMix, resourceId,
+            deliver(source, network, source.dockDestinations?.[resourceId], resourceId, amount, source.dockMix));
         }
       }
       // A depot's output gates queue their units per destination building.
       for (const [destinationId, queue] of Object.entries(source.gateStock || {})) {
         for (const [resourceId, amount] of Object.entries(queue)) {
-          if (deliver(source, network, destinationId, resourceId, amount, source.gateMix?.[destinationId])) {
-            delete queue[resourceId];
-            if (source.gateMix?.[destinationId]) delete source.gateMix[destinationId][resourceId];
-          }
+          settle(queue, source.gateMix?.[destinationId], resourceId,
+            deliver(source, network, destinationId, resourceId, amount, source.gateMix?.[destinationId]));
         }
       }
     }

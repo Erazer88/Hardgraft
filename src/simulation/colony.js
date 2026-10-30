@@ -34,6 +34,13 @@
 
   const colonies = state => (state.surfaceBuildings || []).filter(building => building.type === 'colony');
 
+  // Buildings a tier asks for (tier.requires): each must stand assembled on
+  // the colony's planet. Returns, per type, whether it does.
+  function requirements(state, building, tier) {
+    return Object.fromEntries((tier?.requires || []).map(type => [type, (state.surfaceBuildings || []).some(candidate =>
+      candidate.type === type && candidate.planetId === building.planetId && candidate.constructionState === 'complete')]));
+  }
+
   // What the current tier still asks for, or null once every tier is done.
   function needs(colony) {
     const tier = Data.tiers[colony?.tier ?? 0];
@@ -71,7 +78,8 @@
         const taken = take(resourceId, need - (colony.progress[resourceId] || 0));
         if (taken) colony.progress[resourceId] = (colony.progress[resourceId] || 0) + taken;
       }
-      if (Object.entries(tier.needs).every(([id, amount]) => (colony.progress[id] || 0) >= amount)) {
+      if (Object.entries(tier.needs).every(([id, amount]) => (colony.progress[id] || 0) >= amount) &&
+          Object.values(requirements(state, building, tier)).every(Boolean)) {
         colony.tier += 1;
         colony.population = tier.population;
         colony.progress = {}; colony.owed = {};
@@ -92,5 +100,5 @@
     return Math.max(1, Math.round(km2 / cellKm2));
   }
 
-  root.OrbitColony = Object.freeze({ normalize, needs, flows, flowsMet, advance, totalPopulation, targetCells, colonies });
+  root.OrbitColony = Object.freeze({ normalize, needs, flows, flowsMet, requirements, advance, totalPopulation, targetCells, colonies });
 })(globalThis);

@@ -333,8 +333,46 @@ body[data-level="surface"] .corner-note{display:none}
 .alert-item p{margin:5px 0 0;color:#8ea9b8;font-size:calc(9px*var(--ta) + var(--tb));line-height:1.45}
 @media(orientation:landscape) and (max-height:600px){.alerts{top:calc(62px + var(--safe-top))}}
 
+/* Building sheet actions side by side; build menu tabs and saved buildings. */
+.building-actions{display:flex;gap:6px}
+.building-actions .factory-edit-button{flex:1 1 0;min-width:0;padding-left:6px;padding-right:6px}
+.build-menu-tabs{display:flex;gap:4px;margin:0 0 8px}
+.build-menu-tabs button{flex:1;padding:7px 6px;border:1px solid #829eaf22;border-radius:4px;background:#101e2b8a;color:#7f9cad;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.build-menu-tabs button.active{border-color:#efa35a8c;color:#f1c28e;background:#2a1d1066}
+.build-menu-tabs span{opacity:.8}
+.saved-building{position:relative;display:flex;min-width:0}
+.saved-building .build-option{flex:1;min-width:0;padding-right:24px}
+.saved-building-remove{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:3px;color:#7d97a6;font-size:calc(14px*var(--ta) + var(--tb));line-height:1}
+.saved-building-remove:hover{background:#9a4a4242;color:#f1a59a}
+.saved-buildings-empty{grid-column:1/-1;margin:4px;color:#7e9bad;font-size:calc(9px*var(--ta) + var(--tb));line-height:1.5}
+
+/* Factory editor: blueprints next to "add a block", region selection. */
+.factory-add-block-trigger{left:calc(50% - 4px);transform:translateX(-100%)}
+.factory-blueprints-trigger{left:calc(50% + 4px);min-width:0;transform:none}
+.factory-selecting .factory-add-block-trigger{display:none}
+.factory-selecting .factory-viewport{cursor:crosshair}
+.factory-selection-rect{position:absolute;z-index:3;border:2px dashed #efa35a;border-radius:4px;background:#efa35a14;pointer-events:none}
+.factory-node.in-selection{border-color:#efa35acc;box-shadow:0 0 0 2px #efa35a55,0 8px 22px #0005}
+.factory-selection-bar{position:absolute;z-index:7;left:50%;bottom:calc(10px + var(--safe-bottom));display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;width:min(560px,calc(100% - 16px));padding:8px;border:1px solid #efa35a66;border-radius:8px;background:#0b1928f0;box-shadow:0 8px 30px #0008;transform:translateX(-50%)}
+.factory-selection-bar span{flex:1 1 100%;color:#f1c28e;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px;text-align:center}
+.factory-selection-bar input{flex:1 1 140px;min-width:0;padding:7px 8px;border:1px solid #7495a54d;border-radius:4px;background:#061321;color:#d6e5eb;font-family:var(--mono);font-size:calc(10px*var(--ta) + var(--tb))}
+.factory-selection-bar button{padding:8px 10px;border:1px solid #72bac579;border-radius:4px;background:#174257;color:#d3e8ed;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.factory-selection-bar button:disabled{opacity:.45;cursor:default}
+#factory-selection-cancel{border-color:#7495a54d;background:transparent;color:#9cb5c2}
+.factory-blueprint-list{display:flex;flex-direction:column;gap:6px;min-height:0;padding:10px;overflow:auto;overscroll-behavior:contain}
+.factory-blueprint-entry{position:relative;display:flex}
+.factory-blueprint{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;padding:10px 34px 10px 12px;border:1px solid #728da02b;border-radius:6px;background:linear-gradient(150deg,#13263a,#0d1b2a);color:#bed0d8;text-align:left}
+.factory-blueprint:disabled{opacity:.5;cursor:default}
+.factory-blueprint:not(:disabled):hover{border-color:#6bb8c18c}
+.factory-blueprint strong{color:#d7e7ee;font-size:calc(9px*var(--ta) + var(--tb));font-weight:600;letter-spacing:.6px}
+.factory-blueprint small{color:#86a1b1;font-size:calc(8px*var(--ta) + var(--tb))}
+.factory-blueprint-new{padding-right:12px;border-style:dashed;border-color:#efa35a66}
+.factory-blueprint-new strong{color:#f1c28e}
+.factory-blueprint-remove{position:absolute;top:50%;right:6px;width:26px;height:26px;margin-top:-13px;border-radius:4px;color:#7d97a6;font-size:calc(15px*var(--ta) + var(--tb));line-height:1}
+.factory-blueprint-remove:hover{background:#9a4a4242;color:#f1a59a}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
-   keep everything in view at a glance. */
-@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}
+   keep everything in view at a glance; a building's sheet grows least. */
+@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.inspector.building-panel{--ta:.85;--tb:.5px}.factory-add-block-trigger{min-width:150px;padding:0 12px}.factory-blueprints-trigger{min-width:0}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}

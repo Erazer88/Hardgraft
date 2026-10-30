@@ -161,8 +161,9 @@
       const rows = [['POPULATION', `${fmt(colony.population)} habitants`],
         ['CONTEXTE', `+${fmtDecimal(root.OrbitColonyData.contextPerMinute)} / min`]];
       if (tier) {
-        rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, Object.entries(tier.needs)
-          .map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`).join('  /  ')]);
+        rows.push([`PALIER ${colony.tier + 1} / ${tiers.length} · ${fmt(tier.population)} HAB.`, [
+          ...Object.entries(tier.needs).map(([id, amount]) => `${resourceName(id)} ${fmt(colony.progress[id] || 0)} / ${fmt(amount)}`),
+          ...(tier.requires || []).map(type => `${BuildingData.get(type)?.label || type} assemblé`)].join('  /  ')]);
         // Earlier needs as steady flows; the tier only progresses while they hold.
         const flows = Object.entries(root.OrbitColony.flows(colony.tier));
         if (flows.length) rows.push([root.OrbitColony.flowsMet(colony) ? 'FLUX REQUIS · TENUS' : 'FLUX REQUIS · EN RETARD',
@@ -224,6 +225,11 @@
       };
       const rows = byType[building.type] || [];
       if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
+      if (building.constructionState === 'supplying') {
+        const needs = BuildingData.get(building.type)?.constructionNeeds || {};
+        rows.unshift(['CHANTIER · RESSOURCES À LIVRER', Object.entries(needs).map(([id, amount]) =>
+          `${resourceName(id)} ${fmt(Math.min(amount, building.constructionSupplied?.[id] || 0))} / ${fmt(amount)}`).join('  /  ')]);
+      }
       if (building.constructionState === 'constructing') {
         rows.unshift(['ASSEMBLAGE', building.status === 'queued' ? 'En attente d’une équipe de robots'
           : `${Math.round((building.constructionProgress || 0) * 100)} %`]);
@@ -297,6 +303,8 @@
       $('selection-name').hidden = isBuilding;
       $('building-name').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
+      // Any building but the unique colony can be saved to the build menu.
+      $('save-building-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.placementRules?.uniqueInGame);
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
       if (state.level === 'galaxy') {
@@ -408,6 +416,7 @@
         if (definition) option.title = unique ? 'Un seul exemplaire possible.' : option.disabled
           ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }
+      renderBuildMenuTabs(state);
       $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
@@ -437,6 +446,50 @@
       const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
       const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
       $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
+    }
+
+    // The build menu's second tab: buildings the player saved (state.library),
+    // placed again with their name and cards.
+    let savedSignature = null;
+    function renderBuildMenuTabs(state) {
+      const saved = state.library?.buildings || [], tab = state.buildMenuTab === 'saved' ? 'saved' : 'catalog';
+      for (const [id, name] of [['build-tab-catalog', 'catalog'], ['build-tab-saved', 'saved']]) {
+        $(id).classList.toggle('active', tab === name);
+        $(id).setAttribute('aria-selected', String(tab === name));
+      }
+      $('build-options').hidden = tab !== 'catalog';
+      $('resource-stock').hidden = tab !== 'catalog';
+      $('saved-buildings').hidden = tab !== 'saved';
+      $('saved-buildings-count').textContent = String(saved.length);
+      const available = saved.map(item => root.OrbitProgression.buildingUnlocked(state, item.type));
+      const signature = JSON.stringify([saved.map(item => [item.id, item.name]), available]);
+      if (signature === savedSignature) return;
+      savedSignature = signature;
+      const list = $('saved-buildings');
+      if (!saved.length) {
+        const empty = document.createElement('p'); empty.className = 'saved-buildings-empty';
+        empty.textContent = 'Aucun bâtiment enregistré. Touchez un bâtiment, puis « Enregistrer le bâtiment ».';
+        list.replaceChildren(empty); return;
+      }
+      list.replaceChildren(...saved.map((item, index) => {
+        const definition = BuildingData.get(item.type);
+        const entry = document.createElement('div'); entry.className = 'saved-building';
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'build-option'; button.dataset.savedBuildingId = item.id;
+        button.disabled = !available[index] || !definition;
+        const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition?.shortLabel || '?';
+        const copy = document.createElement('span'); copy.className = 'build-option-copy';
+        const title = document.createElement('strong'); title.textContent = item.name;
+        const cards = item.plan.machines.length;
+        const description = document.createElement('small');
+        description.textContent = `${definition?.label || item.type}${cards ? ` · ${cards} carte${cards > 1 ? 's' : ''}` : ''}${available[index] ? '' : ' · pas encore disponible'}`;
+        copy.append(title, description); button.append(icon, copy);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'saved-building-remove'; remove.dataset.deleteSavedBuilding = item.id;
+        remove.setAttribute('aria-label', `Retirer ${item.name} des bâtiments enregistrés`); remove.textContent = '×';
+        entry.append(button, remove);
+        return entry;
+      }));
     }
 
     return Object.freeze({ toast, showSelection, update, compositionText });

@@ -37,9 +37,13 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 ### Colonie et progression
 
 - La Colonie est le premier bâtiment, unique et indestructible, générateur 12 MW.
-  Population 100 → 200 → 400 → 800 par paliers : 1 000 roches brutes, puis
-  150 goudrons, puis 25 plaques. Dès le palier 2, les ressources des paliers
-  précédents sont exigées en flux (roche 500/min, goudron 25/min). Contexte : 1/min.
+  Population 100 → 200 → 400 → 800 → 1 600 par paliers : 1 000 roches brutes, puis
+  150 goudrons, puis 25 plaques, puis un hub assemblé. Dès le palier 2, les ressources
+  des paliers précédents sont exigées en flux (roche 500/min, goudron 25/min, plaque
+  1/min). Contexte : 1/min.
+- À 800 habitants s'ouvrent le cuivre, le silicium, l'eau (station de pompage) et le
+  hub, qui se bâtit avec des ressources livrées par route (plaques, goudron, cuivre,
+  silicium, eau douce).
   Zone néon qui grandit avec ce qu'elle consomme ; on n'y construit pas.
 - Les bâtiments et cartes apparaissent selon les besoins de la colonie ; le réglage
   développeur « Tout débloquer » montre tout.
@@ -60,6 +64,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   l'amont.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
+- Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet
+  « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
 - Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un
   bouton « PROBLÈMES » en haut à droite liste les alertes en cours : énergie
   insuffisante, dock sans destination, flux de colonie en retard ; une alerte reste 3 s

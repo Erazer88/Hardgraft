@@ -99,15 +99,17 @@ async function main() {
     await openBlockMenu();
     const blockMenu = await cdp.evaluate(`(() => {
       const trigger = document.querySelector('#factory-add-block-toggle').getBoundingClientRect();
+      const blueprints = document.querySelector('#factory-blueprints-toggle').getBoundingClientRect();
       const editor = document.querySelector('#factory-editor').getBoundingClientRect();
       const cards = [...document.querySelectorAll('.factory-block-add')];
-      return { triggerCenter: trigger.left + trigger.width / 2, editorCenter: editor.left + editor.width / 2,
+      // The two bottom buttons sit side by side, their gap on the middle.
+      return { triggerCenter: (trigger.right + blueprints.left) / 2, editorCenter: editor.left + editor.width / 2,
         triggerBottom: trigger.bottom, editorBottom: editor.bottom, cardCount: cards.length,
         incompleteCards: cards.filter(card => !card.querySelector('svg.factory-block-art[role="img"]') ||
           !card.querySelector('.factory-block-description')?.textContent.trim()).length };
     })()`);
     assert.ok(Math.abs(blockMenu.triggerCenter - blockMenu.editorCenter) < 1 && blockMenu.triggerBottom < blockMenu.editorBottom,
-      `the activation button is centered along the bottom edge: ${JSON.stringify(blockMenu)}`);
+      `the add-block and blueprints buttons are centered along the bottom edge: ${JSON.stringify(blockMenu)}`);
     assert.ok(blockMenu.cardCount > 0 && blockMenu.incompleteCards === 0,
       'all machine choices use accessible illustrations with descriptions');
     await cdp.click('[data-add-machine="crusher"]');

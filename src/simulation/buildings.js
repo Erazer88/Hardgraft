@@ -2,7 +2,8 @@
   'use strict';
 
   const Data = root.OrbitBuildingData;
-  const constructionStates = Object.freeze(['planned', 'constructing', 'complete']);
+  // A site with constructionNeeds is "supplying" until its deliveries arrive.
+  const constructionStates = Object.freeze(['planned', 'supplying', 'constructing', 'complete']);
   const isFiniteNumber = value => typeof value === 'number' && Number.isFinite(value);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -68,6 +69,7 @@
     const gateMix = properties.gateMix && typeof properties.gateMix === 'object' && !Array.isArray(properties.gateMix)
       ? Object.fromEntries(Object.entries(properties.gateMix).map(([id, value]) => [id, mixes(value)])) : {};
     const launchStock = integerStock(properties.launchStock);
+    const constructionSupplied = integerStock(properties.constructionSupplied);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
     // Units a depot's output gates queued, per destination building.
     const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
@@ -114,6 +116,7 @@
       constructionProgress: clamp(progress, 0, 1),
       constructionDurationSeconds,
       demolitionRefundRate,
+      constructionSupplied,
       costPaid: costPaid ? { ...costPaid } : null,
       cardCostPaid,
       roadPort,

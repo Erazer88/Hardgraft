@@ -700,3 +700,36 @@ test('alerts list a planet short of power, a dock without destination and a late
   state.powerStatus[planetId].supplyMW = 44;
   assert.equal(context.OrbitAlerts.list(state).some(alert => alert.kind === 'power'), false);
 });
+
+test('the hub site takes its deliveries by road, then is assembled and lets the colony reach tier 4', () => {
+  const needs = plain(BuildingData.get('launch_platform').constructionNeeds);
+  const { factory, platform, state } = fixture({ dockStock: { ...needs, metal_plate: needs.metal_plate + 5 }, inventory: {},
+    dockDestinations: Object.fromEntries(Object.keys(needs).map(id => [id, 'platform-1'])) });
+  platform.constructionState = 'planned';
+  assert.equal(Construction.start(platform, {}, Construction.costFor('launch_platform')).started, true);
+  assert.equal(platform.constructionState, 'supplying');
+  const colony = Building.create({ id: 'colony-1', type: 'colony', planetId, x: 0, y: 0, constructionState: 'complete',
+    colony: { tier: 3, population: 800 } });
+  state.surfaceBuildings.push(colony);
+  assert.equal(Colony.advance(state, 1).length, 0, 'no hub yet: the tier waits');
+  Network.transferDockStockToBuildings(state);
+  assert.deepEqual(plain(factory.dockStock), { metal_plate: 5 }, 'the site takes only what it still needs');
+  Construction.advance(state.surfaceBuildings, .1);
+  assert.equal(platform.constructionState, 'constructing');
+  assert.equal(Construction.supplyFraction(platform), 1);
+  Construction.advance(state.surfaceBuildings, 3);
+  assert.equal(platform.constructionState, 'complete');
+  const events = Colony.advance(state, 1);
+  assert.equal(events[0]?.tier, 4);
+  assert.equal(colony.colony.population, 1600);
+});
+
+test('tier 3 opens copper, silicon, water and the hub', () => {
+  const state = { surfaceBuildings: [{ type: 'colony', colony: { tier: 3 } }], unlocks: null };
+  Progression.advance(state);
+  for (const type of ['water_station', 'launch_platform']) assert.ok(Progression.buildingUnlocked(state, type), type);
+  for (const card of ['gravity_separator', 'silicon_washer', 'silicon_dryer', 'water_pump', 'desalinator'])
+    assert.ok(state.unlocks.cards.includes(card), card);
+  assert.ok(Progression.cardUnlocked(state, { id: 'reduction_furnace', contextResourceId: 'copper' }));
+  assert.ok(Progression.cardUnlocked(state, { id: 'reduction_furnace', contextResourceId: 'silicon' }));
+});

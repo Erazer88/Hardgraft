@@ -50,15 +50,23 @@
       <section class="logistics-card"><strong>ÉNERGIE</strong><div id="hub-energy-data"></div></section>
       <section class="logistics-card"><strong>FLUX ENTRANTS</strong><div id="hub-incoming-data"></div></section>
     </div>
-    <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
+    <div class="building-actions">
+      <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
+      <button class="factory-edit-button" id="save-building-button" type="button" aria-label="Enregistrer le bâtiment avec son nom et ses cartes" hidden>ENREGISTRER</button>
+    </div>
     <button class="demolish-button" id="demolish-button" hidden>DÉMOLIR · RÉCUPÉRER 100 %</button>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
   </aside>
   <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
     <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong id="build-menu-title">INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
+    <div class="build-menu-tabs" role="tablist" aria-label="Catalogue ou bâtiments enregistrés">
+      <button type="button" role="tab" id="build-tab-catalog" aria-selected="true">INFRASTRUCTURES</button>
+      <button type="button" role="tab" id="build-tab-saved" aria-selected="false">ENREGISTRÉS <span id="saved-buildings-count">0</span></button>
+    </div>
     <p class="build-menu-hint" id="build-menu-hint" hidden></p>
     <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
+    <div class="build-options saved-buildings" id="saved-buildings" hidden></div>
   </aside>
   <div class="alerts" id="alerts" hidden>
     <button class="alerts-toggle" id="alerts-toggle" aria-expanded="false" aria-controls="alerts-list" aria-label="Problèmes en cours"><span aria-hidden="true">⚠</span><span id="alerts-count">0</span><span class="alerts-label">PROBLÈMES</span></button>
@@ -92,6 +100,7 @@
             <g id="factory-link-layer"></g>
           </svg>
           <div class="factory-nodes" id="factory-nodes"></div>
+          <div class="factory-selection-rect" id="factory-selection-rect" hidden></div>
         </div>
         <div class="factory-empty" id="factory-empty">
           <span class="factory-empty-mark">＋</span>
@@ -111,10 +120,31 @@
         <div class="factory-block-list" id="factory-block-list"></div>
       </section>
     </div>
+    <div class="factory-palette-overlay" id="factory-blueprints-overlay" hidden>
+      <section class="factory-palette" aria-labelledby="factory-blueprints-title">
+        <header class="factory-palette-heading">
+          <div><span>PLANS ENREGISTRÉS</span><strong id="factory-blueprints-title">BLUEPRINTS</strong></div>
+          <small>TOUCHER POUR POSER</small>
+          <button id="factory-blueprints-close" type="button" aria-label="Fermer les blueprints">×</button>
+        </header>
+        <div class="factory-blueprint-list" id="factory-blueprint-list"></div>
+      </section>
+    </div>
+    <div class="factory-selection-bar" id="factory-selection-bar" hidden>
+      <span id="factory-selection-count">GLISSEZ POUR ENTOURER DES CARTES</span>
+      <input id="factory-selection-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du blueprint">
+      <button type="button" id="factory-selection-save" disabled>ENREGISTRER</button>
+      <button type="button" id="factory-selection-cancel">ANNULER</button>
+    </div>
     <button class="factory-add-block-trigger" id="factory-add-block-toggle" type="button"
         aria-controls="factory-palette-overlay" aria-expanded="false" aria-label="Ajouter un bloc au processus">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       <span>AJOUTER UN BLOC</span>
+    </button>
+    <button class="factory-add-block-trigger factory-blueprints-trigger" id="factory-blueprints-toggle" type="button"
+        aria-controls="factory-blueprints-overlay" aria-expanded="false" aria-label="Blueprints : poser ou enregistrer une région de cartes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
+      <span>BLUEPRINTS</span>
     </button>
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -201,6 +231,7 @@
   <script src="src/gameplay/alerts.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>
+  <script src="src/storage/library.js"></script>
   <script src="src/navigation/camera.js"></script>
   <script src="src/rendering/textScale.js"></script>
   <script src="src/rendering/buildingRenderer.js"></script>

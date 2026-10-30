@@ -20,7 +20,11 @@
     // Metal plates: iron sorted out, smelted and rolled; a depot to share flows.
     { id: 'plates', when: { tier: 2 }, buildings: ['storage'],
       cards: ['magnetic_separator', 'reduction_furnace:iron', 'rolling_mill', 'depot_input', 'depot_output', 'depot_buffer',
-        'depot_filter', 'depot_splitter', 'depot_priority'] }
+        'depot_filter', 'depot_splitter', 'depot_priority'] },
+    // The hub: built from plates, tar, copper, silicon and fresh water.
+    { id: 'hub', when: { tier: 3 }, buildings: ['water_station', 'launch_platform'],
+      cards: ['gravity_separator', 'reduction_furnace:copper', 'silicon_washer', 'silicon_dryer', 'reduction_furnace:silicon',
+        'water_pump', 'desalinator'] }
   ];
 
   function freeze(value) {

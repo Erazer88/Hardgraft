@@ -86,6 +86,14 @@
       const target = event.target;
       if (target.closest?.('[data-remove-machine], [data-jump-building], select, input, textarea')) return;
 
+      // While choosing a region, any drag draws the selection rectangle.
+      if (actions.isSelecting?.()) {
+        const start = worldPoint(event.clientX, event.clientY);
+        gesture = { mode: 'select', pointerId: event.pointerId, start };
+        actions.onSelectionChange?.({ x0: start.x, y0: start.y, x1: start.x, y1: start.y }, false);
+        capture(event); event.preventDefault(); return;
+      }
+
       const output = outputTarget(target);
       if (output) {
         const existing = (output.linkId === undefined ? actions.findConnectionFrom?.(output.machineId, output.outputId)
@@ -159,6 +167,9 @@
       const dx = event.clientX - gesture.startX, dy = event.clientY - gesture.startY;
       if (gesture.mode === 'pan') {
         apply({ ...camera, x: gesture.origin.x + dx, y: gesture.origin.y + dy });
+      } else if (gesture.mode === 'select') {
+        const point = worldPoint(event.clientX, event.clientY);
+        actions.onSelectionChange?.({ x0: gesture.start.x, y0: gesture.start.y, x1: point.x, y1: point.y }, false);
       } else if (gesture.mode === 'machine') {
         gesture.moved ||= Math.abs(dx) + Math.abs(dy) > 2;
         actions.onMachineMove?.(gesture.machineId, {
@@ -193,7 +204,10 @@
       if (gesture.pointerId !== event.pointerId) return;
       const finished = gesture;
       gesture = { mode: 'idle' };
-      if (finished.mode === 'machine') {
+      if (finished.mode === 'select') {
+        const point = worldPoint(event.clientX, event.clientY);
+        actions.onSelectionChange?.({ x0: finished.start.x, y0: finished.start.y, x1: point.x, y1: point.y }, true);
+      } else if (finished.mode === 'machine') {
         if (finished.moved) actions.onMachineEnd?.(finished.machineId);
       } else if (finished.mode === 'connection') {
         const target = inputTarget(event.target, event.clientX, event.clientY);
