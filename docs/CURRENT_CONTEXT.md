@@ -39,7 +39,7 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 - La Colonie est le premier bâtiment, unique et indestructible, générateur 12 MW.
   Population 100 → 200 → 400 → 800 par paliers : 1 000 roches brutes, puis
   150 goudrons, puis 25 plaques. Dès le palier 2, les ressources des paliers
-  précédents sont exigées en flux (roche 500/min, goudron 50/min). Contexte : 1/min.
+  précédents sont exigées en flux (roche 500/min, goudron 25/min). Contexte : 1/min.
   Zone néon qui grandit avec ce qu'elle consomme ; on n'y construit pas.
 - Les bâtiments et cartes apparaissent selon les besoins de la colonie ; le réglage
   développeur « Tout débloquer » montre tout.

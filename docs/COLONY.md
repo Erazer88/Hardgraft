@@ -23,7 +23,7 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 
 À partir du palier 2, ce que demandaient les paliers précédents doit continuer
 d'arriver en flux régulier (`flowPerMinute`) : roche brute 500/min au palier 2, roche
-brute 500/min et goudron 50/min au palier 3. Le dû de chaque flux grandit avec le temps
+brute 500/min et goudron 25/min au palier 3. Le dû de chaque flux grandit avec le temps
 (au plus deux minutes de retard) et se paie en unités entières avec ce qui arrive. Les
 quantités du palier n'avancent que tant que chaque flux a moins d'une minute de retard.
 Le menu de la colonie affiche ces flux (tenus ou en retard).
