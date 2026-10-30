@@ -133,8 +133,14 @@
           ? 'Cette carte ne retraite que les déchets de sa filière.' : 'Cette carte n’accepte que des déchets.' };
       }
     }
-    if (graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id)) {
+    // An input dock feeds several cards from its one output.
+    if (!definitionOf(from).externalInput &&
+        graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id)) {
       return { ok: false, reason: 'Cette sortie est déjà reliée.' };
+    }
+    if (graph.connections.some(connection => connection.fromMachineId === from.id && connection.fromOutputId === output.id &&
+        connection.toMachineId === to.id && connection.toInputId === input.id)) {
+      return { ok: false, reason: 'Ces deux ports sont déjà reliés.' };
     }
     const linked = graph.connections.filter(connection => connection.toMachineId === to.id && connection.toInputId === input.id);
     if (definitionOf(to).externalOutput && linked.length) {

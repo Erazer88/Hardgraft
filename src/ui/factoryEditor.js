@@ -71,9 +71,13 @@
       const index = ports.findIndex(port => port.id === portId);
       return machine.y + 55 + Math.max(0, index) * 24;
     };
-    const portPoint = (machine, side, portId) => {
-      const port = cards.get(machine.id)?.querySelector(
-        `.factory-port.${side}[data-${side === 'input' ? 'input' : 'output'}-id="${portId}"]`);
+    // A dock port taking several links shows one point per link, plus a free one.
+    const multiLink = (machine, side) => side === 'output' ? Boolean(typeOf(machine).externalInput) : Boolean(typeOf(machine).externalOutput);
+    const portPoint = (machine, side, portId, linkId) => {
+      const card = cards.get(machine.id), base = `.factory-port.${side}[data-${side === 'input' ? 'input' : 'output'}-id="${portId}"]`;
+      const slot = linkId === undefined ? null
+        : card?.querySelector(linkId ? `${base}[data-link-id="${linkId}"]` : `${base}[data-free]`);
+      const port = slot || card?.querySelector(base);
       if (port) {
         const bounds = port.getBoundingClientRect();
         return viewportController.worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
@@ -352,15 +356,36 @@
       select.value = options.some(option => option.id === selected) ? selected : '';
     }
 
-    function createPort(machine, side, port, index) {
+    function createPort(machine, side, port, index, slot = null) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `factory-port ${side}`;
       button.dataset.machineId = machine.id;
       button.dataset[side === 'input' ? 'inputId' : 'outputId'] = port.id;
-      button.style.top = `${55 + index * 24}px`;
+      button.style.top = `${55 + (index + (slot?.position || 0)) * 24}px`;
+      if (slot) {
+        button.dataset.slot = String(slot.position);
+        if (slot.linkId) button.dataset.linkId = slot.linkId; else button.dataset.free = '';
+      }
       button.setAttribute('aria-label', `${side === 'input' ? 'Entrée' : 'Sortie'} ${port.label} · ${typeOf(machine).label}`);
       return button;
+    }
+
+    // Rebuilds the link points of a dock's shared port when its links change.
+    function applySlots(card, machine) {
+      for (const side of ['input', 'output']) {
+        if (!multiLink(machine, side)) continue;
+        const port = (side === 'input' ? typeOf(machine).inputPorts : typeOf(machine).outputPorts)[0];
+        if (!port) continue;
+        const links = connections.filter(connection => side === 'input'
+          ? connection.toMachineId === machine.id && connection.toInputId === port.id
+          : connection.fromMachineId === machine.id && connection.fromOutputId === port.id).map(connection => connection.id);
+        const signature = links.join(',');
+        if (card.dataset[`${side}Slots`] === signature) continue;
+        card.dataset[`${side}Slots`] = signature;
+        card.querySelectorAll(`.factory-port.${side}`).forEach(element => element.remove());
+        [...links, null].forEach((linkId, position) => card.append(createPort(machine, side, port, 0, { linkId, position })));
+      }
     }
 
     function createMachineCard(machine) {
@@ -386,8 +411,8 @@
         const outputLabel = document.createElement('span'); outputLabel.className = 'factory-port-label output';
         if (output) { outputLabel.dataset.outputLabel = output.id; outputLabel.innerHTML = resourceLine(output, machine.outputBuffer[output.id]); }
         row.append(inputLabel, outputLabel); rows.append(row);
-        if (input) card.append(createPort(machine, 'input', input, index));
-        if (output) card.append(createPort(machine, 'output', output, index));
+        if (input && !multiLink(machine, 'input')) card.append(createPort(machine, 'input', input, index));
+        if (output && !multiLink(machine, 'output')) card.append(createPort(machine, 'output', output, index));
       }
       let dockControl = null;
       if (def.routing && routingControl(def.id)) {
@@ -456,9 +481,9 @@
       const source = machineById(connection.fromMachineId || connection.source?.machineId);
       if (!source) return;
       const fromOutputId = connection.fromOutputId || connection.source?.outputId;
-      const start = portPoint(source, 'output', fromOutputId);
+      const start = portPoint(source, 'output', fromOutputId, pending ? connection.source?.linkId : connection.id);
       const target = connection.toMachineId ? machineById(connection.toMachineId) : null;
-      const end = target ? portPoint(target, 'input', connection.toInputId) : connection.point;
+      const end = target ? portPoint(target, 'input', connection.toInputId, connection.id) : connection.point;
       if (!end) return;
       if (!pending) {
         const hit = document.createElementNS(SVG, 'path');
@@ -476,6 +501,7 @@
     }
 
     function renderConnections() {
+      for (const machine of machines) { const card = cards.get(machine.id); if (card) applySlots(card, machine); }
       linkLayer.replaceChildren();
       for (const connection of connections) drawLink(connection);
       if (pendingConnection) drawLink({ ...pendingConnection, point: pendingConnection.point }, true);
@@ -504,7 +530,7 @@
     function findInputTarget(clientX, clientY) {
       let best = null;
       for (const machine of machines) for (const input of freeInputs(machine)) {
-        const port = cards.get(machine.id)?.querySelector(`.factory-port.input[data-input-id="${input.id}"]`);
+        const port = cards.get(machine.id)?.querySelector(`.factory-port.input[data-input-id="${input.id}"]:not([data-link-id])`);
         if (!port) continue;
         const bounds = port.getBoundingClientRect();
         const distance = Math.hypot(clientX - (bounds.left + bounds.width / 2), clientY - (bounds.top + bounds.height / 2));

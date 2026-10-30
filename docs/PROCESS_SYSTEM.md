@@ -126,7 +126,10 @@ Le Quai d'entrée rend un bâtiment disponible comme destination. Il affiche les
 matières livrées dans `building.inventory` et possède une sortie `material` raccordable
 aux machines. La première matière reçue est sélectionnée automatiquement ; le joueur
 peut en choisir une autre lorsque le quai est débranché et son buffer vide. Plusieurs
-quais partagent le même stock sans dupliquer les unités. La Colonie et les Plateformes
+quais partagent le même stock sans dupliquer les unités. Un quai peut alimenter plusieurs cartes : son stock se
+partage à tour de rôle entre ses liaisons. Dans l'éditeur, le port partagé d'un quai
+(sortie) ou d'un Dock de sortie (entrée) montre un point par liaison et un point libre
+de plus. La Colonie et les Plateformes
 de lancement reçoivent nativement, sans cette carte.
 
 Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire et un

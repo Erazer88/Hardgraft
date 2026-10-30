@@ -79,10 +79,11 @@
     for (const machine of Graph.topologicalOrder(graph)) {
       const def = definition(machine), rates = {};
       if (def.externalInput) {
-        const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
-        const target = link && byId.get(link.toMachineId);
+        // It may feed several cards: ready while one of them can take more.
+        const targets = graph.connections.filter(connection => connection.fromMachineId === machine.id)
+          .map(connection => byId.get(connection.toMachineId)).filter(Boolean);
         const available = integer(externalStock[machine.importResourceId]) + integer(machine.outputBuffer.material);
-        const ready = target && (definition(target).sink || outputsReady(target));
+        const ready = targets.some(target => definition(target).sink || outputsReady(target));
         // Docks are logical connectors: without a throughput they pass whatever fits.
         machine.currentRate = available && ready && machine.outputBuffer.material < Data.config.outputCapacity ? def.throughput ?? Infinity : 0;
         rates.material = machine.currentRate;
@@ -129,8 +130,25 @@
     }, 0);
   }
 
-  function transfer(graph, powerRatio) {
+  // Links leaving one same output (an input dock feeding several cards) share
+  // what it holds: each takes its part in turn, the first one changing every tick.
+  function sharedOrder(graph) {
+    const groups = new Map();
     for (const connection of graph.connections) {
+      const key = `${connection.fromMachineId}\n${connection.fromOutputId}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(connection);
+    }
+    const ordered = [];
+    for (const links of groups.values()) {
+      const shift = (graph.tick || 0) % links.length;
+      links.forEach((_, index) => ordered.push({ connection: links[(index + shift) % links.length], remaining: links.length - index }));
+    }
+    return ordered;
+  }
+
+  function transfer(graph, powerRatio) {
+    for (const { connection, remaining } of sharedOrder(graph)) {
       const from = graph.machines.find(machine => machine.id === connection.fromMachineId);
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
@@ -152,7 +170,7 @@
         to.inputBuffer[input.id] += amount;
         continue;
       }
-      const amount = integer(Math.min(from.outputBuffer[out.id],
+      const amount = integer(Math.min(Math.ceil(from.outputBuffer[out.id] / remaining),
         Data.config.inputCapacity - to.inputBuffer[input.id]));
       if (!amount) continue;
       // The rock keeps its composition from one card to the next.

@@ -419,6 +419,27 @@ test('the waste heap reprocesses tailings at a low yield, or burns waste for ene
   assert.deepEqual(plain(reprocessor.outputMix.rock), { iron: .1, rock: .9 });
 });
 
+test('an input dock feeds several cards and shares its stock between them', () => {
+  const factory = { id: 'factory-share', type: 'factory', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
+    inventory: { raw_rock: 60 } };
+  const wind = { id: 'wind-share', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
+  const state = { seed: 'share-seed', surfaceBuildings: [factory, wind], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, factory);
+  const dock = machine(graph, 'dock-rock', 'input_dock', 0);
+  dock.importResourceId = 'raw_rock';
+  const first = machine(graph, 'crusher-a', 'crusher', 300), second = machine(graph, 'crusher-b', 'crusher', 600);
+  connect(graph, 'dock-a', 'dock-rock', 'material', 'crusher-a', 'rock');
+  connect(graph, 'dock-b', 'dock-rock', 'material', 'crusher-b', 'rock');
+  assert.equal(Graph.connect(graph, { id: 'dock-a-again', fromMachineId: 'dock-rock', fromOutputId: 'material',
+    toMachineId: 'crusher-a', toInputId: 'rock' }).ok, false, 'one link per pair of ports');
+  for (let second = 0; second < 3; second++) Industry.advance(state, 1);
+  assert.equal(first.state, 'active');
+  assert.equal(second.state, 'active');
+  const crushed = machine => machine.outputBuffer.rock;
+  assert.ok(crushed(first) >= 12 && crushed(second) >= 12, `${crushed(first)} / ${crushed(second)}`);
+  assert.ok(Math.abs(crushed(first) - crushed(second)) <= 2, `${crushed(first)} / ${crushed(second)}`);
+});
+
 test('an incinerator fed in bursts gives steady power', () => {
   const heap = { id: 'heap-burst', type: 'waste_heap', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete', inventory: {} };
   const state = { seed: 'burst-seed', surfaceBuildings: [heap], factoryPlans: {} };

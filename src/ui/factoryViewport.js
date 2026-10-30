@@ -64,7 +64,9 @@
     function outputTarget(target) {
       const port = target.closest?.('.factory-port.output');
       if (!port) return null;
-      return { machineId: port.dataset.machineId, outputId: port.dataset.outputId };
+      // A dock's link point names its own link; its free point, none.
+      const linkId = port.dataset.slot === undefined ? undefined : port.dataset.linkId || '';
+      return { machineId: port.dataset.machineId, outputId: port.dataset.outputId, linkId };
     }
 
     function inputTarget(target, clientX, clientY) {
@@ -86,7 +88,8 @@
 
       const output = outputTarget(target);
       if (output) {
-        const existing = actions.findConnectionFrom?.(output.machineId, output.outputId) || null;
+        const existing = (output.linkId === undefined ? actions.findConnectionFrom?.(output.machineId, output.outputId)
+          : output.linkId ? actions.findConnection?.(output.linkId) : null) || null;
         gesture = { mode: 'connection', pointerId: event.pointerId, source: output,
           connection: existing, detached: false, moved: false, startX: event.clientX, startY: event.clientY };
         capture(event); event.preventDefault();
@@ -96,7 +99,9 @@
 
       const input = target.closest?.('.factory-port.input');
       if (input) {
-        const connection = actions.findConnectionTo?.(input.dataset.machineId, input.dataset.inputId);
+        const connection = input.dataset.slot === undefined
+          ? actions.findConnectionTo?.(input.dataset.machineId, input.dataset.inputId)
+          : input.dataset.linkId ? actions.findConnection?.(input.dataset.linkId) : null;
         if (connection) {
           const source = { machineId: connection.fromMachineId, outputId: connection.fromOutputId };
           gesture = { mode: 'connection', pointerId: event.pointerId, source, connection,
