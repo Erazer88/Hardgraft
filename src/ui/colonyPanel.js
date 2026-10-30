@@ -8,6 +8,7 @@
   // receivedFrom), as a moving average over the last 30 s of simulation time.
   const WINDOW_SECONDS = 30;
   // Whole numbers only; the panel redraws every REDRAW_MS so values stay readable.
+  // The current tier's quantities are not flows: they follow every refresh.
   const REDRAW_MS = 5000;
   const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
   const fmt = value => numberFormat.format(Number.isFinite(value) ? Math.round(value) : 0);
@@ -27,6 +28,8 @@
     // Samples are taken on every refresh, even while the panel is closed, so
     // rates are ready when it opens.
     let colonyId = null, sampledId = null, samples = [];
+    // The quantity rows of the tier on screen, updated between redraws.
+    let quantities = [], renderedTier = null;
 
     const resourceName = id => root.OrbitResourceData.get(id)?.label || id;
     const element = (tag, className, text) => {
@@ -86,6 +89,7 @@
       const live = rates(state, building);
       if (document.activeElement !== nameInput) nameInput.value = building.customName || '';
       body.replaceChildren();
+      quantities = []; renderedTier = colony.tier;
 
       // Population and tiers, as a track of steps.
       const people = section('POPULATION');
@@ -107,8 +111,10 @@
         for (const [id, amount] of Object.entries(tier.needs)) {
           const done = colony.progress[id] || 0, rate = live.resources[id] || 0, left = amount - done;
           const eta = !flowsMet ? 'bloqué : flux en retard' : rate > .05 ? `≈ ${fmt(Math.max(1, left / rate))} min restantes` : 'aucune arrivée récente';
-          row(needs, resourceName(id), `${units(done)} / ${units(amount)}`, `${perMinute(rate)} reçus · ${eta}`);
-          needs.append(bar(done, amount, null, 'gold'));
+          const line = row(needs, resourceName(id), `${units(done)} / ${units(amount)}`, `${perMinute(rate)} reçus · ${eta}`);
+          const track = bar(done, amount, null, 'gold');
+          needs.append(track);
+          quantities.push({ id, amount, value: line.querySelector('strong'), fill: track.firstChild });
         }
         const flows = Object.entries(Colony.flows(colony.tier));
         if (flows.length) {
@@ -165,6 +171,18 @@
       }
     }
 
+    // Quick update of the tier's quantities; a new tier needs a full redraw.
+    function updateQuantities(building) {
+      const colony = root.OrbitColony.normalize(building.colony);
+      if (colony.tier !== renderedTier) return false;
+      for (const { id, amount, value, fill } of quantities) {
+        const done = colony.progress[id] || 0;
+        value.textContent = `${units(done)} / ${units(amount)}`;
+        fill.style.width = `${clamp(amount > 0 ? done / amount * 100 : 0, 0, 100)}%`;
+      }
+      return true;
+    }
+
     function open(building, state) {
       if (sampledId !== building.id) { samples = []; sampledId = building.id; }
       colonyId = building.id;
@@ -186,7 +204,9 @@
         if (now - renderedAt >= REDRAW_MS) { renderedAt = now; render(state); }
         else {
           const building = state.surfaceBuildings.find(candidate => candidate.id === colonyId);
-          if (building) rates(state, building); else close();
+          if (!building) close();
+          else if (updateQuantities(building)) rates(state, building);
+          else { renderedAt = now; render(state); }
         }
         return;
       }

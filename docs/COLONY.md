@@ -40,7 +40,8 @@ arrivées par ressource et par fournisseur, réserve, total
 consommé, zone (surface, cible, maximum) et énergie de la planète. Les débits viennent
 des totaux reçus que la logistique tient sur chaque destination (`receivedTotal`,
 `receivedFrom`, non sauvegardés), en moyenne glissante sur les 30 dernières secondes de jeu ; le menu se redessine toutes les
-5 s, en nombres entiers avec unités d'échelle (u, ku, Mu, Gu).
+5 s, en nombres entiers avec unités d'échelle (u, ku, Mu, Gu). Les quantités du palier en
+cours (valeur et barre) suivent chaque rafraîchissement de l'interface (0,35 s).
 
 ## Zone
 
