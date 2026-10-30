@@ -482,12 +482,12 @@ test('construction crews build two sites at a time; the others wait their turn',
   const sites = ['a', 'b', 'c'].map(id => Building.create({ id, type: 'storage', planetId, x: 0, y: 0 }));
   const inventory = { iron: 100, copper: 100 };
   for (const site of sites) assert.equal(Construction.start(site, inventory).started, true);
-  Construction.advance(sites, 10);
+  Construction.advance(sites, 1);
   assert.deepEqual(sites.map(site => site.status), ['building', 'building', 'queued']);
   assert.equal(sites[2].constructionProgress, 0);
-  Construction.advance(sites, 10);
+  Construction.advance(sites, 1);
   assert.deepEqual(sites.map(site => site.constructionState), ['complete', 'complete', 'constructing']);
-  Construction.advance(sites, 20);
+  Construction.advance(sites, 2);
   assert.equal(sites[2].constructionState, 'complete');
 });
 
