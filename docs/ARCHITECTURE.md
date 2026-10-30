@@ -90,7 +90,7 @@ zone de la colonie est dessinée en aplat doré sous les balises, avec sa popula
 (7 px → 11 px, 18 px → 21 px). Les panneaux ouverts au toucher (inspecteur, colonie) grossissent moins
 (décalage 2,5 px) et les noms des bâtiments sur la carte aussi (`scaleDamping`). Dans le plan d'usine zoomable, les cartes gardent leur
 taille et leur texte ne gagne qu'un pixel ; à l'ouverture sur écran étroit, le plan est
-zoomé pour qu'une carte remplisse la largeur, en commençant par la première carte. Le
+zoomé pour qu'une carte occupe environ 80 % de la largeur, en commençant par la première carte. Le
 texte dessiné sur Canvas lit la même échelle via `src/rendering/textScale.js`
 (`OrbitTextScale.px`).
 
