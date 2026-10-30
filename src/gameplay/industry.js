@@ -106,6 +106,8 @@
         energyUnlimited: available.unlimited,
         externalStock: building.inventory ||= {},
         externalMix: building.inventoryMix ||= {},
+        // An output dock only works once its resource has a destination.
+        isDockOpen: resourceId => Boolean(building.dockDestinations?.[resourceId]),
         energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
       });
       building.energyUse = graph.energyUsedMW * 1e6;

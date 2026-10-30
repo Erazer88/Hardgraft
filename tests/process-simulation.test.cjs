@@ -278,7 +278,7 @@ test('a saturated crusher pauses the drill without discarding rock', () => {
 
 test('an extractor drills rock with the composition recorded at placement', () => {
   const extractor = { id: 'extractor-1', type: 'extractor', resourceId: 'iron', composition: { iron: .25, rock: .75 },
-    planetId: 'planet-1', x: 25, y: 30, constructionState: 'complete' };
+    planetId: 'planet-1', x: 25, y: 30, constructionState: 'complete', dockDestinations: { raw_rock: 'colony' } };
   const wind = { id: 'wind-1', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
   const state = { seed: 'factory-seed', surfaceBuildings: [extractor, wind], factoryPlans: {} };
   const graph = Industry.ensureGraph(state, extractor);
@@ -339,7 +339,8 @@ test('an input dock passes received rock on, with its composition', () => {
 
 test('thousands of rock units on the move keep one composition per stock', () => {
   const composition = { iron: .2, copper: .1, rock: .7 };
-  const extractor = { id: 'e', type: 'extractor', planetId: 'p', x: 0, y: 0, constructionState: 'complete', composition };
+  const extractor = { id: 'e', type: 'extractor', planetId: 'p', x: 0, y: 0, constructionState: 'complete', composition,
+    dockDestinations: { iron_concentrate: 'factory', tailings: 'heap' } };
   const wind = { id: 'w', type: 'wind_turbine', planetId: 'p', constructionState: 'complete' };
   const state = { seed: 'mass', surfaceBuildings: [extractor, wind], factoryPlans: {} };
   const graph = Industry.ensureGraph(state, extractor);
@@ -364,7 +365,7 @@ test('a pumping station pumps the water of its shore: salt water faster than fre
   const rates = {};
   for (const resourceId of ['salt_water', 'water']) {
     const station = { id: `station-${resourceId}`, type: 'water_station', resourceId, planetId: 'planet-1',
-      x: 25, y: 30, constructionState: 'complete' };
+      x: 25, y: 30, constructionState: 'complete', dockDestinations: { [resourceId]: 'factory' } };
     const wind = { id: 'wind-water', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
     const state = { seed: 'water-seed', surfaceBuildings: [station, wind], factoryPlans: {} };
     const graph = Industry.ensureGraph(state, station);
@@ -497,7 +498,8 @@ test('an output dock takes several links of one same resource, never two resourc
   assert.equal(Graph.connect(graph, { id: 'g-dock', fromMachineId: 'grinder', fromOutputId: 'rock',
     toMachineId: 'dock', toInputId: 'material' }).ok, false, 'ground rock is another resource');
   a.outputBuffer.rock = 3; b.outputBuffer.rock = 4;
-  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {}, dockStock: {} };
+  const building = { id: 'factory', type: 'factory', constructionState: 'complete', inventory: {}, dockStock: {},
+    dockDestinations: { crushed_rock: 'colony' } };
   const state = { seed: 'docks', surfaceBuildings: [building], factoryPlans: { factory: graph } };
   Industry.advance(state, .1);
   assert.equal(building.dockStock.crushed_rock, 7);
@@ -509,4 +511,21 @@ test('one drill per extractor', () => {
   const second = Graph.addMachine(graph, { id: 'drill-2', type: 'drill', x: 0, y: 0 });
   assert.equal(second.ok, false);
   assert.match(second.reason, /1 par bâtiment/);
+});
+
+test('an output dock without a destination takes nothing and stops what feeds it', () => {
+  const extractor = { id: 'e2', type: 'extractor', planetId: 'p', x: 0, y: 0, constructionState: 'complete', composition: IRON_ROCK };
+  const wind = { id: 'w2', type: 'wind_turbine', planetId: 'p', constructionState: 'complete' };
+  const state = { seed: 'closed', surfaceBuildings: [extractor, wind], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, extractor);
+  const drill = machine(graph, 'drill', 'drill');
+  const dock = machine(graph, 'dock', 'output_dock', 300);
+  connect(graph, 'c', 'drill', 'rock', 'dock', 'material');
+  for (let i = 0; i < 5; i++) Industry.advance(state, 1);
+  assert.equal(extractor.dockStock?.raw_rock || 0, 0, 'nothing absorbed');
+  assert.equal(dock.state, 'no_destination');
+  assert.notEqual(drill.state, 'active');
+  extractor.dockDestinations = { raw_rock: 'colony' };
+  for (let i = 0; i < 2; i++) Industry.advance(state, 1);
+  assert.ok(extractor.dockStock.raw_rock > 0, 'it works once its resource has a destination');
 });

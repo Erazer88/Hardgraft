@@ -40,9 +40,18 @@
     const def = definition(machine);
     return !def.usesGround || graph.geology?.resourceId === machine.resourceId;
   }
+  // An output dock with no destination for its resource takes nothing.
+  function dockClosed(graph, dock) {
+    if (!definition(dock).externalOutput || typeof graph.dockOpen !== 'function') return false;
+    const link = graph.connections.find(connection => connection.toMachineId === dock.id);
+    const source = link && graph.machines.find(machine => machine.id === link.fromMachineId);
+    const resourceId = source && definition(source).outputPorts.find(port => port.id === link.fromOutputId)?.resourceId;
+    return !resourceId || !graph.dockOpen(resourceId);
+  }
+
   function sourceRateForTarget(graph, source, target, connection, powerRatio) {
     const sourceDef = definition(source), targetDef = definition(target);
-    if (!sourceAvailable(graph, source) || (!targetDef.sink && !outputsReady(target))) return 0;
+    if (!sourceAvailable(graph, source) || (!targetDef.sink && !outputsReady(target)) || dockClosed(graph, target)) return 0;
     if (targetDef.storesResources) return (sourceDef.throughput || 1 / Data.config.fixedStepSeconds) *
       (sourceDef.energyMW > 0 ? powerRatio : 1);
     const targetInputAmount = inputBatch(target, connection.toInputId);
@@ -84,7 +93,7 @@
         }, 0);
         const inputId = def.inputPorts[0]?.id;
         const hasBufferedUnits = inputId && machine.inputBuffer[inputId] > 0;
-        machine.currentRate = def.storesResources || def.throughput == null ? incomingRate : Math.min(def.throughput,
+        machine.currentRate = dockClosed(graph, machine) ? 0 : def.storesResources || def.throughput == null ? incomingRate : Math.min(def.throughput,
           incomingRate > 0 || hasBufferedUnits ? Math.max(incomingRate, hasBufferedUnits ? def.throughput : 0) : 0);
       } else if (def.source) {
         const outgoing = graph.connections.find(connection => connection.fromMachineId === machine.id);
@@ -125,7 +134,7 @@
       const from = graph.machines.find(machine => machine.id === connection.fromMachineId);
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
-      if (!out || !input) continue;
+      if (!out || !input || dockClosed(graph, to)) continue;
       if (definition(to).storesResources) {
         const amount = integer(from.outputBuffer[out.id]);
         if (!amount) continue;
@@ -178,6 +187,7 @@
       return;
     }
     if (def.sink) {
+      if (dockClosed(graph, machine)) { machine.state = 'no_destination'; return; }
       if (def.storesResources) {
         machine.state = machine.currentRate > 0 ? 'active' : 'waiting_input';
         return;
@@ -204,7 +214,7 @@
       if (validDeposit && target && definition(target).sink) {
         const outputId = def.outputPorts[0].id;
         if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
-        if (machine.outputBuffer[outputId] >= Data.config.outputCapacity) {
+        if (machine.outputBuffer[outputId] >= Data.config.outputCapacity || dockClosed(graph, target)) {
           machine.state = 'output_full';
           return;
         }
@@ -300,6 +310,8 @@
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError('Process duration must be finite and non-negative');
     graph.energyUnlimited = context.energyUnlimited === true;
     graph.energyAvailableMW = Number.isFinite(context.energyAvailableMW) ? Math.max(0, context.energyAvailableMW) : 0;
+    // Which resources the building's output docks may send (runtime only).
+    Object.defineProperty(graph, 'dockOpen', { value: context.isDockOpen || null, configurable: true, writable: true, enumerable: false });
     graph.accumulator += seconds;
     let count = 0;
     while (graph.accumulator + 1e-9 >= Data.config.fixedStepSeconds && count < Data.config.maxTicksPerAdvance) {

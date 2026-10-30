@@ -282,7 +282,8 @@
     if (resourceId === 'salt_water' || resourceId === 'brine') return 'salt_water';
     return resourceId ? 'rock' : null;
   }
-  const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE' });
+  const statuses = freeze({ active: 'ACTIF', waiting_input: 'ATTENTE ENTRÉE', output_full: 'SORTIE PLEINE', no_energy: 'SANS ÉNERGIE',
+    no_destination: 'SANS DESTINATION' });
   freeze(config); freeze(materials); freeze(extractorCatalog); freeze(factoryCatalog); freeze(oilCatalog); freeze(templates); freeze(depotCards); freeze(waterCatalog); freeze(cardCosts);
 
   root.OrbitProcessData = Object.freeze({

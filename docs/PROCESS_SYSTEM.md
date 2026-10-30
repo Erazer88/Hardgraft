@@ -110,7 +110,9 @@ commence que si tous ses ingrédients entiers sont présents et s'il y a de la p
 tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de matière.
 Le Terril accepte plusieurs connexions sur son entrée partagée et stocke sans limite
 chaque ressource reçue. Il n'a ni cycle ni débit et ses stocks sont enregistrés dans le
-graphe. Le Dock accepte plusieurs connexions entrantes, toutes de la même matière, qu'il exporte.
+graphe. Le Dock accepte plusieurs connexions entrantes, toutes de la même matière, qu'il exporte. Tant que sa
+matière n'a pas de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui
+l'alimente s'arrête.
 Le Quai d'entrée rend une usine disponible dans le menu de destination des Docks de
 sortie. Il affiche les matières livrées dans `building.inventory` et possède une sortie
 `material` raccordable aux machines. La première matière reçue est sélectionnée
