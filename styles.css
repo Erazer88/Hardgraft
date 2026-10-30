@@ -223,7 +223,7 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-cycle-row{display:flex;align-items:center;gap:8px}
 .factory-cycle-row [data-readout="cycle"]{flex:1;color:#748ba5;font-size:8px;line-height:10px;letter-spacing:.35px}
 .factory-cycle-meter{flex:0 0 72px;height:4px}
-.factory-cycle-fill{background:linear-gradient(90deg,#7198e5,#a7bdf6)}
+.factory-cycle-fill{background:linear-gradient(90deg,#7198e5,#a7bdf6);transition:none}
 .factory-state{color:#72c6b1;font-size:8px;line-height:9px;letter-spacing:.4px}
 .factory-node[data-state="output_full"] .factory-state,.factory-node[data-state="no_energy"] .factory-state{color:#e5bd75}
 .factory-node[data-state="waiting_input"] .factory-state{color:#91a4b9}
