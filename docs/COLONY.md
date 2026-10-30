@@ -37,7 +37,13 @@ attend un hub assemblé sur la planète de la colonie, ses flux étant tenus.
 15 cuivres bruts, 15 silicium bruts et 100 eaux douces. Posé, il devient un chantier
 (`constructionState: 'supplying'`) que les Docks de sortie peuvent choisir comme
 destination ; il ne prend que ce qui lui manque. Une fois tout livré, les robots
-l'assemblent (2 s). Sa fiche, sa balise et le menu de la colonie montrent l'avancement.
+l'assemblent (2 s). Sa balise et le menu de la colonie montrent l'avancement.
+
+Un clic sur le hub ouvre son propre menu (`src/ui/hubPanel.js`, bâti comme celui de la
+colonie) : état du chantier, matériaux à recevoir (livré / demandé, débit reçu et temps
+estimé), arrivées et fournisseurs en moyenne glissante sur 30 s ; une fois assemblé,
+l'export vers l'Arche (état, débit de lancement, énergie, stock en attente). Le menu
+permet aussi de le renommer, de l'enregistrer et de le démolir.
 
 La population ne baisse pas et n'a pas d'autre effet pour l'instant. Après le dernier
 palier, aucun flux n'est plus exigé ; les paliers suivants viendront plus tard.

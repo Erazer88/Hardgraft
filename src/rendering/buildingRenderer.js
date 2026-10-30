@@ -199,16 +199,6 @@
     ctx.restore();
   }
 
-  function cardPosition(frame, building, definition) {
-    const style = Style.buildings, width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
-    const anchor = frame.project(building.x, building.y), edge = definition.footprint.width * frame.zoom / 2 + 12;
-    let x = anchor.x + edge, y = anchor.y - style.cardHeightPx / 2;
-    if (x + width > frame.viewport.width - 8) x = anchor.x - edge - width;
-    x = Math.max(8, Math.min(frame.viewport.width - width - 8, x));
-    y = Math.max(8, Math.min(frame.viewport.height - style.cardHeightPx - 8, y));
-    return { anchor, x, y, width, height: style.cardHeightPx };
-  }
-
   // The colony's zone, rendered once per size into an offscreen tint and an
   // outline, then drawn at the current zoom.
   const zoneCache = new Map();
@@ -369,52 +359,5 @@
     }
   }
 
-  function renderAnchors(frame) {
-    const ctx = frame.context, style = Style.buildings;
-    for (const building of visibleBuildings(frame)) {
-      if (building.constructionState === 'complete') continue;
-      const definition = Data.get(building.type);
-      if (!definition) continue;
-      const card = cardPosition(frame, building, definition), side = card.x > card.anchor.x ? card.x : card.x + card.width;
-      const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
-      ctx.strokeStyle = selected ? '#efa35a99' : '#b3c3c344'; ctx.lineWidth = .8; ctx.beginPath();
-      ctx.moveTo(card.anchor.x, card.anchor.y); ctx.lineTo(side, card.y + card.height / 2); ctx.stroke();
-      ctx.fillStyle = style.cardOutlineColor; ctx.beginPath(); ctx.arc(card.anchor.x, card.anchor.y, 2, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-
-  function renderCards(frame) {
-    const ctx = frame.context, style = Style.buildings;
-    for (const building of visibleBuildings(frame)) {
-      if (building.constructionState === 'complete') continue;
-      const definition = Data.get(building.type);
-      if (!definition) continue;
-      const card = cardPosition(frame, building, definition);
-      ctx.save(); ctx.globalAlpha = style.cardOpacity;
-      const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
-      ctx.fillStyle = style.cardFill; ctx.strokeStyle = selected ? style.selectedOutlineColor : style.cardOutlineColor;
-      ctx.lineWidth = selected ? style.selectedOutlineWidthPx : style.cardOutlineWidthPx;
-      ctx.beginPath(); ctx.roundRect(card.x, card.y, card.width, card.height, style.cardRadiusPx); ctx.fill(); ctx.stroke();
-      ctx.globalAlpha = 1;
-      const iconX = card.x + style.cardPaddingPx + style.iconRadiusPx, iconY = card.y + card.height / 2 - 3;
-      ctx.fillStyle = '#102232'; ctx.strokeStyle = style.cardOutlineColor; ctx.lineWidth = .9;
-      ctx.beginPath(); ctx.arc(iconX, iconY, style.iconRadiusPx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc', definition.icon);
-      ctx.font = `${root.OrbitTextScale.px(style.titleSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
-      ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(building.customName || definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
-      ctx.font = `${root.OrbitTextScale.px(style.valueSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
-      ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
-      ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.constructionState === 'supplying' ? 'CHANTIER · LIVRAISONS'
-        : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
-      const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
-      const barWidth = Math.max(10, card.width - (barX - card.x) - style.cardPaddingPx);
-      ctx.fillStyle = '#52687866'; ctx.fillRect(barX, barY, barWidth, style.activityBarHeightPx);
-      ctx.fillStyle = building.constructionState === 'complete' ? '#8bb1b8' : '#d7a66f';
-      ctx.fillRect(barX, barY, barWidth * Math.max(0, Math.min(1, building.constructionProgress)), style.activityBarHeightPx);
-      ctx.restore();
-    }
-  }
-
-  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, renderAnchors, renderCards, pinGeometry, pinScale });
+  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, pinGeometry, pinScale });
 })(globalThis);

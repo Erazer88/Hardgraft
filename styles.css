@@ -371,6 +371,11 @@ body[data-level="surface"] .corner-note{display:none}
 .factory-blueprint-remove{position:absolute;top:50%;right:6px;width:26px;height:26px;margin-top:-13px;border-radius:4px;color:#7d97a6;font-size:calc(15px*var(--ta) + var(--tb));line-height:1}
 .factory-blueprint-remove:hover{background:#9a4a4242;color:#f1a59a}
 
+/* The hub menu reuses the colony's; its actions sit at the bottom. */
+.hub-panel .colony-panel-header span{color:#9fd8ff}
+.hub-panel-actions{padding-top:8px;border-top:1px solid var(--line)}
+.hub-panel-actions .demolish-button{flex:1 1 0;margin-top:10px}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

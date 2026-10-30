@@ -42,7 +42,9 @@ Modules de la colonie et de la progression :
 | `src/gameplay/colonyZone.js` | Croissance de la zone de la colonie sur le terrain |
 | `src/gameplay/progression.js` | Déblocage des bâtiments et cartes, restauration |
 | `src/gameplay/buildingNames.js` | Noms par défaut numérotés par type (`state.nameCounters`) |
+| `src/ui/panelKit.js` | Briques communes des menus de colonie et de hub : unités, barres, débits glissants |
 | `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
+| `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, export |
 | `src/gameplay/alerts.js` | Problèmes en cours (planète sans assez d'énergie, dock sans destination, flux de colonie en retard) |
 | `src/storage/library.js` | Bibliothèque du joueur (clé locale à part de la sauvegarde) : bâtiments enregistrés et blueprints |
 | `src/ui/alertsPanel.js` | Bouton « PROBLÈMES » sous les boutons du haut et sa liste déroulante |
@@ -81,7 +83,7 @@ de point d'intérêt (`OrbitSurfaceStyle.buildings.pin`) : un hexagone portant l
 bâtiment, coloré selon sa catégorie et centré sur l'emplacement exact ; les routes le
 rejoignent par l'angle tourné vers elles. La balise grossit et rétrécit avec le zoom
 (`pinScale` : référence 1,6, exposant 0,8, bornée entre 0,45 et 2,2) et porte le nom du
-bâtiment au-dessus. La construction progresse en arc autour de l'hexagone ; la
+bâtiment au-dessus. La construction progresse en arc autour de l'hexagone, sans cadre à côté ; la
 sélection ajoute un hexagone orange. L'aperçu de placement montre en plus l'emprise au
 sol. Le clic sur l'hexagone sélectionne le bâtiment (la Colonie ouvre son menu). La
 zone de la colonie est dessinée en aplat doré sous les balises, avec sa population.

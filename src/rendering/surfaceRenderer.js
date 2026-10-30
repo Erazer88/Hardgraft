@@ -958,8 +958,6 @@
       if (frame.showSurfaceRoads) layers.roads.render(frame);
       layers.buildings.renderPhysical(frame);
       layers.vehicles.render(frame);
-      layers.buildings.renderAnchors(frame);
-      layers.buildings.renderCards(frame);
       drawSelection(frame);
       drawLabels(frame);
     }

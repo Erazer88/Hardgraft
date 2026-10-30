@@ -6,80 +6,25 @@
   // buildings supplying it, its zone and power. Rates are measured from the
   // running totals the logistics keep on the colony (receivedTotal and
   // receivedFrom), as a moving average over the last 30 s of simulation time.
-  const WINDOW_SECONDS = 30;
+  const Kit = root.OrbitPanelKit;
+  const { fmt, units, perMinute } = Kit;
   // Whole numbers only; the panel redraws every REDRAW_MS so values stay readable.
   // The current tier's quantities are not flows: they follow every refresh.
   const REDRAW_MS = 5000;
-  const numberFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
-  const fmt = value => numberFormat.format(Number.isFinite(value) ? Math.round(value) : 0);
-  // Units scale like bytes: u, ku, Mu, Gu, Tu.
-  const SCALES = ['', 'k', 'M', 'G', 'T'];
-  function units(value, suffix = '') {
-    let amount = Number.isFinite(value) ? Math.max(0, value) : 0, scale = 0;
-    while (Math.round(amount) >= 1000 && scale < SCALES.length - 1) { amount /= 1000; scale++; }
-    return `${fmt(amount)} ${SCALES[scale]}u${suffix}`;
-  }
-  const perMinute = value => units(value, '/min');
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   function create(document, { onRename = () => {}, onClose = () => {} } = {}) {
     const $ = id => document.getElementById(id);
     const panel = $('colony-panel'), body = $('colony-panel-body'), nameInput = $('colony-panel-name');
     // Samples are taken on every refresh, even while the panel is closed, so
     // rates are ready when it opens.
-    let colonyId = null, sampledId = null, samples = [];
+    let colonyId = null;
+    const tracker = Kit.rateTracker(30);
     // The quantity rows of the tier on screen, updated between redraws.
     let quantities = [], renderedTier = null;
 
     const resourceName = id => root.OrbitResourceData.get(id)?.label || id;
-    const element = (tag, className, text) => {
-      const node = document.createElement(tag);
-      if (className) node.className = className;
-      if (text !== undefined) node.textContent = text;
-      return node;
-    };
-    // A bar from 0 to max, with an optional marker (what is required).
-    function bar(value, max, marker = null, tone = '') {
-      const track = element('div', `colony-bar ${tone}`);
-      const fill = element('i');
-      fill.style.width = `${clamp(max > 0 ? value / max * 100 : 0, 0, 100)}%`;
-      track.append(fill);
-      if (marker !== null && max > 0) {
-        const tick = element('b'); tick.style.left = `${clamp(marker / max * 100, 0, 100)}%`; track.append(tick);
-      }
-      return track;
-    }
-    function section(title) {
-      const node = element('section', 'colony-section');
-      node.append(element('h3', '', title));
-      body.append(node);
-      return node;
-    }
-    function row(parent, label, value, detail = '') {
-      const line = element('div', 'colony-row');
-      line.append(element('span', '', label), element('strong', '', value));
-      if (detail) line.append(element('small', '', detail));
-      parent.append(line);
-      return line;
-    }
-
-    // Live rates per minute, per resource and per source, over the window.
-    function rates(state, building) {
-      const time = state.simulation?.time ?? 0;
-      samples.push({ time, totals: { ...(building.receivedTotal || {}) },
-        sources: JSON.parse(JSON.stringify(building.receivedFrom || {})) });
-      while (samples.length > 2 && time - samples[0].time > WINDOW_SECONDS) samples.shift();
-      const first = samples[0], span = time - first.time;
-      const perMinute = (now, then) => span > 1 ? (now - then) / span * 60 : 0;
-      const resources = {};
-      for (const [id, total] of Object.entries(building.receivedTotal || {})) resources[id] = perMinute(total, first.totals[id] || 0);
-      const sources = {};
-      for (const [sourceId, totals] of Object.entries(building.receivedFrom || {})) {
-        sources[sourceId] = Object.fromEntries(Object.entries(totals).map(([id, total]) =>
-          [id, perMinute(total, first.sources[sourceId]?.[id] || 0)]));
-      }
-      return { resources, sources, span };
-    }
+    const { element, bar, section, row } = Kit.builders(document, body);
+    const rates = (state, building) => tracker.sample(state, building);
 
     function render(state) {
       const building = state.surfaceBuildings.find(candidate => candidate.id === colonyId);
@@ -188,13 +133,12 @@
       for (const { id, amount, value, fill } of quantities) {
         const done = colony.progress[id] || 0;
         value.textContent = `${units(done)} / ${units(amount)}`;
-        fill.style.width = `${clamp(amount > 0 ? done / amount * 100 : 0, 0, 100)}%`;
+        fill.style.width = `${Kit.clamp(amount > 0 ? done / amount * 100 : 0, 0, 100)}%`;
       }
       return true;
     }
 
     function open(building, state) {
-      if (sampledId !== building.id) { samples = []; sampledId = building.id; }
       colonyId = building.id;
       panel.hidden = false;
       renderedAt = performance.now();
@@ -222,7 +166,6 @@
       }
       const building = (state.surfaceBuildings || []).find(candidate => candidate.type === 'colony');
       if (!building) return;
-      if (sampledId !== building.id) { samples = []; sampledId = building.id; }
       rates(state, building);
     }
 

@@ -79,6 +79,17 @@
     </header>
     <div class="colony-panel-body" id="colony-panel-body"></div>
   </section>
+  <section class="colony-panel hub-panel panel" id="hub-panel" role="dialog" aria-label="Hub" hidden>
+    <header class="colony-panel-header">
+      <div><span>HUB · PLATEFORME DE LANCEMENT</span><input class="building-name-input" id="hub-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du hub"></div>
+      <button class="text-icon" id="hub-panel-close" aria-label="Fermer le menu du hub">×</button>
+    </header>
+    <div class="colony-panel-body" id="hub-panel-body"></div>
+    <div class="building-actions hub-panel-actions">
+      <button class="factory-edit-button" id="hub-panel-save" type="button" aria-label="Enregistrer le hub avec son nom">ENREGISTRER</button>
+      <button class="demolish-button" id="hub-panel-demolish" type="button">DÉMOLIR</button>
+    </div>
+  </section>
   <section class="factory-editor" id="factory-editor" role="dialog" aria-modal="true"
       aria-labelledby="factory-editor-title" hidden>
     <header class="factory-editor-header">
@@ -243,7 +254,9 @@
   <script src="src/ui/hud.js"></script>
   <script src="src/ui/factoryViewport.js"></script>
   <script src="src/ui/factoryEditor.js"></script>
+  <script src="src/ui/panelKit.js"></script>
   <script src="src/ui/colonyPanel.js"></script>
+  <script src="src/ui/hubPanel.js"></script>
   <script src="src/ui/alertsPanel.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>

@@ -101,6 +101,25 @@
     }
   });
   const planetName = planetId => (state.planet?.id === planetId ? state.planet : state.system?.planets.find(planet => planet.id === planetId))?.name || '';
+  // The hub (launch platform) opens its own menu too.
+  const hubPanel = globalThis.OrbitHubPanel.create(document, {
+    onRename(buildingId, value) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      const name = BuildingNames.clean(value);
+      if (building && name) { building.customName = name; persist(); }
+    },
+    onSave(buildingId) { saveBuildingTemplate(state.surfaceBuildings.find(candidate => candidate.id === buildingId)); },
+    onDemolish(buildingId) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      if (!building) return;
+      hubPanel.close();
+      state.selected = { kind: 'building', ...building };
+      demolishSelectedBuilding();
+    },
+    onClose() { if (state.selected?.kind === 'building' && state.selected.type === 'launch_platform') state.selected = null; },
+    getSystem: () => state.system,
+    siteText: building => siteReadout(building)
+  });
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -341,7 +360,7 @@
     }
     if (previousLevel !== state.level) {
       state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-      cancelRoadDrag(); colonyPanel.close();
+      cancelRoadDrag(); colonyPanel.close(); hubPanel.close();
       $('inspector').hidden = true; $('toast').classList.remove('visible'); updateUI();
     }
   }
@@ -362,7 +381,7 @@
   function clearSelection() {
     cancelRoadDrag();
     state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
-    $('inspector').hidden = true; $('toast').classList.remove('visible'); colonyPanel.close();
+    $('inspector').hidden = true; $('toast').classList.remove('visible'); colonyPanel.close(); hubPanel.close();
   }
   function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
@@ -470,9 +489,16 @@
     if (building.type === 'colony') {
       state.selected = { kind: 'building', ...building, groundText: null };
       $('inspector').hidden = true;
-      colonyPanel.open(building, state); updateUI(); return;
+      hubPanel.close(); colonyPanel.open(building, state); updateUI(); return;
     }
     colonyPanel.close();
+    // So does the hub: what its site awaits, or what it exports.
+    if (building.type === 'launch_platform') {
+      state.selected = { kind: 'building', ...building, groundText: siteReadout(building) };
+      $('inspector').hidden = true;
+      hubPanel.open(building, state); updateUI(); return;
+    }
+    hubPanel.close();
     state.selected = { kind: 'building', ...building, groundText: siteReadout(building) };
     hud.showSelection(state.selected, { state }); updateUI();
   }
@@ -501,17 +527,7 @@
     // The beacon's hexagon sits on the building's spot.
     const pinRadius = SurfaceStyle.buildings.pin.headRadiusPx * (globalThis.OrbitBuildingRenderer?.pinScale({ zoom: localZoom }) ?? 1);
     if (Math.hypot(x - anchor.x, y - anchor.y) <= pinRadius + 6) return true;
-    if (Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius)) return true;
-    if (building.constructionState === 'complete') return false;
-
-    const style = SurfaceStyle.buildings;
-    const width = Math.max(style.cardMinWidthPx, Math.min(style.cardWidthPx, style.cardMaxWidthPx));
-    const edge = definition.footprint.width * localZoom / 2 + 12;
-    let cardX = anchor.x + edge, cardY = anchor.y - style.cardHeightPx / 2;
-    if (cardX + width > W - 8) cardX = anchor.x - edge - width;
-    cardX = Math.max(8, Math.min(W - width - 8, cardX));
-    cardY = Math.max(8, Math.min(H - style.cardHeightPx - 8, cardY));
-    return x >= cardX && x <= cardX + width && y >= cardY && y <= cardY + style.cardHeightPx;
+    return Math.hypot(anchor.x - x, anchor.y - y) <= Math.max(18, footprintRadius);
   }
 
   function roadEndpointAt(screenX, screenY, from = null) {
@@ -932,17 +948,17 @@
     const template = option && state.library.buildings.find(item => item.id === option.dataset.savedBuildingId);
     if (template) chooseBuilding(template.type, template);
   });
-  // Saves the selected building (type, name and cards) to the build menu.
-  $('save-building-button').onclick = () => {
-    const building = state.selected?.kind === 'building'
-      ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
+  // Saves a building (type, name and cards) to the build menu.
+  $('save-building-button').onclick = () => saveBuildingTemplate(state.selected?.kind === 'building'
+    ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null);
+  function saveBuildingTemplate(building) {
     if (!building) return;
     const template = Library.add(state.library.buildings, Library.buildingTemplate(building, state.factoryPlans[building.id]));
     saveLibrary();
     const cards = template.plan.machines.length;
     toast(`${template.name} enregistré${cards ? ` avec ${cards} carte${cards > 1 ? 's' : ''}` : ''} : menu +, onglet « Enregistrés ».`);
     updateUI();
-  };
+  }
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
   $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('factory-edit-button').onclick = () => {
@@ -1049,6 +1065,7 @@
     if (e.key === 'Escape') {
       if (alertsPanel.isOpen()) { alertsPanel.close(); return; }
       if (colonyPanel.isOpen()) { colonyPanel.close(); return; }
+      if (hubPanel.isOpen()) { hubPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
@@ -1176,7 +1193,7 @@
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
     if (now - lastHUD > 350) {
-      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
+      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); hubPanel.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
     }
     requestAnimationFrame(frame);
   }
