@@ -224,10 +224,16 @@
         minX: Math.min(box.minX, machine.x), minY: Math.min(box.minY, machine.y),
         maxX: Math.max(box.maxX, machine.x + cardSize.width), maxY: Math.max(box.maxY, machine.y + cardSize.height)
       }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+      // On a narrow screen (phone upright), a card fills the width so its text
+      // stays readable; the rest of the plan is a drag away.
+      const minScale = viewport.clientWidth < 600 ? clamp((viewport.clientWidth - 40) / cardSize.width, .78, 1.6) : .78;
       const scale = clamp(Math.min((viewport.clientWidth - 100) / (bounds.maxX - bounds.minX + 100),
-        (viewport.clientHeight - 100) / (bounds.maxY - bounds.minY + 100)), .78, 1.2);
+        (viewport.clientHeight - 100) / (bounds.maxY - bounds.minY + 100)), minScale, Math.max(1.2, minScale));
+      // There, when the whole plan does not fit, start on its first card (leftmost).
+      const fits = viewport.clientWidth >= 600 || (bounds.maxX - bounds.minX) * scale <= viewport.clientWidth;
+      const centerX = fits ? (bounds.minX + bounds.maxX) / 2 : bounds.minX + cardSize.width / 2;
       apply({ scale,
-        x: (viewport.clientWidth - (bounds.minX + bounds.maxX) * scale) / 2,
+        x: viewport.clientWidth / 2 - centerX * scale,
         y: (viewport.clientHeight - (bounds.minY + bounds.maxY) * scale) / 2 });
     }
 

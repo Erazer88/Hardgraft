@@ -83,6 +83,14 @@ sélection ajoute un hexagone orange. L'aperçu de placement montre en plus l'em
 sol. Le clic sur l'hexagone sélectionne le bâtiment (la Colonie ouvre son menu). La
 zone de la colonie est dessinée en aplat doré sous les balises, avec sa population.
 
+**Lisibilité mobile.** Toutes les tailles de texte de `styles.css` suivent
+`taille × --ta + --tb` : 1 et 0 par défaut, 0,9 et 4,5 px sur téléphone en portrait
+(7 px → 11 px, 18 px → 21 px). Dans le plan d'usine zoomable, les cartes gardent leur
+taille et leur texte ne gagne qu'un pixel ; à l'ouverture sur écran étroit, le plan est
+zoomé pour qu'une carte remplisse la largeur, en commençant par la première carte. Le
+texte dessiné sur Canvas lit la même échelle via `src/rendering/textScale.js`
+(`OrbitTextScale.px`).
+
 ## Modules denses et limites de refactorisation
 
 - `src/app.js` centralise encore l'état partagé, les gestes, la navigation, les

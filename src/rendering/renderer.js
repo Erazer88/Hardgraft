@@ -35,7 +35,7 @@
       c.strokeStyle = color; c.lineWidth = width; c.setLineDash(dash); c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke(); c.setLineDash([]);
     }
     function label(c, text, x, y, color = '#91a9b9', size = 10, align = 'left') {
-      c.font = `${size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      c.font = `${root.OrbitTextScale.px(size)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       c.fillStyle = color; c.textAlign = align; c.textBaseline = 'middle'; c.fillText(text, x, y);
     }
     const surfaceRenderer = root.OrbitSurfaceRenderer.create(ctx, {

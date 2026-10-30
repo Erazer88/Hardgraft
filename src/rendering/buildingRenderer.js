@@ -156,7 +156,7 @@
     if (!ghost && building.customName) drawName(frame, building, color);
     if (ghost) {
       const head = pinGeometry(frame, building).head;
-      ctx.save(); ctx.font = '8px ui-monospace, SFMono-Regular, Consolas, monospace';
+      ctx.save(); ctx.font = `${root.OrbitTextScale.px(8)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(`${definition.label} · EMPLACEMENT ${frame.state.placement?.valid ? 'VALIDE' : 'INVALIDE'}`,
         head.x + pinGeometry(frame, building).radius + 6, head.y);
@@ -168,7 +168,7 @@
   function drawName(frame, building, color) {
     const ctx = frame.context, style = Style.buildings.name, { head, radius } = pinGeometry(frame, building);
     ctx.save();
-    ctx.font = `600 ${style.sizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.font = `600 ${root.OrbitTextScale.px(style.sizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     const y = head.y - radius - style.gapPx, width = ctx.measureText(building.customName).width + 10;
     ctx.fillStyle = style.fill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - style.sizePx - 4, width, style.sizePx + 6, 3); ctx.fill();
@@ -185,7 +185,7 @@
       ctx.setLineDash([]);
     }
     ctx.globalAlpha = 1;
-    ctx.font = `${pin.readoutSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.font = `${root.OrbitTextScale.px(pin.readoutSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const y = ground.y + pinGeometry(frame, building).radius + 8, width = ctx.measureText(text).width + 14;
     ctx.fillStyle = pin.readoutFill;
@@ -301,7 +301,7 @@
     const ctx = frame.context, style = Style.colonyZone, pin = Style.buildings.pin, head = pinGeometry(frame, building).head;
     const text = `${new Intl.NumberFormat('fr-FR').format(building.colony?.population || 0)} HAB.`;
     ctx.save();
-    ctx.font = `600 ${style.labelSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.font = `600 ${root.OrbitTextScale.px(style.labelSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     const y = head.y + pinGeometry(frame, building).radius + 6, width = ctx.measureText(text).width + 12;
     ctx.fillStyle = pin.readoutFill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - 3, width, style.labelSizePx + 7, 4); ctx.fill();
@@ -323,7 +323,7 @@
     const top = frame.project(0, 0).y, bottom = frame.project(0, height).y;
     const clipLeft = Math.max(0, left), clipRight = Math.min(frame.viewport.width, right);
     ctx.save();
-    ctx.font = `${style.labelSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.font = `${root.OrbitTextScale.px(style.labelSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textBaseline = 'bottom'; ctx.textAlign = 'right';
     const band = [frame.project(0, rowOf(site.favorableLatitudeDegrees)).y, frame.project(0, rowOf(-site.favorableLatitudeDegrees)).y];
     ctx.fillStyle = style.bandFill; ctx.fillRect(clipLeft, band[0], clipRight - clipLeft, band[1] - band[0]);
@@ -396,10 +396,10 @@
       ctx.fillStyle = '#102232'; ctx.strokeStyle = style.cardOutlineColor; ctx.lineWidth = .9;
       ctx.beginPath(); ctx.arc(iconX, iconY, style.iconRadiusPx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       drawGlyph(ctx, iconX, iconY, style.iconSizePx * .42, '#a8c0cc', definition.icon);
-      ctx.font = `${style.titleSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      ctx.font = `${root.OrbitTextScale.px(style.titleSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = '#d0dee3'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(building.customName || definition.label, iconX + style.iconRadiusPx + 8, card.y + 19);
-      ctx.font = `${style.valueSizePx}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      ctx.font = `${root.OrbitTextScale.px(style.valueSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
       ctx.fillStyle = building.constructionState === 'complete' ? '#809baa' : '#d7a66f';
       ctx.fillText(building.constructionState === 'complete' ? 'ASSEMBLÉE' : building.status === 'queued' ? 'EN ATTENTE' : 'ASSEMBLAGE', iconX + style.iconRadiusPx + 8, card.y + 34);
       const barX = iconX + style.iconRadiusPx + 8, barY = card.y + card.height - 12;
