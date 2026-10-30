@@ -43,6 +43,8 @@ Modules de la colonie et de la progression :
 | `src/gameplay/progression.js` | Déblocage des bâtiments et cartes, restauration |
 | `src/gameplay/buildingNames.js` | Noms par défaut numérotés par type (`state.nameCounters`) |
 | `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
+| `src/gameplay/alerts.js` | Problèmes en cours (planète sans assez d'énergie, dock sans destination, flux de colonie en retard) |
+| `src/ui/alertsPanel.js` | Bouton « PROBLÈMES » sous les boutons du haut et sa liste déroulante |
 
 ## Dépendances et chargement
 

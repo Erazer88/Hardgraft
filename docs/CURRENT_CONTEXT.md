@@ -60,7 +60,10 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   l'amont.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
-- Énergie limitée (colonie 12 MW, éolienne 32 MW). Deux équipes de robots, 2 s de
+- Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un
+  bouton « PROBLÈMES » en haut à droite liste les alertes en cours : énergie
+  insuffisante, dock sans destination, flux de colonie en retard ; une alerte reste 3 s
+  après sa cause et sélectionne son bâtiment au toucher. Deux équipes de robots, 2 s de
   construction par bâtiment. Prix masqués (`pricesEnabled: false`).
   Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 

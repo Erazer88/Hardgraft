@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -677,4 +677,26 @@ test('demolishing a building removes its own roads, up to the first junction', (
   assert.equal(Road.removeBuildingRoads(network, 'b'), 1);
   assert.equal(Road.removeBuildingRoads(network, 'c'), 1, 'the last road goes with the last building');
   assert.equal(network.segments.length, 0);
+});
+
+test('alerts list a planet short of power, a dock without destination and a late colony flow', () => {
+  const Graph = context.OrbitProcessGraph;
+  const graph = Graph.create({ version: context.OrbitProcessData.config.version, geology: { resourceId: 'rock' }, machines: [
+    { id: 'crusher', type: 'crusher', x: 0, y: 0 }, { id: 'dock', type: 'output_dock', x: 300, y: 0 }], connections: [] });
+  Graph.connect(graph, { id: 'link', fromMachineId: 'crusher', fromOutputId: 'rock', toMachineId: 'dock', toInputId: 'material' });
+  graph.machines.find(machine => machine.id === 'dock').state = 'no_destination';
+  const state = {
+    powerStatus: { [planetId]: { demandMW: 30, supplyMW: 12 }, other: { demandMW: 5, supplyMW: 12 } },
+    factoryPlans: { 'extractor-1': graph },
+    surfaceBuildings: [
+      { id: 'extractor-1', type: 'extractor', planetId, constructionState: 'complete' },
+      { id: 'colony-1', type: 'colony', planetId, constructionState: 'complete', colony: { tier: 1, owed: { raw_rock: 600 } } }
+    ]
+  };
+  const alerts = plain(context.OrbitAlerts.list(state));
+  assert.deepEqual(alerts.map(alert => alert.id), [`power:${planetId}`, 'dock:extractor-1', 'flow:colony-1']);
+  assert.deepEqual(alerts[1].resourceIds, ['crushed_rock']);
+  assert.deepEqual(alerts[2].resourceIds, ['raw_rock']);
+  state.powerStatus[planetId].supplyMW = 44;
+  assert.equal(context.OrbitAlerts.list(state).some(alert => alert.kind === 'power'), false);
 });

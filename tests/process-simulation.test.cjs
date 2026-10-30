@@ -419,6 +419,25 @@ test('the waste heap reprocesses tailings at a low yield, or burns waste for ene
   assert.deepEqual(plain(reprocessor.outputMix.rock), { iron: .1, rock: .9 });
 });
 
+test('an incinerator fed in bursts gives steady power', () => {
+  const heap = { id: 'heap-burst', type: 'waste_heap', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete', inventory: {} };
+  const state = { seed: 'burst-seed', surfaceBuildings: [heap], factoryPlans: {} };
+  const graph = Industry.ensureGraph(state, heap);
+  const waste = machine(graph, 'dock-waste', 'input_dock', 0);
+  waste.importResourceId = 'waste';
+  machine(graph, 'incinerator', 'incinerator', 600);
+  connect(graph, 'waste-incinerator', 'dock-waste', 'material', 'incinerator', 'waste');
+  // Twenty waste every twenty seconds: half the incinerator's rate, in bursts.
+  const supply = [];
+  for (let second = 0; second < 240; second++) {
+    if (second % 20 === 0) heap.inventory.waste = (heap.inventory.waste || 0) + 20;
+    Industry.advance(state, 1);
+    if (second >= 120) supply.push(heap.energyOutputWatts / 1e6);
+  }
+  const low = Math.min(...supply), high = Math.max(...supply);
+  assert.ok(low > 2 && high < 6, `power stays near 4 MW (${low.toFixed(2)}–${high.toFixed(2)})`);
+});
+
 test('depot cards carry rock compositions through their gates', () => {
   const depot = { id: 'depot-mix', type: 'storage', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
     inventory: { raw_rock: 10 }, inventoryMix: { raw_rock: { iron: .3, rock: .7 } } };

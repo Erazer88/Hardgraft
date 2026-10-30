@@ -138,7 +138,9 @@
     incinerator: { id: 'incinerator', label: 'INCINÉRATEUR', mark: 'IN', description: 'Brûle les déchets reçus et produit de l’énergie.',
       inputPorts: [input('waste', 'Déchets', null, { acceptsAnyResource: true, accepts: { tag: 'waste' } })],
       outputPorts: [], recipe: { inputs: [{ inputId: 'waste', amount: 2 }], outputs: [] },
-      throughput: 2, energyMW: 0, generatesMW: 8 }
+      // Its output follows the burning rate averaged over about this many
+      // seconds, so an irregular supply gives steady power.
+      throughput: 2, energyMW: 0, generatesMW: 8, generationSmoothingSeconds: 20 }
   };
 
   const utilities = {

@@ -94,7 +94,9 @@ ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvega
 **Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
 Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
 Incinérateur (2 déchets/s brûlés, jusqu'à 8 MW rendus à la planète au prorata de son
-débit) et Dock de sortie. Pas de débordement ni de pollution pour l'instant. L'ancienne
+débit) et Dock de sortie. La puissance de l'incinérateur suit son débit moyen sur environ
+20 s (`generationSmoothingSeconds`, `machine.generatedMW` non sauvegardé) : une
+alimentation irrégulière donne une puissance stable au lieu de l'allumer et l'éteindre. Pas de débordement ni de pollution pour l'instant. L'ancienne
 carte Terril (stock illimité dans l'usine) reste dans les données mais n'est plus dans
 aucun catalogue.
 

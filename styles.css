@@ -309,6 +309,27 @@ body[data-level="surface"] .corner-note{display:none}
 .colony-steps small{font-size:calc(7px*var(--ta) + var(--tb));letter-spacing:.8px}
 @media(max-width:600px){.colony-panel{top:auto;bottom:calc(112px + var(--safe-bottom));left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));width:auto;max-height:min(60dvh,520px)}}
 
+/* Problems: a pill under the top-right buttons opening a drop-down list. */
+.alerts{position:absolute;z-index:8;top:calc(104px + var(--safe-top));right:calc(var(--edge) + var(--safe-right));display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.alerts[hidden]{display:none}
+.alerts-toggle{display:flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border:1px solid #e5bd758c;border-radius:18px;background:#2a2110e6;color:#f1cf8f;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:1px}
+.alerts.critical .alerts-toggle{border-color:#ef8a6aa6;background:#2c1410eb;color:#ffb39a}
+.alerts-toggle #alerts-count{font-weight:700}
+.alerts-toggle.pulse{animation:alerts-pulse 1.2s ease-out 2}
+@keyframes alerts-pulse{0%{box-shadow:0 0 0 0 #ef8a6a99}100%{box-shadow:0 0 0 12px #ef8a6a00}}
+.alerts-list{margin:0;padding:6px;list-style:none;width:min(340px,calc(100vw - 16px - var(--safe-left) - var(--safe-right)));max-height:min(55dvh,380px);overflow:auto;overscroll-behavior:contain}
+.alerts-list[hidden]{display:none}
+.alert-item{padding:9px 10px;border-left:3px solid #e5bd75;border-radius:4px;background:#0b192899}
+.alert-item+.alert-item{margin-top:6px}
+.alert-item.critical{border-left-color:#ef8a6a}
+.alert-item[data-building-id]{cursor:pointer}
+.alert-item[data-building-id]:hover{background:#183043}
+.alert-item strong{display:block;color:#f1cf8f;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:1px}
+.alert-item.critical strong{color:#ffb39a}
+.alert-item span{display:block;margin-top:2px;color:#a6c3d2;font-size:calc(10px*var(--ta) + var(--tb))}
+.alert-item p{margin:5px 0 0;color:#8ea9b8;font-size:calc(9px*var(--ta) + var(--tb));line-height:1.45}
+@media(orientation:landscape) and (max-height:600px){.alerts{top:calc(62px + var(--safe-top))}}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. */

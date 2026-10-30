@@ -75,8 +75,8 @@
       const savedGraph = state.factoryPlans[building.id];
       if (!savedGraph) continue;
       const graph = ensureGraph(state, building);
-      // Incinerators burning waste feed the planet grid, from their last rate.
-      const generated = generatedMW(graph);
+      // Incinerators burning waste feed the planet grid, from their smoothed rate.
+      const generated = generatedMW(graph, seconds);
       building.energyOutputWatts = generated * 1e6;
       entry.megawatts += generated;
       if (isDepot(building)) continue;
@@ -122,11 +122,20 @@
 
   const isDepot = building => building.type === 'storage';
 
-  function generatedMW(graph) {
+  // Power from generators, each eased toward what its current burning rate
+  // gives (machine.generatedMW, runtime only), so bursts and gaps in its
+  // supply average out instead of switching the power on and off.
+  function generatedMW(graph, seconds) {
     return graph.machines.reduce((sum, machine) => {
       const definition = Graph.definitionOf(machine);
-      if (!definition?.generatesMW || machine.state !== 'active') return sum;
-      return sum + definition.generatesMW * Math.min(1, (machine.currentRate || 0) / definition.throughput);
+      if (!definition?.generatesMW) return sum;
+      const target = machine.state === 'active'
+        ? definition.generatesMW * Math.min(1, (machine.currentRate || 0) / definition.throughput) : 0;
+      const smoothing = definition.generationSmoothingSeconds || 0;
+      const blend = smoothing > 0 ? 1 - Math.exp(-seconds / smoothing) : 1;
+      machine.generatedMW = (machine.generatedMW || 0) + (target - (machine.generatedMW || 0)) * blend;
+      if (machine.generatedMW < 1e-3 && target === 0) machine.generatedMW = 0;
+      return sum + machine.generatedMW;
     }, 0);
   }
 

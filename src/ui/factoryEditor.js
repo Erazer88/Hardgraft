@@ -187,7 +187,7 @@
       rateFill.style.width = `${clamp(ratePercent, 0, 100)}%`;
       const energy = card.querySelector('[data-readout="energy"]');
       energy.textContent = def.generatesMW
-        ? `+${fmt(view.active ? def.generatesMW * clamp(rate / def.throughput, 0, 1) : 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
+        ? `+${fmt(machine.generatedMW || 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
         : def.routing ? 'SANS ÉNERGIE' : `${fmt(machine.energyMW)} / ${fmt(def.energyMW)} MW`;
       if (card.dataset.state !== view.state) card.dataset.state = view.state;
       const state = card.querySelector('[data-readout="state"]'), stateText = Data.statuses[view.state] || Data.statuses.waiting_input;

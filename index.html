@@ -60,6 +60,10 @@
     <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
   </aside>
+  <div class="alerts" id="alerts" hidden>
+    <button class="alerts-toggle" id="alerts-toggle" aria-expanded="false" aria-controls="alerts-list" aria-label="Problèmes en cours"><span aria-hidden="true">⚠</span><span id="alerts-count">0</span><span class="alerts-label">PROBLÈMES</span></button>
+    <ul class="alerts-list panel" id="alerts-list" hidden></ul>
+  </div>
   <section class="colony-panel panel" id="colony-panel" role="dialog" aria-label="Colonie" hidden>
     <header class="colony-panel-header">
       <div><span>COLONIE</span><input class="building-name-input" id="colony-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom de la colonie"></div>
@@ -194,6 +198,7 @@
   <script src="src/gameplay/roadPlacement.js"></script>
   <script src="src/gameplay/industry.js"></script>
   <script src="src/gameplay/logistics.js"></script>
+  <script src="src/gameplay/alerts.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>
   <script src="src/navigation/camera.js"></script>
@@ -208,6 +213,7 @@
   <script src="src/ui/factoryViewport.js"></script>
   <script src="src/ui/factoryEditor.js"></script>
   <script src="src/ui/colonyPanel.js"></script>
+  <script src="src/ui/alertsPanel.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>
 </body>

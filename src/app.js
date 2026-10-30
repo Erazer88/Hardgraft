@@ -82,6 +82,15 @@
     },
     onClose() { if (state.selected?.kind === 'building' && state.selected.type === 'colony') state.selected = null; }
   });
+  const alertsPanel = globalThis.OrbitAlertsPanel.create(document, {
+    onSelectBuilding(buildingId) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      if (!building) return;
+      if (state.level === 'surface' && state.planet?.id === building.planetId) selectSurfaceBuilding(building);
+      else toast(`${building.customName || BuildingData.get(building.type)?.label || 'Ce bâtiment'} se trouve sur une autre planète.`);
+    }
+  });
+  const planetName = planetId => (state.planet?.id === planetId ? state.planet : state.system?.planets.find(planet => planet.id === planetId))?.name || '';
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -978,6 +987,7 @@
       return;
     }
     if (e.key === 'Escape') {
+      if (alertsPanel.isOpen()) { alertsPanel.close(); return; }
       if (colonyPanel.isOpen()) { colonyPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
@@ -1105,7 +1115,9 @@
     renderUniverse(now);
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
-    if (now - lastHUD > 350) { updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); lastHUD = now; }
+    if (now - lastHUD > 350) {
+      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
+    }
     requestAnimationFrame(frame);
   }
 
