@@ -49,6 +49,8 @@ légère : tests ciblés, version mineure suivante dans `package.json`,
 commit, push sur `claude/neon-style-visual-layer-a3c4vz` (pas de pull request). Finir
 chaque réponse par la version en cours et le lien permanent
 `https://raw.githack.com/Erazer88/Hardgraft/<sha complet>/dist/nereide-zoom-continu-<version>.html`.
+Donner aussi le lien stable vers la dernière version :
+`https://htmlpreview.github.io/?https://github.com/Erazer88/Hardgraft/blob/claude/neon-style-visual-layer-a3c4vz/dist/nereide-zoom-continu.html`.
 Une question ou une proposition sans code ne change pas de version.
 
 ## Repères rapides

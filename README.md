@@ -16,7 +16,9 @@ pas requis de les lire intégralement.
 
 ## Ouvrir le prototype
 
-Chaque livraison publie un export versionné, ouvrable par un lien permanent sur le commit :
+[Lancer la dernière version dans Firefox](https://htmlpreview.github.io/?https://github.com/Erazer88/Hardgraft/blob/claude/neon-style-visual-layer-a3c4vz/dist/nereide-zoom-continu.html) : ce lien suit la branche de travail et montre toujours le dernier export poussé.
+
+Chaque livraison publie aussi un export versionné, ouvrable par un lien figé sur le commit :
 `https://raw.githack.com/Erazer88/Hardgraft/<commit>/dist/nereide-zoom-continu-<version>.html`
 (HTMLPreview en secours). Le numéro de version apparaît en bas de l'écran.
 
