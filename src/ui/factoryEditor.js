@@ -138,6 +138,22 @@
       return `${port.label}<small>${amount ? `${amount} u` : '—'}</small>`;
     }
 
+    // What a card shows, smoothed: the simulation flips between "active" and
+    // "waiting" from one 0,1 s tick to the next when units pass quickly.
+    const shown = new Map();
+    function smoothed(machine, def) {
+      const now = performance.now(), entry = shown.get(machine.id) || { rate: machine.currentRate || 0, activeAt: -Infinity, at: now };
+      const blend = 1 - Math.exp(-(now - entry.at) / 700);
+      entry.rate += ((Number.isFinite(machine.currentRate) ? machine.currentRate : 0) - entry.rate) * blend;
+      entry.at = now;
+      if (machine.state === 'active') entry.activeAt = now;
+      shown.set(machine.id, entry);
+      const active = now - entry.activeAt < 1200;
+      // Cards cycling several times a second show a steady bar instead of a flicker.
+      const primary = def.recipe?.inputs[0]?.amount || 1, fast = entry.rate / primary >= 1.5;
+      return { state: active ? 'active' : machine.state, rate: Number.isFinite(machine.currentRate) ? entry.rate : machine.currentRate || 0, active, fast };
+    }
+
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
@@ -146,7 +162,7 @@
           .find(id => activeBuilding.inventory[id] > 0) || null;
       }
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
-      const rate = machine.currentRate || 0;
+      const view = smoothed(machine, def), rate = view.rate;
       const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
       if (rateElement.textContent !== rateText) rateElement.textContent = rateText;
@@ -155,14 +171,14 @@
       rateFill.style.width = `${clamp(ratePercent, 0, 100)}%`;
       const energy = card.querySelector('[data-readout="energy"]');
       energy.textContent = def.generatesMW
-        ? `+${fmt(machine.state === 'active' ? def.generatesMW * clamp(rate / def.throughput, 0, 1) : 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
+        ? `+${fmt(view.active ? def.generatesMW * clamp(rate / def.throughput, 0, 1) : 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
         : def.routing ? 'SANS ÉNERGIE' : `${fmt(machine.energyMW)} / ${fmt(def.energyMW)} MW`;
-      card.dataset.state = machine.state;
-      const state = card.querySelector('[data-readout="state"]');
-      state.textContent = Data.statuses[machine.state] || Data.statuses.waiting_input;
+      if (card.dataset.state !== view.state) card.dataset.state = view.state;
+      const state = card.querySelector('[data-readout="state"]'), stateText = Data.statuses[view.state] || Data.statuses.waiting_input;
+      if (state.textContent !== stateText) state.textContent = stateText;
       const cycle = card.querySelector('.factory-cycle-fill');
-      const continuous = def.source || def.externalOutput || def.routing;
-      cycle.style.width = `${continuous ? (machine.state === 'active' ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
+      const continuous = def.source || def.externalOutput || def.routing || view.fast;
+      cycle.style.width = `${continuous ? (view.active ? 100 : 0) : clamp(machine.cycleProgress * 100, 0, 100)}%`;
       const cycleLabel = card.querySelector('[data-readout="cycle"]');
       const held = Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0);
       // A separator shows the grade of the rock it works: nothing comes out of barren rock.
