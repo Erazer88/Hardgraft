@@ -87,7 +87,8 @@ zone de la colonie est dessinée en aplat doré sous les balises, avec sa popula
 
 **Lisibilité mobile.** Toutes les tailles de texte de `styles.css` suivent
 `taille × --ta + --tb` : 1 et 0 par défaut, 0,9 et 4,5 px sur téléphone en portrait
-(7 px → 11 px, 18 px → 21 px). Dans le plan d'usine zoomable, les cartes gardent leur
+(7 px → 11 px, 18 px → 21 px). Les panneaux ouverts au toucher (inspecteur, colonie) grossissent moins
+(décalage 2,5 px) et les noms des bâtiments sur la carte aussi (`scaleDamping`). Dans le plan d'usine zoomable, les cartes gardent leur
 taille et leur texte ne gagne qu'un pixel ; à l'ouverture sur écran étroit, le plan est
 zoomé pour qu'une carte remplisse la largeur, en commençant par la première carte. Le
 texte dessiné sur Canvas lit la même échelle via `src/rendering/textScale.js`

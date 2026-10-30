@@ -3,7 +3,8 @@
 
   // Text drawn on the canvas follows the same scale as the page text: the
   // stylesheet declares it (--ta, --tb: size × ta + tb), larger on a phone held
-  // upright. Read again when the window changes size or orientation.
+  // upright. Read again when the window changes size or orientation. A damping
+  // below 1 keeps part of the offset only, for text that should grow less.
   let factor = 1, offset = 0;
   function update() {
     try {
@@ -17,5 +18,5 @@
     root.addEventListener?.('resize', update);
   }
 
-  root.OrbitTextScale = Object.freeze({ px: size => size * factor + offset, update });
+  root.OrbitTextScale = Object.freeze({ px: (size, damping = 1) => size * factor + offset * damping, update });
 })(globalThis);

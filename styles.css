@@ -332,5 +332,6 @@ body[data-level="surface"] .corner-note{display:none}
 
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
-   so their text only gains a pixel. */
-@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}
+   so their text only gains a pixel. The panels opened by a tap grow less, to
+   keep everything in view at a glance. */
+@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}

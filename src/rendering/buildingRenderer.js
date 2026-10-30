@@ -167,11 +167,12 @@
   // The building's name, just above its beacon.
   function drawName(frame, building, color) {
     const ctx = frame.context, style = Style.buildings.name, { head, radius } = pinGeometry(frame, building);
+    const size = root.OrbitTextScale.px(style.sizePx, style.scaleDamping ?? 1);
     ctx.save();
-    ctx.font = `600 ${root.OrbitTextScale.px(style.sizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+    ctx.font = `600 ${size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     const y = head.y - radius - style.gapPx, width = ctx.measureText(building.customName).width + 10;
-    ctx.fillStyle = style.fill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - style.sizePx - 4, width, style.sizePx + 6, 3); ctx.fill();
+    ctx.fillStyle = style.fill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - size - 4, width, size + 6, 3); ctx.fill();
     ctx.fillStyle = color; ctx.fillText(building.customName, head.x, y + 1);
     ctx.restore();
   }

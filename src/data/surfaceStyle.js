@@ -167,7 +167,7 @@
       // centered on the exact spot; roads join it at a corner. Sizes are
       // screen pixels, fixed at every zoom; the outline follows the category.
       // Building names, above each beacon.
-      name: Object.freeze({ sizePx: 9, gapPx: 4, fill: 'rgba(6,14,28,.72)' }),
+      name: Object.freeze({ sizePx: 9, scaleDamping: .4, gapPx: 4, fill: 'rgba(6,14,28,.72)' }),
       pin: Object.freeze({
         // Size at zoomReference (px per km); it follows the zoom
         // (scale = (zoom / zoomReference) ^ zoomExponent, within minScale–maxScale),
