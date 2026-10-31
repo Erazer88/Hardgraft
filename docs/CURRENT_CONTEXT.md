@@ -68,7 +68,7 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   premières ressources reçues par l'Arche ; il n'a qu'une compétence, « Réveil des
   archives », puis « Réseau informatique », qui débloque Datacenter et Parabole : les
   extracteurs et usines en activité envoient 1 Mo/s de données par les paraboles au
-  datacenter, qui en tire des points de technologie (monnaie de l'arbre, à la place
+  datacenter relié à elles par la route, qui en tire des points de technologie (monnaie de l'arbre, à la place
   du Contexte). Le datacenter consomme beaucoup, plus sur un site chaud. Voir
   [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
 - Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet

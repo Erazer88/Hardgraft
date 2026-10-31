@@ -12,17 +12,20 @@ calcul, envoi, et goulots d'étranglement à équilibrer. Réglages provisoires 
 ```text
 Extracteur en activité ─ 1 Mo/s de données géologiques ─┐
 Usine en activité ────── 1 Mo/s de données industrielles ┴→ Parabole la plus proche (≤ 300 km)
-  → 4 Mo/s au plus, partagés → Datacenter le plus proche de la planète → inventaire (tampon 200 Mo)
+  → 4 Mo/s au plus, partagés → par la route → Datacenter relié le plus proche → inventaire (tampon 200 Mo)
   → Récepteur → Compresseur → Processeur → Liaison montante → points de technologie
 ```
 
 - Une donnée vaut 1 u = 1 Mo. Seuls les bâtiments en activité (`status: 'active'`)
   émettent : une chaîne bloquée n'envoie rien.
-- Chaque bâtiment rejoint la parabole la plus proche dans sa portée. Une parabole
-  saturée partage sa bande passante entre ses sources. Elle envoie au datacenter le
-  plus proche de la planète, sans limite de distance.
+- Chaque bâtiment rejoint sans fil la parabole la plus proche dans sa portée. Une
+  parabole saturée partage sa bande passante entre ses sources.
+- La parabole transmet au datacenter le plus proche **relié à elle par une route
+  construite** (les câbles suivent les routes), sans limite de distance. Sans route,
+  sa fiche indique « Non relié par la route » et rien ne passe.
 - Au-delà du tampon du datacenter, les données sont perdues (compteur `dataLost`).
-- Ni le datacenter ni la parabole ne demandent de route.
+- Le datacenter et la parabole se posent comme les autres bâtiments reliés à la route
+  (`roadRequired`, point de raccordement `roadPortOffset`).
 - `src/simulation/dataNetwork.js` calcule les liaisons (`state.dataLinks`, non
   sauvegardé) ; le rendu trace les lignes bâtiment → parabole, le faisceau animé
   parabole → datacenter et la portée d'une parabole posée ou sélectionnée.

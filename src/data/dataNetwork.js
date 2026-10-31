@@ -2,9 +2,9 @@
   'use strict';
 
   // The data network: buildings at work send data (1 unit = 1 Mo) to the
-  // nearest dish in range; each dish beams what its bandwidth allows to the
-  // nearest datacenter of its planet, which turns data into technology
-  // points. Values are first drafts.
+  // nearest dish in range; each dish passes what its bandwidth allows to the
+  // nearest datacenter joined to it by a built road (cables follow the
+  // roads), which turns data into technology points. Values are first drafts.
   const network = {
     // What a building at work sends, per second.
     sources: {

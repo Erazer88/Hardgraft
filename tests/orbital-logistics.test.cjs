@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/dataNetwork.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -747,4 +747,27 @@ test('the skill tree opens when goods first reach the Ark; its first skill is ac
   assert.equal(Skills.unlock(state, 'archive_awakening'), false, 'acquired once');
   assert.deepEqual(plain(Skills.restore({ revealed: true, unlocked: ['archive_awakening', 'unknown', 'archive_awakening'] })),
     { revealed: true, unlocked: ['archive_awakening'] });
+});
+
+test('dishes carry the data of working buildings in range to a datacenter joined by road, up to their bandwidth', () => {
+  const DataNetwork = context.OrbitDataNetwork, Spec = context.OrbitDataNetworkData;
+  const at = (id, type, x, extras = {}) => ({ id, type, planetId, x, y: 0, constructionState: 'complete', status: 'active', ...extras });
+  const dc = at('dc', 'datacenter', 900, { inventory: {} });
+  const state = { surfaceBuildings: [
+    at('x1', 'extractor', 10), at('x2', 'extractor', 20), at('x3', 'extractor', 30), at('f1', 'factory', 40),
+    at('f2', 'factory', 50), at('far', 'extractor', 5000), at('idle', 'factory', 60, { status: 'waiting' }),
+    at('dish', 'antenna', 0), dc], roadNetworks: {} };
+  let links = DataNetwork.advance(state, 10);
+  assert.equal(links.dish.datacenterId, null, 'no road, no link');
+  assert.equal(links.dish.roadMissing, true);
+  const network = state.roadNetworks[planetId] = Road.create(planetId);
+  const from = Road.addNode(network, { x: 0, y: 0, buildingId: 'dish' }), to = Road.addNode(network, { x: 900, y: 0, buildingId: 'dc' });
+  Road.addSegment(network, { from: from.id, to: to.id, points: [{ x: 0, y: 0 }, { x: 900, y: 0 }], builtLength: 900 });
+  links = DataNetwork.advance(state, 10);
+  assert.equal(links.dish.datacenterId, 'dc');
+  assert.deepEqual(plain(links.dish.sources), ['x1', 'x2', 'x3', 'f1', 'f2'], 'working buildings in range only');
+  assert.equal(links.dish.offeredTotal, 5);
+  assert.equal(links.dish.carried, Spec.antenna.bandwidthMbPerSecond, 'the dish is the bottleneck');
+  assert.equal((dc.inventory.geo_data || 0) + (dc.inventory.industrial_data || 0), 40);
+  assert.ok(dc.inventory.geo_data > dc.inventory.industrial_data, 'shared by what each sends');
 });

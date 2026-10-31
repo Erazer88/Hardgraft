@@ -100,22 +100,25 @@
       placementRules: { landOnly: true, shoreRequired: true, shoreReach: 30 }, preferredTerrain: ['shore']
     },
     // The data network (skill "Réseau informatique"): dishes gather the data of
-    // working buildings in range and beam it to a datacenter, which turns it
-    // into technology points. Neither needs a road. See src/data/dataNetwork.js.
+    // working buildings in range and pass it to a datacenter joined to them by
+    // road (the cables follow the roads); it turns data into technology
+    // points. See src/data/dataNetwork.js.
     datacenter: {
       id: 'datacenter', label: 'DATACENTER', shortLabel: 'DC', category: 'data', icon: 'datacenter',
       description: 'Transforme les données reçues des paraboles en points de technologie. Très gourmand en énergie : mieux vaut un site froid.',
       functions: { processesData: true },
       cost: { iron: 30, copper: 30, silicon: 20 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
-      footprint: { width: 30, height: 26 }, roadRequired: false,
+      footprint: { width: 30, height: 26 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 13 },
       placementRules: { landOnly: true }, preferredTerrain: ['flat', 'elevated']
     },
     antenna: {
       id: 'antenna', label: 'PARABOLE', shortLabel: 'PA', category: 'data', icon: 'antenna',
-      description: 'Recueille les données des foreuses et usines alentour et les envoie au datacenter de la planète.',
+      description: 'Recueille les données des foreuses et usines alentour et les transmet au datacenter relié par la route.',
       functions: { relaysData: true },
       cost: { iron: 10, copper: 8, silicon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
-      footprint: { width: 18, height: 18 }, roadRequired: false,
+      footprint: { width: 18, height: 18 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 9 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
     waste_heap: {

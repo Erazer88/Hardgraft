@@ -3,9 +3,10 @@
 
   // Data flow on each planet (see src/data/dataNetwork.js): every building at
   // work sends its data to the nearest dish in range; a dish carries at most
-  // its bandwidth, shared between its senders, to the nearest datacenter of
-  // its planet. Data lands in the datacenter's inventory (whole Mo, up to its
-  // buffer; beyond is lost), where its Receiver cards pull it.
+  // its bandwidth, shared between its senders, to the nearest datacenter
+  // joined to it by a built road (OrbitLogisticsNetwork.hasBuiltLandPath).
+  // Data lands in the datacenter's inventory (whole Mo, up to its buffer;
+  // beyond is lost), where its Receiver cards pull it.
   // Returns per dish, for display: senders, offered and carried rates (Mo/s).
   const Data = root.OrbitDataNetworkData;
   const complete = building => building.constructionState === 'complete';
@@ -40,7 +41,12 @@
     for (const dish of dishes) {
       const link = links[dish.id] ||= { antennaId: dish.id, planetId: dish.planetId, sources: [], offered: {},
         offeredTotal: 0, carried: 0, datacenterId: null };
-      const center = nearest(centers.filter(candidate => candidate.planetId === dish.planetId), dish);
+      const onPlanet = centers.filter(candidate => candidate.planetId === dish.planetId);
+      const network = state.roadNetworks?.[dish.planetId];
+      const center = nearest(onPlanet.filter(candidate =>
+        root.OrbitLogisticsNetwork?.hasBuiltLandPath(network, dish.id, candidate.id)), dish);
+      // A datacenter stands on the planet but no road reaches it yet.
+      link.roadMissing = !center && onPlanet.length > 0;
       if (!center) continue;
       link.datacenterId = center.id;
       const share = link.offeredTotal > 0 ? Math.min(1, Data.antenna.bandwidthMbPerSecond / link.offeredTotal) : 0;

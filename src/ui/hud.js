@@ -367,7 +367,7 @@
         return [
           ['SOURCES', link?.sources.length ? `${link.sources.length} bâtiment${link.sources.length > 1 ? 's' : ''} en activité` : 'Aucune dans la portée'],
           ['DÉBIT', `${fmtDecimal(link?.carried || 0)} / ${fmtDecimal(Spec.antenna.bandwidthMbPerSecond)} Mo/s${link?.offeredTotal > Spec.antenna.bandwidthMbPerSecond ? ' · saturée' : ''}`],
-          ['DATACENTER', link?.datacenterId ? nameOf(link.datacenterId) : 'Aucun sur la planète'],
+          ['DATACENTER', link?.datacenterId ? nameOf(link.datacenterId) : link?.roadMissing ? 'Non relié par la route' : 'Aucun sur la planète'],
           ['PORTÉE', `${fmt(Spec.antenna.rangeKm)} km`]
         ];
       }

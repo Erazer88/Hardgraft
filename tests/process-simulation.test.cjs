@@ -593,22 +593,6 @@ test('a blueprint keeps a region of cards and their links, and comes back with f
   assert.equal(library.blueprints.length, 1);
 });
 
-test('dishes carry the data of working buildings in range to a datacenter, up to their bandwidth', () => {
-  const DataNetwork = context.OrbitDataNetwork, Spec = context.OrbitDataNetworkData;
-  const at = (id, type, x, extras = {}) => ({ id, type, planetId: 'p', x, y: 0, constructionState: 'complete', status: 'active', ...extras });
-  const state = { surfaceBuildings: [
-    at('x1', 'extractor', 10), at('x2', 'extractor', 20), at('x3', 'extractor', 30), at('f1', 'factory', 40),
-    at('f2', 'factory', 50), at('far', 'extractor', 5000), at('idle', 'factory', 60, { status: 'waiting' }),
-    at('dish', 'antenna', 0), at('dc', 'datacenter', 900, { inventory: {} })] };
-  const links = DataNetwork.advance(state, 10);
-  assert.deepEqual(plain(links.dish.sources), ['x1', 'x2', 'x3', 'f1', 'f2'], 'working buildings in range only');
-  assert.equal(links.dish.offeredTotal, 5);
-  assert.equal(links.dish.carried, Spec.antenna.bandwidthMbPerSecond, 'the dish is the bottleneck');
-  const dc = state.surfaceBuildings.at(-1);
-  assert.equal((dc.inventory.geo_data || 0) + (dc.inventory.industrial_data || 0), 40);
-  assert.ok(dc.inventory.geo_data > dc.inventory.industrial_data, 'shared by what each sends');
-});
-
 test('a datacenter turns data into technology points, drawing more power on a warm site', () => {
   const run = siteTemperature => {
     const dc = { id: `dc-${siteTemperature}`, type: 'datacenter', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
