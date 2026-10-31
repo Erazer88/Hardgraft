@@ -222,7 +222,7 @@
           ...(building.energyOutputWatts > 0 ? [['PRODUCTION ÉLECTRIQUE', formatPower(building.energyOutputWatts)]] : [])
         ],
         surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']],
-        ...(['antenna', 'datacenter'].includes(building.type) ? { [building.type]: dataStats(building) } : {})
+        ...(['antenna', 'datacenter', 'hf_antenna', 'lab'].includes(building.type) ? { [building.type]: dataStats(building) } : {})
       };
       const rows = byType[building.type] || [];
       if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
@@ -305,7 +305,8 @@
       $('building-name').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
       // Any building but the unique colony can be saved to the build menu.
-      $('save-building-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.placementRules?.uniqueInGame);
+      $('save-building-button').hidden = !isBuilding || item.type === 'colony';
+      if (state.level !== 'system' || item.kind !== 'gazeuse') $('orbital-lab-button').hidden = true;
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
       if (state.level === 'galaxy') {
@@ -333,6 +334,13 @@
         $('enter-label').textContent = item.kind === 'gazeuse' ? 'Aucune surface solide' : 'Zoomer sur la surface';
         $('enter-button').hidden = false;
         $('enter-button').disabled = item.kind === 'gazeuse';
+        // A gas giant takes a lab in orbit, once the skill "Atterrisseur" is acquired.
+        const orbitalLabAllowed = item.kind === 'gazeuse' && !root.OrbitProgression.buildBlockedHere(state, 'lab', item) &&
+          root.OrbitProgression.buildingUnlocked(state, 'lab');
+        const hasLab = (state.surfaceBuildings || []).some(building => building.type === 'lab' && building.planetId === item.id);
+        $('orbital-lab-button').hidden = !orbitalLabAllowed;
+        $('orbital-lab-button').disabled = hasLab;
+        $('orbital-lab-label').textContent = hasLab ? 'Laboratoire en orbite' : 'Poser un laboratoire en orbite';
       } else if (item.kind === 'building') {
         const definition = BuildingData.get(item.type);
         $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
@@ -367,20 +375,45 @@
         return [
           ['SOURCES', link?.sources.length ? `${link.sources.length} bâtiment${link.sources.length > 1 ? 's' : ''} en activité` : 'Aucune dans la portée'],
           ['DÉBIT', `${fmtDecimal(link?.carried || 0)} / ${fmtDecimal(Spec.antenna.bandwidthMbPerSecond)} Mo/s${link?.offeredTotal > Spec.antenna.bandwidthMbPerSecond ? ' · saturée' : ''}`],
-          ['DATACENTER', link?.datacenterId ? nameOf(link.datacenterId) : link?.roadMissing ? 'Non relié par la route' : 'Aucun sur la planète'],
+          ['TRANSMET À', link?.datacenterId ? nameOf(link.datacenterId) : link?.hfAntennaId ? `${nameOf(link.hfAntennaId)} (vers une autre planète)`
+            : link?.roadMissing ? 'Non relié par la route' : 'Aucun datacenter ni antenne haute fréquence'],
           ['PORTÉE', `${fmt(Spec.antenna.rangeKm)} km`]
         ];
       }
+      if (building.type === 'hf_antenna' || building.type === 'lab') return transmitterStats(building);
       const feeding = links.filter(link => link.datacenterId === building.id);
       const factor = Spec.coolingFactor(building.siteTemperature);
       return [
         ['SITE', Number.isFinite(building.siteTemperature)
           ? `${fmt(Math.round(building.siteTemperature))} °C · énergie ×${fmtDecimal(Math.round(factor * 100) / 100)}` : 'Température inconnue'],
-        ['PARABOLES', `${feeding.length} · ${fmtDecimal(feeding.reduce((sum, link) => sum + link.carried, 0))} Mo/s reçus`],
+        ['ANTENNES RELAIS', `${feeding.length} · ${fmtDecimal(feeding.reduce((sum, link) => sum + link.carried, 0))} Mo/s reçus`],
+        ['VERS L’ARCHE', root.OrbitDataNetwork?.uplinkAntenna(currentState, building) ? 'Antenne haute fréquence reliée' : 'Aucune antenne haute fréquence reliée par la route'],
         ['DONNÉES EN ATTENTE', inventoryEntries(building).map(item => `${item.name} · ${fmt(item.amount)} Mo`).join('  /  ') || 'Aucune'],
         ...(building.dataLost ? [['DONNÉES PERDUES', `${fmt(building.dataLost)} Mo (tampon plein)`]] : []),
         ['POINTS TECH', fmt(Math.floor(currentState?.techPoints || 0))]
       ];
+    }
+
+    // A high-frequency antenna, or a lab using its own transmitter: what waits
+    // to leave, where it goes, or why it waits (solar conjunction…).
+    function transmitterStats(building) {
+      const Spec = root.OrbitDataNetworkData, link = building.dataLink;
+      const target = link?.toKind === 'ark' ? 'l’Arche' : link?.toId
+        ? currentState?.surfaceBuildings.find(item => item.id === link.toId)?.customName || 'une autre planète' : null;
+      const status = !link ? 'En attente de données' : link.reason === 'conjunction' ? `Conjonction solaire : l’étoile cache ${target || 'la cible'}`
+        : link.reason === 'no_receiver' ? 'Aucune planète avec datacenter pour recevoir' : link.reason === 'no_ark' ? 'Pas d’Arche dans ce système'
+          : link.reason ? 'Liaison indisponible' : `Émet vers ${target}`;
+      const queued = inventoryEntries(building, 'dataQueue');
+      const rows = [];
+      if (building.type === 'lab') {
+        rows.push(['DONNÉES PLANÉTAIRES', `${fmtDecimal(Spec.sourceRate(Spec.sources.lab, building))} Mo/s · monde ${building.siteKind || 'inconnu'}`]);
+        const relayed = Object.values(currentState?.dataLinks || {}).some(item => item.sources.includes(building.id));
+        if (relayed) { rows.push(['TRANSMISSION', 'Par l’antenne relais à portée']); return rows; }
+      }
+      rows.push(['LIAISON', status],
+        ['DÉBIT', `${fmtDecimal(Spec.highFrequency.bandwidthMbPerSecond)} Mo/s · 3× plus vite que le fret`],
+        ['EN ATTENTE', queued.map(item => `${item.name} · ${fmt(item.amount)} Mo`).join('  /  ') || 'Rien']);
+      return rows;
     }
 
     function update({ state, galaxy, terrainData, width, scaleCamera, buildingPosition }) {
@@ -439,12 +472,14 @@
             (definition.placementRules.uniqueInGame || building.planetId === state.planet?.id));
         // Buildings appear as the colony needs them.
         option.hidden = !root.OrbitProgression.buildingUnlocked(state, option.dataset.buildingType);
-        option.disabled = unique || !Inventory.canAfford(state.inventory, price);
+        // A world without colony takes only a colony or labs (skill "Atterrisseur").
+        const blocked = state.planet ? root.OrbitProgression.buildBlockedHere(state, option.dataset.buildingType, state.planet) : null;
+        option.disabled = unique || Boolean(blocked) || !Inventory.canAfford(state.inventory, price);
         // Prices are masked for now: only the unique-base notice shows.
-        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée' : showPrice ? resourceSummary(price) : '';
+        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée' : blocked && !option.hidden ? 'Hors colonie' : showPrice ? resourceSummary(price) : '';
         if (costLabel && costLabel.textContent !== costText) costLabel.textContent = costText;
         if (costLabel) costLabel.hidden = !costText;
-        if (definition) option.title = unique ? 'Un seul exemplaire possible.' : option.disabled
+        if (definition) option.title = unique ? 'Un seul exemplaire possible.' : blocked || option.disabled
           ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
       }
       renderBuildMenuTabs(state);
@@ -452,7 +487,11 @@
         `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
           .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
       $('build-menu-title').textContent = 'INFRASTRUCTURES';
-      $('build-menu-hint').hidden = true;
+      // On a world without colony, say what may be built there.
+      const settled = (state.surfaceBuildings || []).some(building => building.type === 'colony' && building.planetId === state.planet?.id);
+      const anyColony = (state.surfaceBuildings || []).some(building => building.type === 'colony');
+      $('build-menu-hint').hidden = !(level === 'surface' && anyColony && !settled);
+      $('build-menu-hint').textContent = root.OrbitProgression.buildBlockedHere(state, 'factory', state.planet) || '';
       $('back-button').disabled = level === 'galaxy';
       $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
       $('scan-button').classList.toggle('active', state.tool === 'scan');

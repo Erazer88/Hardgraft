@@ -20,6 +20,8 @@
       skills: { revealed: false, unlocked: [] },
       // Technology points made by datacenters; they pay for skills.
       techPoints: 0,
+      // Data packets between worlds and toward the Ark.
+      dataTransit: { packets: [], nextDispatchTime: null, delivered: 0 },
       orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }

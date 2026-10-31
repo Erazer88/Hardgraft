@@ -593,7 +593,7 @@ test('a blueprint keeps a region of cards and their links, and comes back with f
   assert.equal(library.blueprints.length, 1);
 });
 
-test('a datacenter turns data into technology points, drawing more power on a warm site', () => {
+test('a datacenter analyses data into its storage, drawing more power on a warm site', () => {
   const run = siteTemperature => {
     const dc = { id: `dc-${siteTemperature}`, type: 'datacenter', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
       inventory: { geo_data: 200 }, siteTemperature };
@@ -603,14 +603,14 @@ test('a datacenter turns data into technology points, drawing more power on a wa
     machine(graph, 'rx', 'data_receiver', 0).importResourceId = 'geo_data';
     machine(graph, 'zip', 'compressor', 300);
     machine(graph, 'cpu', 'processor', 600);
-    machine(graph, 'up', 'uplink', 900);
+    const store = machine(graph, 'store', 'data_storage', 900);
     connect(graph, 'a', 'rx', 'material', 'zip', 'data');
     connect(graph, 'b', 'zip', 'compressed', 'cpu', 'compressed');
-    connect(graph, 'c', 'cpu', 'analysis', 'up', 'analysis');
+    connect(graph, 'c', 'cpu', 'analysis', 'store', 'analysis');
     for (let second = 0; second < 30; second++) Industry.advance(state, 1);
-    return { points: state.techPoints || 0, energy: dc.energyUse / 1e6 };
+    return { analyses: store.inputBuffer.analysis + store.outputBuffer.analysis, energy: dc.energyUse / 1e6 };
   };
   const cold = run(-20), warm = run(40);
-  assert.ok(cold.points >= 10, `points are made (${cold.points})`);
+  assert.ok(cold.analyses >= 10, `analyses are made and kept beyond the usual 20 (${cold.analyses})`);
   assert.ok(warm.energy > cold.energy * 1.5, `a warm site draws more (${warm.energy} vs ${cold.energy} MW)`);
 });

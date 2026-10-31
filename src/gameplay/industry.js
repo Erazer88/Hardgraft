@@ -108,17 +108,13 @@
         energyUnlimited: available.unlimited,
         externalStock: building.inventory ||= {},
         externalMix: building.inventoryMix ||= {},
-        // An output dock only works once its resource has a destination.
-        isDockOpen: resourceId => Boolean(building.dockDestinations?.[resourceId]),
+        // An output dock only works once its resource has a destination; a
+        // datacenter's uplink once a high-frequency antenna is joined by road.
+        isDockOpen: resourceId => building.type === 'datacenter'
+          ? Boolean(root.OrbitDataNetwork?.uplinkAntenna(state, building)) : Boolean(building.dockDestinations?.[resourceId]),
         energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand / factor : 0
       });
       building.energyUse = graph.energyUsedMW * factor * 1e6;
-      // Uplinks' technology points join the galaxy-wide pool.
-      for (const machine of graph.machines) {
-        if (!machine.techPointsMade) continue;
-        state.techPoints = (state.techPoints || 0) + machine.techPointsMade;
-        machine.techPointsMade = 0;
-      }
       building.flowPerMinute = graph.machines.reduce((sum, machine) => {
         return Graph.definitionOf(machine).externalOutput ? sum + machine.currentRate * 60 : sum;
       }, 0);
@@ -156,7 +152,10 @@
       const definition = Graph.definitionOf(machine);
       if (!definition.externalOutput) continue;
       const input = definition.inputPorts[0];
-      const amount = machine.inputBuffer[input.id] || 0;
+      // An uplink hands over only what its antenna can still take in (uplinkMb).
+      const room = definition.dataUplink ? Math.max(0, (root.OrbitDataNetworkData?.datacenter.uplinkMb ?? Infinity) -
+        Object.values(building.dockStock).reduce((sum, value) => sum + value, 0)) : Infinity;
+      const amount = Math.min(machine.inputBuffer[input.id] || 0, room);
       if (!amount) continue;
       const connection = graph.connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
       const source = connection && graph.machines.find(item => item.id === connection.fromMachineId);
@@ -167,8 +166,8 @@
       building.dockMix ||= {};
       if (Mix) Mix.add(building.dockMix, resource, resource, building.dockStock[resource] || 0, amount, Mix.of(machine.inputMix, input.id));
       building.dockStock[resource] = (building.dockStock[resource] || 0) + amount;
-      machine.inputBuffer[input.id] = 0;
-      if (Mix) Mix.prune(machine.inputMix, input.id, 0);
+      machine.inputBuffer[input.id] -= amount;
+      if (Mix) Mix.prune(machine.inputMix, input.id, machine.inputBuffer[input.id]);
     }
   }
 

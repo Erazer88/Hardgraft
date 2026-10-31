@@ -51,5 +51,18 @@
       Boolean(definition.contextResourceId && cards.includes(`${definition.id}:${definition.contextResourceId}`));
   }
 
-  root.OrbitProgression = Object.freeze({ restoreUnlocks, advance, buildingUnlocked, cardUnlocked });
+  // What may be built on a planet: the first colony anywhere; then anything
+  // on a planet with a colony; elsewhere, with the skill "Atterrisseur", a
+  // colony on rocky worlds and a lab on any. Returns null, or why not.
+  function buildBlockedHere(state, type, planet) {
+    const colonies = (state.surfaceBuildings || []).filter(building => building.type === 'colony');
+    if (!colonies.length) return type === 'colony' ? null : 'Posez d’abord la colonie.';
+    if (colonies.some(building => building.planetId === planet?.id)) return null;
+    if (!everything() && !state.skills?.unlocked?.includes('lander')) return 'Planète sans colonie : il faut la compétence Atterrisseur.';
+    if (type === 'lab') return null;
+    if (type === 'colony') return planet?.kind === 'gazeuse' ? 'Pas de colonie sur une géante gazeuse.' : null;
+    return 'Planète sans colonie : seuls une colonie et des laboratoires peuvent y être posés.';
+  }
+
+  root.OrbitProgression = Object.freeze({ restoreUnlocks, advance, buildingUnlocked, cardUnlocked, buildBlockedHere });
 })(globalThis);

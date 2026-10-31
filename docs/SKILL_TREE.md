@@ -17,9 +17,13 @@ l'instant.
 - **Réveil des archives** (`archive_awakening`) : sans coût ni prérequis, un toucher la
   débloque ; elle n'a pas d'effet de jeu.
 - **Réseau informatique** (`computer_network`) : requiert la précédente, gratuite.
-  Débloque le Datacenter, la Parabole et leurs cartes (étape `network` de
+  Débloque le Datacenter, l'Antenne relais, l'Antenne haute fréquence et leurs cartes (étape `network` de
   `src/data/progression.js`, condition `{ skill }`). Voir
   [`DATA_NETWORK.md`](DATA_NETWORK.md).
+- **Atterrisseur** (`lander`, 200 points tech) : sur une planète sans colonie, permet
+  de poser une colonie (mondes rocheux) et des laboratoires d'analyse (toutes les
+  planètes ; en orbite des géantes gazeuses, depuis la vue système). Une fois la
+  colonie posée, tout ce qui est débloqué s'y construit (`buildBlockedHere`).
 - **Points de technologie** (`state.techPoints`, sauvegardés) : produits par les
   datacenters, ils paient la suite de l'arbre (`cost.tech`) et remplacent le Contexte
   dans la télémétrie une fois le réseau acquis. Une compétence atteignable mais trop

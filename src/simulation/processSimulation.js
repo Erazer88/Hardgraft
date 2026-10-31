@@ -170,8 +170,10 @@
         to.inputBuffer[input.id] += amount;
         continue;
       }
+      // A card may hold more than the usual buffer (a storage card).
+      const capacity = definition(to).inputCapacity ?? Data.config.inputCapacity;
       const amount = integer(Math.min(Math.ceil(from.outputBuffer[out.id] / remaining),
-        Data.config.inputCapacity - to.inputBuffer[input.id]));
+        capacity - to.inputBuffer[input.id]));
       if (!amount) continue;
       // The rock keeps its composition from one card to the next.
       addMix(to.inputMix ||= {}, input.id, out.resourceId, to.inputBuffer[input.id], amount, Mix?.of(from.outputMix, out.id));
@@ -273,8 +275,6 @@
   // fraction carries over to the next cycle) and the rest as tailings,
   // depleted of what was taken.
   function runCycle(machine, def) {
-    // An uplink turns each cycle into technology points, collected by the caller.
-    if (def.techPoints) machine.techPointsMade = (machine.techPointsMade || 0) + def.techPoints;
     const primary = primaryInput(machine), batch = primary?.amount || 0;
     const rock = Mix ? Mix.of(machine.inputMix, primary?.inputId) : null;
     machine.yieldCredit ||= {};

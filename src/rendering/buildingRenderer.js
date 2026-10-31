@@ -85,6 +85,24 @@
       ctx.moveTo(x + size * .45, y - size * .62); ctx.quadraticCurveTo(x + size * .68, y - size * .55, x + size * .72, y - size * .3);
       ctx.stroke(); return;
     }
+    if (icon === 'hf-antenna') {
+      // A tall mast with rings of high-frequency waves.
+      ctx.moveTo(x, y + size * .7); ctx.lineTo(x, y - size * .45);
+      ctx.moveTo(x - size * .35, y + size * .7); ctx.lineTo(x, y + size * .1); ctx.lineTo(x + size * .35, y + size * .7);
+      for (const r of [.28, .52]) {
+        ctx.moveTo(x - size * r, y - size * (.45 + r * .4)); ctx.quadraticCurveTo(x - size * (r + .12), y - size * .45, x - size * r, y - size * (.45 - r * .4));
+        ctx.moveTo(x + size * r, y - size * (.45 + r * .4)); ctx.quadraticCurveTo(x + size * (r + .12), y - size * .45, x + size * r, y - size * (.45 - r * .4));
+      }
+      ctx.stroke(); return;
+    }
+    if (icon === 'lab') {
+      // A flask.
+      ctx.moveTo(x - size * .16, y - size * .66); ctx.lineTo(x - size * .16, y - size * .15); ctx.lineTo(x - size * .55, y + size * .6);
+      ctx.lineTo(x + size * .55, y + size * .6); ctx.lineTo(x + size * .16, y - size * .15); ctx.lineTo(x + size * .16, y - size * .66);
+      ctx.moveTo(x - size * .26, y - size * .66); ctx.lineTo(x + size * .26, y - size * .66);
+      ctx.moveTo(x - size * .36, y + size * .25); ctx.lineTo(x + size * .36, y + size * .25);
+      ctx.stroke(); return;
+    }
     if (icon === 'geothermal') {
       ctx.moveTo(x - size * .7, y + size * .55); ctx.lineTo(x + size * .7, y + size * .55);
       for (const offset of [-.32, 0, .32]) {
@@ -367,6 +385,19 @@
   // while it is placed or selected. Purely visual (state.dataLinks).
   function renderDataLinks(frame) {
     const state = frame.state, style = Style.dataLinks, ctx = frame.context;
+    // A moving dashed blue beam with an electric impulse running along it.
+    const beam = (from, to) => {
+      ctx.save();
+      ctx.strokeStyle = style.color; ctx.globalAlpha = style.beamOpacity; ctx.lineWidth = style.beamWidthPx; ctx.setLineDash([8, 6]);
+      ctx.lineDashOffset = -((frame.now || 0) / style.beamDashMs % 14);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+      const t = ((frame.now || 0) % style.impulseMs) / style.impulseMs;
+      const point = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+      ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.fillStyle = style.impulseColor;
+      ctx.shadowColor = style.color; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(point.x, point.y, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    };
     const byId = new Map(visibleBuildings(frame).map(building => [building.id, building]));
     const range = root.OrbitDataNetworkData?.antenna.rangeKm || 0;
     ctx.save();
@@ -381,14 +412,14 @@
         const from = frame.project(source.x, source.y);
         ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
       }
-      const center = link.datacenterId && byId.get(link.datacenterId);
-      if (center && link.carried > 0) {
-        const end = frame.project(center.x, center.y);
-        ctx.globalAlpha = style.beamOpacity; ctx.lineWidth = style.beamWidthPx; ctx.setLineDash([8, 6]);
-        ctx.lineDashOffset = -((frame.now || 0) / style.beamDashMs % 14);
-        ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(end.x, end.y); ctx.stroke();
-        ctx.lineDashOffset = 0;
-      }
+      const target = byId.get(link.datacenterId) || byId.get(link.hfAntennaId);
+      if (target && link.carried > 0) beam(to, frame.project(target.x, target.y));
+    }
+    // Each datacenter's analyses go to its high-frequency antenna.
+    for (const center of byId.values()) {
+      if (center.type !== 'datacenter' || center.constructionState !== 'complete') continue;
+      const antenna = root.OrbitDataNetwork?.uplinkAntenna(state, center);
+      if (antenna) beam(frame.project(center.x, center.y), frame.project(antenna.x, antenna.y));
     }
     const placing = state.tool === 'build' && state.placement?.type === 'antenna' ? state.placement : null;
     const selected = state.selected?.kind === 'building' && state.selected.type === 'antenna' ? state.selected : null;

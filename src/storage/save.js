@@ -40,6 +40,7 @@
       unlocks: copy(state.unlocks || {}),
       skills: copy(state.skills || {}),
       techPoints: state.techPoints || 0,
+      dataTransit: root.OrbitDataTransit ? root.OrbitDataTransit.snapshot(state.dataTransit) : copy(state.dataTransit || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -76,6 +77,7 @@
     state.unlocks = root.OrbitProgression ? root.OrbitProgression.restoreUnlocks(saved.unlocks) : copy(saved.unlocks || {});
     state.skills = root.OrbitSkills ? root.OrbitSkills.restore(saved.skills) : copy(saved.skills || {});
     state.techPoints = Number.isFinite(saved.techPoints) && saved.techPoints >= 0 ? saved.techPoints : 0;
+    state.dataTransit = root.OrbitDataTransit ? root.OrbitDataTransit.normalize(saved.dataTransit) : copy(saved.dataTransit || {});
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;

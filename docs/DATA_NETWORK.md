@@ -1,55 +1,80 @@
 # Réseau de données et datacenter
 
 Débloqué par la compétence « Réseau informatique » (voir [`SKILL_TREE.md`](SKILL_TREE.md)),
-le réseau de données transforme l'activité de la planète en **points de technologie**,
-la monnaie de l'arbre de compétences (elle remplace le Contexte dans la télémétrie).
-Les mécaniques du datacenter s'inspirent d'Upload Labs : flux de données, compression,
-calcul, envoi, et goulots d'étranglement à équilibrer. Réglages provisoires dans
-`src/data/dataNetwork.js` et `src/data/processes.js`.
+le réseau de données transforme l'activité des planètes en **points de technologie**,
+la monnaie de l'arbre (elle remplace le Contexte dans la télémétrie). Toute la galaxie
+converge à terme vers l'Arche. Les mécaniques du datacenter s'inspirent d'Upload Labs
+(réception, compression, calcul, envoi, goulots à équilibrer). Réglages provisoires dans
+`src/data/dataNetwork.js` et `src/data/processes.js`. Une donnée vaut 1 u = 1 Mo.
 
-## Flux
+## Schéma
 
 ```text
-Extracteur en activité ─ 1 Mo/s de données géologiques ─┐
-Usine en activité ────── 1 Mo/s de données industrielles ┴→ Parabole la plus proche (≤ 300 km)
-  → 4 Mo/s au plus, partagés → par la route → Datacenter relié le plus proche → inventaire (tampon 200 Mo)
-  → Récepteur → Compresseur → Processeur → Liaison montante → points de technologie
+Planète du datacenter :
+  bâtiment en activité → antenne relais (≤ 300 km) → route → datacenter
+  → liaison montante → route → antenne haute fréquence → Arche : 1 analyse = 1 point
+
+Autre planète (sans datacenter) :
+  bâtiment → antenne relais → route → antenne haute fréquence
+  → antenne haute fréquence d'une planète dont le datacenter est relié par la route → datacenter
 ```
 
-- Une donnée vaut 1 u = 1 Mo. Seuls les bâtiments en activité (`status: 'active'`)
-  émettent : une chaîne bloquée n'envoie rien.
-- Chaque bâtiment rejoint sans fil la parabole la plus proche dans sa portée. Une
-  parabole saturée partage sa bande passante entre ses sources.
-- La parabole transmet au datacenter le plus proche **relié à elle par une route
-  construite** (les câbles suivent les routes), sans limite de distance. Sans route,
-  sa fiche indique « Non relié par la route » et rien ne passe.
-- Au-delà du tampon du datacenter, les données sont perdues (compteur `dataLost`).
-- Le datacenter et la parabole se posent comme les autres bâtiments reliés à la route
-  (`roadRequired`, point de raccordement `roadPortOffset`).
-- `src/simulation/dataNetwork.js` calcule les liaisons (`state.dataLinks`, non
-  sauvegardé) ; le rendu trace les lignes bâtiment → parabole, le faisceau animé
-  parabole → datacenter et la portée d'une parabole posée ou sélectionnée.
+Il n'y a ni station relais ni carte de réception spéciale : les données d'une autre
+planète arrivent dans l'inventaire du datacenter comme les autres.
+
+## Sources
+
+| Source | Donnée | Débit |
+| --- | --- | ---: |
+| Extracteur en activité | Données géologiques | 1 Mo/s |
+| Usine en activité | Données industrielles | 1 Mo/s |
+| Laboratoire d'analyse | Données planétaires | selon le monde : 1 (tellurique, aride), 1,5 (océanique, glacé), 2 (volcanique), 3 (géante gazeuse) |
+
+Seuls les bâtiments en activité émettent ; le laboratoire, autonome en énergie, émet
+toujours. Un laboratoire sans antenne relais à portée (monde sans colonie, orbite d'une
+géante gazeuse) émet lui-même ses données comme une antenne haute fréquence.
+
+## Antennes
+
+- **Antenne relais** (`antenna`) : rassemble les sources dans sa portée (300 km),
+  4 Mo/s au plus partagés entre elles. Elle transmet par la route au datacenter le plus
+  proche, sinon à l'antenne haute fréquence la plus proche. Sans route : « Non relié
+  par la route ».
+- **Antenne haute fréquence** (`hf_antenna`) : file d'attente de 400 Mo, envoie toutes
+  les secondes un paquet par ressource, à débit stable (4 Mo/s, analyses d'abord). Les
+  analyses partent vers l'Arche ; les données brutes vers l'antenne haute fréquence
+  d'une autre planète qui a un datacenter relié par la route (la plus proche).
+- **Vitesse** : 3 fois plus rapide que le fret interplanétaire (même trajet vers
+  l'Arche ; ligne droite entre planètes).
+- **Conjonction solaire** : si l'étoile passe entre les deux bouts (à moins de 4 rayons
+  de la ligne), rien ne part ; la fiche l'indique.
+- Paquets en vol sauvegardés (`state.dataTransit`, `src/simulation/dataTransit.js`).
+  Rendu : traits bleus et impulsions électriques dans la vue système
+  (`src/rendering/dataTrafficRenderer.js`), faisceaux bleus à impulsion en surface.
 
 ## Cartes du datacenter
 
 | Carte | Entrée | Sortie | Débit | Énergie |
 | --- | --- | --- | ---: | ---: |
 | Récepteur | Données reçues (une sorte choisie) | Données brutes | 4 Mo/s | 3 MW |
-| Compresseur | 4 Mo bruts (géologiques ou industriels) | 1 Mo compressé | 4 Mo/s | 10 MW |
+| Compresseur | 4 Mo bruts (géologiques, industriels ou planétaires) | 1 Mo compressé | 4 Mo/s | 10 MW |
 | Processeur | 2 Mo compressés | 1 analyse | 1 Mo/s | 30 MW |
-| Liaison montante | 1 analyse | 1 point de technologie | 1 /s | 5 MW |
+| Stockage | Analyses | Analyses, jusqu'à 10 000 en attente | 20 /s | 1 MW |
+| Liaison montante | Analyses | vers l'antenne haute fréquence reliée | — | 5 MW |
 | Corbeille | Toute donnée | — (effacée) | 50 Mo/s | 0 MW |
 
-Une chaîne complète traite 4 Mo/s et rend 0,5 point/s (30 par minute) pour 48 MW.
+La liaison montante fonctionne comme un Dock de sortie : sans antenne haute fréquence
+reliée par la route, elle est « SANS DESTINATION » et la chaîne s'accumule dans le
+Stockage, utile pour produire pendant des heures avant d'avoir le réseau vers l'Arche.
+Une chaîne complète rend 0,5 analyse/s pour 48 MW.
 
 ## Énergie et refroidissement
 
 Le datacenter enregistre la température de son site à la pose (`siteTemperature`) :
 température moyenne de la planète, +12 °C à l'équateur, −0,45 °C par degré de
 latitude, −6,5 °C par km d'altitude. Ses cartes consomment leur puissance multipliée
-par un facteur de refroidissement : `1 + 0,02 × T`, borné entre 0,6 et 2,5 (×1 à 0 °C,
-×1,6 à 30 °C). Le site et le facteur s'affichent pendant la pose et sur sa fiche.
-Mieux vaut un site froid (pôles, montagne) et beaucoup d'éoliennes.
+par `1 + 0,02 × T`, borné entre 0,6 et 2,5. Mieux vaut un site froid et beaucoup
+d'éoliennes.
 
 ## Vérification
 

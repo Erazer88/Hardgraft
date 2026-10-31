@@ -13,13 +13,17 @@
     { id: 'computer_network', label: 'RÉSEAU INFORMATIQUE', mark: 'RI', branch: 'ark',
       description: 'Foreuses et usines transmettent leurs données par des paraboles à un datacenter, qui les traite en points de technologie.',
       effect: 'Débloque le Datacenter, la Parabole et leurs cartes. Les points de technologie paient la suite de l’arbre.',
-      cost: {}, requires: ['archive_awakening'], x: .5, y: .3 }
+      cost: {}, requires: ['archive_awakening'], x: .5, y: .3 },
+    { id: 'lander', label: 'ATTERRISSEUR', mark: 'AT', branch: 'space',
+      description: 'Un atterrisseur dépose robots et matériel sur les autres mondes du système.',
+      effect: 'Permet de poser une colonie sur les planètes rocheuses et un laboratoire d’analyse sur toutes les planètes (en orbite des géantes gazeuses).',
+      cost: { tech: 200 }, requires: ['computer_network'], x: .78, y: .14 }
   ];
   // Silhouettes around the known skills, linked to the one they grow from.
   const fog = [
     { from: 'archive_awakening', x: .2, y: .55 }, { from: 'archive_awakening', x: .8, y: .55 },
     { from: 'archive_awakening', x: .3, y: .86 }, { from: 'archive_awakening', x: .7, y: .86 },
-    { from: 'computer_network', x: .22, y: .12 }, { from: 'computer_network', x: .78, y: .12 }
+    { from: 'computer_network', x: .22, y: .12 }, { from: 'lander', x: .9, y: .3 }
   ];
 
   function freeze(value) {

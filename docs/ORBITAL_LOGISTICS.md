@@ -84,7 +84,7 @@ matière et ne pilote pas la simulation.
 
 | Fichier | Responsabilité |
 | --- | --- |
-| `src/data/orbitalLogistics.js` | Capacité, énergie et durées de transit |
+| `src/data/orbitalLogistics.js` | Capacité, énergie et durées de transit (fret ralenti : `cargoSpeedMultiplier` 0,35) |
 | `src/simulation/logisticsNetwork.js` | Chemin construit (terre et mer) et transfert Dock → bâtiment destinataire |
 | `src/simulation/orbitalTransit.js` | Corridors, lots, arrivées, mesures et géométrie orbitale pure |
 | `src/gameplay/logistics.js` | Orchestration des destinations de quai, du lancement et des états de plateforme |

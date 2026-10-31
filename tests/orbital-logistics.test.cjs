@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/dataNetwork.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -67,7 +67,7 @@ function assertPrograde(trajectory) {
 
 test('orbital launch values remain declarative and every transportable resource can be routed', () => {
   assert.deepEqual(plain(Data.launch), { capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
-  assert.equal(Data.transit.cargoSpeedMultiplier, .7);
+  assert.equal(Data.transit.cargoSpeedMultiplier, .35);
   assert.equal(Data.transfer.alignmentLaunchIntervalFactor, 1.5);
   assert.deepEqual([Data.transfer.alignmentMinimumRadians, Data.transfer.alignmentMaximumRadians], [.12, .7]);
   const resources = plain(Data.exportResources.map(item => item.id));
@@ -374,7 +374,7 @@ test('flight duration converges on the length of its final predicted transfer cu
   const points = Transit.trajectorySamples(Transit.trajectoryFor(lot, system), 48);
   const length = points.slice(1).reduce((sum, point, index) =>
     sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
-  const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * planet.orbit))) / .7;
+  const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * planet.orbit))) / Data.transit.cargoSpeedMultiplier;
   assert.ok(Math.abs(duration - expected) < .02,
     'arrival time is calculated from the route that reaches the Ark’s future position');
 });
@@ -393,7 +393,7 @@ test('generated planetary transfers remain deterministic through radial and phas
       const length = points.slice(1).reduce((sum, point, index) =>
         sum + Math.hypot(point.x - points[index].x, point.y - points[index].y), 0);
       const median = [...generated.planets].sort((a, b) => a.orbit - b.orbit)[Math.floor(generated.planets.length / 2)].orbit;
-      const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * median))) / .7;
+      const expected = Math.max(5, Math.min(45, 30 * length / (Math.PI * median))) / Data.transit.cargoSpeedMultiplier;
       assert.ok(Math.abs(duration - expected) < .03,
         `${planet.id} at t=${departureTime} uses its final route length for transit time`);
       assertPrograde(curve);
@@ -770,4 +770,76 @@ test('dishes carry the data of working buildings in range to a datacenter joined
   assert.equal(links.dish.carried, Spec.antenna.bandwidthMbPerSecond, 'the dish is the bottleneck');
   assert.equal((dc.inventory.geo_data || 0) + (dc.inventory.industrial_data || 0), 40);
   assert.ok(dc.inventory.geo_data > dc.inventory.industrial_data, 'shared by what each sends');
+});
+
+// Two buildings joined by a built road on a planet.
+function joinByRoad(state, planet, a, b) {
+  const network = state.roadNetworks[planet] ||= Road.create(planet);
+  const from = Road.addNode(network, { x: a.x, y: a.y, buildingId: a.id }), to = Road.addNode(network, { x: b.x, y: b.y, buildingId: b.id });
+  Road.addSegment(network, { from: from.id, to: to.id, points: [{ x: a.x, y: a.y }, { x: b.x, y: b.y }],
+    builtLength: Math.hypot(b.x - a.x, b.y - a.y) });
+}
+
+test('analyses go by road to a high-frequency antenna, then to the Ark, where they become technology points; the star can cut the link', () => {
+  const DataNetwork = context.OrbitDataNetwork, DataTransit = context.OrbitDataTransit;
+  const planet = { id: planetId, orbit: 100, radius: 5, phase: 0, speed: .03 };
+  const make = arkPhase => ({ id: 'home', star: { mass: 1, radius: 8 }, planets: [planet],
+    ark: { id: 'home:ark', systemId: 'home', orbit: 70, phase: arkPhase, speed: .02 } });
+  const dc = Building.create({ id: 'dc', type: 'datacenter', planetId, x: 0, y: 0, constructionState: 'complete', dockStock: { analysis: 10 } });
+  const hf = Building.create({ id: 'hf', type: 'hf_antenna', planetId, x: 50, y: 0, constructionState: 'complete' });
+  const state = { surfaceBuildings: [dc, hf], roadNetworks: {}, techPoints: 0 };
+  joinByRoad(state, planetId, dc, hf);
+  DataNetwork.advance(state, 1);
+  assert.deepEqual(plain(hf.dataQueue), { analysis: 10 });
+  // The Ark behind the star: nothing leaves.
+  DataTransit.advance(state, 0, new Map([['home', make(Math.PI)]]));
+  assert.equal(state.dataTransit.packets.length, 0);
+  assert.equal(hf.dataLink.reason, 'conjunction');
+  // In view: a packet at the antenna's bandwidth, 3× faster than freight.
+  const system = make(.6);
+  DataTransit.advance(state, 1, new Map([['home', system]]));
+  const [packet] = state.dataTransit.packets;
+  assert.equal(packet.amount, context.OrbitDataNetworkData.highFrequency.bandwidthMbPerSecond);
+  const freight = Transit.travelTime(system, planet, 1);
+  assert.ok(Math.abs((packet.arrivalTime - packet.departureTime) - freight / 3) < 1e-6);
+  DataTransit.advance(state, packet.arrivalTime, new Map([['home', system]]), false);
+  assert.equal(state.techPoints, 4, 'each analysis reaching the Ark is a point');
+});
+
+test('raw data of a planet without datacenter crosses to the datacenter of another planet', () => {
+  const DataNetwork = context.OrbitDataNetwork, DataTransit = context.OrbitDataTransit;
+  const home = { id: 'home:p-0', orbit: 100, radius: 5, phase: 0, speed: .03 }, far = { id: 'home:p-1', orbit: 160, radius: 5, phase: .5, speed: .02 };
+  const system = { id: 'home', star: { mass: 1, radius: 8 }, planets: [home, far], ark: { id: 'home:ark', systemId: 'home', orbit: 70, phase: 2, speed: .02 } };
+  const on = (id, type, planet, x, extras = {}) => Building.create({ id, type, planetId: planet.id, x, y: 0, constructionState: 'complete', ...extras });
+  const drill = on('x-far', 'extractor', far, 0, { status: 'active' }), relay = on('relay-far', 'antenna', far, 20);
+  const sender = on('hf-far', 'hf_antenna', far, 60), receiver = on('hf-home', 'hf_antenna', home, 0), dc = on('dc-home', 'datacenter', home, 40);
+  drill.status = 'active';
+  const state = { surfaceBuildings: [drill, relay, sender, receiver, dc], roadNetworks: {}, techPoints: 0 };
+  joinByRoad(state, far.id, relay, sender);
+  joinByRoad(state, home.id, receiver, dc);
+  DataNetwork.advance(state, 10);
+  assert.equal(state.dataLinks['relay-far'].hfAntennaId, 'hf-far');
+  assert.deepEqual(plain(sender.dataQueue), { geo_data: 10 });
+  const systems = new Map([['home', system]]);
+  DataTransit.advance(state, 0, systems);
+  const [packet] = state.dataTransit.packets;
+  assert.equal(packet.toId, 'hf-home');
+  DataTransit.advance(state, packet.arrivalTime, systems, false);
+  assert.equal(dc.inventory.geo_data, packet.amount, 'taken in by the datacenter joined to the receiving antenna');
+});
+
+test('worlds without colony take only a colony (rocky worlds) or a lab, once the lander is acquired', () => {
+  const rocky = { id: 'home:p-1', kind: 'aride' }, gas = { id: 'home:p-2', kind: 'gazeuse' }, home = { id: planetId, kind: 'tellurique' };
+  const state = { surfaceBuildings: [], skills: { unlocked: [] } };
+  assert.equal(Progression.buildBlockedHere(state, 'colony', rocky), null, 'the first colony goes anywhere');
+  assert.ok(Progression.buildBlockedHere(state, 'factory', home));
+  state.surfaceBuildings.push({ type: 'colony', planetId });
+  assert.equal(Progression.buildBlockedHere(state, 'factory', home), null);
+  assert.ok(Progression.buildBlockedHere(state, 'lab', rocky), 'needs the lander');
+  state.skills.unlocked.push('lander');
+  assert.equal(Progression.buildBlockedHere(state, 'lab', rocky), null);
+  assert.equal(Progression.buildBlockedHere(state, 'colony', rocky), null);
+  assert.equal(Progression.buildBlockedHere(state, 'lab', gas), null);
+  assert.ok(Progression.buildBlockedHere(state, 'colony', gas));
+  assert.ok(Progression.buildBlockedHere(state, 'factory', rocky));
 });

@@ -70,6 +70,8 @@
       ? Object.fromEntries(Object.entries(properties.gateMix).map(([id, value]) => [id, mixes(value)])) : {};
     const launchStock = integerStock(properties.launchStock);
     const constructionSupplied = integerStock(properties.constructionSupplied);
+    // Data waiting at a high-frequency antenna or an orbital lab (Mo).
+    const dataQueue = integerStock(properties.dataQueue);
     const launchReceivedTotal = integerStock(properties.launchReceivedTotal);
     // Units a depot's output gates queued, per destination building.
     const gateStock = properties.gateStock && typeof properties.gateStock === 'object' && !Array.isArray(properties.gateStock)
@@ -100,6 +102,8 @@
         .filter(([, value]) => isFiniteNumber(value)).map(([id, value]) => [id, clamp(value, 0, 1)])) : null;
     // Local temperature of the site (°C), recorded where it matters (datacenters).
     const siteTemperature = isFiniteNumber(properties.siteTemperature) ? properties.siteTemperature : null;
+    // Kind of the planet a lab studies (its data depends on it).
+    const siteKind = typeof properties.siteKind === 'string' ? properties.siteKind : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
     if (!Number.isInteger(upgradeLevel) || upgradeLevel < 1) throw new RangeError('Upgrade level must be a positive integer');
     const flowPerMinute = properties.flowPerMinute ?? 0;
@@ -119,6 +123,7 @@
       constructionDurationSeconds,
       demolitionRefundRate,
       constructionSupplied,
+      dataQueue,
       costPaid: costPaid ? { ...costPaid } : null,
       cardCostPaid,
       roadPort,
@@ -143,6 +148,7 @@
       resourceShare,
       composition,
       siteTemperature,
+      siteKind,
       upgradeLevel,
       status,
       customName,

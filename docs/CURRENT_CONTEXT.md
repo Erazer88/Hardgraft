@@ -65,12 +65,16 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
 - Le gameplay est fonctionnel jusqu'à l'Arche. L'arbre de compétences s'ouvre aux
-  premières ressources reçues par l'Arche ; il n'a qu'une compétence, « Réveil des
-  archives », puis « Réseau informatique », qui débloque Datacenter et Parabole : les
-  extracteurs et usines en activité envoient 1 Mo/s de données par les paraboles au
-  datacenter relié à elles par la route, qui en tire des points de technologie (monnaie de l'arbre, à la place
-  du Contexte). Le datacenter consomme beaucoup, plus sur un site chaud. Voir
+  premières ressources reçues par l'Arche : « Réveil des archives », « Réseau
+  informatique » (Datacenter, Antenne relais, Antenne haute fréquence), « Atterrisseur »
+  (colonie sur les autres mondes rocheux, laboratoires partout). Les données
+  (géologiques, industrielles, planétaires) vont par antennes relais et routes au
+  datacenter, ses analyses par l'antenne haute fréquence à l'Arche, où chacune devient
+  un point de technologie (monnaie de l'arbre, à la place du Contexte). Débit stable,
+  coupé par la conjonction solaire, 3× plus rapide que le fret. Voir
   [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
+- Une colonie par planète. Le fret vers l'Arche est 2× plus lent qu'avant
+  (`cargoSpeedMultiplier: .35`).
 - Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet
   « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
 - Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un

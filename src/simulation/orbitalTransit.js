@@ -436,6 +436,7 @@
   }
 
   root.OrbitOrbitalTransit = Object.freeze({ platformLaunchMW, createState, normalize, snapshot, travelTime, arkPosition,
+    freightDuration: durationForLength,
     ensureHub, corridorFor, advance, trajectoryFor, previewTrajectory, trajectorySamples, cargoPosition,
     currentHubMetrics, currentPlatformMetrics });
 })(globalThis);

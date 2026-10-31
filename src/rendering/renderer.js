@@ -242,6 +242,7 @@
         root.OrbitOrbitalTrafficRenderer.drawArk(ctx, { state, system, camera: cam, project, circle, line, label });
         root.OrbitOrbitalTrafficRenderer.drawTraffic(ctx, { state, system, camera: cam, project, circle, line, label });
       }
+      if (detailed) root.OrbitDataTrafficRenderer?.draw(ctx, { state, system, camera: cam, project });
       if (detailed && system.wreck) {
         const wa = system.wreck.phase + state.simulation.time * .002;
         const wreck = project(Math.cos(wa) * system.wreck.orbit, Math.sin(wa) * system.wreck.orbit, cam);

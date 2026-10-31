@@ -189,7 +189,8 @@
   function logisticsSystemModels() {
     const models = new Map();
     for (const building of state.surfaceBuildings) {
-      if (building.type !== 'launch_platform') continue;
+      // Systems where goods or data leave for space.
+      if (!['launch_platform', 'hf_antenna', 'lab'].includes(building.type)) continue;
       const systemId = building.planetId.split(':p-')[0];
       if (models.has(systemId)) continue;
       const star = galaxy?.systems.find(item => item.id === systemId);
@@ -281,6 +282,7 @@
     state.industryAccumulator = 0;
     state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null); state.nameCounters = {};
     state.skills = globalThis.OrbitSkills.restore(null); state.techPoints = 0;
+    state.dataTransit = globalThis.OrbitDataTransit.createState();
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -404,8 +406,10 @@
       buildings: state.surfaceBuildings });
     // A datacenter keeps the temperature of its site: it decides its cooling.
     const siteTemperature = type === 'datacenter' ? temperatureAt(position) : null;
-    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature,
-      groundText: siteReadout({ type, ...position, ...validation, siteTemperature }) };
+    // A lab studies its planet: its data depends on the planet's kind.
+    const siteKind = type === 'lab' ? state.planet?.kind || null : null;
+    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature, siteKind,
+      groundText: siteReadout({ type, ...position, ...validation, siteTemperature, siteKind }) };
   }
   // Local temperature (°C) on the current planet: its mean, the latitude and
   // the altitude of the spot.
@@ -431,6 +435,11 @@
       const factor = globalThis.OrbitDataNetworkData.coolingFactor(building.siteTemperature);
       return `Site ${formatAmount(Math.round(building.siteTemperature))} °C · énergie ×${formatAmount(Math.round(factor * 100) / 100)}`;
     }
+    if (building.type === 'lab') {
+      const network = globalThis.OrbitDataNetworkData;
+      return `Données planétaires · ${formatAmount(network.sourceRate(network.sources.lab, building))} Mo/s`;
+    }
+    if (building.type === 'hf_antenna') return 'Vers l’Arche et les autres planètes';
     if (building.type === 'antenna') {
       const links = state.dataLinks?.[building.id];
       const network = globalThis.OrbitDataNetworkData.antenna;
@@ -459,7 +468,7 @@
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, siteKind: preview.siteKind, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -500,6 +509,8 @@
   function chooseBuilding(type, template = null) {
     const definition = BuildingData.get(type);
     if (!definition || state.level !== 'surface' || !Progression.buildingUnlocked(state, type)) return;
+    const blocked = Progression.buildBlockedHere(state, type, state.planet);
+    if (blocked) { toast(blocked); return; }
     const shortage = Inventory.missing(state.inventory,
       Construction.costFor(type) || {});
     if (shortage === null || shortage.length) {
@@ -1012,6 +1023,19 @@
   });
   $('building-name').addEventListener('keydown', event => { if (event.key === 'Enter') event.target.blur(); });
   $('demolish-button').onclick = demolishSelectedBuilding;
+  // A lab in orbit of the selected gas giant (skill "Atterrisseur").
+  $('orbital-lab-button').onclick = () => {
+    const planet = state.level === 'system' ? state.system?.planets.find(item => item.id === state.selected?.id) : null;
+    if (!planet || planet.kind !== 'gazeuse' || Progression.buildBlockedHere(state, 'lab', planet) ||
+        state.surfaceBuildings.some(building => building.type === 'lab' && building.planetId === planet.id)) return;
+    const building = BuildingModel.create({ id: `lab-${planet.id}-${nextBuildingId++}`, type: 'lab', planetId: planet.id,
+      x: 0, y: 0, siteKind: 'gazeuse', customName: BuildingNames.nextName(state, 'lab'),
+      constructionState: 'planned', constructionProgress: 0, status: 'planned' });
+    if (!Construction.start(building, state.inventory, Construction.costFor('lab')).started) { toast('Construction impossible pour le moment.'); return; }
+    state.surfaceBuildings.push(building);
+    toast(`${building.customName} : assemblage en orbite de ${planet.name}. Il émet lui-même ses données.`);
+    hud.showSelection(planet, { state, systemModel: state.system }); updateUI(); persist();
+  };
   $('enter-button').onclick = () => {
     if (state.level === 'galaxy') enterSystem();
     else if (state.level === 'system') enterPlanet();
@@ -1219,7 +1243,9 @@
       globalThis.OrbitDataNetwork.advance(state, simulationDt);
       advanceColony(simulationDt);
     }
-    Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);
+    const spaceSystems = logisticsSystemModels();
+    Logistics.advance(state, state.simulation.time, spaceSystems, !state.paused && !document.hidden);
+    globalThis.OrbitDataTransit.advance(state, state.simulation.time, spaceSystems, !state.paused && !document.hidden);
     if (state.tracking) {
       const follow = state.tracking, position = planetWorldPosition(follow.planet, follow.context);
       const dx = position.x - follow.position.x, dy = position.y - follow.position.y;

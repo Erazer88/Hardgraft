@@ -47,6 +47,7 @@
     // Data (1 unit = 1 Mo): it travels by dish, never by road.
     { id: 'geo_data', label: 'Données géologiques', phase: 'data', family: 'data', tags: ['data', 'raw_data'], transportable: false },
     { id: 'industrial_data', label: 'Données industrielles', phase: 'data', family: 'data', tags: ['data', 'raw_data'], transportable: false },
+    { id: 'planetary_data', label: 'Données planétaires', phase: 'data', family: 'data', tags: ['data', 'raw_data'], transportable: false },
     { id: 'compressed_data', label: 'Données compressées', phase: 'data', family: 'data', tags: ['data'], transportable: false },
     { id: 'analysis', label: 'Analyses', phase: 'data', family: 'data', tags: ['data'], transportable: false },
     { id: 'water', label: 'Eau douce', phase: 'liquid', family: 'liquid', tags: ['water'], composition: { water: 1 }, transportable: true },

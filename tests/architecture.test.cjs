@@ -382,7 +382,7 @@ test('a pumping station needs a shore and pumps salt water by the sea, fresh wat
   assert.match(inland.reason, /mer, un lac ou une rivière/);
 });
 
-test('there is only one colony, and nothing is built inside its zone', () => {
+test('one colony per planet, and nothing is built inside its zone', () => {
   const placementContext = vm.createContext({});
   for (const relative of ['data/resources.js', 'data/buildings.js', 'data/roads.js', 'simulation/buildings.js',
     'simulation/roadGeometry.js', 'gameplay/buildingPlacement.js']) {
@@ -393,8 +393,8 @@ test('there is only one colony, and nothing is built inside its zone', () => {
   const validate = (type, x, buildings) => Placement.validate({ terrain, textureScale: 3, definition: Buildings.get(type),
     position: { x, y: 60 }, planetId: 'p', buildings });
   assert.equal(validate('colony', 90, []).valid, true);
-  const elsewhere = validate('colony', 90, [{ type: 'colony', planetId: 'other', x: 0, y: 0 }]);
-  assert.equal(elsewhere.valid, false, 'one colony in the whole game');
+  assert.equal(validate('colony', 90, [{ type: 'colony', planetId: 'other', x: 0, y: 0 }]).valid, true, 'another planet may have its own');
+  assert.equal(validate('colony', 90, [{ type: 'colony', planetId: 'p', x: 400, y: 0 }]).valid, false, 'one per planet');
   const cells = [];
   for (let y = 15; y <= 25; y++) for (let x = 25; x <= 35; x++) cells.push(y * width + x);
   const colony = { type: 'colony', planetId: 'p', x: 90, y: 60, colony: { cells } };

@@ -158,16 +158,25 @@
       outputPorts: [output('analysis', 'Analyses', 'analysis')],
       recipe: { inputs: [{ inputId: 'compressed', amount: 2 }], outputs: [{ outputId: 'analysis', resourceId: 'analysis', amount: 1 }] },
       throughput: 1, energyMW: 30 },
-    uplink: { id: 'uplink', label: 'LIAISON MONTANTE', mark: 'UP', description: 'Envoie les analyses à l’Arche : chacune devient un point de technologie.',
-      inputPorts: [input('analysis', 'Analyses', 'analysis')], outputPorts: [],
-      recipe: { inputs: [{ inputId: 'analysis', amount: 1 }], outputs: [] },
-      throughput: 1, energyMW: 5, techPoints: 1 },
+    // Hands the analyses to the high-frequency antenna joined by road (like
+    // an output dock: no antenna, no sending); at the Ark each analysis is a
+    // technology point.
+    uplink: { id: 'uplink', label: 'LIAISON MONTANTE', mark: 'UP', description: 'Transmet les analyses à l’antenne haute fréquence, qui les envoie à l’Arche : chacune y devient un point de technologie.',
+      sink: true, externalOutput: true, dataUplink: true,
+      inputPorts: [input('analysis', 'Analyses', 'analysis')], outputPorts: [], recipe: null,
+      throughput: null, energyMW: 5 },
+    // A large buffer: analyses wait here, for hours if need be, until the
+    // network to the Ark is ready.
+    data_storage: { id: 'data_storage', label: 'STOCKAGE', mark: 'ST', description: 'Garde jusqu’à 10 000 analyses en attente d’envoi vers l’Arche.',
+      inputPorts: [input('analysis', 'Analyses', 'analysis')], outputPorts: [output('analysis', 'Analyses', 'analysis')],
+      recipe: { inputs: [{ inputId: 'analysis', amount: 1 }], outputs: [{ outputId: 'analysis', resourceId: 'analysis', amount: 1 }] },
+      throughput: 20, energyMW: 1, inputCapacity: 10000 },
     data_bin: { id: 'data_bin', label: 'CORBEILLE', mark: 'CB', description: 'Efface les données en trop pour ne pas bloquer la chaîne.',
       inputPorts: [input('data', 'Données', null, { acceptsAnyResource: true, accepts: { tag: 'data' } })], outputPorts: [],
       recipe: { inputs: [{ inputId: 'data', amount: 1 }], outputs: [] },
       throughput: 50, energyMW: 0 }
   };
-  const datacenterCatalog = ['data_receiver', 'compressor', 'processor', 'uplink', 'data_bin'];
+  const datacenterCatalog = ['data_receiver', 'compressor', 'processor', 'data_storage', 'uplink', 'data_bin'];
 
   const utilities = {
     input_dock: {
@@ -230,7 +239,7 @@
     depot_input: { iron: 2 }, depot_output: { iron: 2 }, depot_buffer: { iron: 3 },
     depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 },
     data_receiver: { iron: 2, copper: 2 }, compressor: { iron: 4, copper: 4, silicon: 2 }, processor: { iron: 4, copper: 6, silicon: 6 },
-    uplink: { iron: 4, copper: 4, silicon: 2 }, data_bin: { iron: 1 }
+    uplink: { iron: 4, copper: 4, silicon: 2 }, data_storage: { iron: 6, copper: 2, silicon: 4 }, data_bin: { iron: 1 }
   };
 
   // Each card belongs to one kind of building: the extractor drills, crushes

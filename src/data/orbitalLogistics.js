@@ -3,7 +3,7 @@
 
   const launch = Object.freeze({ capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
   const transit = Object.freeze({ minimumSeconds: 5, maximumSeconds: 45, referenceHalfOrbitSeconds: 30,
-    cargoSpeedMultiplier: .7 });
+    cargoSpeedMultiplier: .35 });
   const transfer = Object.freeze({ directCorrectionRadians: .12, radialExcursionFraction: .16,
     alignmentLaunchIntervalFactor: 1.5, alignmentMinimumRadians: .12, alignmentMaximumRadians: .7,
     routeSamples: 48, durationIterations: 16, durationToleranceSeconds: .001 });

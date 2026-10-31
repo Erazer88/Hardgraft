@@ -3,8 +3,9 @@
 ## Colonie
 
 La Colonie est obligatoirement le premier bâtiment : au départ, le menu de construction
-ne propose qu'elle. Le joueur la pose où il veut sur la terre ferme. Il n'y en a qu'une
-dans la partie ; elle ne se démolit pas. Elle reçoit par route, comme une usine, mais
+ne propose qu'elle. Le joueur la pose où il veut sur la terre ferme. Une seule par
+planète ; elle ne se démolit pas. D'autres colonies se posent sur les autres mondes
+rocheux avec la compétence « Atterrisseur » (voir [`SKILL_TREE.md`](SKILL_TREE.md)). Elle reçoit par route, comme une usine, mais
 sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur fournit
 12 MW à sa planète (`generatorMW`).
 

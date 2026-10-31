@@ -27,8 +27,10 @@
       cards: ['gravity_separator', 'reduction_furnace:copper', 'silicon_washer', 'silicon_dryer', 'reduction_furnace:silicon',
         'water_pump', 'desalinator'] },
     // The data network: dishes and a datacenter turning data into technology points.
-    { id: 'network', when: { skill: 'computer_network' }, buildings: ['datacenter', 'antenna'],
-      cards: ['data_receiver', 'compressor', 'processor', 'uplink', 'data_bin'] }
+    { id: 'network', when: { skill: 'computer_network' }, buildings: ['datacenter', 'antenna', 'hf_antenna'],
+      cards: ['data_receiver', 'compressor', 'processor', 'data_storage', 'uplink', 'data_bin'] },
+    // Other worlds: a colony on rocky planets, labs everywhere.
+    { id: 'lander', when: { skill: 'lander' }, buildings: ['lab'] }
   ];
 
   function freeze(value) {

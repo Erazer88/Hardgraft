@@ -15,7 +15,9 @@
       cost: {}, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 30, height: 26 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 13 },
-      placementRules: { landOnly: true, uniqueInGame: true }, preferredTerrain: ['flat']
+      // One per planet: the first anywhere, then on other rocky worlds after
+      // the skill "Atterrisseur".
+      placementRules: { landOnly: true, uniquePerPlanet: true }, preferredTerrain: ['flat']
     },
     factory: {
       id: 'factory', label: 'USINE', shortLabel: 'US', category: 'industry', icon: 'factory',
@@ -99,13 +101,14 @@
       // Water must lie within shoreReach (km) of the station's center.
       placementRules: { landOnly: true, shoreRequired: true, shoreReach: 30 }, preferredTerrain: ['shore']
     },
-    // The data network (skill "Réseau informatique"): dishes gather the data of
-    // working buildings in range and pass it to a datacenter joined to them by
-    // road (the cables follow the roads); it turns data into technology
-    // points. See src/data/dataNetwork.js.
+    // The data network (skill "Réseau informatique"): relay antennas gather the
+    // data of working buildings in range and pass it by road (cables follow
+    // the roads) to a datacenter, which analyses it; a high-frequency antenna
+    // sends the analyses to the Ark, where they become technology points, and
+    // carries raw data between planets. See src/data/dataNetwork.js.
     datacenter: {
       id: 'datacenter', label: 'DATACENTER', shortLabel: 'DC', category: 'data', icon: 'datacenter',
-      description: 'Transforme les données reçues des paraboles en points de technologie. Très gourmand en énergie : mieux vaut un site froid.',
+      description: 'Analyse les données reçues des antennes ; les analyses partent vers l’Arche. Très gourmand en énergie : mieux vaut un site froid.',
       functions: { processesData: true },
       cost: { iron: 30, copper: 30, silicon: 20 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 30, height: 26 }, roadRequired: true,
@@ -113,13 +116,34 @@
       placementRules: { landOnly: true }, preferredTerrain: ['flat', 'elevated']
     },
     antenna: {
-      id: 'antenna', label: 'PARABOLE', shortLabel: 'PA', category: 'data', icon: 'antenna',
+      id: 'antenna', label: 'ANTENNE RELAIS', shortLabel: 'AR', category: 'data', icon: 'antenna',
       description: 'Recueille les données des foreuses et usines alentour et les transmet au datacenter relié par la route.',
       functions: { relaysData: true },
       cost: { iron: 10, copper: 8, silicon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 18, height: 18 }, roadRequired: true,
       roadPortOffset: { x: 0, y: 9 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
+    },
+    hf_antenna: {
+      id: 'hf_antenna', label: 'ANTENNE HAUTE FRÉQUENCE', shortLabel: 'HF', category: 'data', icon: 'hf-antenna',
+      description: 'Envoie à l’Arche les analyses du datacenter relié par la route, et les données brutes d’une planète vers le datacenter d’une autre.',
+      functions: { sendsDataToSpace: true },
+      cost: { iron: 20, copper: 16, silicon: 8 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
+      footprint: { width: 22, height: 22 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 11 },
+      placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
+    },
+    // Put down on other worlds once the skill "Atterrisseur" is acquired: it
+    // studies its planet and sends planetary data (more on exotic worlds). It
+    // carries its own power; on a gas giant it orbits and beams its data itself.
+    lab: {
+      id: 'lab', label: 'LABORATOIRE D’ANALYSE', shortLabel: 'LA', category: 'data', icon: 'lab',
+      description: 'Étudie sa planète et produit des données planétaires, plus riches sur les mondes extrêmes.',
+      functions: { studiesPlanet: true },
+      cost: { iron: 12, copper: 10, silicon: 6 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
+      footprint: { width: 22, height: 20 }, roadRequired: true,
+      roadPortOffset: { x: 0, y: 10 },
+      placementRules: { landOnly: true }, preferredTerrain: ['flat']
     },
     waste_heap: {
       id: 'waste_heap', label: 'TERRIL', shortLabel: 'TE', category: 'waste', icon: 'terril',
@@ -143,7 +167,7 @@
   };
   const catalogOrder = Object.freeze([
     'colony', 'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
-    'wind_turbine', 'datacenter', 'antenna'
+    'wind_turbine', 'datacenter', 'antenna', 'hf_antenna', 'lab'
   ]);
 
   for (const definition of Object.values(definitions)) {
