@@ -17,6 +17,7 @@
     if (condition === 'start') return true;
     if (condition === 'colonyPlaced') return colonies.length > 0;
     if (condition === 'powerShort') return Object.values(state.powerStatus || {}).some(power => power.demandMW > power.supplyMW + 1e-6);
+    if (typeof condition?.skill === 'string') return Boolean(state.skills?.unlocked?.includes(condition.skill));
     if (Number.isInteger(condition?.tier)) return colonies.some(building => (building.colony?.tier || 0) >= condition.tier);
     return false;
   }

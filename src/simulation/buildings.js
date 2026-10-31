@@ -98,6 +98,8 @@
     const composition = properties.composition && typeof properties.composition === 'object' && !Array.isArray(properties.composition)
       ? Object.fromEntries(Object.entries(properties.composition)
         .filter(([, value]) => isFiniteNumber(value)).map(([id, value]) => [id, clamp(value, 0, 1)])) : null;
+    // Local temperature of the site (°C), recorded where it matters (datacenters).
+    const siteTemperature = isFiniteNumber(properties.siteTemperature) ? properties.siteTemperature : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
     if (!Number.isInteger(upgradeLevel) || upgradeLevel < 1) throw new RangeError('Upgrade level must be a positive integer');
     const flowPerMinute = properties.flowPerMinute ?? 0;
@@ -140,6 +142,7 @@
       resourceId,
       resourceShare,
       composition,
+      siteTemperature,
       upgradeLevel,
       status,
       customName,

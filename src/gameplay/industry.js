@@ -80,7 +80,7 @@
       building.energyOutputWatts = generated * 1e6;
       entry.megawatts += generated;
       if (isDepot(building)) continue;
-      const demand = Simulation.demand(graph, building.inventory);
+      const demand = Simulation.demand(graph, building.inventory) * energyFactor(building);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
 
@@ -101,16 +101,24 @@
         continue;
       }
       const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
-      const demand = Simulation.demand(graph, building.inventory), planetDemand = demands.get(building.planetId) || 0;
+      // A datacenter's cards draw their power times its cooling factor.
+      const factor = energyFactor(building);
+      const demand = Simulation.demand(graph, building.inventory) * factor, planetDemand = demands.get(building.planetId) || 0;
       Simulation.advance(graph, seconds, {
         energyUnlimited: available.unlimited,
         externalStock: building.inventory ||= {},
         externalMix: building.inventoryMix ||= {},
         // An output dock only works once its resource has a destination.
         isDockOpen: resourceId => Boolean(building.dockDestinations?.[resourceId]),
-        energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand : 0
+        energyAvailableMW: planetDemand > 1e-9 ? available.megawatts * demand / planetDemand / factor : 0
       });
-      building.energyUse = graph.energyUsedMW * 1e6;
+      building.energyUse = graph.energyUsedMW * factor * 1e6;
+      // Uplinks' technology points join the galaxy-wide pool.
+      for (const machine of graph.machines) {
+        if (!machine.techPointsMade) continue;
+        state.techPoints = (state.techPoints || 0) + machine.techPointsMade;
+        machine.techPointsMade = 0;
+      }
       building.flowPerMinute = graph.machines.reduce((sum, machine) => {
         return Graph.definitionOf(machine).externalOutput ? sum + machine.currentRate * 60 : sum;
       }, 0);
@@ -121,6 +129,9 @@
   }
 
   const isDepot = building => building.type === 'storage';
+  // Power factor of a building's cards: a datacenter's grows with the heat of its site.
+  const energyFactor = building => building.type === 'datacenter'
+    ? root.OrbitDataNetworkData?.coolingFactor(building.siteTemperature) ?? 1 : 1;
 
   // Power from generators, each eased toward what its current burning rate
   // gives (machine.generatedMW, runtime only), so bursts and gaps in its

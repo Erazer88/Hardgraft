@@ -44,6 +44,11 @@
     solid('metal_plate', 'Plaque de métal', ['metal', 'building', 'ferrous'], { iron: 1 }),
     solid('residual_waste', 'Déchets appauvris', ['waste'], {}, 'impure'),
     solid('sludge', 'Boues', ['waste'], {}, 'impure', 'powder'),
+    // Data (1 unit = 1 Mo): it travels by dish, never by road.
+    { id: 'geo_data', label: 'Données géologiques', phase: 'data', family: 'data', tags: ['data', 'raw_data'], transportable: false },
+    { id: 'industrial_data', label: 'Données industrielles', phase: 'data', family: 'data', tags: ['data', 'raw_data'], transportable: false },
+    { id: 'compressed_data', label: 'Données compressées', phase: 'data', family: 'data', tags: ['data'], transportable: false },
+    { id: 'analysis', label: 'Analyses', phase: 'data', family: 'data', tags: ['data'], transportable: false },
     { id: 'water', label: 'Eau douce', phase: 'liquid', family: 'liquid', tags: ['water'], composition: { water: 1 }, transportable: true },
     { id: 'salt_water', label: 'Eau salée', phase: 'liquid', family: 'liquid', tags: ['water', 'saline'],
       composition: { water: .965, salt: .035 }, quality: 'impure', transportable: true },

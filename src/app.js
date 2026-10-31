@@ -280,7 +280,7 @@
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
     state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null); state.nameCounters = {};
-    state.skills = globalThis.OrbitSkills.restore(null);
+    state.skills = globalThis.OrbitSkills.restore(null); state.techPoints = 0;
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -402,8 +402,21 @@
     const validation = BuildingPlacement.validate({ terrain: terrainData,
       textureScale: Config.terrain.textureScale, definition, position, planetId: state.planet.id,
       buildings: state.surfaceBuildings });
-    state.placement = { type, ...position, rotation: 0, ...validation,
-      groundText: siteReadout({ type, ...position, ...validation }) };
+    // A datacenter keeps the temperature of its site: it decides its cooling.
+    const siteTemperature = type === 'datacenter' ? temperatureAt(position) : null;
+    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature,
+      groundText: siteReadout({ type, ...position, ...validation, siteTemperature }) };
+  }
+  // Local temperature (°C) on the current planet: its mean, the latitude and
+  // the altitude of the spot.
+  function temperatureAt(position) {
+    if (!state.planet || !terrainData) return null;
+    const scale = Config.terrain.textureScale;
+    const tx = clamp(Math.floor(position.x / scale), 0, terrainData.width - 1), ty = clamp(Math.floor(position.y / scale), 0, terrainData.height - 1);
+    const cell = ty * terrainData.width + tx;
+    const altitude = ((terrainData.relief?.[cell] ?? terrainData.elevation[cell]) - terrainData.seaLevel) * 35;
+    const latitude = OrbitalLogisticsData.latitudeAt(position.y, Config.terrain.height * scale);
+    return globalThis.OrbitDataNetworkData.siteTemperature(state.planet.temperature ?? 15, latitude, altitude);
   }
   // The text under a beacon being placed or selected: the ore a drill drains,
   // the water a station pumps, the latitude and launch power of a platform.
@@ -413,6 +426,16 @@
       const rounded = Math.round(Math.abs(latitude));
       return `Latitude ${rounded}°${rounded ? (latitude > 0 ? ' N' : ' S') : ''} · lancement ≈ ${formatAmount(
         Math.round(OrbitalLogisticsData.launchEnergyMW(latitude) * 10) / 10)} MW`;
+    }
+    if (building.type === 'datacenter' && Number.isFinite(building.siteTemperature)) {
+      const factor = globalThis.OrbitDataNetworkData.coolingFactor(building.siteTemperature);
+      return `Site ${formatAmount(Math.round(building.siteTemperature))} °C · énergie ×${formatAmount(Math.round(factor * 100) / 100)}`;
+    }
+    if (building.type === 'antenna') {
+      const links = state.dataLinks?.[building.id];
+      const network = globalThis.OrbitDataNetworkData.antenna;
+      return links && building.id ? `${links.sources.length} source${links.sources.length > 1 ? 's' : ''} · ${formatAmount(Math.round(links.carried * 10) / 10)} / ${formatAmount(network.bandwidthMbPerSecond)} Mo/s`
+        : `Portée ${formatAmount(network.rangeKm)} km · ${formatAmount(network.bandwidthMbPerSecond)} Mo/s`;
     }
     if (building.type === 'water_station' && building.resourceId) {
       return building.resourceId === 'salt_water' ? 'Eau salée · mer' : 'Eau douce · lac ou rivière';
@@ -436,7 +459,7 @@
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -1193,6 +1216,7 @@
       Construction.advance(state.surfaceBuildings, simulationDt);
       RoadConstruction.advance(state.roadNetworks, simulationDt);
       globalThis.OrbitIndustry.advance(state, simulationDt);
+      globalThis.OrbitDataNetwork.advance(state, simulationDt);
       advanceColony(simulationDt);
     }
     Logistics.advance(state, state.simulation.time, logisticsSystemModels(), !state.paused && !document.hidden);

@@ -99,6 +99,25 @@
       // Water must lie within shoreReach (km) of the station's center.
       placementRules: { landOnly: true, shoreRequired: true, shoreReach: 30 }, preferredTerrain: ['shore']
     },
+    // The data network (skill "Réseau informatique"): dishes gather the data of
+    // working buildings in range and beam it to a datacenter, which turns it
+    // into technology points. Neither needs a road. See src/data/dataNetwork.js.
+    datacenter: {
+      id: 'datacenter', label: 'DATACENTER', shortLabel: 'DC', category: 'data', icon: 'datacenter',
+      description: 'Transforme les données reçues des paraboles en points de technologie. Très gourmand en énergie : mieux vaut un site froid.',
+      functions: { processesData: true },
+      cost: { iron: 30, copper: 30, silicon: 20 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
+      footprint: { width: 30, height: 26 }, roadRequired: false,
+      placementRules: { landOnly: true }, preferredTerrain: ['flat', 'elevated']
+    },
+    antenna: {
+      id: 'antenna', label: 'PARABOLE', shortLabel: 'PA', category: 'data', icon: 'antenna',
+      description: 'Recueille les données des foreuses et usines alentour et les envoie au datacenter de la planète.',
+      functions: { relaysData: true },
+      cost: { iron: 10, copper: 8, silicon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
+      footprint: { width: 18, height: 18 }, roadRequired: false,
+      placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
+    },
     waste_heap: {
       id: 'waste_heap', label: 'TERRIL', shortLabel: 'TE', category: 'waste', icon: 'terril',
       description: 'Reçoit les déchets par route ; on en récupère des matières à faible rendement ou de l’énergie.',
@@ -121,7 +140,7 @@
   };
   const catalogOrder = Object.freeze([
     'colony', 'factory', 'extractor', 'water_station', 'launch_platform', 'surface_port', 'oil_platform', 'storage', 'waste_heap',
-    'wind_turbine'
+    'wind_turbine', 'datacenter', 'antenna'
   ]);
 
   for (const definition of Object.values(definitions)) {
@@ -146,7 +165,7 @@
 
   // Buildings whose inside is a card plan, and those of them whose output
   // docks send resources by road (the depot uses its own gates).
-  const processTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'storage', 'waste_heap']);
+  const processTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'storage', 'waste_heap', 'datacenter']);
   const dockSourceTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'waste_heap']);
 
   root.OrbitBuildingData = Object.freeze({

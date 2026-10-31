@@ -67,6 +67,24 @@
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x - size * .52, y + size * .12);
       ctx.moveTo(x, y - size * .1); ctx.lineTo(x + size * .52, y + size * .12); ctx.stroke(); return;
     }
+    if (icon === 'datacenter') {
+      // Racks of servers.
+      for (const offset of [-.42, 0, .42]) {
+        ctx.rect(x + size * (offset - .16), y - size * .55, size * .32, size * 1.1);
+        ctx.moveTo(x + size * (offset - .08), y - size * .3); ctx.lineTo(x + size * (offset + .08), y - size * .3);
+        ctx.moveTo(x + size * (offset - .08), y + size * .05); ctx.lineTo(x + size * (offset + .08), y + size * .05);
+      }
+      ctx.stroke(); return;
+    }
+    if (icon === 'antenna') {
+      // A dish on its mast, beaming.
+      ctx.moveTo(x - size * .55, y - size * .05); ctx.quadraticCurveTo(x - size * .1, y + size * .55, x + size * .45, y + size * .2);
+      ctx.closePath();
+      ctx.moveTo(x - size * .05, y + size * .32); ctx.lineTo(x - size * .2, y + size * .7); ctx.lineTo(x + size * .25, y + size * .7);
+      ctx.moveTo(x - size * .05, y + size * .12); ctx.lineTo(x + size * .35, y - size * .4);
+      ctx.moveTo(x + size * .45, y - size * .62); ctx.quadraticCurveTo(x + size * .68, y - size * .55, x + size * .72, y - size * .3);
+      ctx.stroke(); return;
+    }
     if (icon === 'geothermal') {
       ctx.moveTo(x - size * .7, y + size * .55); ctx.lineTo(x + size * .7, y + size * .55);
       for (const offset of [-.32, 0, .32]) {
@@ -344,9 +362,48 @@
     ctx.restore();
   }
 
+  // The data network: faint lines from working buildings to their dish, a
+  // moving dashed beam from each dish to its datacenter, and the dish's range
+  // while it is placed or selected. Purely visual (state.dataLinks).
+  function renderDataLinks(frame) {
+    const state = frame.state, style = Style.dataLinks, ctx = frame.context;
+    const byId = new Map(visibleBuildings(frame).map(building => [building.id, building]));
+    const range = root.OrbitDataNetworkData?.antenna.rangeKm || 0;
+    ctx.save();
+    for (const link of Object.values(state.dataLinks || {})) {
+      const dish = byId.get(link.antennaId);
+      if (!dish) continue;
+      const to = frame.project(dish.x, dish.y);
+      ctx.strokeStyle = style.color; ctx.globalAlpha = style.sourceOpacity; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+      for (const id of link.sources) {
+        const source = byId.get(id);
+        if (!source) continue;
+        const from = frame.project(source.x, source.y);
+        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+      }
+      const center = link.datacenterId && byId.get(link.datacenterId);
+      if (center && link.carried > 0) {
+        const end = frame.project(center.x, center.y);
+        ctx.globalAlpha = style.beamOpacity; ctx.lineWidth = style.beamWidthPx; ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -((frame.now || 0) / style.beamDashMs % 14);
+        ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+        ctx.lineDashOffset = 0;
+      }
+    }
+    const placing = state.tool === 'build' && state.placement?.type === 'antenna' ? state.placement : null;
+    const selected = state.selected?.kind === 'building' && state.selected.type === 'antenna' ? state.selected : null;
+    for (const dish of [placing, selected].filter(Boolean)) {
+      const point = frame.project(dish.x, dish.y);
+      ctx.globalAlpha = style.rangeOpacity; ctx.strokeStyle = style.color; ctx.lineWidth = 1.2; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(point.x, point.y, range * frame.zoom, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderPhysical(frame) {
     renderColonyZones(frame);
     renderLatitudeGrid(frame);
+    renderDataLinks(frame);
     for (const building of visibleBuildings(frame)) {
       const definition = Data.get(building.type);
       if (definition) drawFootprint(frame, building, definition);

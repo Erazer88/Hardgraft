@@ -6,7 +6,8 @@
   //   start         from the first moment (the colony must come first);
   //   colonyPlaced  once the colony stands;
   //   powerShort    once a planet's cards ask for more power than it has;
-  //   tier: n       once the colony has reached tier n.
+  //   tier: n       once the colony has reached tier n;
+  //   skill: id     once that skill of the tree is acquired.
   // Cards are named by type, or "type:material" for one furnace.
   const steps = [
     { id: 'landing', when: 'start', buildings: ['colony'] },
@@ -24,7 +25,10 @@
     // The hub: built from plates, tar, copper, silicon and fresh water.
     { id: 'hub', when: { tier: 3 }, buildings: ['water_station', 'launch_platform'],
       cards: ['gravity_separator', 'reduction_furnace:copper', 'silicon_washer', 'silicon_dryer', 'reduction_furnace:silicon',
-        'water_pump', 'desalinator'] }
+        'water_pump', 'desalinator'] },
+    // The data network: dishes and a datacenter turning data into technology points.
+    { id: 'network', when: { skill: 'computer_network' }, buildings: ['datacenter', 'antenna'],
+      cards: ['data_receiver', 'compressor', 'processor', 'uplink', 'data_bin'] }
   ];
 
   function freeze(value) {

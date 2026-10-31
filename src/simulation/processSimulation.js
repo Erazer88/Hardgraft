@@ -273,6 +273,8 @@
   // fraction carries over to the next cycle) and the rest as tailings,
   // depleted of what was taken.
   function runCycle(machine, def) {
+    // An uplink turns each cycle into technology points, collected by the caller.
+    if (def.techPoints) machine.techPointsMade = (machine.techPointsMade || 0) + def.techPoints;
     const primary = primaryInput(machine), batch = primary?.amount || 0;
     const rock = Mix ? Mix.of(machine.inputMix, primary?.inputId) : null;
     machine.yieldCredit ||= {};

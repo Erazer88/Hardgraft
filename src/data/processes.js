@@ -140,8 +140,34 @@
       outputPorts: [], recipe: { inputs: [{ inputId: 'waste', amount: 2 }], outputs: [] },
       // Its output follows the burning rate averaged over about this many
       // seconds, so an irregular supply gives steady power.
-      throughput: 2, energyMW: 0, generatesMW: 8, generationSmoothingSeconds: 20 }
+      throughput: 2, energyMW: 0, generatesMW: 8, generationSmoothingSeconds: 20 },
+    // Datacenter, after Upload Labs: data beamed by the dishes is received,
+    // compressed, analysed by processors and uploaded to the Ark as technology
+    // points. 1 unit = 1 Mo. Each card is a bottleneck to balance, and they
+    // draw a lot of power (times the site's cooling factor).
+    data_receiver: { id: 'data_receiver', label: 'RÉCEPTEUR', mark: 'RX', description: 'Reçoit un flux de données des paraboles (1 u = 1 Mo).',
+      externalInput: true, inputPorts: [], outputPorts: [output('material', 'Données reçues', null)], recipe: null,
+      throughput: 4, energyMW: 3 },
+    compressor: { id: 'compressor', label: 'COMPRESSEUR', mark: 'CP', description: 'Compresse les données brutes : 4 Mo en 1 Mo.',
+      inputPorts: [input('data', 'Données brutes', null, { acceptsAnyResource: true, accepts: { tag: 'raw_data' } })],
+      outputPorts: [output('compressed', 'Données compressées', 'compressed_data')],
+      recipe: { inputs: [{ inputId: 'data', amount: 4 }], outputs: [{ outputId: 'compressed', resourceId: 'compressed_data', amount: 1 }] },
+      throughput: 4, energyMW: 10 },
+    processor: { id: 'processor', label: 'PROCESSEUR', mark: 'CPU', description: 'Analyse les données compressées : 2 Mo donnent une analyse.',
+      inputPorts: [input('compressed', 'Données compressées', 'compressed_data')],
+      outputPorts: [output('analysis', 'Analyses', 'analysis')],
+      recipe: { inputs: [{ inputId: 'compressed', amount: 2 }], outputs: [{ outputId: 'analysis', resourceId: 'analysis', amount: 1 }] },
+      throughput: 1, energyMW: 30 },
+    uplink: { id: 'uplink', label: 'LIAISON MONTANTE', mark: 'UP', description: 'Envoie les analyses à l’Arche : chacune devient un point de technologie.',
+      inputPorts: [input('analysis', 'Analyses', 'analysis')], outputPorts: [],
+      recipe: { inputs: [{ inputId: 'analysis', amount: 1 }], outputs: [] },
+      throughput: 1, energyMW: 5, techPoints: 1 },
+    data_bin: { id: 'data_bin', label: 'CORBEILLE', mark: 'CB', description: 'Efface les données en trop pour ne pas bloquer la chaîne.',
+      inputPorts: [input('data', 'Données', null, { acceptsAnyResource: true, accepts: { tag: 'data' } })], outputPorts: [],
+      recipe: { inputs: [{ inputId: 'data', amount: 1 }], outputs: [] },
+      throughput: 50, energyMW: 0 }
   };
+  const datacenterCatalog = ['data_receiver', 'compressor', 'processor', 'uplink', 'data_bin'];
 
   const utilities = {
     input_dock: {
@@ -202,7 +228,9 @@
     water_pump: { iron: 3, copper: 1 }, desalinator: { iron: 6, copper: 4, silicon: 2 },
     input_dock: { iron: 2 }, output_dock: { iron: 2 }, terril: { iron: 2 },
     depot_input: { iron: 2 }, depot_output: { iron: 2 }, depot_buffer: { iron: 3 },
-    depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 }
+    depot_filter: { iron: 2, copper: 1 }, depot_splitter: { iron: 2, copper: 1 }, depot_priority: { iron: 2, copper: 1 },
+    data_receiver: { iron: 2, copper: 2 }, compressor: { iron: 4, copper: 4, silicon: 2 }, processor: { iron: 4, copper: 6, silicon: 6 },
+    uplink: { iron: 4, copper: 4, silicon: 2 }, data_bin: { iron: 1 }
   };
 
   // Each card belongs to one kind of building: the extractor drills, crushes
@@ -296,6 +324,7 @@
         return (waterCatalog[resourceId] || waterCatalog.water).map(type => get(type, resourceId || 'water')).filter(Boolean);
       }
       if (buildingType === 'storage') return depotCatalog.map(type => get(type));
+      if (buildingType === 'datacenter') return datacenterCatalog.map(type => get(type));
       if (buildingType === 'waste_heap') {
         return ['input_dock', 'reprocessor', 'incinerator', 'output_dock'].map(type => get(type, 'rock')).filter(Boolean);
       }

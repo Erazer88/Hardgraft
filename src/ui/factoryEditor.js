@@ -32,6 +32,11 @@
     depot_filter: { accent: '#c6a7ec', shape: '<path d="M32 26h64L72 48v18l-16-6V48z" fill="#243f52"/><circle cx="44" cy="34" r="3" fill="var(--art-accent)"/><circle cx="64" cy="34" r="3" fill="#a8c3cf"/><circle cx="82" cy="34" r="3" fill="#a8c3cf"/><path d="M64 66v8"/>' },
     depot_splitter: { accent: '#ecc06e', shape: '<path d="M28 45h28l18-16h26M56 45l18 16h26" fill="none"/><circle cx="56" cy="45" r="7" fill="#254758"/><path d="M92 23l8 6-8 6M92 55l8 6-8 6" fill="none" stroke="var(--art-accent)" stroke-width="3"/>' },
     depot_priority: { accent: '#ff9f7a', shape: '<path d="M28 45h30l16-16h26" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M58 45l16 16h26" fill="none" stroke-dasharray="4 4"/><circle cx="58" cy="45" r="7" fill="#254758"/><path d="M84 18l4 6h-8z" fill="var(--art-accent)"/>' },
+    data_receiver: { accent: '#9fd8ff', shape: '<path d="M40 58a26 26 0 0 1 26-40" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M48 58a18 18 0 0 1 18-28" fill="none"/><path d="M66 18v44M56 66h20" /><circle cx="66" cy="58" r="4" fill="var(--art-accent)"/><path d="M84 28h14m-14 10h10m-10 10h14" stroke="var(--art-accent)" stroke-dasharray="3 4"/>' },
+    compressor: { accent: '#9fd8ff', shape: '<rect x="30" y="24" width="68" height="40" rx="4" fill="#173a4f"/><path d="M38 34h52M44 44h40M50 54h28" stroke="var(--art-accent)"/><path d="M24 44h6m68 0h6M30 30l-6 14 6 14M98 30l6 14-6 14" fill="none"/>' },
+    processor: { accent: '#ffd27b', shape: '<rect x="44" y="22" width="40" height="40" rx="4" fill="#1d3a4d"/><rect x="54" y="32" width="20" height="20" rx="2" fill="var(--art-accent)" fill-opacity=".35" stroke="var(--art-accent)"/><path d="M50 16v6m10-6v6m10-6v6m10-6v6M50 62v6m10-6v6m10-6v6m10-6v6M38 28h6m-6 10h6m-6 10h6m-6 10h6M84 28h6m-6 10h6m-6 10h6m-6 10h6"/>' },
+    uplink: { accent: '#9fd8ff', shape: '<path d="M64 66V30" /><path d="M52 40l12-12 12 12" fill="none" stroke="var(--art-accent)" stroke-width="3"/><path d="M42 26a30 30 0 0 1 44 0M48 32a22 22 0 0 1 32 0" fill="none" stroke="var(--art-accent)"/><path d="M50 68h28"/><circle cx="96" cy="16" r="3" fill="#ffd27b"/>' },
+    data_bin: { accent: '#ef8a6a', shape: '<path d="M46 30h36l-4 36H50z" fill="#2b2f37"/><path d="M42 30h44M56 24h16v6M56 38v20m8-20v20m8-20v20" /><path d="M30 20h8m-4-4v8M90 18h6" stroke="var(--art-accent)"/>' },
     output_dock: { accent: '#75cfde', shape: '<path d="M37 43h49"/><path d="M78 34l10 9-10 9" fill="none" stroke="var(--art-accent)" stroke-width="4"/><path d="M38 56h49l-7 12H45z" fill="#254758"/><path d="M49 54V46m14 8V46m14 8V46"/><rect x="27" y="29" width="15" height="28" rx="3" fill="#355a6d"/><path d="M30 36h9m-9 6h9"/>' }
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -122,7 +127,8 @@
     }
 
     function baseSpecification(def) {
-      if (def.externalInput) return 'RÉSEAU TERRESTRE';
+      if (def.externalInput) return Number.isFinite(def.throughput)
+        ? `PARABOLES · ${fmt(def.throughput)} Mo/s · ${fmt(def.energyMW)} MW` : 'RÉSEAU TERRESTRE';
       if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE · SANS LIMITE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
       if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
@@ -178,7 +184,7 @@
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
-      if (machine.type === 'input_dock') {
+      if (typeOf(machine).externalInput) {
         machine.importResourceId ||= Object.keys(activeBuilding?.inventory || {}).sort()
           .find(id => activeBuilding.inventory[id] > 0) || null;
       }
@@ -211,7 +217,8 @@
         return rock ? `TENEUR ${names[graded.yieldOf] || graded.yieldOf} ≈ ${Math.round((rock[graded.yieldOf] || 0) * 100)} % · ` : '';
       })() : '';
       cycleLabel.textContent = gradeText + (def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
-        : def.externalInput ? 'CONNECTEUR LOGIQUE · SANS LIMITE'
+        : def.externalInput && !Number.isFinite(def.throughput) ? 'CONNECTEUR LOGIQUE · SANS LIMITE'
+        : def.externalInput ? `REÇU · ${units(view.done)} · BARRE ${view.unit}`
         : def.storesResources
         ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
         : `${def.source ? 'EXTRAIT' : def.externalOutput ? 'ENVOYÉ' : 'TRAITÉ'} · ${units(view.done)} · BARRE ${view.unit}`);

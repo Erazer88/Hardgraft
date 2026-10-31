@@ -14,8 +14,9 @@
     const Skills = root.OrbitSkills;
     let chosenId = Data.skills[0]?.id || null, signature = null, lastState = null;
 
+    // Acquired, available, reachable but not yet paid for ("short"), or locked.
     const stateOf = (state, skill) => Skills.isUnlocked(state, skill.id) ? 'acquired'
-      : Skills.canUnlock(state, skill.id) ? 'available' : 'locked';
+      : Skills.canUnlock(state, skill.id) ? 'available' : Skills.reachable(state, skill.id) ? 'short' : 'locked';
 
     function line(from, to, className) {
       const path = document.createElementNS(SVG, 'line');
@@ -27,10 +28,10 @@
 
     function render(state) {
       lastState = state;
-      const next = JSON.stringify([state.skills?.unlocked || [], Math.floor(state.contextPoints || 0), chosenId]);
+      const next = JSON.stringify([state.skills?.unlocked || [], Math.floor(state.techPoints || 0), chosenId]);
       if (next === signature) return;
       signature = next;
-      $('skill-tree-context').textContent = `CONTEXTE ${fmt(state.contextPoints)}`;
+      $('skill-tree-context').textContent = `POINTS TECH ${fmt(state.techPoints)}`;
       links.replaceChildren(); nodes.replaceChildren();
       // Silhouettes of what is still unknown.
       for (const shade of Data.fog) {
@@ -52,7 +53,7 @@
         node.type = 'button'; node.className = `skill-node ${status}${skill.id === chosenId ? ' chosen' : ''}`;
         node.dataset.skillId = skill.id;
         node.style.left = `${skill.x * 100}%`; node.style.top = `${skill.y * 100}%`;
-        node.setAttribute('aria-label', `${skill.label} · ${status === 'acquired' ? 'acquise' : status === 'available' ? 'à débloquer' : 'verrouillée'}`);
+        node.setAttribute('aria-label', `${skill.label} · ${{ acquired: 'acquise', available: 'à débloquer', short: 'points insuffisants', locked: 'verrouillée' }[status]}`);
         const mark = document.createElement('b'); mark.textContent = skill.mark;
         const label = document.createElement('span'); label.textContent = skill.label;
         node.append(mark, label);
@@ -73,15 +74,17 @@
         detail.append(element);
         return element;
       };
-      add('span', 'skill-detail-kicker', status === 'acquired' ? 'COMPÉTENCE ACQUISE' : status === 'available' ? 'À DÉBLOQUER' : 'VERROUILLÉE');
+      add('span', 'skill-detail-kicker', { acquired: 'COMPÉTENCE ACQUISE', available: 'À DÉBLOQUER', short: 'POINTS INSUFFISANTS', locked: 'VERROUILLÉE' }[status]);
       add('strong', 'skill-detail-title', skill.label);
       add('p', '', skill.description);
       add('p', 'skill-detail-effect', skill.effect);
       const cost = Object.entries(skill.cost || {});
       add('small', 'skill-detail-cost', cost.length
-        ? `COÛT · ${cost.map(([id, amount]) => `${id === 'context' ? 'Contexte' : root.OrbitResourceData.get(id)?.label || id} ${fmt(amount)}`).join(' · ')}`
+        ? `COÛT · ${cost.map(([id, amount]) => `${id === 'tech' ? 'Points tech' : root.OrbitResourceData.get(id)?.label || id} ${fmt(amount)}`).join(' · ')}`
         : 'COÛT · aucun');
       if (status === 'available') add('small', 'skill-detail-hint', 'Touchez la compétence pour la débloquer.');
+      if (status === 'short') add('small', 'skill-detail-hint', `Il manque ${fmt(Skills.missingPoints(state, skill.id))} points tech : le datacenter les produit.`);
+      if (status === 'locked') add('small', 'skill-detail-hint', `Requiert : ${skill.requires.map(id => Data.get(id)?.label || id).join(', ')}.`);
     }
 
     nodes.addEventListener('click', event => {

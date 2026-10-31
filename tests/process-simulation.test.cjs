@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'simulation/resourceStack.js', 'data/processes.js', 'data/buildings.js',
   'simulation/composition.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js',
-  'gameplay/industry.js', 'storage/library.js']) {
+  'data/dataNetwork.js', 'simulation/dataNetwork.js', 'gameplay/industry.js', 'storage/library.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitProcessData;
@@ -591,4 +591,42 @@ test('a blueprint keeps a region of cards and their links, and comes back with f
   const library = Library.normalize({ buildings: [Library.buildingTemplate({ type: 'factory', customName: 'Usine 1' }, graph)], blueprints: [blueprint, { bad: true }] });
   assert.equal(library.buildings[0].plan.machines.length, 3);
   assert.equal(library.blueprints.length, 1);
+});
+
+test('dishes carry the data of working buildings in range to a datacenter, up to their bandwidth', () => {
+  const DataNetwork = context.OrbitDataNetwork, Spec = context.OrbitDataNetworkData;
+  const at = (id, type, x, extras = {}) => ({ id, type, planetId: 'p', x, y: 0, constructionState: 'complete', status: 'active', ...extras });
+  const state = { surfaceBuildings: [
+    at('x1', 'extractor', 10), at('x2', 'extractor', 20), at('x3', 'extractor', 30), at('f1', 'factory', 40),
+    at('f2', 'factory', 50), at('far', 'extractor', 5000), at('idle', 'factory', 60, { status: 'waiting' }),
+    at('dish', 'antenna', 0), at('dc', 'datacenter', 900, { inventory: {} })] };
+  const links = DataNetwork.advance(state, 10);
+  assert.deepEqual(plain(links.dish.sources), ['x1', 'x2', 'x3', 'f1', 'f2'], 'working buildings in range only');
+  assert.equal(links.dish.offeredTotal, 5);
+  assert.equal(links.dish.carried, Spec.antenna.bandwidthMbPerSecond, 'the dish is the bottleneck');
+  const dc = state.surfaceBuildings.at(-1);
+  assert.equal((dc.inventory.geo_data || 0) + (dc.inventory.industrial_data || 0), 40);
+  assert.ok(dc.inventory.geo_data > dc.inventory.industrial_data, 'shared by what each sends');
+});
+
+test('a datacenter turns data into technology points, drawing more power on a warm site', () => {
+  const run = siteTemperature => {
+    const dc = { id: `dc-${siteTemperature}`, type: 'datacenter', planetId: 'planet-1', x: 0, y: 0, constructionState: 'complete',
+      inventory: { geo_data: 200 }, siteTemperature };
+    const winds = [1, 2, 3, 4].map(index => ({ id: `wind-${siteTemperature}-${index}`, type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' }));
+    const state = { seed: 'dc-seed', surfaceBuildings: [dc, ...winds], factoryPlans: {} };
+    const graph = Industry.ensureGraph(state, dc);
+    machine(graph, 'rx', 'data_receiver', 0).importResourceId = 'geo_data';
+    machine(graph, 'zip', 'compressor', 300);
+    machine(graph, 'cpu', 'processor', 600);
+    machine(graph, 'up', 'uplink', 900);
+    connect(graph, 'a', 'rx', 'material', 'zip', 'data');
+    connect(graph, 'b', 'zip', 'compressed', 'cpu', 'compressed');
+    connect(graph, 'c', 'cpu', 'analysis', 'up', 'analysis');
+    for (let second = 0; second < 30; second++) Industry.advance(state, 1);
+    return { points: state.techPoints || 0, energy: dc.energyUse / 1e6 };
+  };
+  const cold = run(-20), warm = run(40);
+  assert.ok(cold.points >= 10, `points are made (${cold.points})`);
+  assert.ok(warm.energy > cold.energy * 1.5, `a warm site draws more (${warm.energy} vs ${cold.energy} MW)`);
 });

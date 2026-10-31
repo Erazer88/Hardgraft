@@ -18,6 +18,8 @@
       contextPoints: 0, unlocks: { steps: [], buildings: [], cards: [] },
       // The skill tree: revealed once goods reach the Ark, and what was acquired.
       skills: { revealed: false, unlocked: [] },
+      // Technology points made by datacenters; they pay for skills.
+      techPoints: 0,
       orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }

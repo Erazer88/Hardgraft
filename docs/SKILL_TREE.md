@@ -14,11 +14,19 @@ l'instant.
   nœuds (acquise, à débloquer, verrouillée), le reste des silhouettes « ? » dans le
   brouillard (`OrbitSkillData.fog`, décoratives). Le panneau du bas décrit la
   compétence choisie : description, effet, coût. Échap ou × ferme.
-- **Compétence unique : Réveil des archives** (`archive_awakening`). Sans coût ni
-  prérequis : un toucher la débloque. Elle n'a pas encore d'effet de jeu.
+- **Réveil des archives** (`archive_awakening`) : sans coût ni prérequis, un toucher la
+  débloque ; elle n'a pas d'effet de jeu.
+- **Réseau informatique** (`computer_network`) : requiert la précédente, gratuite.
+  Débloque le Datacenter, la Parabole et leurs cartes (étape `network` de
+  `src/data/progression.js`, condition `{ skill }`). Voir
+  [`DATA_NETWORK.md`](DATA_NETWORK.md).
+- **Points de technologie** (`state.techPoints`, sauvegardés) : produits par les
+  datacenters, ils paient la suite de l'arbre (`cost.tech`) et remplacent le Contexte
+  dans la télémétrie une fois le réseau acquis. Une compétence atteignable mais trop
+  chère s'affiche « points insuffisants ».
 
 Une compétence se déclare dans `src/data/skills.js` : `id`, `label`, `mark`,
-`description`, `effect`, `cost` (ressources ou `context`), `requires` (identifiants),
+`description`, `effect`, `cost` (`tech` : points de technologie), `requires` (identifiants),
 position `x`, `y` (fractions de la carte). `src/gameplay/skills.js` gère révélation,
 prérequis et acquisition (`state.skills.unlocked`, ne fait que grandir).
 

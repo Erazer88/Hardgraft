@@ -24,6 +24,7 @@ Points d'entrée spécialisés :
 - `docs/ROAD_SYSTEM.md` décrit les routes constructibles.
 - `docs/COLONY.md` décrit la colonie, la population, le contexte et le déblocage.
 - `docs/SKILL_TREE.md` décrit l'arbre de compétences et ses pistes.
+- `docs/DATA_NETWORK.md` décrit le réseau de données et le datacenter.
 - `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → bâtiment destinataire et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
@@ -46,6 +47,7 @@ Modules de la colonie et de la progression :
 | `src/ui/panelKit.js` | Briques communes des menus de colonie et de hub : unités, barres, débits glissants |
 | `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
 | `src/data/skills.js`, `src/gameplay/skills.js` | Compétences déclarées ; révélation à l'Arche, prérequis, acquisition |
+| `src/data/dataNetwork.js`, `src/simulation/dataNetwork.js` | Réseau de données : sources, paraboles, datacenter, température de site |
 | `src/ui/skillTree.js` | Menu de l'arbre de compétences (nœuds, brouillard, détail) |
 | `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, export |
 | `src/gameplay/alerts.js` | Problèmes en cours (planète sans assez d'énergie, dock sans destination, flux de colonie en retard) |

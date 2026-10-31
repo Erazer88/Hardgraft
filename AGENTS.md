@@ -62,5 +62,6 @@ Une question ou une proposition sans code ne change pas de version.
 - Routes : [`docs/ROAD_SYSTEM.md`](docs/ROAD_SYSTEM.md).
 - Colonie, population et déblocage : [`docs/COLONY.md`](docs/COLONY.md).
 - Arbre de compétences : [`docs/SKILL_TREE.md`](docs/SKILL_TREE.md).
+- Réseau de données et datacenter : [`docs/DATA_NETWORK.md`](docs/DATA_NETWORK.md).
 - Les textes de `docs/reference/` conservent la conception et les plans historiques ;
   ils ne priment pas sur les décisions actuelles.

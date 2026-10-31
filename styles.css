@@ -398,6 +398,7 @@ body[data-level="surface"] .corner-note{display:none}
 .skill-node.available b{border-color:#efa35a;color:#ffd9b0;animation:skill-ready 1.8s ease-in-out infinite}
 .skill-node.acquired b{border-color:#9fd8ff;background:#1b4d6b;color:#fff;box-shadow:0 0 18px #9fd8ff66}
 .skill-node.locked{opacity:.55}
+.skill-node.short b{border-color:#efa35a88;color:#ffd9b0}
 .skill-node.chosen span{color:#ffd27b}
 .skill-node.just-acquired b{animation:skill-acquired .9s ease-out}
 .skill-node.fog{width:34px;height:34px;justify-content:center;border:1px dashed #9fd8ff33;border-radius:50%;color:#9fd8ff55;font-size:calc(12px*var(--ta) + var(--tb));pointer-events:none}

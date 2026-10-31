@@ -30,19 +30,22 @@
   const available = state => everything() || Boolean(state.skills?.revealed);
   const isUnlocked = (state, id) => Boolean(state.skills?.unlocked?.includes(id));
 
-  // A skill can be acquired once the tree is open, its prerequisites held.
-  function canUnlock(state, id) {
-    const skill = Data.get(id);
-    return Boolean(skill) && available(state) && !isUnlocked(state, id) &&
-      skill.requires.every(required => isUnlocked(state, required));
-  }
+  // Whether its prerequisites are held (it then shows as reachable).
+  const reachable = (state, id) => Boolean(Data.get(id)) && available(state) && !isUnlocked(state, id) &&
+    Data.get(id).requires.every(required => isUnlocked(state, required));
+  // Technology points it still lacks.
+  const missingPoints = (state, id) => Math.max(0, (Data.get(id)?.cost.tech || 0) - Math.floor(state.techPoints || 0));
+
+  // A skill can be acquired once reachable and paid for.
+  const canUnlock = (state, id) => reachable(state, id) && missingPoints(state, id) === 0;
 
   function unlock(state, id) {
     if (!canUnlock(state, id)) return false;
+    state.techPoints = (state.techPoints || 0) - (Data.get(id).cost.tech || 0);
     state.skills = restore(state.skills);
     state.skills.unlocked.push(id);
     return true;
   }
 
-  root.OrbitSkills = Object.freeze({ restore, arkReached, advance, available, isUnlocked, canUnlock, unlock });
+  root.OrbitSkills = Object.freeze({ restore, arkReached, advance, available, isUnlocked, reachable, missingPoints, canUnlock, unlock });
 })(globalThis);

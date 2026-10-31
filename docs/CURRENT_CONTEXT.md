@@ -66,7 +66,11 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
 - Le gameplay est fonctionnel jusqu'à l'Arche. L'arbre de compétences s'ouvre aux
   premières ressources reçues par l'Arche ; il n'a qu'une compétence, « Réveil des
-  archives », débloquée d'un toucher. Voir [`SKILL_TREE.md`](SKILL_TREE.md).
+  archives », puis « Réseau informatique », qui débloque Datacenter et Parabole : les
+  extracteurs et usines en activité envoient 1 Mo/s de données par les paraboles au
+  datacenter, qui en tire des points de technologie (monnaie de l'arbre, à la place
+  du Contexte). Le datacenter consomme beaucoup, plus sur un site chaud. Voir
+  [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
 - Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet
   « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
 - Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un

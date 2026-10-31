@@ -221,7 +221,8 @@
           ['STOCK AU DOCK', inventory.length ? stockText : 'Aucune ressource dockée'],
           ...(building.energyOutputWatts > 0 ? [['PRODUCTION ÉLECTRIQUE', formatPower(building.energyOutputWatts)]] : [])
         ],
-        surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']]
+        surface_port: [['FONCTION', 'Relais entre navires et transport terrestre']],
+        ...(['antenna', 'datacenter'].includes(building.type) ? { [building.type]: dataStats(building) } : {})
       };
       const rows = byType[building.type] || [];
       if (building.energyUse > 0) rows.push(['PUISSANCE UTILISÉE', formatPower(building.energyUse)]);
@@ -356,7 +357,34 @@
       }
     }
 
+    let currentState = null;
+    // The data network as seen from a dish or a datacenter.
+    function dataStats(building) {
+      const links = Object.values(currentState?.dataLinks || {}), Spec = root.OrbitDataNetworkData;
+      const nameOf = id => currentState?.surfaceBuildings.find(item => item.id === id)?.customName || '—';
+      if (building.type === 'antenna') {
+        const link = currentState?.dataLinks?.[building.id];
+        return [
+          ['SOURCES', link?.sources.length ? `${link.sources.length} bâtiment${link.sources.length > 1 ? 's' : ''} en activité` : 'Aucune dans la portée'],
+          ['DÉBIT', `${fmtDecimal(link?.carried || 0)} / ${fmtDecimal(Spec.antenna.bandwidthMbPerSecond)} Mo/s${link?.offeredTotal > Spec.antenna.bandwidthMbPerSecond ? ' · saturée' : ''}`],
+          ['DATACENTER', link?.datacenterId ? nameOf(link.datacenterId) : 'Aucun sur la planète'],
+          ['PORTÉE', `${fmt(Spec.antenna.rangeKm)} km`]
+        ];
+      }
+      const feeding = links.filter(link => link.datacenterId === building.id);
+      const factor = Spec.coolingFactor(building.siteTemperature);
+      return [
+        ['SITE', Number.isFinite(building.siteTemperature)
+          ? `${fmt(Math.round(building.siteTemperature))} °C · énergie ×${fmtDecimal(Math.round(factor * 100) / 100)}` : 'Température inconnue'],
+        ['PARABOLES', `${feeding.length} · ${fmtDecimal(feeding.reduce((sum, link) => sum + link.carried, 0))} Mo/s reçus`],
+        ['DONNÉES EN ATTENTE', inventoryEntries(building).map(item => `${item.name} · ${fmt(item.amount)} Mo`).join('  /  ') || 'Aucune'],
+        ...(building.dataLost ? [['DONNÉES PERDUES', `${fmt(building.dataLost)} Mo (tampon plein)`]] : []),
+        ['POINTS TECH', fmt(Math.floor(currentState?.techPoints || 0))]
+      ];
+    }
+
     function update({ state, galaxy, terrainData, width, scaleCamera, buildingPosition }) {
+      currentState = state;
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
       if (selectedBuilding && !$('building-readout').hidden) {
@@ -377,10 +405,12 @@
       document.body.dataset.tool = state.tool;
       // Galaxy-wide totals: population of every colony and context gathered.
       const population = root.OrbitColony.totalPopulation(state);
-      const contextText = fmt(Math.floor(state.contextPoints || 0));
+      const contextText = fmt(Math.floor((root.OrbitSkills.isUnlocked(state, 'computer_network') ? state.techPoints : state.contextPoints) || 0));
       $('stat-label').textContent = 'POPULATION';
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
-      $('secondary-label').textContent = 'CONTEXTE';
+      // Once the data network exists, technology points take the place of context.
+      const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
+      $('secondary-label').textContent = techShown ? 'POINTS TECH' : 'CONTEXTE';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
