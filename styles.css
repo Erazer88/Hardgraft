@@ -376,6 +376,41 @@ body[data-level="surface"] .corner-note{display:none}
 .hub-panel-actions{padding-top:8px;border-top:1px solid var(--line)}
 .hub-panel-actions .demolish-button{flex:1 1 0;margin-top:10px}
 
+/* Skill tree: a button in the telemetry, then a full-screen map of nodes over the fog. */
+.skill-tree-button{display:block;width:100%;margin-top:10px;padding:6px 8px;border:1px solid #9fd8ff55;border-radius:4px;background:#173a5233;color:#bfe6ff;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px;text-align:left;pointer-events:auto;animation:skill-call 2.4s ease-in-out 3}
+.skill-tree-button:hover{border-color:#9fd8ffaa;background:#1f4b6a55}
+@keyframes skill-call{50%{box-shadow:0 0 0 4px #9fd8ff22;border-color:#9fd8ffaa}}
+.skill-tree{position:fixed;z-index:90;inset:0;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% 45%,#10284099,#040b14 70%),#040b14;color:#d2e1e9;font-family:var(--mono)}
+.skill-tree-header{display:flex;align-items:center;gap:12px;padding:calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left));border-bottom:1px solid #9fd8ff26;background:#06121ecc}
+.skill-tree-header div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.skill-tree-header div span{font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:2px;color:#9fd8ff}
+.skill-tree-header strong{font-size:calc(13px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1.2px}
+.skill-tree-context{margin-left:auto;color:#ffd27b;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:1px}
+.skill-tree-header .text-icon{font-size:calc(22px*var(--ta) + var(--tb))}
+.skill-tree-map{position:relative;flex:1 1 auto;min-height:0;margin:12px;background-image:radial-gradient(circle,#9fd8ff1f 1px,transparent 1.4px);background-size:28px 28px}
+.skill-tree-links{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.skill-link{stroke:#9fd8ff55;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.skill-link.fog{stroke:#9fd8ff26;stroke-dasharray:4 6}
+.skill-tree-nodes{position:absolute;inset:0}
+.skill-node{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translate(-50%,-50%);color:#d2e1e9}
+.skill-node b{display:grid;place-items:center;width:58px;height:58px;border:1.5px solid #9fd8ff66;border-radius:50%;background:#0b1d2ce6;font-size:calc(12px*var(--ta) + var(--tb));letter-spacing:1px;transition:box-shadow .2s,border-color .2s,background .2s}
+.skill-node span{max-width:150px;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:1px;text-align:center;line-height:1.35}
+.skill-node.available b{border-color:#efa35a;color:#ffd9b0;animation:skill-ready 1.8s ease-in-out infinite}
+.skill-node.acquired b{border-color:#9fd8ff;background:#1b4d6b;color:#fff;box-shadow:0 0 18px #9fd8ff66}
+.skill-node.locked{opacity:.55}
+.skill-node.chosen span{color:#ffd27b}
+.skill-node.just-acquired b{animation:skill-acquired .9s ease-out}
+.skill-node.fog{width:34px;height:34px;justify-content:center;border:1px dashed #9fd8ff33;border-radius:50%;color:#9fd8ff55;font-size:calc(12px*var(--ta) + var(--tb));pointer-events:none}
+@keyframes skill-ready{50%{box-shadow:0 0 0 7px #efa35a22,0 0 18px #efa35a55}}
+@keyframes skill-acquired{0%{box-shadow:0 0 0 0 #9fd8ffcc}100%{box-shadow:0 0 0 26px #9fd8ff00,0 0 18px #9fd8ff66}}
+.skill-tree-detail{margin:0 12px calc(12px + var(--safe-bottom));padding:12px 14px;display:flex;flex-direction:column;gap:6px;max-height:40dvh;overflow:auto}
+.skill-tree-detail p{margin:0;color:#a9bfcb;font-size:calc(10px*var(--ta) + var(--tb));line-height:1.5}
+.skill-detail-kicker{color:#9fd8ff;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:2px}
+.skill-detail-title{font-size:calc(14px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1px}
+.skill-tree-detail p.skill-detail-effect{color:#d6ecf7}
+.skill-detail-cost{color:#ffd27b;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.skill-detail-hint{color:#efa35a;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:.6px}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

@@ -387,6 +387,41 @@ body[data-level="surface"] .corner-note{display:none}
 .hub-panel-actions{padding-top:8px;border-top:1px solid var(--line)}
 .hub-panel-actions .demolish-button{flex:1 1 0;margin-top:10px}
 
+/* Skill tree: a button in the telemetry, then a full-screen map of nodes over the fog. */
+.skill-tree-button{display:block;width:100%;margin-top:10px;padding:6px 8px;border:1px solid #9fd8ff55;border-radius:4px;background:#173a5233;color:#bfe6ff;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px;text-align:left;pointer-events:auto;animation:skill-call 2.4s ease-in-out 3}
+.skill-tree-button:hover{border-color:#9fd8ffaa;background:#1f4b6a55}
+@keyframes skill-call{50%{box-shadow:0 0 0 4px #9fd8ff22;border-color:#9fd8ffaa}}
+.skill-tree{position:fixed;z-index:90;inset:0;display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% 45%,#10284099,#040b14 70%),#040b14;color:#d2e1e9;font-family:var(--mono)}
+.skill-tree-header{display:flex;align-items:center;gap:12px;padding:calc(10px + var(--safe-top)) calc(14px + var(--safe-right)) 10px calc(14px + var(--safe-left));border-bottom:1px solid #9fd8ff26;background:#06121ecc}
+.skill-tree-header div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.skill-tree-header div span{font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:2px;color:#9fd8ff}
+.skill-tree-header strong{font-size:calc(13px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1.2px}
+.skill-tree-context{margin-left:auto;color:#ffd27b;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:1px}
+.skill-tree-header .text-icon{font-size:calc(22px*var(--ta) + var(--tb))}
+.skill-tree-map{position:relative;flex:1 1 auto;min-height:0;margin:12px;background-image:radial-gradient(circle,#9fd8ff1f 1px,transparent 1.4px);background-size:28px 28px}
+.skill-tree-links{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.skill-link{stroke:#9fd8ff55;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.skill-link.fog{stroke:#9fd8ff26;stroke-dasharray:4 6}
+.skill-tree-nodes{position:absolute;inset:0}
+.skill-node{position:absolute;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translate(-50%,-50%);color:#d2e1e9}
+.skill-node b{display:grid;place-items:center;width:58px;height:58px;border:1.5px solid #9fd8ff66;border-radius:50%;background:#0b1d2ce6;font-size:calc(12px*var(--ta) + var(--tb));letter-spacing:1px;transition:box-shadow .2s,border-color .2s,background .2s}
+.skill-node span{max-width:150px;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:1px;text-align:center;line-height:1.35}
+.skill-node.available b{border-color:#efa35a;color:#ffd9b0;animation:skill-ready 1.8s ease-in-out infinite}
+.skill-node.acquired b{border-color:#9fd8ff;background:#1b4d6b;color:#fff;box-shadow:0 0 18px #9fd8ff66}
+.skill-node.locked{opacity:.55}
+.skill-node.chosen span{color:#ffd27b}
+.skill-node.just-acquired b{animation:skill-acquired .9s ease-out}
+.skill-node.fog{width:34px;height:34px;justify-content:center;border:1px dashed #9fd8ff33;border-radius:50%;color:#9fd8ff55;font-size:calc(12px*var(--ta) + var(--tb));pointer-events:none}
+@keyframes skill-ready{50%{box-shadow:0 0 0 7px #efa35a22,0 0 18px #efa35a55}}
+@keyframes skill-acquired{0%{box-shadow:0 0 0 0 #9fd8ffcc}100%{box-shadow:0 0 0 26px #9fd8ff00,0 0 18px #9fd8ff66}}
+.skill-tree-detail{margin:0 12px calc(12px + var(--safe-bottom));padding:12px 14px;display:flex;flex-direction:column;gap:6px;max-height:40dvh;overflow:auto}
+.skill-tree-detail p{margin:0;color:#a9bfcb;font-size:calc(10px*var(--ta) + var(--tb));line-height:1.5}
+.skill-detail-kicker{color:#9fd8ff;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:2px}
+.skill-detail-title{font-size:calc(14px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1px}
+.skill-tree-detail p.skill-detail-effect{color:#d6ecf7}
+.skill-detail-cost{color:#ffd27b;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
+.skill-detail-hint{color:#efa35a;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:.6px}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
@@ -402,6 +437,7 @@ body[data-level="surface"] .corner-note{display:none}
       <div class="telemetry-heading"><span class="signal-light"></span><span>ATLAS ORBITAL</span><span class="version">01</span></div>
       <div class="telemetry-row"><span class="label" id="stat-label">SYSTÈMES</span><span id="stat-value">—</span></div>
       <div class="telemetry-row secondary"><span id="secondary-label">SECTEUR CONNU</span><span id="secondary-value">—</span></div>
+      <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden><span aria-hidden="true">✦</span> COMPÉTENCES</button>
     </div>
     <div class="header-actions">
       <button class="icon-button" id="pause-button" aria-label="Mettre les orbites en pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
@@ -461,6 +497,18 @@ body[data-level="surface"] .corner-note{display:none}
       <button class="text-icon" id="colony-panel-close" aria-label="Fermer le menu de la colonie">×</button>
     </header>
     <div class="colony-panel-body" id="colony-panel-body"></div>
+  </section>
+  <section class="skill-tree" id="skill-tree" role="dialog" aria-modal="true" aria-labelledby="skill-tree-title" hidden>
+    <header class="skill-tree-header">
+      <div><span>L’ARCHE</span><strong id="skill-tree-title">ARBRE DE COMPÉTENCES</strong></div>
+      <span class="skill-tree-context" id="skill-tree-context">CONTEXTE 0</span>
+      <button class="text-icon" id="skill-tree-close" type="button" aria-label="Fermer l’arbre de compétences">×</button>
+    </header>
+    <div class="skill-tree-map">
+      <svg class="skill-tree-links" id="skill-tree-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="skill-tree-nodes" id="skill-tree-nodes"></div>
+    </div>
+    <aside class="skill-tree-detail panel" id="skill-tree-detail" aria-live="polite"></aside>
   </section>
   <section class="colony-panel hub-panel panel" id="hub-panel" role="dialog" aria-label="Hub" hidden>
     <header class="colony-panel-header">
@@ -585,7 +633,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.105.0";
+globalThis.OrbitVersion = "0.106.0";
 
 </script>
   <script>
@@ -1543,6 +1591,37 @@ globalThis.OrbitVersion = "0.105.0";
   }
 
   root.OrbitProgressionData = freeze({ steps });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  // The skill tree: improvements bought with what the colony gathers, opened
+  // once the first goods reach the Ark. Only the root is known for now; the
+  // rest stays in the fog as silhouettes. Positions are fractions of the map.
+  const skills = [
+    { id: 'archive_awakening', label: 'RÉVEIL DES ARCHIVES', mark: 'AR', branch: 'ark',
+      description: 'L’Arche relit ce qui reste de ses archives à la lumière des premières ressources reçues.',
+      effect: 'Ouvre l’arbre de compétences : les prochaines pistes apparaîtront ici.',
+      cost: {}, requires: [], x: .5, y: .5 }
+  ];
+  // Silhouettes around the known skills, linked to the one they grow from.
+  const fog = [
+    { from: 'archive_awakening', x: .24, y: .26 }, { from: 'archive_awakening', x: .78, y: .24 },
+    { from: 'archive_awakening', x: .2, y: .74 }, { from: 'archive_awakening', x: .8, y: .76 },
+    { from: 'archive_awakening', x: .5, y: .16 }
+  ];
+
+  function freeze(value) {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+    Object.values(value).forEach(freeze);
+    return Object.freeze(value);
+  }
+
+  const byId = new Map(skills.map(skill => [skill.id, skill]));
+  root.OrbitSkillData = freeze({ skills, fog, get: id => byId.get(id) || null });
 })(globalThis);
 
 </script>
@@ -6940,6 +7019,57 @@ globalThis.OrbitVersion = "0.105.0";
 (function (root) {
   'use strict';
 
+  // The skill tree's state (state.skills): whether it is revealed — once the
+  // first goods reach the Ark — and the skills acquired. Both only grow.
+  const Data = root.OrbitSkillData;
+
+  function restore(value) {
+    const unlocked = Array.isArray(value?.unlocked)
+      ? [...new Set(value.unlocked.filter(id => typeof id === 'string' && Data.get(id)))] : [];
+    return { revealed: value?.revealed === true, unlocked };
+  }
+
+  const everything = () => root.OrbitDeveloperSettings?.get('unlockEverything') === true;
+
+  // Whether any Ark already holds goods.
+  function arkReached(state) {
+    return Object.values(state.orbitalLogistics?.hubs || {}).some(hub =>
+      Object.values(hub?.stock || {}).some(amount => amount > 0));
+  }
+
+  // Reveals the tree once the Ark is reached; returns true at that moment.
+  function advance(state) {
+    const skills = state.skills = restore(state.skills);
+    if (skills.revealed || !arkReached(state)) return false;
+    skills.revealed = true;
+    return true;
+  }
+
+  const available = state => everything() || Boolean(state.skills?.revealed);
+  const isUnlocked = (state, id) => Boolean(state.skills?.unlocked?.includes(id));
+
+  // A skill can be acquired once the tree is open, its prerequisites held.
+  function canUnlock(state, id) {
+    const skill = Data.get(id);
+    return Boolean(skill) && available(state) && !isUnlocked(state, id) &&
+      skill.requires.every(required => isUnlocked(state, required));
+  }
+
+  function unlock(state, id) {
+    if (!canUnlock(state, id)) return false;
+    state.skills = restore(state.skills);
+    state.skills.unlocked.push(id);
+    return true;
+  }
+
+  root.OrbitSkills = Object.freeze({ restore, arkReached, advance, available, isUnlocked, canUnlock, unlock });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   // Every building is named "Usine 1", "Usine 2"…: one counter per type for
   // the whole game, across planets. The player may rename any building.
   const Buildings = root.OrbitBuildingData;
@@ -7556,6 +7686,8 @@ globalThis.OrbitVersion = "0.105.0";
       factoryPlans: {}, colonyMaterials: [], industryAccumulator: 0,
       // Context points produced by the colony, and what its needs unlocked.
       contextPoints: 0, unlocks: { steps: [], buildings: [], cards: [] },
+      // The skill tree: revealed once goods reach the Ark, and what was acquired.
+      skills: { revealed: false, unlocked: [] },
       orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }
@@ -7605,6 +7737,7 @@ globalThis.OrbitVersion = "0.105.0";
       contextPoints: state.contextPoints || 0,
       nameCounters: copy(state.nameCounters || {}),
       unlocks: copy(state.unlocks || {}),
+      skills: copy(state.skills || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -7639,6 +7772,7 @@ globalThis.OrbitVersion = "0.105.0";
     state.nameCounters = Object.fromEntries(Object.entries(saved.nameCounters || {})
       .filter(([type, count]) => type && Number.isInteger(count) && count > 0));
     state.unlocks = root.OrbitProgression ? root.OrbitProgression.restoreUnlocks(saved.unlocks) : copy(saved.unlocks || {});
+    state.skills = root.OrbitSkills ? root.OrbitSkills.restore(saved.skills) : copy(saved.skills || {});
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
@@ -10441,6 +10575,7 @@ globalThis.OrbitVersion = "0.105.0";
       $('stat-label').textContent = 'POPULATION';
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
       $('secondary-label').textContent = 'CONTEXTE';
+      $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
         level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';
@@ -12261,6 +12396,128 @@ globalThis.OrbitVersion = "0.105.0";
 (function (root) {
   'use strict';
 
+  // The skill tree menu: a map of nodes over the fog. Known skills show as
+  // nodes (acquired, available or locked), the rest as silhouettes. Touching
+  // an available skill acquires it; the panel below describes the one chosen.
+  const Data = root.OrbitSkillData;
+  const SVG = 'http://www.w3.org/2000/svg';
+  const fmt = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(Math.floor(value || 0));
+
+  function create(document, { onUnlock = () => false, onClose = () => {} } = {}) {
+    const $ = id => document.getElementById(id);
+    const panel = $('skill-tree'), links = $('skill-tree-links'), nodes = $('skill-tree-nodes'), detail = $('skill-tree-detail');
+    const Skills = root.OrbitSkills;
+    let chosenId = Data.skills[0]?.id || null, signature = null, lastState = null;
+
+    const stateOf = (state, skill) => Skills.isUnlocked(state, skill.id) ? 'acquired'
+      : Skills.canUnlock(state, skill.id) ? 'available' : 'locked';
+
+    function line(from, to, className) {
+      const path = document.createElementNS(SVG, 'line');
+      path.setAttribute('x1', from.x * 100); path.setAttribute('y1', from.y * 100);
+      path.setAttribute('x2', to.x * 100); path.setAttribute('y2', to.y * 100);
+      path.setAttribute('class', className);
+      links.append(path);
+    }
+
+    function render(state) {
+      lastState = state;
+      const next = JSON.stringify([state.skills?.unlocked || [], Math.floor(state.contextPoints || 0), chosenId]);
+      if (next === signature) return;
+      signature = next;
+      $('skill-tree-context').textContent = `CONTEXTE ${fmt(state.contextPoints)}`;
+      links.replaceChildren(); nodes.replaceChildren();
+      // Silhouettes of what is still unknown.
+      for (const shade of Data.fog) {
+        const from = Data.get(shade.from);
+        if (from) line(from, shade, 'skill-link fog');
+        const node = document.createElement('span');
+        node.className = 'skill-node fog'; node.textContent = '?';
+        node.style.left = `${shade.x * 100}%`; node.style.top = `${shade.y * 100}%`;
+        node.setAttribute('aria-hidden', 'true');
+        nodes.append(node);
+      }
+      for (const skill of Data.skills) {
+        for (const required of skill.requires) {
+          const from = Data.get(required);
+          if (from) line(from, skill, `skill-link ${Skills.isUnlocked(state, required) ? 'open' : ''}`);
+        }
+        const status = stateOf(state, skill);
+        const node = document.createElement('button');
+        node.type = 'button'; node.className = `skill-node ${status}${skill.id === chosenId ? ' chosen' : ''}`;
+        node.dataset.skillId = skill.id;
+        node.style.left = `${skill.x * 100}%`; node.style.top = `${skill.y * 100}%`;
+        node.setAttribute('aria-label', `${skill.label} · ${status === 'acquired' ? 'acquise' : status === 'available' ? 'à débloquer' : 'verrouillée'}`);
+        const mark = document.createElement('b'); mark.textContent = skill.mark;
+        const label = document.createElement('span'); label.textContent = skill.label;
+        node.append(mark, label);
+        nodes.append(node);
+      }
+      renderDetail(state);
+    }
+
+    function renderDetail(state) {
+      const skill = Data.get(chosenId);
+      detail.replaceChildren();
+      if (!skill) return;
+      const status = stateOf(state, skill);
+      const add = (tag, className, text) => {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        element.textContent = text;
+        detail.append(element);
+        return element;
+      };
+      add('span', 'skill-detail-kicker', status === 'acquired' ? 'COMPÉTENCE ACQUISE' : status === 'available' ? 'À DÉBLOQUER' : 'VERROUILLÉE');
+      add('strong', 'skill-detail-title', skill.label);
+      add('p', '', skill.description);
+      add('p', 'skill-detail-effect', skill.effect);
+      const cost = Object.entries(skill.cost || {});
+      add('small', 'skill-detail-cost', cost.length
+        ? `COÛT · ${cost.map(([id, amount]) => `${id === 'context' ? 'Contexte' : root.OrbitResourceData.get(id)?.label || id} ${fmt(amount)}`).join(' · ')}`
+        : 'COÛT · aucun');
+      if (status === 'available') add('small', 'skill-detail-hint', 'Touchez la compétence pour la débloquer.');
+    }
+
+    nodes.addEventListener('click', event => {
+      const node = event.target.closest('[data-skill-id]');
+      if (!node || !lastState) return;
+      chosenId = node.dataset.skillId;
+      const acquired = Skills.canUnlock(lastState, chosenId) && onUnlock(chosenId) !== false;
+      signature = null; render(lastState);
+      // A short flash on the skill just acquired.
+      if (acquired) nodes.querySelector(`[data-skill-id="${chosenId}"]`)?.classList.add('just-acquired');
+    });
+
+    function open(state) {
+      panel.hidden = false;
+      signature = null;
+      render(state);
+      $('skill-tree-close').focus({ preventScroll: true });
+    }
+
+    function close() {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      onClose();
+    }
+
+    function refresh(state) { if (!panel.hidden) render(state); }
+
+    $('skill-tree-close').addEventListener('click', close);
+    panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } });
+
+    return Object.freeze({ open, close, refresh, isOpen: () => !panel.hidden });
+  }
+
+  root.OrbitSkillTree = Object.freeze({ create });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   // A button in the top-right corner counts the current problems and opens a
   // drop-down list of them. An alert stays a few seconds after its cause ends,
   // so a problem on the edge does not blink. A building alert selects it.
@@ -12569,6 +12826,15 @@ globalThis.OrbitVersion = "0.105.0";
     getSystem: () => state.system,
     siteText: building => siteReadout(building)
   });
+  // The skill tree, opened from the telemetry once the Ark is reached.
+  const skillTree = globalThis.OrbitSkillTree.create(document, {
+    onUnlock(id) {
+      if (!globalThis.OrbitSkills.unlock(state, id)) return false;
+      toast(`Compétence acquise : ${globalThis.OrbitSkillData.get(id)?.label.toLowerCase() || id}.`);
+      persist(); updateUI();
+      return true;
+    }
+  });
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -12720,6 +12986,7 @@ globalThis.OrbitVersion = "0.105.0";
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
     state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null); state.nameCounters = {};
+    state.skills = globalThis.OrbitSkills.restore(null);
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -13385,6 +13652,7 @@ globalThis.OrbitVersion = "0.105.0";
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
+  $('skill-tree-button').onclick = () => skillTree.open(state);
   $('build-tab-catalog').onclick = () => { state.buildMenuTab = 'catalog'; updateUI(); };
   $('build-tab-saved').onclick = () => { state.buildMenuTab = 'saved'; updateUI(); };
   $('saved-buildings').addEventListener('click', event => {
@@ -13513,6 +13781,7 @@ globalThis.OrbitVersion = "0.105.0";
     }
     if (e.key === 'Escape') {
       if (alertsPanel.isOpen()) { alertsPanel.close(); return; }
+      if (skillTree.isOpen()) { skillTree.close(); return; }
       if (colonyPanel.isOpen()) { colonyPanel.close(); return; }
       if (hubPanel.isOpen()) { hubPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
@@ -13590,6 +13859,10 @@ globalThis.OrbitVersion = "0.105.0";
       toast(`La colonie compte désormais ${formatAmount(event.population)} habitants.`);
     }
     growColonyZones();
+    if (globalThis.OrbitSkills.advance(state)) {
+      toast('Les premières ressources ont atteint l’Arche : l’arbre de compétences est ouvert.');
+      updateUI(); persist();
+    }
     const opened = Progression.advance(state);
     const names = [...opened.buildings.map(type => BuildingData.get(type)?.label),
       ...opened.cards.map(card => {
@@ -13642,7 +13915,7 @@ globalThis.OrbitVersion = "0.105.0";
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
     if (now - lastHUD > 350) {
-      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); hubPanel.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
+      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); hubPanel.refresh(state); skillTree.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
     }
     requestAnimationFrame(frame);
   }

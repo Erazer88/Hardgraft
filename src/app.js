@@ -120,6 +120,15 @@
     getSystem: () => state.system,
     siteText: building => siteReadout(building)
   });
+  // The skill tree, opened from the telemetry once the Ark is reached.
+  const skillTree = globalThis.OrbitSkillTree.create(document, {
+    onUnlock(id) {
+      if (!globalThis.OrbitSkills.unlock(state, id)) return false;
+      toast(`Compétence acquise : ${globalThis.OrbitSkillData.get(id)?.label.toLowerCase() || id}.`);
+      persist(); updateUI();
+      return true;
+    }
+  });
   let galaxy, home, terrainTexture, terrainData;
   let nextBuildingId = 1;
   let W = innerWidth, H = innerHeight, DPR = Math.min(devicePixelRatio || 1, 2), lastTime = 0;
@@ -271,6 +280,7 @@
     state.colonyMaterials = [];
     state.industryAccumulator = 0;
     state.contextPoints = 0; state.unlocks = Progression.restoreUnlocks(null); state.nameCounters = {};
+    state.skills = globalThis.OrbitSkills.restore(null);
     state.orbitalLogistics = globalThis.OrbitOrbitalTransit.createState();
     state.placement = null; state.buildMenuOpen = false; nextBuildingId = 1;
     state.roadPreview = null;
@@ -936,6 +946,7 @@
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
+  $('skill-tree-button').onclick = () => skillTree.open(state);
   $('build-tab-catalog').onclick = () => { state.buildMenuTab = 'catalog'; updateUI(); };
   $('build-tab-saved').onclick = () => { state.buildMenuTab = 'saved'; updateUI(); };
   $('saved-buildings').addEventListener('click', event => {
@@ -1064,6 +1075,7 @@
     }
     if (e.key === 'Escape') {
       if (alertsPanel.isOpen()) { alertsPanel.close(); return; }
+      if (skillTree.isOpen()) { skillTree.close(); return; }
       if (colonyPanel.isOpen()) { colonyPanel.close(); return; }
       if (hubPanel.isOpen()) { hubPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
@@ -1141,6 +1153,10 @@
       toast(`La colonie compte désormais ${formatAmount(event.population)} habitants.`);
     }
     growColonyZones();
+    if (globalThis.OrbitSkills.advance(state)) {
+      toast('Les premières ressources ont atteint l’Arche : l’arbre de compétences est ouvert.');
+      updateUI(); persist();
+    }
     const opened = Progression.advance(state);
     const names = [...opened.buildings.map(type => BuildingData.get(type)?.label),
       ...opened.cards.map(card => {
@@ -1193,7 +1209,7 @@
     if (now - lastAutosave >= 3000) { persist(); lastAutosave = now; }
     factoryEditor.refreshProgress();
     if (now - lastHUD > 350) {
-      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); hubPanel.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
+      updateUI(); factoryEditor.refresh(); colonyPanel.refresh(state); hubPanel.refresh(state); skillTree.refresh(state); alertsPanel.update(state, { planetName }); lastHUD = now;
     }
     requestAnimationFrame(frame);
   }

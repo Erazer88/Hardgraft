@@ -64,6 +64,9 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   l'amont.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
+- Le gameplay est fonctionnel jusqu'à l'Arche. L'arbre de compétences s'ouvre aux
+  premières ressources reçues par l'Arche ; il n'a qu'une compétence, « Réveil des
+  archives », débloquée d'un toucher. Voir [`SKILL_TREE.md`](SKILL_TREE.md).
 - Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet
   « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
 - Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un

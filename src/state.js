@@ -16,6 +16,8 @@
       factoryPlans: {}, colonyMaterials: [], industryAccumulator: 0,
       // Context points produced by the colony, and what its needs unlocked.
       contextPoints: 0, unlocks: { steps: [], buildings: [], cards: [] },
+      // The skill tree: revealed once goods reach the Ark, and what was acquired.
+      skills: { revealed: false, unlocked: [] },
       orbitalLogistics: root.OrbitOrbitalTransit.createState(),
       roadPreview: null, buildMenuOpen: false };
   }

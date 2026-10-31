@@ -381,6 +381,7 @@
       $('stat-label').textContent = 'POPULATION';
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
       $('secondary-label').textContent = 'CONTEXTE';
+      $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
       $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
         level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';

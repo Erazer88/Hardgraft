@@ -23,6 +23,7 @@ Points d'entrée spécialisés :
 - `docs/PROCESS_SYSTEM.md` décrit le graphe industriel et son moteur.
 - `docs/ROAD_SYSTEM.md` décrit les routes constructibles.
 - `docs/COLONY.md` décrit la colonie, la population, le contexte et le déblocage.
+- `docs/SKILL_TREE.md` décrit l'arbre de compétences et ses pistes.
 - `docs/ORBITAL_LOGISTICS.md` décrit le transfert Dock → bâtiment destinataire et le transit vers l’Arche.
 - `docs/WORLDGEN.md` décrit les paramètres de génération.
 
@@ -44,6 +45,8 @@ Modules de la colonie et de la progression :
 | `src/gameplay/buildingNames.js` | Noms par défaut numérotés par type (`state.nameCounters`) |
 | `src/ui/panelKit.js` | Briques communes des menus de colonie et de hub : unités, barres, débits glissants |
 | `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
+| `src/data/skills.js`, `src/gameplay/skills.js` | Compétences déclarées ; révélation à l'Arche, prérequis, acquisition |
+| `src/ui/skillTree.js` | Menu de l'arbre de compétences (nœuds, brouillard, détail) |
 | `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, export |
 | `src/gameplay/alerts.js` | Problèmes en cours (planète sans assez d'énergie, dock sans destination, flux de colonie en retard) |
 | `src/storage/library.js` | Bibliothèque du joueur (clé locale à part de la sauvegarde) : bâtiments enregistrés et blueprints |

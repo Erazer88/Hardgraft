@@ -61,5 +61,6 @@ Une question ou une proposition sans code ne change pas de version.
 - Génération : [`docs/WORLDGEN.md`](docs/WORLDGEN.md).
 - Routes : [`docs/ROAD_SYSTEM.md`](docs/ROAD_SYSTEM.md).
 - Colonie, population et déblocage : [`docs/COLONY.md`](docs/COLONY.md).
+- Arbre de compétences : [`docs/SKILL_TREE.md`](docs/SKILL_TREE.md).
 - Les textes de `docs/reference/` conservent la conception et les plans historiques ;
   ils ne priment pas sur les décisions actuelles.

@@ -19,6 +19,7 @@
       <div class="telemetry-heading"><span class="signal-light"></span><span>ATLAS ORBITAL</span><span class="version">01</span></div>
       <div class="telemetry-row"><span class="label" id="stat-label">SYSTÈMES</span><span id="stat-value">—</span></div>
       <div class="telemetry-row secondary"><span id="secondary-label">SECTEUR CONNU</span><span id="secondary-value">—</span></div>
+      <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden><span aria-hidden="true">✦</span> COMPÉTENCES</button>
     </div>
     <div class="header-actions">
       <button class="icon-button" id="pause-button" aria-label="Mettre les orbites en pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
@@ -78,6 +79,18 @@
       <button class="text-icon" id="colony-panel-close" aria-label="Fermer le menu de la colonie">×</button>
     </header>
     <div class="colony-panel-body" id="colony-panel-body"></div>
+  </section>
+  <section class="skill-tree" id="skill-tree" role="dialog" aria-modal="true" aria-labelledby="skill-tree-title" hidden>
+    <header class="skill-tree-header">
+      <div><span>L’ARCHE</span><strong id="skill-tree-title">ARBRE DE COMPÉTENCES</strong></div>
+      <span class="skill-tree-context" id="skill-tree-context">CONTEXTE 0</span>
+      <button class="text-icon" id="skill-tree-close" type="button" aria-label="Fermer l’arbre de compétences">×</button>
+    </header>
+    <div class="skill-tree-map">
+      <svg class="skill-tree-links" id="skill-tree-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="skill-tree-nodes" id="skill-tree-nodes"></div>
+    </div>
+    <aside class="skill-tree-detail panel" id="skill-tree-detail" aria-live="polite"></aside>
   </section>
   <section class="colony-panel hub-panel panel" id="hub-panel" role="dialog" aria-label="Hub" hidden>
     <header class="colony-panel-header">
@@ -210,6 +223,7 @@
   <script src="src/data/buildings.js"></script>
   <script src="src/data/colony.js"></script>
   <script src="src/data/progression.js"></script>
+  <script src="src/data/skills.js"></script>
   <script src="src/data/roads.js"></script>
   <script src="src/data/surfaceStyle.js"></script>
   <script src="src/world.js"></script>
@@ -235,6 +249,7 @@
   <script src="src/gameplay/buildingPlacement.js"></script>
   <script src="src/gameplay/colonyZone.js"></script>
   <script src="src/gameplay/progression.js"></script>
+  <script src="src/gameplay/skills.js"></script>
   <script src="src/gameplay/buildingNames.js"></script>
   <script src="src/gameplay/roadPlacement.js"></script>
   <script src="src/gameplay/industry.js"></script>
@@ -257,6 +272,7 @@
   <script src="src/ui/panelKit.js"></script>
   <script src="src/ui/colonyPanel.js"></script>
   <script src="src/ui/hubPanel.js"></script>
+  <script src="src/ui/skillTree.js"></script>
   <script src="src/ui/alertsPanel.js"></script>
   <script src="src/ui/developerTools.js"></script>
   <script src="src/app.js"></script>

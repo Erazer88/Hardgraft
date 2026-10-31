@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -732,4 +732,19 @@ test('tier 3 opens copper, silicon, water and the hub', () => {
     assert.ok(state.unlocks.cards.includes(card), card);
   assert.ok(Progression.cardUnlocked(state, { id: 'reduction_furnace', contextResourceId: 'copper' }));
   assert.ok(Progression.cardUnlocked(state, { id: 'reduction_furnace', contextResourceId: 'silicon' }));
+});
+
+test('the skill tree opens when goods first reach the Ark; its first skill is acquired at once', () => {
+  const Skills = context.OrbitSkills;
+  const state = { skills: Skills.restore(null), orbitalLogistics: Transit.createState() };
+  assert.equal(Skills.available(state), false);
+  assert.equal(Skills.canUnlock(state, 'archive_awakening'), false, 'nothing before the Ark');
+  assert.equal(Skills.advance(state), false);
+  state.orbitalLogistics.hubs.home = { id: 'home:ark', stock: { raw_iron: 4 } };
+  assert.equal(Skills.advance(state), true, 'revealed at the first arrival');
+  assert.equal(Skills.advance(state), false, 'only once');
+  assert.equal(Skills.unlock(state, 'archive_awakening'), true);
+  assert.equal(Skills.unlock(state, 'archive_awakening'), false, 'acquired once');
+  assert.deepEqual(plain(Skills.restore({ revealed: true, unlocked: ['archive_awakening', 'unknown', 'archive_awakening'] })),
+    { revealed: true, unlocked: ['archive_awakening'] });
 });

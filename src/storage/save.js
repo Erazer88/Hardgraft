@@ -38,6 +38,7 @@
       contextPoints: state.contextPoints || 0,
       nameCounters: copy(state.nameCounters || {}),
       unlocks: copy(state.unlocks || {}),
+      skills: copy(state.skills || {}),
       view: {
         camera: copy(state.camera), target: copy(state.target),
         contextStarId: context?.star?.id || null, planetId, trackingPlanetId
@@ -72,6 +73,7 @@
     state.nameCounters = Object.fromEntries(Object.entries(saved.nameCounters || {})
       .filter(([type, count]) => type && Number.isInteger(count) && count > 0));
     state.unlocks = root.OrbitProgression ? root.OrbitProgression.restoreUnlocks(saved.unlocks) : copy(saved.unlocks || {});
+    state.skills = root.OrbitSkills ? root.OrbitSkills.restore(saved.skills) : copy(saved.skills || {});
     const simulation = root.OrbitSimulation.create();
     const time = saved.simulation?.time ?? saved.time;
     if (Number.isFinite(time) && time >= 0) simulation.time = time;
