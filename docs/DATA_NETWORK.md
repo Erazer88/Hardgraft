@@ -62,8 +62,9 @@ géante gazeuse) émet lui-même ses données comme une antenne haute fréquence
 - **Conjonction solaire** : si l'étoile passe entre les deux bouts (à moins de 4 rayons
   de la ligne), rien ne part ; la fiche l'indique.
 - Paquets en vol sauvegardés (`state.dataTransit`, `src/simulation/dataTransit.js`).
-  Rendu : traits bleus et impulsions électriques dans la vue système
-  (`src/rendering/dataTrafficRenderer.js`), faisceaux bleus à impulsion en surface.
+  Rendu discret : lignes bleues pointillées et petits paquets carrés qui glissent
+  dessus, dans la vue système (`src/rendering/dataTrafficRenderer.js`) comme en surface
+  (réglages `dataLinks` de `src/data/surfaceStyle.js`).
 
 ## Cartes du datacenter
 

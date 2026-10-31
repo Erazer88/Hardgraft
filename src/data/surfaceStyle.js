@@ -145,8 +145,10 @@
       equatorColor: '#ffd27b', bandFill: '#ffd27b14', lineColor: '#9fc4dc', lineOpacity: .32,
       labelColor: '#cfe0ea', labelSizePx: 9 }),
     // Data network lines: building → dish, and the dish's beam to its datacenter.
-    dataLinks: Object.freeze({ color: '#6fc8ff', impulseColor: '#e8f8ff', sourceOpacity: .35, beamOpacity: .8, beamWidthPx: 1.6,
-      beamDashMs: 40, impulseMs: 1100, rangeOpacity: .5 }),
+    // Packets: small squares gliding along each link, a few per link.
+    dataLinks: Object.freeze({ color: '#6fc8ff', sourceOpacity: .55, sourceWidthPx: 1.3, beamOpacity: .5, beamWidthPx: 1.1,
+      packetColor: '#d8f2ff', packetOpacity: .85, packetSizePx: 2.4, packetSpacingPx: 70, packetsMax: 4, packetMs: 2600,
+      rangeOpacity: .65 }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,

@@ -385,17 +385,20 @@
   // while it is placed or selected. Purely visual (state.dataLinks).
   function renderDataLinks(frame) {
     const state = frame.state, style = Style.dataLinks, ctx = frame.context;
-    // A moving dashed blue beam with an electric impulse running along it.
+    // A dotted blue line with a few small packets gliding along it.
     const beam = (from, to) => {
       ctx.save();
-      ctx.strokeStyle = style.color; ctx.globalAlpha = style.beamOpacity; ctx.lineWidth = style.beamWidthPx; ctx.setLineDash([8, 6]);
-      ctx.lineDashOffset = -((frame.now || 0) / style.beamDashMs % 14);
+      ctx.strokeStyle = style.color; ctx.globalAlpha = style.beamOpacity; ctx.lineWidth = style.beamWidthPx; ctx.setLineDash([3, 5]);
       ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-      const t = ((frame.now || 0) % style.impulseMs) / style.impulseMs;
-      const point = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-      ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.fillStyle = style.impulseColor;
-      ctx.shadowColor = style.color; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.arc(point.x, point.y, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.setLineDash([]); ctx.globalAlpha = style.packetOpacity; ctx.fillStyle = style.packetColor;
+      const length = Math.hypot(to.x - from.x, to.y - from.y);
+      const count = Math.max(1, Math.min(style.packetsMax, Math.round(length / style.packetSpacingPx)));
+      const cycle = ((frame.now || 0) % style.packetMs) / style.packetMs;
+      for (let index = 0; index < count; index++) {
+        const t = (cycle + index / count) % 1;
+        const x = from.x + (to.x - from.x) * t, y = from.y + (to.y - from.y) * t, size = style.packetSizePx;
+        ctx.fillRect(x - size / 2, y - size / 2, size, size);
+      }
       ctx.restore();
     };
     const byId = new Map(visibleBuildings(frame).map(building => [building.id, building]));
@@ -405,7 +408,7 @@
       const dish = byId.get(link.antennaId);
       if (!dish) continue;
       const to = frame.project(dish.x, dish.y);
-      ctx.strokeStyle = style.color; ctx.globalAlpha = style.sourceOpacity; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+      ctx.strokeStyle = style.color; ctx.globalAlpha = style.sourceOpacity; ctx.lineWidth = style.sourceWidthPx; ctx.setLineDash([2, 4]);
       for (const id of link.sources) {
         const source = byId.get(id);
         if (!source) continue;
@@ -430,7 +433,7 @@
     const standing = planning ? [...byId.values()].filter(building => building.type === 'antenna') : [];
     for (const dish of [placing, selected, ...standing].filter(Boolean)) {
       const point = frame.project(dish.x, dish.y);
-      ctx.globalAlpha = style.rangeOpacity; ctx.strokeStyle = style.color; ctx.lineWidth = 1.2; ctx.setLineDash([6, 6]);
+      ctx.globalAlpha = style.rangeOpacity; ctx.strokeStyle = style.color; ctx.lineWidth = 1.4; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.arc(point.x, point.y, range * frame.zoom, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
