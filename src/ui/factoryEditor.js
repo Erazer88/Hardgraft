@@ -341,10 +341,11 @@
       if (!typeOf(machine).externalOutput) return;
       const select = cards.get(machine.id)?.querySelector('[data-dock-destination]');
       if (!select) return;
-      const resourceId = connectedDockResource(machine);
+      const resourceId = connectedDockResource(machine), uplink = Boolean(typeOf(machine).dataUplink);
       const options = getDestinations(activeBuilding) || [];
       const selected = resourceId ? activeBuilding?.dockDestinations?.[resourceId] || '' : '';
-      updateJumps(cards.get(machine.id), selected ? [options.find(option => option.id === selected)] : [], '→');
+      // An uplink's antenna has no cards to jump to.
+      updateJumps(cards.get(machine.id), selected && !uplink ? [options.find(option => option.id === selected)] : [], '→');
       const routeKey = JSON.stringify([resourceId, options.map(option => option.id), selected]);
       if (select.dataset.routeKey === routeKey) return;
       select.dataset.routeKey = routeKey;
@@ -353,7 +354,9 @@
       select.replaceChildren();
       const placeholder = document.createElement('option');
       placeholder.value = '';
-      placeholder.textContent = !resourceId ? 'Reliez une ressource' : options.length ? 'Choisir une destination' : 'Aucun bâtiment disponible';
+      placeholder.textContent = !resourceId ? 'Reliez une ressource' : uplink
+        ? options.length ? 'Antenne la plus proche' : 'Aucune antenne haute fréquence reliée par la route'
+        : options.length ? 'Choisir une destination' : 'Aucun bâtiment disponible';
       select.append(placeholder);
       for (const destination of options) {
         const option = document.createElement('option');
@@ -439,7 +442,8 @@
         if (def.externalInput) card.classList.add('factory-node-input-dock');
         else card.classList.add('factory-node-output-dock');
         const destination = document.createElement('label'); destination.className = 'factory-dock-route';
-        const label = document.createElement('span'); label.textContent = def.externalInput ? 'RESSOURCE À SORTIR' : 'DESTINATION DU QUAI';
+        const label = document.createElement('span');
+        label.textContent = def.externalInput ? 'RESSOURCE À SORTIR' : def.dataUplink ? 'ANTENNE HAUTE FRÉQUENCE' : 'DESTINATION DU QUAI';
         const select = document.createElement('select');
         if (def.externalInput) select.dataset.dockResource = machine.id;
         else select.dataset.dockDestination = machine.id;
@@ -994,7 +998,9 @@
         else delete activeBuilding.dockDestinations[resourceId];
       }
       persist();
-      status(destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
+      const uplink = Boolean(typeOf(machineById(select.dataset.dockDestination) || {})?.dataUplink);
+      status(uplink ? `ÉMETTEUR · ${destinationId ? select.selectedOptions[0]?.textContent : 'ANTENNE LA PLUS PROCHE'}`
+        : destinationId ? `QUAI · ${select.selectedOptions[0]?.textContent || 'DESTINATION'}` : 'DESTINATION DU QUAI SUPPRIMÉE');
     });
 
     // Escape first leaves a selection or the blueprints; returns whether it did.

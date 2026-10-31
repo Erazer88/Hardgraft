@@ -306,6 +306,7 @@
       $('factory-edit-button').hidden = !hasFactoryEditor;
       // Any building but the unique colony can be saved to the build menu.
       $('save-building-button').hidden = !isBuilding || item.type === 'colony';
+      $('hf-destination').hidden = !(isBuilding && item.type === 'hf_antenna');
       if (state.level !== 'system' || item.kind !== 'gazeuse') $('orbital-lab-button').hidden = true;
       $('selection-info').hidden = isBuilding || isArk;
       $('selection-meta').hidden = isBuilding || isArk;
@@ -398,6 +399,22 @@
       ];
     }
 
+    // The destination picker of a high-frequency antenna: the Ark, or an
+    // antenna of another planet of the system (a relay between worlds).
+    function renderHfDestination(building) {
+      const select = $('hf-destination-select');
+      const choices = root.OrbitDataTransit.destinationChoices(currentState, building);
+      const planetLabel = planetId => `planète ${['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][Number(String(planetId).split(':p-')[1])] || '?'}`;
+      const current = choices.some(item => item.id === building.hfTarget) ? building.hfTarget : 'ark';
+      const key = JSON.stringify([building.id, choices.map(item => [item.id, item.customName]), current]);
+      if (select.dataset.key === key || document.activeElement === select) return;
+      select.dataset.key = key; select.dataset.buildingId = building.id;
+      const option = (value, text) => { const node = document.createElement('option'); node.value = value; node.textContent = text; return node; };
+      select.replaceChildren(option('ark', 'L’Arche'),
+        ...choices.map(item => option(item.id, `${item.customName || 'Antenne haute fréquence'} · ${planetLabel(item.planetId)}`)));
+      select.value = current;
+    }
+
     // A high-frequency antenna, or a lab using its own transmitter: what waits
     // to leave, where it goes, or why it waits (solar conjunction…).
     function transmitterStats(building) {
@@ -415,6 +432,8 @@
         if (relayed) { rows.push(['TRANSMISSION', 'Par l’antenne relais à portée']); return rows; }
       }
       rows.push(['LIAISON', status],
+        ...(building.type === 'hf_antenna' && building.hfTarget && building.hfTarget !== 'ark'
+          ? [['RELAIS', 'Les données repartent de l’antenne choisie vers sa propre destination']] : []),
         ['DÉBIT', `${fmtDecimal(Spec.highFrequency.bandwidthMbPerSecond)} Mo/s · 3× plus vite que le fret`],
         ['EN ATTENTE', queued.map(item => `${item.name} · ${fmt(item.amount)} Mo`).join('  /  ') || 'Rien']);
       return rows;
@@ -424,6 +443,7 @@
       currentState = state;
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
+      if (selectedBuilding?.type === 'hf_antenna' && !$('hf-destination').hidden) renderHfDestination(selectedBuilding);
       if (selectedBuilding && !$('building-readout').hidden) {
         renderBuildingReadout(selectedBuilding);
         positionBuildingPanel(buildingPosition);

@@ -38,7 +38,19 @@
       candidate.planetId === from.planetId && root.OrbitLogisticsNetwork?.hasBuiltLandPath(network, from.id, candidate.id)), from);
   }
 
-  const uplinkAntenna = (state, datacenter) => byRoad(state, datacenter, 'hf_antenna');
+  // High-frequency antennas a datacenter may send to: on its planet, joined
+  // by a built road, nearest first.
+  function uplinkCandidates(state, datacenter) {
+    const network = state.roadNetworks?.[datacenter.planetId];
+    return (state.surfaceBuildings || []).filter(candidate => candidate.type === 'hf_antenna' && complete(candidate) &&
+      candidate.planetId === datacenter.planetId && root.OrbitLogisticsNetwork?.hasBuiltLandPath(network, datacenter.id, candidate.id))
+      .sort((a, b) => distance(a, datacenter) - distance(b, datacenter));
+  }
+  // The one chosen on its uplink card (dockDestinations.analysis), else the nearest.
+  function uplinkAntenna(state, datacenter) {
+    const candidates = uplinkCandidates(state, datacenter), chosen = datacenter.dockDestinations?.analysis;
+    return candidates.find(candidate => candidate.id === chosen) || candidates[0] || null;
+  }
   // A lab in orbit of a gas giant has no ground and no relay to reach.
   const orbitalLab = building => building.type === 'lab' && building.siteKind === 'gazeuse';
 
@@ -146,5 +158,5 @@
     return links;
   }
 
-  root.OrbitDataNetwork = Object.freeze({ advance, nearest, byRoad, uplinkAntenna, orbitalLab, deposit, datacenterRoom });
+  root.OrbitDataNetwork = Object.freeze({ advance, nearest, byRoad, uplinkCandidates, uplinkAntenna, orbitalLab, deposit, datacenterRoom });
 })(globalThis);

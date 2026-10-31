@@ -841,3 +841,41 @@ test('worlds without colony take only a colony (rocky worlds) or a lab, once the
   assert.ok(Progression.buildBlockedHere(state, 'colony', gas));
   assert.ok(Progression.buildBlockedHere(state, 'factory', rocky));
 });
+
+test('a datacenter sends only to a high-frequency antenna joined by road: the one chosen, else the nearest', () => {
+  const DataNetwork = context.OrbitDataNetwork;
+  const on = (id, type, x) => Building.create({ id, type, planetId, x, y: 0, constructionState: 'complete' });
+  const dc = on('dc', 'datacenter', 0), near = on('hf-near', 'hf_antenna', 40), far = on('hf-far', 'hf_antenna', 200);
+  const loose = on('hf-loose', 'hf_antenna', 10), factory = on('factory', 'factory', 20);
+  const state = { surfaceBuildings: [dc, near, far, loose, factory], roadNetworks: {} };
+  joinByRoad(state, planetId, dc, near); joinByRoad(state, planetId, dc, far); joinByRoad(state, planetId, dc, factory);
+  assert.deepEqual(plain(DataNetwork.uplinkCandidates(state, dc).map(item => item.id)), ['hf-near', 'hf-far'], 'antennas by road only');
+  assert.equal(DataNetwork.uplinkAntenna(state, dc).id, 'hf-near');
+  dc.dockDestinations.analysis = 'hf-far';
+  assert.equal(DataNetwork.uplinkAntenna(state, dc).id, 'hf-far');
+  dc.dockDestinations.analysis = 'factory';
+  assert.equal(DataNetwork.uplinkAntenna(state, dc).id, 'hf-near', 'anything else falls back to the nearest antenna');
+});
+
+test('a high-frequency antenna pointed at another one relays through it toward the Ark', () => {
+  const DataTransit = context.OrbitDataTransit;
+  const a = { id: 'home:p-0', orbit: 100, radius: 5, phase: 0, speed: 0 }, b = { id: 'home:p-1', orbit: 130, radius: 5, phase: .4, speed: 0 };
+  const system = { id: 'home', star: { mass: 1, radius: 8 }, planets: [a, b], ark: { id: 'home:ark', systemId: 'home', orbit: 70, phase: .2, speed: 0 } };
+  const on = (id, planet, extras = {}) => Building.create({ id, type: 'hf_antenna', planetId: planet.id, x: 0, y: 0, constructionState: 'complete', ...extras });
+  const sender = on('hf-a', a, { dataQueue: { analysis: 4 }, hfTarget: 'hf-b' }), relay = on('hf-b', b);
+  const state = { surfaceBuildings: [sender, relay], roadNetworks: {}, techPoints: 0 };
+  assert.deepEqual(plain(DataTransit.destinationChoices(state, sender).map(item => item.id)), ['hf-b']);
+  const systems = new Map([['home', system]]);
+  DataTransit.advance(state, 0, systems);
+  let [packet] = state.dataTransit.packets;
+  assert.equal(packet.toId, 'hf-b', 'sent to the chosen antenna, not to the Ark');
+  DataTransit.advance(state, packet.arrivalTime, systems, false);
+  assert.deepEqual(plain(relay.dataQueue), { analysis: 4 }, 'no datacenter there: it waits to go on');
+  DataTransit.advance(state, Math.ceil(packet.arrivalTime) + 1, systems);
+  [packet] = state.dataTransit.packets;
+  assert.equal(packet.toKind, 'ark');
+  DataTransit.advance(state, packet.arrivalTime, systems, false);
+  assert.equal(state.techPoints, 4);
+  relay.hfTarget = 'hf-a';
+  assert.equal(DataTransit.destinationAntenna(state, 'home', sender), null, 'two antennas pointed at each other do not loop');
+});

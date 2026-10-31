@@ -45,6 +45,8 @@
       persist();
     },
     getDestinations(building) {
+      // A datacenter's uplink sends only to a high-frequency antenna joined by road.
+      if (building.type === 'datacenter') return globalThis.OrbitDataNetwork.uplinkCandidates(state, building);
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
         candidate.planetId === building.planetId && ['complete', 'supplying'].includes(candidate.constructionState) &&
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
@@ -80,6 +82,12 @@
     },
     onDockDestinationChange(buildingId, resourceId, destinationId) {
       const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
+      if (building?.type === 'datacenter') {
+        if (destinationId && !globalThis.OrbitDataNetwork.uplinkCandidates(state, building).some(candidate => candidate.id === destinationId)) return false;
+        building.dockDestinations ||= {};
+        if (destinationId) building.dockDestinations[resourceId] = destinationId; else delete building.dockDestinations[resourceId];
+        return true;
+      }
       if (!building || !Logistics.setDockDestination(building, resourceId, destinationId)) return false;
       return true;
     }
@@ -1023,6 +1031,14 @@
   });
   $('building-name').addEventListener('keydown', event => { if (event.key === 'Enter') event.target.blur(); });
   $('demolish-button').onclick = demolishSelectedBuilding;
+  // Where the selected high-frequency antenna sends: the Ark or another antenna.
+  $('hf-destination-select').addEventListener('change', event => {
+    const building = state.surfaceBuildings.find(candidate => candidate.id === event.target.dataset.buildingId);
+    if (!building || building.type !== 'hf_antenna') return;
+    building.hfTarget = event.target.value === 'ark' ? null : event.target.value;
+    toast(building.hfTarget ? 'Antenne pointée vers une autre antenne haute fréquence.' : 'Antenne pointée vers l’Arche.');
+    persist(); updateUI();
+  });
   // A lab in orbit of the selected gas giant (skill "Atterrisseur").
   $('orbital-lab-button').onclick = () => {
     const planet = state.level === 'system' ? state.system?.planets.find(item => item.id === state.selected?.id) : null;

@@ -3,9 +3,12 @@
 
   // Data between worlds: high-frequency antennas (and labs using their own
   // transmitter) send their queue as packets, once per dispatch interval, at a
-  // steady bandwidth. Analyses go to the Ark, where each becomes a technology
-  // point; raw data goes to the high-frequency antenna of another planet that
-  // has a datacenter by road, which takes it in. Packets fly 3× faster than
+  // steady bandwidth. By default analyses go to the Ark, where each becomes a
+  // technology point, and raw data to the high-frequency antenna of another
+  // planet that has a datacenter by road, which takes it in. An antenna may
+  // instead be pointed at another one (building.hfTarget), which takes in the
+  // raw data if its datacenter can, and passes the rest on along its own
+  // destination: a relay between worlds. Packets fly 3× faster than
   // freight; the star between both ends cuts the link (solar conjunction).
   // State: state.dataTransit = { packets, nextDispatchTime, delivered }.
   const Data = root.OrbitDataNetworkData, World = root.OrbitWorld, Transit = root.OrbitOrbitalTransit;
@@ -61,13 +64,31 @@
       root.OrbitDataNetwork?.byRoad(state, building, 'datacenter'));
   }
 
+  // The antenna an emitter is pointed at, if it still stands on another planet
+  // of the system and is not itself pointed back at the emitter.
+  function destinationAntenna(state, systemId, emitter) {
+    if (!emitter.hfTarget || emitter.hfTarget === 'ark') return null;
+    const antenna = (state.surfaceBuildings || []).find(building => building.id === emitter.hfTarget);
+    return antenna && antenna.type === 'hf_antenna' && complete(antenna) && systemOf(antenna.planetId) === systemId &&
+      antenna.planetId !== emitter.planetId && antenna.hfTarget !== emitter.id ? antenna : null;
+  }
+
+  // Antennas an emitter may be pointed at (other planets of its system).
+  function destinationChoices(state, emitter) {
+    return (state.surfaceBuildings || []).filter(building => building.type === 'hf_antenna' && complete(building) &&
+      building.id !== emitter.id && building.planetId !== emitter.planetId &&
+      systemOf(building.planetId) === systemOf(emitter.planetId) && building.hfTarget !== emitter.id);
+  }
+
   // Where an emitter's resource goes now, or why it waits.
   function routeFor(state, system, emitter, resourceId, time) {
     const planet = system.planets.find(item => item.id === emitter.planetId);
     if (!planet) return { reason: 'unknown' };
     const from = World.planetPosition(planet, time);
     let target;
-    if (resourceId === 'analysis') {
+    const chosen = destinationAntenna(state, system.id, emitter);
+    if (chosen) target = { kind: 'antenna', id: chosen.id, planetId: chosen.planetId };
+    else if (resourceId === 'analysis') {
       if (!system.ark) return { reason: 'no_ark' };
       target = { kind: 'ark' };
     } else {
@@ -121,9 +142,14 @@
       return;
     }
     const antenna = (state.surfaceBuildings || []).find(building => building.id === packet.toId);
-    const center = antenna && root.OrbitDataNetwork.byRoad(state, antenna, 'datacenter');
+    if (!antenna) return;
+    // Raw data goes to the datacenter by road; analyses, or data with no
+    // datacenter to take it, wait in the antenna to go on.
+    const center = packet.resourceId !== 'analysis' && root.OrbitDataNetwork.byRoad(state, antenna, 'datacenter');
     if (center) root.OrbitDataNetwork.deposit(center, 'inventory', packet.resourceId, packet.amount,
       root.OrbitDataNetwork.datacenterRoom(center));
+    else root.OrbitDataNetwork.deposit(antenna, 'dataQueue', packet.resourceId, packet.amount,
+      () => Data.highFrequency.queueMb - Object.values(antenna.dataQueue || {}).reduce((sum, value) => sum + value, 0));
   }
 
   function advance(state, time, systems, running = true) {
@@ -153,5 +179,6 @@
 
   const snapshot = value => normalize(value);
 
-  root.OrbitDataTransit = Object.freeze({ createState, normalize, snapshot, advance, conjunction, routeFor, packetPosition, position });
+  root.OrbitDataTransit = Object.freeze({ createState, normalize, snapshot, advance, conjunction, routeFor, packetPosition, position,
+    destinationAntenna, destinationChoices });
 })(globalThis);

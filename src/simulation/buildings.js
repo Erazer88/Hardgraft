@@ -104,6 +104,8 @@
     const siteTemperature = isFiniteNumber(properties.siteTemperature) ? properties.siteTemperature : null;
     // Kind of the planet a lab studies (its data depends on it).
     const siteKind = typeof properties.siteKind === 'string' ? properties.siteKind : null;
+    // Where a high-frequency antenna sends: 'ark' (default) or another antenna's id.
+    const hfTarget = typeof properties.hfTarget === 'string' && properties.hfTarget ? properties.hfTarget : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
     if (!Number.isInteger(upgradeLevel) || upgradeLevel < 1) throw new RangeError('Upgrade level must be a positive integer');
     const flowPerMinute = properties.flowPerMinute ?? 0;
@@ -149,6 +151,7 @@
       composition,
       siteTemperature,
       siteKind,
+      hfTarget,
       upgradeLevel,
       status,
       customName,

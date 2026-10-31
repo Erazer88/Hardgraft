@@ -49,6 +49,14 @@ géante gazeuse) émet lui-même ses données comme une antenne haute fréquence
   les secondes un paquet par ressource, à débit stable (4 Mo/s, analyses d'abord). Les
   analyses partent vers l'Arche ; les données brutes vers l'antenne haute fréquence
   d'une autre planète qui a un datacenter relié par la route (la plus proche).
+- **Destination** (sélecteur sur sa fiche, `hfTarget`) : « L'Arche » par défaut (les
+  données brutes vont alors au datacenter le plus proche d'une autre planète), ou une
+  antenne haute fréquence d'une autre planète du système. Celle-ci prend les données
+  brutes si son datacenter, relié par la route, peut les recevoir ; le reste attend dans
+  sa file et repart vers sa propre destination : un relais entre les mondes. Deux
+  antennes pointées l'une vers l'autre sont ignorées (pas de boucle).
+- **Émetteur du datacenter** : la carte Liaison montante ne propose que les antennes haute
+  fréquence reliées au datacenter par la route (par défaut la plus proche).
 - **Vitesse** : 3 fois plus rapide que le fret interplanétaire (même trajet vers
   l'Arche ; ligne droite entre planètes).
 - **Conjonction solaire** : si l'étoile passe entre les deux bouts (à moins de 4 rayons

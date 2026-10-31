@@ -412,6 +412,11 @@ body[data-level="surface"] .corner-note{display:none}
 .skill-detail-cost{color:#ffd27b;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
 .skill-detail-hint{color:#efa35a;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:.6px}
 
+/* A high-frequency antenna's destination picker, on its sheet. */
+.hf-destination{display:flex;flex-direction:column;gap:4px;margin:6px 0 2px}
+.hf-destination span{color:#839cab;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.4px}
+.hf-destination select{width:100%;padding:7px 8px;border:1px solid #6fc8ff55;border-radius:4px;background:#0b1928;color:#d6ecf7;font-family:var(--mono);font-size:calc(10px*var(--ta) + var(--tb))}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
