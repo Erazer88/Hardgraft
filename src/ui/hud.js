@@ -304,8 +304,8 @@
       $('selection-name').hidden = isBuilding;
       $('building-name').hidden = !isBuilding;
       $('factory-edit-button').hidden = !hasFactoryEditor;
-      // Any building but the unique colony can be saved to the build menu.
-      $('save-building-button').hidden = !isBuilding || item.type === 'colony';
+      // Only buildings with cards can be saved to the build menu.
+      $('save-building-button').hidden = !hasFactoryEditor;
       $('hf-destination').hidden = !(isBuilding && item.type === 'hf_antenna');
       if (state.level !== 'system' || item.kind !== 'gazeuse') $('orbital-lab-button').hidden = true;
       $('selection-info').hidden = isBuilding || isArk;
@@ -546,7 +546,8 @@
     // placed again with their name and cards.
     let savedSignature = null;
     function renderBuildMenuTabs(state) {
-      const saved = state.library?.buildings || [], tab = state.buildMenuTab === 'saved' ? 'saved' : 'catalog';
+      const saved = (state.library?.buildings || []).filter(item => BuildingData.processTypes.includes(item.type));
+      const tab = state.buildMenuTab === 'saved' ? 'saved' : 'catalog';
       for (const [id, name] of [['build-tab-catalog', 'catalog'], ['build-tab-saved', 'saved']]) {
         $(id).classList.toggle('active', tab === name);
         $(id).setAttribute('aria-selected', String(tab === name));

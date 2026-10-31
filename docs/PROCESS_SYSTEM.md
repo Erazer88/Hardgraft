@@ -145,7 +145,7 @@ catalogue du bâtiment accepte (déblocage et limite par bâtiment compris). Les
 vivent dans la bibliothèque du joueur (`src/storage/library.js`), à part de la
 sauvegarde, et survivent à une nouvelle partie.
 
-**Bâtiments enregistrés.** Sur la fiche d'un bâtiment, « ENREGISTRER » copie son type,
+**Bâtiments enregistrés.** Sur la fiche d'un bâtiment à cartes (usine, extracteur, terril, dépôt, station de pompage, datacenter…), « ENREGISTRER » copie son type,
 son nom et ses cartes (sans stocks ni destinations) dans l'onglet « ENREGISTRÉS » du
 menu +. Le poser crée le bâtiment avec ce nom (numéroté s'il est déjà pris) et ses
 cartes ; seules restent celles que son catalogue accepte à cet endroit.

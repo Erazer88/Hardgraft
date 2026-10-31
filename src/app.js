@@ -116,7 +116,6 @@
       const name = BuildingNames.clean(value);
       if (building && name) { building.customName = name; persist(); }
     },
-    onSave(buildingId) { saveBuildingTemplate(state.surfaceBuildings.find(candidate => candidate.id === buildingId)); },
     onDemolish(buildingId) {
       const building = state.surfaceBuildings.find(candidate => candidate.id === buildingId);
       if (!building) return;
@@ -1005,7 +1004,8 @@
   $('save-building-button').onclick = () => saveBuildingTemplate(state.selected?.kind === 'building'
     ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null);
   function saveBuildingTemplate(building) {
-    if (!building) return;
+    // Only buildings with cards are worth saving.
+    if (!building || !BuildingData.processTypes.includes(building.type)) return;
     const template = Library.add(state.library.buildings, Library.buildingTemplate(building, state.factoryPlans[building.id]));
     saveLibrary();
     const cards = template.plan.machines.length;

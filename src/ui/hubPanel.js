@@ -10,7 +10,7 @@
   const { fmt, units, perMinute } = Kit;
   const REDRAW_MS = 5000;
 
-  function create(document, { onRename = () => {}, onDemolish = () => {}, onSave = () => {}, onClose = () => {},
+  function create(document, { onRename = () => {}, onDemolish = () => {}, onClose = () => {},
     getSystem = () => null, siteText = () => '' } = {}) {
     const $ = id => document.getElementById(id);
     const panel = $('hub-panel'), body = $('hub-panel-body'), nameInput = $('hub-panel-name');
@@ -126,7 +126,6 @@
     }
 
     $('hub-panel-close').addEventListener('click', close);
-    $('hub-panel-save').addEventListener('click', () => { if (hubId) onSave(hubId); });
     $('hub-panel-demolish').addEventListener('click', () => { if (hubId) onDemolish(hubId); });
     nameInput.addEventListener('change', () => { if (hubId) onRename(hubId, nameInput.value); });
     nameInput.addEventListener('keydown', event => { if (event.key === 'Enter') nameInput.blur(); });
