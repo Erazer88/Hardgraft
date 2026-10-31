@@ -366,22 +366,26 @@
     }
 
     let currentState = null;
-    // The data network as seen from a dish or a datacenter.
+    // The data network as seen from a relay antenna or a datacenter.
     function dataStats(building) {
       const links = Object.values(currentState?.dataLinks || {}), Spec = root.OrbitDataNetworkData;
       const nameOf = id => currentState?.surfaceBuildings.find(item => item.id === id)?.customName || '—';
       if (building.type === 'antenna') {
         const link = currentState?.dataLinks?.[building.id];
+        const inChain = Number.isInteger(link?.hops), offered = (link?.offeredTotal || 0) + (link?.relayed || 0);
+        const end = link?.datacenterId ? nameOf(link.datacenterId) : link?.hfAntennaId ? `${nameOf(link.hfAntennaId)} (vers une autre planète)` : null;
         return [
           ['SOURCES', link?.sources.length ? `${link.sources.length} bâtiment${link.sources.length > 1 ? 's' : ''} en activité` : 'Aucune dans la portée'],
-          ['DÉBIT', `${fmtDecimal(link?.carried || 0)} / ${fmtDecimal(Spec.antenna.bandwidthMbPerSecond)} Mo/s${link?.offeredTotal > Spec.antenna.bandwidthMbPerSecond ? ' · saturée' : ''}`],
-          ['TRANSMET À', link?.datacenterId ? nameOf(link.datacenterId) : link?.hfAntennaId ? `${nameOf(link.hfAntennaId)} (vers une autre planète)`
-            : link?.roadMissing ? 'Non relié par la route' : 'Aucun datacenter ni antenne haute fréquence'],
+          ['DÉBIT', `${fmtDecimal(link?.carried || 0)} / ${fmtDecimal(Spec.antenna.bandwidthMbPerSecond)} Mo/s` +
+            `${link?.relayed > 0 ? ` · dont ${fmtDecimal(link.relayed)} relayés` : ''}${offered > Spec.antenna.bandwidthMbPerSecond ? ' · saturée' : ''}`],
+          ['TRANSMET À', inChain ? nameOf(link.nextId) : 'Hors chaîne : aucune antenne relais reliée à portée'],
+          ['CHAÎNE', inChain ? `${link.hops + 1} antenne${link.hops ? 's' : ''} jusqu’à ${end}`
+            : `Posez des antennes à moins de ${fmt(Spec.antenna.linkRangeKm)} km les unes des autres jusqu’au datacenter`],
           ['PORTÉE', `${fmt(Spec.antenna.rangeKm)} km`]
         ];
       }
       if (building.type === 'hf_antenna' || building.type === 'lab') return transmitterStats(building);
-      const feeding = links.filter(link => link.datacenterId === building.id);
+      const feeding = links.filter(link => link.nextId === building.id);
       const factor = Spec.coolingFactor(building.siteTemperature);
       return [
         ['SITE', Number.isFinite(building.siteTemperature)

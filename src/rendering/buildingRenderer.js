@@ -412,8 +412,9 @@
         const from = frame.project(source.x, source.y);
         ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
       }
-      const target = byId.get(link.datacenterId) || byId.get(link.hfAntennaId);
-      if (target && link.carried > 0) beam(to, frame.project(target.x, target.y));
+      // Down the chain: to the next relay, or the datacenter at its end.
+      const next = byId.get(link.nextId);
+      if (next && link.carried > 0) beam(to, frame.project(next.x, next.y));
     }
     // Each datacenter's analyses go to its high-frequency antenna.
     for (const center of byId.values()) {
@@ -421,9 +422,13 @@
       const antenna = root.OrbitDataNetwork?.uplinkAntenna(state, center);
       if (antenna) beam(frame.project(center.x, center.y), frame.project(antenna.x, antenna.y));
     }
+    // Ranges: the antenna being placed or selected, and, while placing any
+    // piece of the network, every relay already standing (to plan the chain).
     const placing = state.tool === 'build' && state.placement?.type === 'antenna' ? state.placement : null;
     const selected = state.selected?.kind === 'building' && state.selected.type === 'antenna' ? state.selected : null;
-    for (const dish of [placing, selected].filter(Boolean)) {
+    const planning = state.tool === 'build' && ['antenna', 'datacenter', 'hf_antenna'].includes(state.placement?.type);
+    const standing = planning ? [...byId.values()].filter(building => building.type === 'antenna') : [];
+    for (const dish of [placing, selected, ...standing].filter(Boolean)) {
       const point = frame.project(dish.x, dish.y);
       ctx.globalAlpha = style.rangeOpacity; ctx.strokeStyle = style.color; ctx.lineWidth = 1.2; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.arc(point.x, point.y, range * frame.zoom, 0, Math.PI * 2); ctx.stroke();

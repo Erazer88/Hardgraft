@@ -68,7 +68,7 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   premières ressources reçues par l'Arche : « Réveil des archives », « Réseau
   informatique » (Datacenter, Antenne relais, Antenne haute fréquence), « Atterrisseur »
   (colonie sur les autres mondes rocheux, laboratoires partout). Les données
-  (géologiques, industrielles, planétaires) vont par antennes relais et routes au
+  (géologiques, industrielles, planétaires) vont par une chaîne d'antennes relais au
   datacenter, ses analyses par l'antenne haute fréquence à l'Arche, où chacune devient
   un point de technologie (monnaie de l'arbre, à la place du Contexte). Débit stable,
   coupé par la conjonction solaire, 3× plus rapide que le fret. Voir

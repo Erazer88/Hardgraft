@@ -11,11 +11,11 @@ converge à terme vers l'Arche. Les mécaniques du datacenter s'inspirent d'Uplo
 
 ```text
 Planète du datacenter :
-  bâtiment en activité → antenne relais (≤ 300 km) → route → datacenter
+  bâtiment en activité → antenne relais (≤ 300 km) → antenne relais → … → datacenter
   → liaison montante → route → antenne haute fréquence → Arche : 1 analyse = 1 point
 
 Autre planète (sans datacenter) :
-  bâtiment → antenne relais → route → antenne haute fréquence
+  bâtiment → antenne relais → … → antenne haute fréquence
   → antenne haute fréquence d'une planète dont le datacenter est relié par la route → datacenter
 ```
 
@@ -36,10 +36,15 @@ géante gazeuse) émet lui-même ses données comme une antenne haute fréquence
 
 ## Antennes
 
-- **Antenne relais** (`antenna`) : rassemble les sources dans sa portée (300 km),
-  4 Mo/s au plus partagés entre elles. Elle transmet par la route au datacenter le plus
-  proche, sinon à l'antenne haute fréquence la plus proche. Sans route : « Non relié
-  par la route ».
+- **Antenne relais** (`antenna`) : rassemble les sources dans sa portée (300 km). Les
+  antennes relais se relaient sans fil, de l'une à la suivante à moins de
+  `linkRangeKm` (300 km), en **chaîne** jusqu'à une antenne qui a le datacenter dans sa
+  portée (sur une planète sans datacenter : une antenne haute fréquence). Chaque
+  antenne porte au plus 4 Mo/s, ses sources et ce qu'elle relaie compris : le bout de la
+  chaîne est le goulot, d'où l'intérêt de chaînes parallèles. Chaque antenne suit le
+  plus court chemin (en nombre d'antennes). Sa fiche donne l'antenne suivante, la
+  longueur de la chaîne et ce qu'elle relaie ; hors chaîne, elle n'envoie rien. Pendant
+  la pose d'une pièce du réseau, les portées des antennes existantes s'affichent.
 - **Antenne haute fréquence** (`hf_antenna`) : file d'attente de 400 Mo, envoie toutes
   les secondes un paquet par ressource, à débit stable (4 Mo/s, analyses d'abord). Les
   analyses partent vers l'Arche ; les données brutes vers l'antenne haute fréquence

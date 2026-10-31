@@ -749,27 +749,25 @@ test('the skill tree opens when goods first reach the Ark; its first skill is ac
     { revealed: true, unlocked: ['archive_awakening'] });
 });
 
-test('dishes carry the data of working buildings in range to a datacenter joined by road, up to their bandwidth', () => {
+test('relay antennas pass data down a chain to the datacenter; the end of the chain is the bottleneck', () => {
   const DataNetwork = context.OrbitDataNetwork, Spec = context.OrbitDataNetworkData;
   const at = (id, type, x, extras = {}) => ({ id, type, planetId, x, y: 0, constructionState: 'complete', status: 'active', ...extras });
   const dc = at('dc', 'datacenter', 900, { inventory: {} });
   const state = { surfaceBuildings: [
-    at('x1', 'extractor', 10), at('x2', 'extractor', 20), at('x3', 'extractor', 30), at('f1', 'factory', 40),
-    at('f2', 'factory', 50), at('far', 'extractor', 5000), at('idle', 'factory', 60, { status: 'waiting' }),
-    at('dish', 'antenna', 0), dc], roadNetworks: {} };
+    at('x1', 'extractor', 10), at('x2', 'extractor', 20), at('f1', 'factory', 40), at('far', 'extractor', 5000),
+    at('idle', 'factory', 60, { status: 'waiting' }), at('dish', 'antenna', 0), dc,
+    at('x3', 'extractor', 620), at('f2', 'factory', 640)], roadNetworks: {} };
   let links = DataNetwork.advance(state, 10);
-  assert.equal(links.dish.datacenterId, null, 'no road, no link');
-  assert.equal(links.dish.roadMissing, true);
-  const network = state.roadNetworks[planetId] = Road.create(planetId);
-  const from = Road.addNode(network, { x: 0, y: 0, buildingId: 'dish' }), to = Road.addNode(network, { x: 900, y: 0, buildingId: 'dc' });
-  Road.addSegment(network, { from: from.id, to: to.id, points: [{ x: 0, y: 0 }, { x: 900, y: 0 }], builtLength: 900 });
+  assert.equal(links.dish.hops, null, 'the datacenter is out of reach: no chain yet');
+  state.surfaceBuildings.push(at('mid', 'antenna', 300), at('last', 'antenna', 600));
   links = DataNetwork.advance(state, 10);
-  assert.equal(links.dish.datacenterId, 'dc');
-  assert.deepEqual(plain(links.dish.sources), ['x1', 'x2', 'x3', 'f1', 'f2'], 'working buildings in range only');
-  assert.equal(links.dish.offeredTotal, 5);
-  assert.equal(links.dish.carried, Spec.antenna.bandwidthMbPerSecond, 'the dish is the bottleneck');
+  assert.deepEqual([links.dish.nextId, links.mid.nextId, links.last.nextId], ['mid', 'last', 'dc']);
+  assert.deepEqual([links.dish.hops, links.mid.hops, links.last.hops], [2, 1, 0]);
+  assert.deepEqual(plain(links.dish.sources), ['x1', 'x2', 'f1'], 'working buildings in range only');
+  assert.equal(links.dish.carried, 3);
+  assert.equal(links.last.relayed, 3, 'the last relay carries what the chain brings');
+  assert.equal(links.last.carried, Spec.antenna.bandwidthMbPerSecond, 'and is the bottleneck (3 + 2 offered)');
   assert.equal((dc.inventory.geo_data || 0) + (dc.inventory.industrial_data || 0), 40);
-  assert.ok(dc.inventory.geo_data > dc.inventory.industrial_data, 'shared by what each sends');
 });
 
 // Two buildings joined by a built road on a planet.

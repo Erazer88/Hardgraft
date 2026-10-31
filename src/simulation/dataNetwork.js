@@ -3,10 +3,13 @@
 
   // Data on each planet's surface (see src/data/dataNetwork.js):
   //  - every building at work sends its data to the nearest relay antenna in
-  //    range, which carries at most its bandwidth, shared between senders;
-  //  - a relay hands it by road (OrbitLogisticsNetwork.hasBuiltLandPath) to
-  //    the nearest datacenter, or, on a planet without one, to the nearest
-  //    high-frequency antenna, which sends it to another planet;
+  //    range;
+  //  - relay antennas pass data from one to the next, wirelessly within
+  //    linkRangeKm, down a chain to one that has a datacenter in range (or, on
+  //    a planet without one, a high-frequency antenna, which sends it to
+  //    another planet). Each relay carries at most its bandwidth, its own
+  //    senders and what it relays together: the end of a chain is its
+  //    bottleneck;
   //  - a datacenter's uplink cards hand their analyses by road to the nearest
   //    high-frequency antenna, bound for the Ark;
   //  - a lab with no relay antenna in range (on a world without colony, or in
@@ -63,7 +66,7 @@
     const buildings = state.surfaceBuildings || [];
     const relays = buildings.filter(building => building.type === 'antenna' && complete(building));
     const blank = relay => ({ antennaId: relay.id, planetId: relay.planetId, sources: [], offered: {}, offeredTotal: 0,
-      carried: 0, datacenterId: null, hfAntennaId: null, roadMissing: false });
+      relayed: 0, carried: 0, nextId: null, hops: null, datacenterId: null, hfAntennaId: null });
     const links = {};
     for (const source of buildings) {
       const spec = Data.sources[source.type];
@@ -82,20 +85,49 @@
       link.offered[spec.resourceId] = (link.offered[spec.resourceId] || 0) + rate;
       link.offeredTotal += rate;
     }
+    for (const relay of relays) links[relay.id] ||= blank(relay);
+    // The chains: from each relay that has a datacenter in range (else, on a
+    // planet without one, a high-frequency antenna), count hops backward.
+    const range = Data.antenna.linkRangeKm, hops = new Map(), queue = [];
     for (const relay of relays) {
-      const link = links[relay.id] ||= blank(relay);
-      const center = byRoad(state, relay, 'datacenter');
-      const antenna = center ? null : byRoad(state, relay, 'hf_antenna');
-      // Something to hand over to stands on the planet, but no road reaches it.
-      link.roadMissing = !center && !antenna && buildings.some(candidate => complete(candidate) &&
-        candidate.planetId === relay.planetId && ['datacenter', 'hf_antenna'].includes(candidate.type));
-      if (!center && !antenna) continue;
-      link.datacenterId = center?.id || null; link.hfAntennaId = antenna?.id || null;
-      const share = link.offeredTotal > 0 ? Math.min(1, Data.antenna.bandwidthMbPerSecond / link.offeredTotal) : 0;
-      link.carried = link.offeredTotal * share;
-      for (const [resourceId, rate] of Object.entries(link.offered)) {
-        if (center) deposit(center, 'inventory', resourceId, rate * share * seconds, datacenterRoom(center));
-        else deposit(antenna, 'dataQueue', resourceId, rate * share * seconds, queueRoom(antenna));
+      const onPlanet = type => buildings.filter(candidate => candidate.type === type && complete(candidate) && candidate.planetId === relay.planetId);
+      const centers = onPlanet('datacenter');
+      const sink = nearest(centers, relay, range) || (!centers.length && nearest(onPlanet('hf_antenna'), relay, range));
+      if (!sink) continue;
+      const link = links[relay.id];
+      if (sink.type === 'datacenter') link.datacenterId = sink.id; else link.hfAntennaId = sink.id;
+      link.nextId = sink.id; link.hops = 0; hops.set(relay.id, 0); queue.push(relay);
+    }
+    while (queue.length) {
+      const relay = queue.shift(), depth = hops.get(relay.id);
+      for (const other of relays) {
+        if (hops.has(other.id) || other.planetId !== relay.planetId || distance(other, relay) > range) continue;
+        hops.set(other.id, depth + 1);
+        Object.assign(links[other.id], { nextId: relay.id, hops: depth + 1,
+          datacenterId: links[relay.id].datacenterId, hfAntennaId: links[relay.id].hfAntennaId });
+        queue.push(other);
+      }
+    }
+    // Data flows down each chain, farthest relays first; each relay passes on
+    // at most its bandwidth, every kind of data in proportion.
+    const incoming = new Map();
+    for (const relay of [...relays].filter(item => hops.has(item.id)).sort((a, b) => hops.get(b.id) - hops.get(a.id))) {
+      const link = links[relay.id], flow = { ...link.offered };
+      for (const [resourceId, rate] of Object.entries(incoming.get(relay.id) || {})) flow[resourceId] = (flow[resourceId] || 0) + rate;
+      const offered = Object.values(flow).reduce((sum, rate) => sum + rate, 0);
+      link.relayed = offered - link.offeredTotal;
+      const share = offered > 0 ? Math.min(1, Data.antenna.bandwidthMbPerSecond / offered) : 0;
+      link.carried = offered * share;
+      const next = buildings.find(candidate => candidate.id === link.nextId);
+      for (const [resourceId, rate] of Object.entries(flow)) {
+        const passed = rate * share;
+        if (next.type === 'datacenter') deposit(next, 'inventory', resourceId, passed * seconds, datacenterRoom(next));
+        else if (next.type === 'hf_antenna') deposit(next, 'dataQueue', resourceId, passed * seconds, queueRoom(next));
+        else {
+          const into = incoming.get(next.id) || {};
+          into[resourceId] = (into[resourceId] || 0) + passed;
+          incoming.set(next.id, into);
+        }
       }
     }
     // Analyses leave the datacenters for their high-frequency antenna.

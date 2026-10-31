@@ -17,9 +17,10 @@
       lab: { resourceId: 'planetary_data', mbPerSecond: 1, alwaysActive: true,
         byPlanetKind: { tellurique: 1, aride: 1, océanique: 1.5, glacée: 1.5, volcanique: 2, gazeuse: 3 } }
     },
-    // A relay antenna gathers the buildings within its range and carries at
-    // most its bandwidth (Mo/s), shared between them.
-    antenna: { rangeKm: 300, bandwidthMbPerSecond: 4 },
+    // A relay antenna gathers the buildings within its range and passes data
+    // to the next relay within linkRangeKm, down a chain to the datacenter;
+    // it carries at most its bandwidth (Mo/s), relayed data included.
+    antenna: { rangeKm: 300, linkRangeKm: 300, bandwidthMbPerSecond: 4 },
     // A high-frequency antenna sends packets at a steady bandwidth, once per
     // dispatch interval, holding at most queueMb. Packets fly 3× faster than
     // interplanetary freight; the star between both ends cuts the link
