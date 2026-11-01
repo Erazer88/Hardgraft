@@ -118,8 +118,9 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   ressource envoyée, une Porte d'entrée pour un dépôt), qui disparaît quand plus rien
   ne lui est envoyé. La supprimer à la main efface seulement la destination de ce qui
   l'alimentait. Ces cartes ne sont plus dans « Ajouter un bloc ».
-- Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
-  ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
+- Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement,
+  incinération productrice d'énergie, carte Stockage sans limite pour la matière
+  récupérée), Plateforme de lancement. Pas de pollution.
 - Deux équipes de robots, 2 s de construction par bâtiment. Prix masqués
   (`pricesEnabled: false`). Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 

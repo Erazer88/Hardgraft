@@ -17,7 +17,8 @@
     // Tar: crushed rock cooked with coal sorted out of ground rock; its waste
     // finds a heap, and ports reach carbon on other shores.
     { id: 'tar', when: { tier: 1 }, buildings: ['factory', 'waste_heap', 'surface_port'],
-      cards: ['crusher', 'grinder', 'carbon_separator', 'tar_furnace', 'input_dock', 'reprocessor', 'incinerator'] },
+      cards: ['crusher', 'grinder', 'carbon_separator', 'tar_furnace', 'input_dock', 'reprocessor', 'incinerator',
+        'terril'] },
     // Metal plates: iron sorted out, smelted and rolled; a depot to share flows.
     { id: 'plates', when: { tier: 2 }, buildings: ['storage'],
       cards: ['magnetic_separator', 'reduction_furnace:iron', 'rolling_mill', 'depot_input', 'depot_output', 'depot_buffer',

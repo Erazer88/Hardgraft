@@ -64,7 +64,7 @@ test('extractors drill, crush and grind, factories do the rest; only docks are s
   const shared = Data.catalog('extractor').map(name).filter(id => factory.includes(id));
   assert.deepEqual(plain(shared), ['output_dock'], 'no processing card in both');
   assert.deepEqual(plain(Data.catalog('oil_platform').map(def => def.id)), ['oil_pump', 'triphasic_separator', 'output_dock']);
-  assert.deepEqual(plain(Data.catalog('waste_heap').map(def => def.id)), ['input_dock', 'reprocessor', 'incinerator', 'output_dock']);
+  assert.deepEqual(plain(Data.catalog('waste_heap').map(def => def.id)), ['input_dock', 'reprocessor', 'incinerator', 'terril', 'output_dock']);
   for (const def of [...Data.catalog('factory'), ...Data.catalog('extractor'), ...Data.catalog('oil_platform')]) {
     assert.ok(typeof def.description === 'string' && def.description.length > 10, `${def.id} has a palette description`);
     for (const part of [...(def.recipe?.inputs || []), ...(def.recipe?.outputs || [])]) {
@@ -694,4 +694,21 @@ test('a datacenter analyses data into its storage, drawing more power on a warm 
   const cold = run(-20), warm = run(40);
   assert.ok(cold.analyses >= 10, `analyses are made and kept beyond the usual 20 (${cold.analyses})`);
   assert.ok(warm.energy > cold.energy * 1.5, `a warm site draws more (${warm.energy} vs ${cold.energy} MW)`);
+});
+
+test('the waste heap storage card keeps without limit the rock the reprocessor recovers', () => {
+  const storage = Data.catalog('waste_heap').find(def => def.id === 'terril');
+  assert.equal(storage.label, 'STOCKAGE');
+  const graph = Graph.create();
+  const reprocessor = machine(graph, 'reprocessor', 'reprocessor', 0, 'rock');
+  const kept = machine(graph, 'storage', 'terril', 350);
+  connect(graph, 'kept', 'reprocessor', 'rock', 'storage', 'material');
+  // 2 tailings/s → 0,2 ground rock/s: 1 500 s give 300 units, beyond any dock or buffer.
+  for (let second = 0; second < 1500; second++) {
+    reprocessor.inputBuffer.waste = Math.max(reprocessor.inputBuffer.waste, 20);
+    advance(graph, 1);
+  }
+  assert.ok(kept.storedResources.ground_rock >= 290, `${kept.storedResources.ground_rock} ground rock stored`);
+  assert.equal(reprocessor.state, 'active');
+  assert.ok(reprocessor.outputBuffer.rock <= 1, 'nothing piles up before the storage');
 });

@@ -156,8 +156,12 @@
       if (definition(to).storesResources) {
         const amount = integer(from.outputBuffer[out.id]);
         if (!amount) continue;
-        to.storedResources[out.resourceId] = (to.storedResources[out.resourceId] || 0) + amount;
+        // An input dock's port carries the resource it was given.
+        const resourceId = out.resourceId || from.importResourceId;
+        if (!resourceId) continue;
+        to.storedResources[resourceId] = (to.storedResources[resourceId] || 0) + amount;
         from.outputBuffer[out.id] = 0;
+        Mix?.prune(from.outputMix, out.id, 0);
         continue;
       }
       if (definition(from).source && !definition(to).sink) {

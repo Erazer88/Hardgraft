@@ -94,11 +94,13 @@ ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvega
 **Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
 Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
 Incinérateur (2 déchets/s brûlés, jusqu'à 8 MW rendus à la planète au prorata de son
-débit) et Dock de sortie. La puissance de l'incinérateur suit son débit moyen sur environ
+débit), Stockage et Dock de sortie. La puissance de l'incinérateur suit son débit moyen sur environ
 20 s (`generationSmoothingSeconds`, `machine.generatedMW` non sauvegardé) : une
-alimentation irrégulière donne une puissance stable au lieu de l'allumer et l'éteindre. Pas de débordement ni de pollution pour l'instant. L'ancienne
-carte Terril (stock illimité dans l'usine) reste dans les données mais n'est plus dans
-aucun catalogue.
+alimentation irrégulière donne une puissance stable au lieu de l'allumer et l'éteindre.
+La carte Stockage (id `terril`, ex-carte Terril des usines) garde sans limite tout ce
+qu'on lui relie, typiquement la roche broyée du Retraitement (`storesResources`,
+`machine.storedResources`, sauvegardé) ; ce stock s'affiche sur la fiche du bâtiment et
+ne ressort pas. Pas de débordement ni de pollution pour l'instant.
 
 **Plateforme de lancement.** L'énergie d'un lancement croît avec la latitude :
 `5 MW + 0,14 MW/°` (`launchSite` dans `src/data/orbitalLogistics.js`, la carte couvre

@@ -83,7 +83,7 @@ affiché verrouillé (`src/data/progression.js`, `src/gameplay/progression.js`) 
 | Au départ | Colonie | — |
 | Colonie posée (elle demande de la roche) | Extracteur | Foreuse, Dock de sortie |
 | Une planète manque d'énergie | Éolienne | — |
-| Palier 1 atteint (elle demande du goudron) | Usine, Terril, Port | Concasseur, Broyeur, Trieuse de carbone, Four à goudron, Quai d'entrée, Retraitement, Incinérateur |
+| Palier 1 atteint (elle demande du goudron) | Usine, Terril, Port | Concasseur, Broyeur, Trieuse de carbone, Four à goudron, Quai d'entrée, Retraitement, Incinérateur, Stockage (terril) |
 | Palier 2 atteint (elle demande des plaques) | Dépôt | Séparateur magnétique, Four · fer, Laminoir, cartes du dépôt |
 | Palier 3 atteint, 800 habitants (elle demande le hub) | Station de pompage, Hub | Séparateur gravitaire, Four · cuivre, Laveuse et sécheur de silice, Four · silice, Pompe, Dessalinisateur |
 

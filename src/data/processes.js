@@ -199,8 +199,10 @@
       // Docks are logical connectors: no throughput limit.
       inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: null, energyMW: 0
     },
+    // Storage of the waste heap: keeps without limit what reaches it (the
+    // rock recovered by the reprocessor). The id stays 'terril' for saves.
     terril: {
-      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke les matières et résidus.', sink: true, storesResources: true,
+      id: 'terril', label: 'STOCKAGE', mark: 'SK', description: 'Stocke sans limite la matière récupérée.', sink: true, storesResources: true,
       inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },
@@ -350,7 +352,7 @@
       if (buildingType === 'storage') return depotCatalog.map(type => get(type));
       if (buildingType === 'datacenter') return datacenterCatalog.map(type => get(type));
       if (buildingType === 'waste_heap') {
-        return ['input_dock', 'reprocessor', 'incinerator', 'output_dock'].map(type => get(type, 'rock')).filter(Boolean);
+        return ['input_dock', 'reprocessor', 'incinerator', 'terril', 'output_dock'].map(type => get(type, 'rock')).filter(Boolean);
       }
       const entry = item => Array.isArray(item) ? get(item[0], item[1]) : get(item, 'rock');
       if (buildingType === 'oil_platform') return oilCatalog.map(type => get(type, 'oil')).filter(Boolean);
