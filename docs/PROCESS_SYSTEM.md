@@ -167,6 +167,11 @@ Porte d'entrée d'un dépôt sa « PROVENANCE » (tous les bâtiments qui lui en
 chose) et le nom des ressources passées ; le changement de
 bâtiment se fait par un court glissement.
 
+**Sélection de cartes.** Le bouton « SÉLECTION » de l'en-tête de l'éditeur passe en
+mode sélection : un glisser trace un rectangle, les cartes touchées sont retenues
+(contour ambre) et le plan redevient normal ; glisser l'une d'elles déplace toute la
+sélection, bornée au plan. « TERMINER », le même bouton ou Échap la referment.
+
 **Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans
 enregistrés. « Sélectionner une région » passe en mode sélection : un glisser trace un
 rectangle, les cartes touchées sont retenues avec leurs liaisons internes et leurs

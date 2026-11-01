@@ -462,6 +462,7 @@
       // A filter's outputs grow with the resources reaching it: the card is
       // laid out again when they change.
       card.dataset.portsKey = def.outputPorts.map(port => port.id).join('|');
+      if (selectedIds.includes(machine.id)) card.classList.add('in-selection');
       card.style.left = `${machine.x}px`; card.style.top = `${machine.y}px`;
       const header = document.createElement('header'); header.className = 'factory-node-header';
       const mark = document.createElement('span'); mark.className = 'factory-node-mark'; mark.textContent = def.mark;
@@ -691,9 +692,19 @@
       },
       onMachineMove(id, point) {
         const machine = machineById(id); if (!machine) return;
-        machine.x = clamp(point.x, 8, WORLD.width - NODE.width - 8);
-        machine.y = clamp(point.y, 8, WORLD.height - heightOf(machine) - 8);
-        updateMachinePosition(machine);
+        // A card of the selection moves the whole selection with it.
+        const group = groupIds.includes(id) ? groupIds.map(machineById).filter(Boolean) : [machine];
+        let dx = point.x - machine.x, dy = point.y - machine.y;
+        for (const item of group) {
+          dx = clamp(dx, 8 - item.x, WORLD.width - NODE.width - 8 - item.x);
+          dy = clamp(dy, 8 - item.y, WORLD.height - heightOf(item) - 8 - item.y);
+        }
+        for (const item of group) {
+          item.x += dx; item.y += dy;
+          const card = cards.get(item.id);
+          if (card) { card.style.left = `${item.x}px`; card.style.top = `${item.y}px`; }
+        }
+        renderConnections();
       },
       onMachineEnd() { persist(); },
       onSelectMachine(id) {
@@ -838,7 +849,7 @@
       activeBuilding = building;
       shown.clear();
       setPaletteOpen(false); setBlueprintsOpen(false);
-      if (selecting) endSelection();
+      if (selecting || groupIds.length) endSelection();
       graph = savedPlan?.version === Data.config.version && Array.isArray(savedPlan.machines)
         ? savedPlan : Graph.create(savedPlan || {});
       machines = graph.machines; connections = graph.connections; pendingConnection = null;
@@ -877,7 +888,7 @@
     function close() {
       if (editor.hidden) return;
       setPaletteOpen(false); setBlueprintsOpen(false);
-      if (selecting) endSelection();
+      if (selecting || groupIds.length) endSelection();
       persist();
       editor.hidden = true; document.body.classList.remove('factory-editor-open');
       activeBuilding = null; graph = null; machines = []; connections = [];
@@ -891,7 +902,10 @@
     const blueprintsOverlay = $('factory-blueprints-overlay'), blueprintsToggle = $('factory-blueprints-toggle');
     const blueprintList = $('factory-blueprint-list'), selectionBar = $('factory-selection-bar');
     const selectionRect = $('factory-selection-rect'), selectionName = $('factory-selection-name');
-    let selecting = false, selectedIds = [];
+    // selecting: a rectangle is being drawn; for a blueprint, or to pick the
+    // cards that then move together (groupIds) until the selection ends.
+    let selecting = false, selectedIds = [], selectionPurpose = 'blueprint', groupIds = [];
+    const selectButton = $('factory-select-cards');
 
     function setBlueprintsOpen(open) {
       blueprintsOverlay.hidden = !open;
@@ -940,38 +954,55 @@
       blueprintList.replaceChildren(select, ...items);
     }
 
-    function startSelection() {
+    function startSelection(purpose = 'blueprint') {
+      if (selecting || groupIds.length) endSelection();
       setBlueprintsOpen(false); setPaletteOpen(false);
-      selecting = true; selectedIds = [];
+      selecting = true; selectedIds = []; selectionPurpose = purpose;
       editor.classList.add('factory-selecting');
       selectionBar.hidden = false;
+      selectionBar.classList.toggle('moving', purpose === 'move');
+      $('factory-selection-cancel').textContent = purpose === 'move' ? 'TERMINER' : 'ANNULER';
+      selectButton?.setAttribute('aria-pressed', String(purpose === 'move'));
       selectionName.value = `Blueprint ${(library?.blueprints().length || 0) + 1}`;
       updateSelection();
       status('GLISSEZ POUR ENTOURER DES CARTES');
     }
 
     function endSelection() {
-      selecting = false; selectedIds = [];
-      editor.classList.remove('factory-selecting');
+      selecting = false; selectedIds = []; groupIds = [];
+      editor.classList.remove('factory-selecting', 'factory-grouping');
       selectionBar.hidden = true; selectionRect.hidden = true;
+      selectionBar.classList.remove('moving');
+      selectButton?.setAttribute('aria-pressed', 'false');
       updateSelection();
     }
 
     function updateSelection() {
       for (const [id, card] of cards) card.classList.toggle('in-selection', selectedIds.includes(id));
-      $('factory-selection-count').textContent = selectedIds.length
-        ? `${selectedIds.length} CARTE${selectedIds.length > 1 ? 'S' : ''}` : 'GLISSEZ POUR ENTOURER DES CARTES';
+      const count = `${selectedIds.length} CARTE${selectedIds.length > 1 ? 'S' : ''}`;
+      $('factory-selection-count').textContent = !selectedIds.length ? 'GLISSEZ POUR ENTOURER DES CARTES'
+        : groupIds.length ? `${count} · GLISSEZ UNE CARTE POUR DÉPLACER LA SÉLECTION` : count;
       $('factory-selection-save').disabled = !selectedIds.length;
     }
 
     // The rectangle drawn on the plan (world units); the cards it touches.
-    function selectRegion(rect) {
+    // Once drawn for a move, the cards stay selected and the plan works as
+    // usual: dragging one of them moves them all.
+    function selectRegion(rect, done) {
       const left = Math.min(rect.x0, rect.x1), top = Math.min(rect.y0, rect.y1);
       const width = Math.abs(rect.x1 - rect.x0), height = Math.abs(rect.y1 - rect.y0);
       Object.assign(selectionRect.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
       selectionRect.hidden = false;
       selectedIds = machines.filter(machine => machine.x < left + width && machine.x + NODE.width > left &&
         machine.y < top + height && machine.y + heightOf(machine) > top).map(machine => machine.id);
+      if (done && selectionPurpose === 'move') {
+        selecting = false; selectionRect.hidden = true;
+        editor.classList.remove('factory-selecting');
+        groupIds = [...selectedIds];
+        editor.classList.toggle('factory-grouping', groupIds.length > 0);
+        if (!groupIds.length) { endSelection(); status('AUCUNE CARTE SÉLECTIONNÉE'); return; }
+        status(`${groupIds.length} CARTE${groupIds.length > 1 ? 'S' : ''} SÉLECTIONNÉE${groupIds.length > 1 ? 'S' : ''}`);
+      }
       updateSelection();
     }
 
@@ -1053,7 +1084,15 @@
       if (blueprint) { setBlueprintsOpen(false); placeBlueprint(blueprint); }
     });
     $('factory-selection-save').addEventListener('click', saveSelection);
-    $('factory-selection-cancel').addEventListener('click', () => { endSelection(); status('SÉLECTION ANNULÉE'); });
+    $('factory-selection-cancel').addEventListener('click', () => {
+      const moving = selectionPurpose === 'move';
+      endSelection(); status(moving ? 'SÉLECTION TERMINÉE' : 'SÉLECTION ANNULÉE');
+    });
+    // The header button: draw a rectangle, then move its cards together.
+    selectButton?.addEventListener('click', () => {
+      if (selectionPurpose === 'move' && (selecting || groupIds.length)) { endSelection(); status('SÉLECTION TERMINÉE'); return; }
+      startSelection('move');
+    });
     selectionName.addEventListener('keydown', event => { if (event.key === 'Enter') saveSelection(); });
     editor.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !paletteOverlay.hidden) {
@@ -1123,7 +1162,7 @@
 
     // Escape first leaves a selection or the blueprints; returns whether it did.
     function dismiss() {
-      if (selecting) { endSelection(); status('SÉLECTION ANNULÉE'); return true; }
+      if (selecting || groupIds.length) { endSelection(); status('SÉLECTION TERMINÉE'); return true; }
       if (!blueprintsOverlay.hidden) { setBlueprintsOpen(false); return true; }
       return false;
     }

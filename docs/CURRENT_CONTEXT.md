@@ -82,7 +82,9 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
 - Éditeur de cartes : état et débit sur une ligne, une large barre bleue qui compte
   les unités, « ⚡ MW » et une note (stock d'un quai sur 100, teneur d'un séparateur).
   Quais, Docks et Portes de dépôt affichent le débit moyen des 5 dernières secondes,
-  mis à jour toutes les 5 s. Liaisons courbes ou à angle droit (bouton de l'en-tête,
+  mis à jour toutes les 5 s. Bouton « Sélection » de l'en-tête : un rectangle choisit
+  des cartes, qui se déplacent ensemble jusqu'à « Terminer ». Liaisons courbes ou à
+  angle droit (bouton de l'en-tête,
   choix gardé par le navigateur). Pas de symbole ∞ dans l'interface.
 
 ### Colonie et progression

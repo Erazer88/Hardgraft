@@ -295,7 +295,7 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 /* Factory editor: blueprints next to "add a block", region selection. */
 .factory-add-block-trigger{left:calc(50% - 4px);transform:translateX(-100%)}
 .factory-blueprints-trigger{left:calc(50% + 4px);min-width:0;transform:none}
-.factory-selecting .factory-add-block-trigger{display:none}
+.factory-selecting .factory-add-block-trigger,.factory-grouping .factory-add-block-trigger{display:none}
 .factory-selecting .factory-viewport{cursor:crosshair}
 .factory-selection-rect{position:absolute;z-index:3;border:2px dashed #efa35a;border-radius:4px;background:#efa35a14;pointer-events:none}
 .factory-node.in-selection{border-color:#efa35acc;box-shadow:0 0 0 2px #efa35a55,0 8px 22px #0005}
@@ -305,6 +305,8 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .factory-selection-bar button{padding:8px 10px;border:1px solid #72bac579;border-radius:4px;background:#174257;color:#d3e8ed;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1px}
 .factory-selection-bar button:disabled{opacity:.45;cursor:default}
 #factory-selection-cancel{border-color:#7495a54d;background:transparent;color:#9cb5c2}
+/* Selecting cards to move them together: no blueprint name to give. */
+.factory-selection-bar.moving input,.factory-selection-bar.moving #factory-selection-save{display:none}
 .factory-blueprint-list{display:flex;flex-direction:column;gap:6px;min-height:0;padding:10px;overflow:auto;overscroll-behavior:contain}
 .factory-blueprint-entry{position:relative;display:flex}
 .factory-blueprint{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;padding:10px 34px 10px 12px;border:1px solid #728da02b;border-radius:6px;background:linear-gradient(150deg,#13263a,#0d1b2a);color:#bed0d8;text-align:left}
