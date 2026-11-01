@@ -103,6 +103,36 @@ zoomé pour qu'une carte occupe environ 80 % de la largeur, en commençant par l
 texte dessiné sur Canvas lit la même échelle via `src/rendering/textScale.js`
 (`OrbitTextScale.px`).
 
+## Performances du rendu en vue planète
+
+La rastérisation du canvas coûte bien plus que le JavaScript. Le rendu de surface
+évite donc de redessiner ce qui ne bouge pas :
+
+- **Cache du sol** (`surfaceRenderer.js`) : relief, minerais, côte, grille et routes
+  terminées sont dessinés dans une image un quart d'écran plus grande de chaque côté.
+  Pendant un déplacement ou un petit zoom (× 0,8 à × 1,25), cette image est décalée
+  et mise à l'échelle ; elle est redessinée quand elle ne couvre plus la vue, quand la
+  vue s'arrête sur une approximation, ou quand les routes terminées, le littoral, les
+  réglages ou les bâtiments de la planète changent (`groundKey`). Les routes en
+  chantier, leurs têtes animées et le tracé en cours restent dessinés à chaque image
+  (`OrbitRoadRenderer.renderActivity`).
+- **Sprites** (`buildingRenderer.js`) : une balise (hexagone lumineux et icône) est
+  rendue une fois par icône, couleur, taille au quart de pixel, état fini ou non et
+  densité de pixels ; un nom l'est une fois par texte, taille au demi-pixel et
+  couleurs. Plus aucun flou n'est calculé par image pour les balises.
+- **Impulsions de transport** (`vehicleRenderer.js`) : halo pré-rendu sur la tête et
+  trait large translucide au lieu de traits flous.
+- **Routes** : une passe trace toutes les routes en un seul chemin.
+- **Simulation** : la connexité du réseau routier (`hasBuiltLandPath`) est calculée
+  une fois par changement du réseau ; une zone de colonie bloquée n'est retentée
+  que si sa cible, ses cellules ou les bâtiments de sa planète changent.
+
+`node tools/planet-bench.cjs [bâtiments] [crans de molette]` (Playwright requis, hors
+`npm test`) mesure les temps d'image d'une base dense et liste les points chauds ;
+`PAN=3`, `ZOOMRATE=.012` et `DPR=3` mesurent en mouvement. Repères (Chromium headless,
+rendu logiciel, 390 × 844) : 200 bâtiments en DPR 3 passent de 12 à 60 images/s vue
+immobile et de 12 à 51 en déplacement.
+
 ## Modules denses et limites de refactorisation
 
 - `src/app.js` centralise encore l'état partagé, les gestes, la navigation, les
@@ -127,6 +157,7 @@ texte dessiné sur Canvas lit la même échelle via `src/rendering/textScale.js`
 - Smoke navigateur : `node tests/browser-smoke.cjs`, pertinent si l'application,
   la navigation ou l'UI changent ; Chromium et un serveur sur le port 8000 sont requis.
 - Export autonome : `python3 build.py` lors d'une livraison.
+- Performances en vue planète : `npm run bench:planet` (Playwright requis).
 
 Ne lancez que la vérification pertinente pendant une itération. Le workflow complet
 est décrit dans `AGENTS.md`.

@@ -1231,7 +1231,10 @@
     if (names.length) updateUI();
   }
 
-  // A colony's zone grows over its planet's terrain as it consumes.
+  // A colony's zone grows over its planet's terrain as it consumes. A zone
+  // that could not grow is tried again only once something changed (its
+  // target, its cells, the buildings of its planet, the terrain).
+  const zoneAttempts = new WeakMap();
   function growColonyZones() {
     const cellKm2 = Config.terrain.textureScale ** 2;
     for (const colony of Colony.colonies(state)) {
@@ -1243,8 +1246,13 @@
       let record = null;
       for (const context of contexts.values()) if (context.terrains.has(colony.planetId)) record = context.terrains.get(colony.planetId);
       if (!record) continue;
+      const neighbours = state.surfaceBuildings.reduce((count, building) => count + (building.planetId === colony.planetId), 0);
+      const attempt = `${target}|${colony.colony.cells.length}|${neighbours}`;
+      const last = zoneAttempts.get(colony);
+      if (last?.attempt === attempt && last.data === record.data) continue;
       const cells = ColonyZone.grow(record.data, Config.terrain.textureScale, colony, state.surfaceBuildings, target);
       if (cells.length !== colony.colony.cells.length) colony.colony.cells = cells;
+      zoneAttempts.set(colony, { attempt: `${target}|${colony.colony.cells.length}|${neighbours}`, data: record.data });
     }
   }
 

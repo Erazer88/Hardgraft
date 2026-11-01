@@ -70,6 +70,11 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   teneur d'un séparateur). Liaisons courbes ou à angle droit (bouton de l'en-tête,
   choix gardé par le navigateur). Plus de symbole ∞.
 
+- Performances en vue planète : sol (relief, minerais, côte, routes terminées) en
+  cache réutilisé pendant les déplacements, balises, noms et halos en sprites, routes
+  tracées en un chemin par passe. Détails et banc de mesure dans
+  [`ARCHITECTURE.md`](ARCHITECTURE.md#performances-du-rendu-en-vue-planète).
+
 ### Colonie et progression
 
 - La Colonie est le premier bâtiment, unique et indestructible, générateur 12 MW.

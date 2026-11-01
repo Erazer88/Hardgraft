@@ -105,6 +105,21 @@
     return (style.startSpeedFraction + (1 - style.startSpeedFraction) * Math.min(1, time / style.accelerationMs)) / style.cruiseMsPerKm;
   }
 
+  // The halo of a pulse's head: a soft disc of the glow color, drawn once.
+  let halo = null;
+  function haloSprite(style) {
+    if (halo?.color === style.glowColor) return halo;
+    const radius = style.glowBlurPx * 1.3, scale = 2, canvas = root.document?.createElement('canvas');
+    if (!canvas) return { radius, canvas: null };
+    canvas.width = canvas.height = Math.ceil(radius * 2 * scale);
+    const ctx = canvas.getContext('2d'), center = canvas.width / 2;
+    const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+    gradient.addColorStop(0, `${style.glowColor}cc`); gradient.addColorStop(.35, `${style.glowColor}55`); gradient.addColorStop(1, `${style.glowColor}00`);
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    halo = { color: style.glowColor, radius, canvas };
+    return halo;
+  }
+
   function render(frame) {
     const state = frame.state, network = state.roadNetworks?.[frame.planet.id], activity = state.transportActivity;
     if (!network || !activity || state.paused) return;
@@ -152,29 +167,37 @@
         const age = now - (offset + pulse * period);
         if (age < 0) continue;
         if (age >= duration) {
-          // The strike: a ring that widens and fades on the destination beacon.
+          // The strike: a ring that widens and fades on the destination
+          // beacon, its glow a wider faint ring.
           const impact = (age - duration) / style.impactMs, center = frame.project(destination.x, destination.y);
-          ctx.globalAlpha = (1 - impact) * .8;
-          ctx.strokeStyle = style.glowColor; ctx.lineWidth = 1.6 * (1 - impact) + .4;
-          ctx.shadowColor = style.glowColor; ctx.shadowBlur = style.glowBlurPx;
-          ctx.beginPath(); ctx.arc(center.x, center.y, style.impactRadiusPx * (.7 + impact * .9), 0, Math.PI * 2); ctx.stroke();
+          const radius = style.impactRadiusPx * (.7 + impact * .9);
+          ctx.strokeStyle = style.glowColor;
+          ctx.globalAlpha = (1 - impact) * .22; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.arc(center.x, center.y, radius, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = (1 - impact) * .8; ctx.lineWidth = 1.6 * (1 - impact) + .4; ctx.stroke();
           continue;
         }
         // Slow start, then a capped cruise speed into the target.
         const reached = Math.min(routeLength, travelled(style, age)), head = screenAt(reached);
         const tail = Math.min(style.tailMaxPx, head - screenAt(Math.max(0, reached - speedAt(style, age) * style.tailMs)));
-        ctx.shadowColor = style.glowColor; ctx.shadowBlur = style.glowBlurPx;
+        // The glow: one wide faint stroke along the tail, and a halo stamped
+        // on the head (no blur computed per frame).
+        const tailPoints = [];
+        for (let step = style.tailSteps; step >= 0; step--) tailPoints.push(pointAt(screen, lengths, Math.max(0, head - tail * step / style.tailSteps)));
+        ctx.globalAlpha = .2; ctx.strokeStyle = style.glowColor; ctx.lineWidth = 7;
+        ctx.beginPath(); tailPoints.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke();
         for (let step = 0; step < style.tailSteps; step++) {
-          const from = Math.max(0, head - tail * (step + 1) / style.tailSteps), to = Math.max(0, head - tail * step / style.tailSteps);
-          if (to <= from) continue;
-          const a = pointAt(screen, lengths, from), b = pointAt(screen, lengths, to);
+          const a = tailPoints[style.tailSteps - step - 1], b = tailPoints[style.tailSteps - step];
+          if (a.x === b.x && a.y === b.y) continue;
           ctx.globalAlpha = (1 - step / style.tailSteps) * .9;
           ctx.strokeStyle = step < 2 ? style.color : style.glowColor;
           ctx.lineWidth = 3 * (1 - step / style.tailSteps) + .5;
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
-        const tip = pointAt(screen, lengths, head);
-        ctx.globalAlpha = 1; ctx.fillStyle = style.color;
+        const tip = tailPoints[style.tailSteps], halo = haloSprite(style), size = halo.radius * 2;
+        ctx.globalAlpha = 1;
+        if (halo.canvas) ctx.drawImage(halo.canvas, tip.x - halo.radius, tip.y - halo.radius, size, size);
+        ctx.fillStyle = style.color;
         ctx.beginPath(); ctx.arc(tip.x, tip.y, style.headRadiusPx, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();

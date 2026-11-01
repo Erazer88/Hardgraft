@@ -52,7 +52,9 @@
     return { xs, ys, fs };
   }
 
-  function create(canvasContext, dependencies) {
+  function create(mainContext, dependencies) {
+    // Where the ground is drawn: the screen, or the ground cache below.
+    let canvasContext = mainContext;
     const { project, localCamera, surfaceFrame, getState, getViewport, isCameraInteracting, layers } = dependencies;
     let coastCache = null;
     let coastJob = null;
@@ -867,13 +869,13 @@
       canvasContext.restore();
     }
 
-    function drawSurfaceGrid(cam) {
-      const style = SurfaceStyle.grid, viewport = getViewport();
+    function drawSurfaceGrid(frame) {
+      const style = SurfaceStyle.grid, viewport = frame.viewport;
       const worldStep = style.worldStep;
-      let step = worldStep * cam.zoom;
+      let step = worldStep * frame.zoom;
       while (step < style.minSpacingPx) step *= 2;
       while (step > style.maxSpacingPx) step /= 2;
-      const origin = project(0, 0, cam);
+      const origin = frame.project(0, 0);
       canvasContext.lineWidth = style.lineWidthPx; canvasContext.strokeStyle = style.lineColor;
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
       canvasContext.beginPath();
@@ -919,7 +921,7 @@
           canvasContext.restore();
         }
       }
-      if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame.camera);
+      if (frame.zoom > SurfaceStyle.lod.surfaceGridZoom) drawSurfaceGrid(frame);
       if (drawCoast) drawCoastline(frame);
       else if (getState().level !== 'surface') { coastCache = null; stopCoastJob(); }
       const bottom = frame.project(terrainWidth, terrainHeight);
@@ -940,12 +942,81 @@
       }
     }
 
+    // The ground (relief, materials, coast, grid and built roads) is drawn
+    // into a cache a quarter of the view larger on each side. While the view
+    // pans or zooms a little, the cache is moved and scaled; it is redrawn
+    // when it no longer covers the view, when the view has held still on an
+    // approximation, or when the roads, the coast or the settings change.
+    const objectIds = new WeakMap();
+    let nextObjectId = 1, groundCache = null, lastViewKey = null;
+    const idOf = value => {
+      if (!value || typeof value !== 'object') return 0;
+      if (!objectIds.has(value)) objectIds.set(value, nextObjectId++);
+      return objectIds.get(value);
+    };
+    // What the ground shows, apart from the view.
+    function groundKey(frame) {
+      // Roads under construction are drawn each frame, outside the cache.
+      const network = frame.state.roadNetworks?.[frame.planet.id];
+      let finished = 0;
+      for (const segment of network?.segments || []) if (!Number.isFinite(segment.builtLength) || segment.builtLength + 1e-6 >= segment.length) finished++;
+      let buildings = 0;
+      for (const building of frame.state.surfaceBuildings || []) if (building.planetId === frame.planet.id) buildings++;
+      return [frame.planet.id, idOf(frame.terrain), idOf(frame.terrainTexture), Boolean(frame.terrainTexture.materialFill),
+        frame.viewport.width, frame.viewport.height, mainContext.canvas.width, mainContext.canvas.height,
+        materialsVisible(), frame.showSurfaceRoads, idOf(coastCache), idOf(coastCache?.raster),
+        network?.segments.length || 0, network?.nodes.length || 0, finished, buildings].join('|');
+    }
+    function drawGround(frame, planetPreview) {
+      drawTerrain(frame, !planetPreview);
+      if (frame.showSurfaceRoads) layers.roads.renderNetwork(frame);
+    }
+    function renderGroundCache(frame, key) {
+      const { width, height } = frame.viewport, marginX = Math.ceil(width * .25), marginY = Math.ceil(height * .25);
+      const ratio = mainContext.canvas.width / width;
+      const canvas = groundCache?.canvas || document.createElement('canvas');
+      const pixelWidth = Math.ceil((width + marginX * 2) * ratio), pixelHeight = Math.ceil((height + marginY * 2) * ratio);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) { canvas.width = pixelWidth; canvas.height = pixelHeight; }
+      const cache = canvas.getContext('2d');
+      cache.setTransform(1, 0, 0, 1, 0, 0); cache.clearRect(0, 0, canvas.width, canvas.height);
+      cache.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const origin = frame.project(0, 0);
+      const wide = { ...frame, context: cache, viewport: { width: width + marginX * 2, height: height + marginY * 2 },
+        project: (x, y) => { const point = frame.project(x, y); return { x: point.x + marginX, y: point.y + marginY }; } };
+      canvasContext = cache;
+      try { drawGround(wide, false); } finally { canvasContext = mainContext; }
+      groundCache = { key, canvas, origin, zoom: frame.zoom, marginX, marginY, width: width + marginX * 2, height: height + marginY * 2 };
+    }
+    function drawCachedGround(frame) {
+      const key = groundKey(frame), origin = frame.project(0, 0);
+      const viewKey = `${key}|${Math.round(origin.x * 100)}|${Math.round(origin.y * 100)}|${Math.round(Math.log(frame.zoom) * 1e5)}`;
+      const still = viewKey === lastViewKey;
+      lastViewKey = viewKey;
+      // Where the cache lands now: its world, scaled by the change of zoom.
+      const place = () => {
+        const cache = groundCache, scale = frame.zoom / cache.zoom;
+        return { scale, x: origin.x - (cache.origin.x + cache.marginX) * scale, y: origin.y - (cache.origin.y + cache.marginY) * scale,
+          width: cache.width * scale, height: cache.height * scale };
+      };
+      let spot = groundCache?.key === key ? place() : null;
+      const exact = spot && spot.scale === 1 && Math.abs(spot.x + groundCache.marginX) < .01 && Math.abs(spot.y + groundCache.marginY) < .01;
+      const covers = spot && spot.scale > .8 && spot.scale < 1.25 && spot.x <= 0 && spot.y <= 0 &&
+        spot.x + spot.width >= frame.viewport.width && spot.y + spot.height >= frame.viewport.height;
+      if (!covers || (still && !exact)) { renderGroundCache(frame, key); spot = place(); }
+      mainContext.save();
+      mainContext.imageSmoothingEnabled = true;
+      mainContext.drawImage(groundCache.canvas, spot.x, spot.y, spot.width, spot.height);
+      mainContext.restore();
+    }
+
     function drawSurface(cam, planet, record, planetPreview = false) {
       const frame = makeSurfaceFrame(cam, planet, record);
       const developerSettings = root.OrbitDeveloperSettings;
       frame.showSurfaceRoads = developerSettings?.get('showSurfaceRoads') !== false;
-      drawTerrain(frame, !planetPreview);
-      if (frame.showSurfaceRoads) layers.roads.render(frame);
+      if (!planetPreview && getState().level === 'surface') drawCachedGround(frame);
+      else { groundCache = null; lastViewKey = null; drawGround(frame, planetPreview); }
+      // Road sites in progress and the road being drawn move every frame.
+      if (frame.showSurfaceRoads) layers.roads.renderActivity(frame);
       layers.buildings.renderPhysical(frame);
       layers.vehicles.render(frame);
       drawSelection(frame);

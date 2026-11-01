@@ -158,22 +158,46 @@
     ctx.closePath();
   }
 
-  function drawPin(frame, building, definition, ghost = false) {
-    const ctx = frame.context, pin = Style.buildings.pin, { head, radius, scale } = pinGeometry(frame, building);
-    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
-    const complete = ghost || building.constructionState === 'complete';
-    const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870')
-      : pin.categoryColors[definition.category] || pin.defaultColor;
-    ctx.save();
-    ctx.globalAlpha = ghost ? pin.ghostOpacity : complete ? 1 : pin.constructionOpacity + (1 - pin.constructionOpacity) * .5;
+  // A beacon's look (glowing hexagon and icon) is drawn once per icon, color,
+  // size (to a quarter pixel) and finished state, at the screen's pixel
+  // ratio, then stamped each frame: no blur is computed per frame.
+  const pinSprites = new Map();
+  function pinSprite(icon, color, radius, complete, ratio) {
+    const key = `${icon}|${color}|${radius}|${complete ? 1 : 0}|${ratio}`;
+    let sprite = pinSprites.get(key);
+    if (sprite) return sprite;
+    if (pinSprites.size > 500) pinSprites.clear();
+    const pin = Style.buildings.pin, scale = radius / pin.headRadiusPx;
+    const half = radius + pin.rimWidthPx + pin.glowBlurPx * 1.6 / ratio + 2, size = Math.ceil(half * 2 * ratio);
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, size / 2, size / 2);
     ctx.shadowColor = color;
-    hexagon(ctx, head.x, head.y, radius);
-    ctx.shadowBlur = 0; ctx.strokeStyle = pin.rimColor; ctx.lineWidth = pin.rimWidthPx; ctx.stroke();
+    hexagon(ctx, 0, 0, radius);
+    ctx.strokeStyle = pin.rimColor; ctx.lineWidth = pin.rimWidthPx; ctx.stroke();
     ctx.strokeStyle = color; ctx.shadowBlur = pin.glowBlurPx;
     ctx.fillStyle = pin.fill; ctx.fill();
     ctx.lineWidth = pin.lineWidthPx; ctx.setLineDash(complete ? [] : [3, 2.5]); ctx.stroke(); ctx.setLineDash([]);
     ctx.shadowBlur = 0;
-    drawGlyph(ctx, head.x, head.y, pin.glyphSizePx * scale, pin.glyphColor, definition.icon, pin.glyphLineWidthPx * Math.sqrt(scale));
+    drawGlyph(ctx, 0, 0, pin.glyphSizePx * scale, pin.glyphColor, icon, pin.glyphLineWidthPx * Math.sqrt(scale));
+    sprite = { canvas, half: size / 2 / ratio };
+    pinSprites.set(key, sprite);
+    return sprite;
+  }
+
+  function drawPin(frame, building, definition, ghost = false) {
+    const ctx = frame.context, pin = Style.buildings.pin, { head, radius } = pinGeometry(frame, building);
+    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    const complete = ghost || building.constructionState === 'complete';
+    const color = ghost ? (frame.state.placement?.valid ? '#7ebfba' : '#e57870')
+      : pin.categoryColors[definition.category] || pin.defaultColor;
+    const ratio = frame.pixelRatio || 1;
+    const sprite = pinSprite(definition.icon, color, Math.round(radius * 4) / 4, complete, ratio);
+    ctx.save();
+    ctx.globalAlpha = ghost ? pin.ghostOpacity : complete ? 1 : pin.constructionOpacity + (1 - pin.constructionOpacity) * .5;
+    // Stamped on whole device pixels, so it stays sharp.
+    const left = Math.round((head.x - sprite.half) * ratio) / ratio, top = Math.round((head.y - sprite.half) * ratio) / ratio;
+    ctx.drawImage(sprite.canvas, left, top, sprite.half * 2, sprite.half * 2);
     if (!complete) {
       // Construction progress runs around the head.
       // A site waiting for deliveries shows how much of them arrived.
@@ -247,15 +271,34 @@
     return labels;
   }
 
+  // A label (rounded box and text) is drawn once per text, size, colors and
+  // pixel ratio, then stamped; sizes go by half pixels.
+  const labelSprites = new Map();
+  function labelSprite(label, ratio) {
+    const size = Math.round(label.size * 2) / 2;
+    const key = `${label.text}|${size}|${label.color}|${label.fill}|${label.pad}|${ratio}`;
+    let sprite = labelSprites.get(key);
+    if (sprite) return sprite;
+    if (labelSprites.size > 800) labelSprites.clear();
+    const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+    ctx.font = `600 ${size}px ${LABEL_FONT}`;
+    const width = Math.ceil(ctx.measureText(label.text).width + label.pad), height = size + 6;
+    canvas.width = Math.ceil(width * ratio); canvas.height = Math.ceil(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = label.fill; ctx.beginPath(); ctx.roundRect(0, 0, width, height, 3); ctx.fill();
+    ctx.font = `600 ${size}px ${LABEL_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = label.color; ctx.fillText(label.text, width / 2, height / 2 + .5);
+    sprite = { canvas, width, height };
+    labelSprites.set(key, sprite);
+    return sprite;
+  }
+
   function drawLabels(frame, labels, beacons) {
-    const ctx = frame.context, margin = Style.buildings.name.marginPx;
+    const ctx = frame.context, margin = Style.buildings.name.marginPx, ratio = frame.pixelRatio || 1;
     const placed = [];
     const overlaps = (a, b) => a.x0 < b.x1 + margin && b.x0 < a.x1 + margin && a.y0 < b.y1 + margin && b.y0 < a.y1 + margin;
-    ctx.save();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const label of labels.map((item, index) => ({ ...item, index })).sort((a, b) => b.priority - a.priority || a.index - b.index)) {
-      ctx.font = `600 ${label.size}px ${LABEL_FONT}`;
-      const width = ctx.measureText(label.text).width + label.pad, height = label.size + 6;
+      const sprite = labelSprite(label, ratio), { width, height } = sprite;
       const tops = label.top !== undefined ? [label.top] : [label.bottom - height, ...(label.below !== undefined ? [label.below] : [])];
       // The selected name always shows; the colony's labels only give way to
       // it; the other names also leave the beacons in view.
@@ -264,10 +307,8 @@
       const box = tops.map(y0 => ({ x0: label.x - width / 2, x1: label.x + width / 2, y0, y1: y0 + height })).find(free);
       if (!box) continue;
       placed.push(box);
-      ctx.fillStyle = label.fill; ctx.beginPath(); ctx.roundRect(box.x0, box.y0, width, height, 3); ctx.fill();
-      ctx.fillStyle = label.color; ctx.fillText(label.text, label.x, box.y0 + height / 2 + .5);
+      ctx.drawImage(sprite.canvas, Math.round(box.x0 * ratio) / ratio, Math.round(box.y0 * ratio) / ratio, width, height);
     }
-    ctx.restore();
   }
 
   function drawGroundReadout(frame, building, definition, text, color) {
@@ -481,6 +522,8 @@
   }
 
   function renderPhysical(frame) {
+    // Device pixels per screen pixel, for sprites drawn at full sharpness.
+    frame.pixelRatio = Math.abs(frame.context.getTransform?.().a || 1);
     renderColonyZones(frame);
     renderLatitudeGrid(frame);
     renderDataLinks(frame);

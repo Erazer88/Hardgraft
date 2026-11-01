@@ -6,12 +6,18 @@
   const integer = (value, fallback = 0) => Number.isFinite(value) && value >= 0
     ? Math.floor(value) : fallback;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  // An input dock's definition carries the resource it sends out; one copy
+  // is kept per dock definition and resource (looked up many times a tick).
+  const importedDefinitions = new WeakMap();
   function definitionOf(machine) {
     const definition = Data.get(machine?.type, machine?.resourceId);
     if (!definition?.externalInput) return definition;
     const resourceId = machine.importResourceId || null;
-    return { ...definition, outputPorts: [{ ...definition.outputPorts[0], resourceId,
-      label: root.OrbitResourceData.get(resourceId)?.label || 'Ressource reçue' }] };
+    let byResource = importedDefinitions.get(definition);
+    if (!byResource) importedDefinitions.set(definition, byResource = new Map());
+    if (!byResource.has(resourceId)) byResource.set(resourceId, Object.freeze({ ...definition, outputPorts: [Object.freeze({ ...definition.outputPorts[0], resourceId,
+      label: root.OrbitResourceData.get(resourceId)?.label || 'Ressource reçue' })] }));
+    return byResource.get(resourceId);
   }
 
   function createMachine(value = {}, geologyResourceId = null) {

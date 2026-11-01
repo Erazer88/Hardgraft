@@ -1,6 +1,6 @@
 {
   "name": "nereide-atlas-orbital",
-  "version": "0.122.0",
+  "version": "0.123.0",
   "private": true,
   "description": "Prototype mobile de navigation dans un univers procédural",
   "scripts": {
@@ -9,6 +9,7 @@
     "test": "node --test src/world.test.cjs tests/architecture.test.cjs tests/developer-settings.test.cjs tests/process-simulation.test.cjs tests/orbital-logistics.test.cjs",
     "test:factory-editor": "node tests/factory-editor-smoke.cjs",
     "test:orbital-seed-reset": "node tests/orbital-seed-reset-smoke.cjs",
-    "test:browser": "node tests/browser-smoke.cjs"
+    "test:browser": "node tests/browser-smoke.cjs",
+    "bench:planet": "node tools/planet-bench.cjs"
   }
 }

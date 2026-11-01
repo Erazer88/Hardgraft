@@ -7,32 +7,39 @@
   // Built route between two buildings: roads, and sea lanes between ports,
   // which hand goods from ships to trucks (a building's land and marine
   // nodes are the same place). An oil platform ships through its sea lane.
-  function hasBuiltLandPath(network, fromBuildingId, toBuildingId) {
-    if (!network || fromBuildingId === toBuildingId) return false;
-    const starts = network.nodes.filter(node => node.buildingId === fromBuildingId);
-    const targets = new Set(network.nodes.filter(node => node.buildingId === toBuildingId).map(node => node.id));
-    if (!starts.length || !targets.size) return false;
-    const edges = new Map();
-    const link = (from, to) => { const list = edges.get(from) || []; list.push(to); edges.set(from, list); };
+  // The buildings a network joins are grouped once per change of the
+  // network (its nodes, segments or built lengths), then compared.
+  const componentCache = new WeakMap();
+  function builtComponents(network) {
+    let built = 0;
+    for (const segment of network.segments || []) built += Number.isFinite(segment.builtLength) ? segment.builtLength : 0;
+    const version = `${network.nodes.length}|${(network.segments || []).length}|${built}`;
+    const cached = componentCache.get(network);
+    if (cached?.version === version) return cached.byBuilding;
+    const parent = new Map(network.nodes.map(node => [node.id, node.id]));
+    const find = id => { while (parent.get(id) !== id) { parent.set(id, parent.get(parent.get(id))); id = parent.get(id); } return id; };
+    const join = (a, b) => { if (parent.has(a) && parent.has(b)) parent.set(find(a), find(b)); };
     for (const segment of network.segments || []) {
       if (!Number.isFinite(segment.length) || !Number.isFinite(segment.builtLength) ||
           segment.builtLength + BUILD_EPSILON < segment.length) continue;
-      link(segment.from, segment.to); link(segment.to, segment.from);
+      join(segment.from, segment.to);
+    }
+    const firstNode = new Map();
+    for (const node of network.nodes) if (node.buildingId) {
+      if (firstNode.has(node.buildingId)) join(node.id, firstNode.get(node.buildingId));
+      else firstNode.set(node.buildingId, node.id);
     }
     const byBuilding = new Map();
-    for (const node of network.nodes) if (node.buildingId) {
-      const list = byBuilding.get(node.buildingId) || []; list.push(node.id); byBuilding.set(node.buildingId, list);
-    }
-    for (const ids of byBuilding.values()) for (const a of ids) for (const b of ids) if (a !== b) link(a, b);
-    const visited = new Set(starts.map(node => node.id)), queue = [...visited];
-    while (queue.length) {
-      const current = queue.shift();
-      if (targets.has(current)) return true;
-      for (const next of edges.get(current) || []) if (!visited.has(next)) {
-        visited.add(next); queue.push(next);
-      }
-    }
-    return false;
+    for (const [buildingId, nodeId] of firstNode) byBuilding.set(buildingId, find(nodeId));
+    componentCache.set(network, { version, byBuilding });
+    return byBuilding;
+  }
+
+  function hasBuiltLandPath(network, fromBuildingId, toBuildingId) {
+    if (!network || fromBuildingId === toBuildingId) return false;
+    const components = builtComponents(network);
+    const from = components.get(fromBuildingId);
+    return from !== undefined && from === components.get(toBuildingId);
   }
 
   // A destination receives once its plan has an entry: an input dock, or a

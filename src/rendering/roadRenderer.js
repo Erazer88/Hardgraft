@@ -39,6 +39,40 @@
     ctx.beginPath();
   }
 
+  // Adds the built land runs of a segment to the current path (projected
+  // points given), so that each pass strokes every road at once.
+  function addLandRuns(ctx, segment, projected) {
+    const points = segment.points;
+    let remaining = Number.isFinite(segment.builtLength)
+      ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length, open = false;
+    for (let i = 1; i < points.length && remaining > 1e-8; i++) {
+      const worldA = points[i - 1], worldB = points[i];
+      const worldLength = Math.hypot(worldB.x - worldA.x, worldB.y - worldA.y);
+      if (worldLength <= 1e-8) continue;
+      const ratio = Math.min(1, remaining / worldLength), a = projected[i - 1], b = projected[i];
+      remaining -= worldLength * ratio;
+      if (segment.surfaceTypes?.[i - 1]) { open = false; continue; }
+      if (!open) { ctx.moveTo(a.x, a.y); open = true; }
+      ctx.lineTo(a.x + (b.x - a.x) * ratio, a.y + (b.y - a.y) * ratio);
+    }
+  }
+
+  // The causeway dots of a segment's built water runs.
+  function drawWaterRuns(frame, segment, projected) {
+    const points = segment.points, ctx = frame.context;
+    let remaining = Number.isFinite(segment.builtLength)
+      ? Math.max(0, Math.min(segment.length, segment.builtLength)) : segment.length, progress = Style.waterDotSpacingPx / 2;
+    for (let i = 1; i < points.length && remaining > 1e-8; i++) {
+      const worldA = points[i - 1], worldB = points[i];
+      const worldLength = Math.hypot(worldB.x - worldA.x, worldB.y - worldA.y);
+      if (worldLength <= 1e-8) continue;
+      const ratio = Math.min(1, remaining / worldLength), a = projected[i - 1], b = projected[i];
+      remaining -= worldLength * ratio;
+      if (!segment.surfaceTypes?.[i - 1]) { progress = Style.waterDotSpacingPx / 2; continue; }
+      progress = drawWaterDots(ctx, a, { x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio }, progress, 1, Style.waterColor, Style.waterOpacity);
+    }
+  }
+
   function marineRun(frame, segment, opacity = Style.marineOpacity) {
     const points = segment.points, projected = points.map(point => frame.project(point.x, point.y));
     const ctx = frame.context;
@@ -192,13 +226,16 @@
 
   // Roads end on a corner of the building's beacon: a short leg joins each
   // reached building node (its road or water port) to that corner.
-  function buildingLegs(frame, network) {
+  function buildingLegs(frame, network, segments = network.segments) {
     const buildings = new Map((frame.state.surfaceBuildings || []).map(building => [building.id, building])), legs = [];
+    const reached = new Set();
+    for (const segment of segments) {
+      if (reachesNode(segment, segment.from)) reached.add(segment.from);
+      if (reachesNode(segment, segment.to)) reached.add(segment.to);
+    }
     for (const node of network.nodes) {
       const building = node.buildingId && buildings.get(node.buildingId);
-      if (!building) continue;
-      if (!network.segments.some(segment =>
-        (segment.from === node.id || segment.to === node.id) && reachesNode(segment, node.id))) continue;
+      if (!building || !reached.has(node.id)) continue;
       const corner = beaconCorner(frame, building, node), length = Math.hypot(corner.x - node.x, corner.y - node.y);
       if (length < 1e-6) continue;
       legs.push({ leg: true, points: [{ x: node.x, y: node.y }, corner], surfaceTypes: [false],
@@ -208,27 +245,59 @@
   }
 
   function render(frame) {
+    renderNetwork(frame);
+    renderActivity(frame);
+  }
+
+  const finished = segment => !Number.isFinite(segment.builtLength) || segment.builtLength + 1e-6 >= segment.length;
+
+  // Roads of a network (with the legs to their beacons): glow passes first,
+  // then the white core with its causeway dots; each pass strokes all the
+  // land roads at once.
+  function drawSegments(frame, network, list) {
+    const ctx = frame.context;
+    const segments = list.concat(buildingLegs(frame, network, list))
+      .filter(segment => segment.points?.length >= 2 && visible(frame, segment));
+    if (!segments.length) return;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const scale = widthScale(frame);
+    const land = segments.filter(segment => segment.routeType !== 'marine')
+      .map(segment => ({ segment, projected: segment.points.map(point => frame.project(point.x, point.y)) }));
+    const strokeLand = () => {
+      ctx.beginPath();
+      for (const { segment, projected } of land) addLandRuns(ctx, segment, projected);
+      ctx.stroke();
+    };
+    for (const pass of Style.glowPasses) {
+      ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx * scale; ctx.globalAlpha = pass.opacity * scale;
+      strokeLand();
+    }
+    ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx * scale; ctx.globalAlpha = Style.landOpacity;
+    strokeLand();
+    for (const { segment, projected } of land) if (segment.surfaceTypes?.some(Boolean)) drawWaterRuns(frame, segment, projected);
+    for (const segment of segments) if (segment.routeType === 'marine') marineRun(frame, segment);
+    ctx.beginPath();
+    ctx.strokeStyle = Style.bridgeColor; ctx.lineWidth = Style.bridgeWidthPx; ctx.globalAlpha = Style.landOpacity;
+    for (const segment of segments) drawBridges(frame, segment);
+    ctx.restore();
+  }
+
+  // The finished roads and sea lanes: still between changes, so the surface
+  // may keep them in its ground cache.
+  function renderNetwork(frame) {
+    const network = frame.state.roadNetworks?.[frame.planet.id];
+    if (network) drawSegments(frame, network, network.segments.filter(finished));
+  }
+
+  // What moves: roads under construction with their heads, and the road
+  // being drawn.
+  function renderActivity(frame) {
     const network = frame.state.roadNetworks?.[frame.planet.id];
     const ctx = frame.context;
-    if (network) {
-      const segments = network.segments.concat(buildingLegs(frame, network))
-        .filter(segment => segment.points?.length >= 2 && visible(frame, segment));
-      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      // Glow passes first, then the white core with its causeway dots.
-      const scale = widthScale(frame);
-      for (const pass of Style.glowPasses) {
-        ctx.strokeStyle = Style.glowColor; ctx.lineWidth = pass.widthPx * scale; ctx.globalAlpha = pass.opacity * scale;
-        for (const segment of segments) if (segment.routeType !== 'marine') roadRuns(frame, segment, 1, Style.landColor, 0, false);
-      }
-      ctx.strokeStyle = Style.landColor; ctx.lineWidth = Style.landWidthPx * scale; ctx.globalAlpha = Style.landOpacity;
-      for (const segment of segments) {
-        if (segment.routeType === 'marine') marineRun(frame, segment);
-        else roadRuns(frame, segment, 1, Style.waterColor);
-      }
-      ctx.strokeStyle = Style.bridgeColor; ctx.lineWidth = Style.bridgeWidthPx; ctx.globalAlpha = Style.landOpacity;
-      for (const segment of segments) drawBridges(frame, segment);
-      for (const segment of segments) drawConstructionHead(frame, segment);
-      ctx.restore();
+    const building = network ? network.segments.filter(segment => !finished(segment)) : [];
+    if (building.length) {
+      drawSegments(frame, network, building);
+      for (const segment of building) if (visible(frame, segment)) drawConstructionHead(frame, segment);
     }
 
     const preview = frame.state.roadPreview;
@@ -256,5 +325,5 @@
     }
   }
 
-  root.OrbitRoadRenderer = Object.freeze({ render, beaconCorner });
+  root.OrbitRoadRenderer = Object.freeze({ render, renderNetwork, renderActivity, beaconCorner });
 })(globalThis);
