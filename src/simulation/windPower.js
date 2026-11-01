@@ -6,7 +6,7 @@
   // catches almost none, and the output grows slowly until the ground is
   // really open. A turbine in the wake of others (closer than
   // wakeRadiusKm) catches less: its efficiency falls with each neighbour, the
-  // more the closer, so ten turbines on one spot give little more than a few.
+  // more the closer, so turbines crowded on one spot give less than one alone.
   // Output = windPowerMW × site factor × wake efficiency. No DOM.
   const settings = () => root.OrbitProcessData?.config.wind;
   const scaleKm = () => root.OrbitConfig?.terrain?.textureScale || 1;

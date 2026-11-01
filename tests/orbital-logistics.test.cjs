@@ -983,7 +983,7 @@ test('a wind site catches much on open plains and high plateaus, almost nothing 
   assert.equal(Wind.siteFactor(null, middle), 1, 'unknown terrain: an average site');
 });
 
-test('a turbine in the wake of others loses wind: ten on one spot give little more than two', () => {
+test('a turbine in the wake of others loses much wind: crowded on one spot, they give less than one alone', () => {
   const Wind = context.OrbitWindPower, wind = context.OrbitProcessData.config.wind;
   const at = (id, x) => ({ id, type: 'wind_turbine', planetId, x, y: 0, constructionState: 'complete', windSite: 1 });
   const alone = at('a', 0);
@@ -994,7 +994,12 @@ test('a turbine in the wake of others loses wind: ten on one spot give little mo
   const stack = Array.from({ length: 10 }, (_, index) => at(`s${index}`, index));
   const total = stack.reduce((sum, turbine) => sum + Wind.outputMW(turbine, stack), 0);
   const single = context.OrbitProcessData.config.windPowerMW;
-  assert.ok(total < single * 2.5, `ten stacked turbines give ${total} MW, about two turbines' worth`);
+  assert.ok(total < single, `ten stacked turbines give ${total} MW, less than one alone`);
+  const pair = [at('q1', 0), at('q2', 1)];
+  assert.ok(pair.reduce((sum, turbine) => sum + Wind.outputMW(turbine, pair), 0) < single, 'two side by side: less than one');
+  const apart = [at('r1', 0), at('r2', wind.wakeRadiusKm * .75)];
+  const apartTotal = apart.reduce((sum, turbine) => sum + Wind.outputMW(turbine, apart), 0);
+  assert.ok(apartTotal > single && apartTotal < single * 1.7, `three quarters of the wake apart: ${apartTotal} MW, still well short of two`);
   const spread = Array.from({ length: 3 }, (_, index) => at(`p${index}`, index * (wind.wakeRadiusKm + 5)));
   assert.equal(spread.reduce((sum, turbine) => sum + Wind.outputMW(turbine, spread), 0), single * 3, 'spaced out: full power each');
   // The planet's supply follows: site factor × wake efficiency per turbine.

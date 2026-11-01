@@ -110,7 +110,8 @@ laboratoires sur d'autres mondes.
 - Énergie limitée (colonie 12 MW, incinérateur lissé sur 20 s). Une éolienne donne
   ≈ 32 MW × le vent de son site (quasi nul en zone rouge, montée lente, jusqu'à ×1,5
   sur les grandes plaines dégagées et hauts plateaux, en vert)
-  × son sillage (perte si une autre est à moins de 90 km) ; vue vent verte/rouge à la
+  × son sillage (forte perte si une autre est à moins de 140 km ; deux côte à côte
+  donnent moins qu'une seule) ; vue vent verte/rouge à la
   pose et à la sélection, avec les cercles de sillage. Au doigt, l'antenne relais et
   l'éolienne se posent 72 px au-dessus du point touché (`touchLiftPx`). Deux
   équipes de robots, 2 s de construction par bâtiment. Prix masqués

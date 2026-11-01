@@ -188,9 +188,11 @@ site** et par son **sillage** (`src/simulation/windPower.js`, réglages `config.
   1,05 : seules les grandes plaines bien dégagées et les hauts plateaux rapportent.
   Sur la planète de départ, la moitié des terres donne presque rien (médiane ×0,05)
   et les 10 % les plus dégagés ×0,9 et plus.
-- Le sillage : une éolienne à moins de 90 km d'une autre perd du vent, d'autant plus
-  que l'autre est proche ; rendement 1 / (1 + 0,6 × Σ (1 − distance / 90 km)). Dix
-  éoliennes au même endroit donnent à peine plus que deux.
+- Le sillage : une éolienne à moins de 140 km d'une autre perd beaucoup de vent,
+  d'autant plus que l'autre est proche ; rendement 1 / (1 + 1,2 × Σ (1 − distance /
+  140 km)). Deux éoliennes côte à côte donnent moins qu'une seule (2 × 45 %), à 70 km
+  l'une de l'autre chacune garde 62 %, à 105 km 77 % ; au-delà de 140 km, rien n'est
+  perdu. Dix éoliennes au même endroit donnent moins qu'une seule.
 - À la pose ou à la sélection, la vue vent colore toute la planète : vert à partir de
   ×0,8 (plus intense quand c'est plus riche), rouge en dessous (plus intense vers
   zéro), en transparence ;
