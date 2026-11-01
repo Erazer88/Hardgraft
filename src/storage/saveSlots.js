@@ -86,11 +86,54 @@
     return true;
   }
 
+  // Save files, to pass a game to someone else: the saved game as plain JSON
+  // in an envelope that names it. Importing one adds it aside, never over
+  // the game being played.
+  const FILE_FORMAT = 'nereide-save', FILE_VERSION = 1;
+  const playable = game => Boolean(game && typeof game === 'object' && ['string', 'number'].includes(typeof game.seed) &&
+    Number(game.version) >= (config.minimumSaveVersion || 0));
+
+  // The file of a game ({ fileName, text }), or null when nothing is saved.
+  function exportFile(storage, id) {
+    const index = ensure(storage), slot = index.slots.find(item => item.id === id);
+    if (!slot) return null;
+    let game = null;
+    try { game = JSON.parse(storage.getItem(id === index.activeId ? config.storageKey : slotKey(id)) || 'null'); } catch (_) { game = null; }
+    if (!playable(game)) return null;
+    const { name, seed, population, techPoints } = slot;
+    const text = JSON.stringify({ format: FILE_FORMAT, formatVersion: FILE_VERSION, exportedAt: Date.now(),
+      slot: { name, seed: String(game.seed), population, techPoints }, game });
+    const safe = value => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '').slice(0, 40) || 'partie';
+    return { fileName: `nereide-${safe(name)}-${safe(game.seed)}.json`, text };
+  }
+
+  // Reads a save file and adds its game aside. Returns { ok, slot } or
+  // { ok: false, reason } ('unreadable' or 'too_old').
+  function importFile(storage, text) {
+    let file = null;
+    try { file = JSON.parse(text); } catch (_) { return { ok: false, reason: 'unreadable' }; }
+    if (!file || file.format !== FILE_FORMAT || !file.game || typeof file.game !== 'object' ||
+        !['string', 'number'].includes(typeof file.game.seed)) return { ok: false, reason: 'unreadable' };
+    if (!playable(file.game)) return { ok: false, reason: 'too_old' };
+    const index = ensure(storage), id = nextId(index);
+    const base = `${String(file.slot?.name || 'Partie').slice(0, 40)} (importée)`;
+    let name = base;
+    for (let copy = 2; index.slots.some(slot => slot.name === name); copy++) name = `${base} ${copy}`;
+    try { storage.setItem(slotKey(id), JSON.stringify(file.game)); } catch (_) { return { ok: false, reason: 'storage_full' }; }
+    const number = value => Number.isFinite(value) ? value : undefined;
+    const slot = { id, name, seed: String(file.game.seed), population: number(file.slot?.population),
+      techPoints: number(file.slot?.techPoints), updatedAt: Date.now() };
+    index.slots.push(slot);
+    writeIndex(storage, index);
+    return { ok: true, slot };
+  }
+
   // A seed to suggest for a new game: a word and a number.
   function randomSeed(random = Math.random) {
     const words = ['NEREIDE', 'TETHYS', 'AURORE', 'BOREAL', 'CALYPSO', 'DORIS', 'ELARA', 'HALO', 'IRIS', 'LYRA', 'NOVA', 'ORION', 'PHEBE', 'SELENE', 'THALIA', 'VESTA'];
     return `${words[Math.floor(random() * words.length)]}-${String(Math.floor(random() * 100)).padStart(2, '0')}`;
   }
 
-  root.OrbitSaveSlots = Object.freeze({ ensure, list, touch, stash, create, activate, remove, randomSeed, slotKey });
+  root.OrbitSaveSlots = Object.freeze({ ensure, list, touch, stash, create, activate, remove, randomSeed, slotKey, exportFile, importFile });
 })(globalThis);

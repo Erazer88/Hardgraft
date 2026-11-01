@@ -183,6 +183,11 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   modifiable. « Réinitialiser le système » recommence la partie jouée avec la même
   graine. La partie jouée reste sous la clé `nereide-atlas-v1` ; les autres sous
   `nereide-atlas-v1:slot:<id>`, avec l'index `nereide-atlas-saves-v1`.
+- Partage par fichier : le bouton ⤓ d'une partie télécharge
+  `nereide-<nom>-<graine>.json` (enveloppe `format: 'nereide-save'`, la sauvegarde en
+  JSON clair) ; « Importer une partie » ajoute le fichier comme nouvelle partie
+  « (importée) » et l'ouvre, sans toucher aux autres. Une version trop ancienne ou un
+  fichier invalide est refusé avec un message. La bibliothèque n'est pas incluse.
 - `saveVersion` 10 ; une sauvegarde plus ancienne démarre une nouvelle partie.
 
 ## Questions ouvertes

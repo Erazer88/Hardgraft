@@ -586,6 +586,11 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .save-badge{display:grid;place-items:center;padding:0 9px;border-radius:8px;color:#f1c28e;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.2px}
 .save-delete{width:38px;flex:0 0 38px;border:1px solid var(--line);border-radius:8px;color:#9fb3bf;font-size:calc(16px*var(--ta) + var(--tb))}
 .save-delete:hover{border-color:#ef8a6a99;color:#ffb39a}
+.save-export{width:38px;flex:0 0 38px;border:1px solid var(--line);border-radius:8px;color:#9fd8ff;font-size:calc(15px*var(--ta) + var(--tb))}
+.save-export:hover{border-color:#6fc8ff88;color:#d4efff}
+.save-import{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:6px;padding:9px 11px;border:1px dashed #6fc8ff55;border-radius:8px;background:#101e2b5c;color:#bfe3f7;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:1.4px}
+.save-import span{color:#7f9aab;font-size:calc(8px*var(--ta) + var(--tb))}
+.save-import:hover{border-color:#6fc8ff99;background:#15283a}
 .seed-row #random-seed-button{font-size:calc(18px*var(--ta) + var(--tb))}
 .new-game-button{margin-top:10px;border-color:#efa35a88!important;color:#f1c28e!important}
 

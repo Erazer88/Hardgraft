@@ -1179,7 +1179,11 @@
       if (slot.active) { side.className = 'save-badge'; side.textContent = 'EN COURS'; }
       else { side.type = 'button'; side.className = 'save-delete'; side.dataset.deleteSave = slot.id; side.textContent = '×';
         side.setAttribute('aria-label', `Supprimer ${slot.name}`); }
-      item.append(open, side);
+      // The game as a file, to pass it to someone else.
+      const share = document.createElement('button'); share.type = 'button'; share.className = 'save-export';
+      share.dataset.exportSave = slot.id; share.textContent = '⤓';
+      share.setAttribute('aria-label', `Exporter ${slot.name} dans un fichier`); share.title = 'Exporter dans un fichier';
+      item.append(open, share, side);
       return item;
     }));
   }
@@ -1216,7 +1220,37 @@
   $('generate-button').onclick = () => newGame($('seed-input').value || SaveSlots.randomSeed());
   $('random-seed-button').onclick = () => { $('seed-input').value = SaveSlots.randomSeed(); };
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
+  function exportGame(id) {
+    if (SaveSlots.list(localStorage).find(item => item.id === id)?.active) persist();
+    const file = SaveSlots.exportFile(localStorage, id);
+    if (!file) { toast('Cette partie n’a pas encore de sauvegarde à exporter.'); return; }
+    const url = URL.createObjectURL(new Blob([file.text], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = file.fileName;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(`Partie exportée : ${file.fileName}`);
+  }
+  // A save file received from someone: added aside, then opened.
+  $('import-save-button').onclick = () => $('import-save-input').click();
+  $('import-save-input').onchange = async event => {
+    const input = event.target, chosen = input.files?.[0];
+    input.value = '';
+    if (!chosen) return;
+    let text = '';
+    try { text = await chosen.text(); } catch (_) { text = ''; }
+    const result = SaveSlots.importFile(localStorage, text);
+    if (!result.ok) {
+      toast({ too_old: 'Cette sauvegarde vient d’une version trop ancienne du jeu.',
+        storage_full: 'Stockage plein : impossible d’importer cette partie.' }[result.reason] || 'Ce fichier n’est pas une sauvegarde de Néréide.');
+      renderSaves();
+      return;
+    }
+    openGame(result.slot.id);
+    renderSaves();
+  };
   $('save-list').addEventListener('click', event => {
+    const share = event.target.closest('[data-export-save]');
+    if (share) { exportGame(share.dataset.exportSave); return; }
     const remove = event.target.closest('[data-delete-save]');
     if (remove) {
       const slot = SaveSlots.list(localStorage).find(item => item.id === remove.dataset.deleteSave);

@@ -50,7 +50,7 @@ Modules de la colonie et de la progression :
 | `src/data/dataNetwork.js`, `src/simulation/dataNetwork.js` | Réseau de données en surface : sources, antennes relais, datacenter, température de site |
 | `src/simulation/lineOfSight.js` | Ligne de vue au-dessus du relief et couverture d'un mât (vue relief des antennes) |
 | `src/gameplay/entryGates.js` | Cartes d'entrée créées et retirées selon les destinations choisies |
-| `src/storage/saveSlots.js` | Plusieurs parties : index, mise de côté, ouverture, nouvelle partie |
+| `src/storage/saveSlots.js` | Plusieurs parties : index, mise de côté, ouverture, nouvelle partie, export et import de fichier |
 | `src/simulation/windPower.js` | Vent d'un site d'éolienne (relief, altitude) et sillage entre éoliennes |
 | `src/simulation/dataTransit.js`, `src/rendering/dataTrafficRenderer.js` | Paquets de données entre mondes et vers l'Arche, conjonction solaire, rendu bleu |
 | `src/ui/skillTree.js` | Menu de l'arbre de compétences (nœuds, brouillard, détail) |

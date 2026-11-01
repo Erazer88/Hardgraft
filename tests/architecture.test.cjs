@@ -12,7 +12,7 @@ for (const relative of ['data/developerSettings.js', 'data/config.js', 'data/res
   'simulation/composition.js', 'simulation/colony.js',
   'simulation/buildings.js', 'simulation/construction.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js',
-  'gameplay/exploration.js', 'gameplay/progression.js', 'state.js', 'storage/save.js',
+  'gameplay/exploration.js', 'gameplay/progression.js', 'state.js', 'storage/save.js', 'storage/saveSlots.js',
   'navigation/camera.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
@@ -526,4 +526,33 @@ test('buildings are named per type across the whole game, and older buildings ge
   assert.equal(Names.nextName(state, 'launch_platform'), 'Plateforme de lancement 1');
   assert.equal(Names.clean('   '), null);
   assert.equal(Names.clean('  Forge   du   nord '), 'Forge du nord');
+});
+
+test('a game passes to someone else as a save file, added aside and never over the game played', () => {
+  const Slots = context.OrbitSaveSlots;
+  const memory = () => { const items = new Map(); return { getItem: key => items.has(key) ? items.get(key) : null,
+    setItem: (key, value) => items.set(key, String(value)), removeItem: key => items.delete(key), items }; };
+  const mine = memory(), friend = memory();
+  const game = { version: Config.saveVersion, seed: 'TETHYS-07', surfaceBuildings: [{ id: 'colony-1', type: 'colony' }] };
+  mine.setItem(Config.storageKey, JSON.stringify(game));
+  Slots.touch(mine, { seed: 'TETHYS-07', population: 400, techPoints: 3 });
+  const file = Slots.exportFile(mine, Slots.list(mine)[0].id);
+  assert.equal(file.fileName, 'nereide-Partie-1-TETHYS-07.json');
+
+  // The friend plays another game: the imported one waits aside, then opens.
+  const own = { version: Config.saveVersion, seed: 'ORION-01' };
+  friend.setItem(Config.storageKey, JSON.stringify(own));
+  const result = Slots.importFile(friend, file.text);
+  assert.equal(result.ok, true);
+  assert.deepEqual(plain(JSON.parse(friend.getItem(Config.storageKey))), own);
+  assert.equal(result.slot.name, 'Partie 1 (importée)');
+  assert.equal(result.slot.population, 400);
+  assert.equal(Slots.importFile(friend, file.text).slot.name, 'Partie 1 (importée) 2');
+  assert.equal(Slots.stash(friend), true);
+  assert.deepEqual(plain(Slots.activate(friend, result.slot.id)), plain(game));
+
+  assert.deepEqual(plain(Slots.importFile(friend, 'pas du json')), { ok: false, reason: 'unreadable' });
+  assert.deepEqual(plain(Slots.importFile(friend, JSON.stringify({ seed: 'X' }))), { ok: false, reason: 'unreadable' });
+  const old = JSON.parse(file.text); old.game.version = Config.minimumSaveVersion - 1;
+  assert.deepEqual(plain(Slots.importFile(friend, JSON.stringify(old))), { ok: false, reason: 'too_old' });
 });
