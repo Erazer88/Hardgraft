@@ -963,9 +963,7 @@
   canvas.addEventListener('pointercancel', e => release(e, true));
   canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * .0015), e.clientX, e.clientY); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
-  $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
+  $('back-button').onclick = back;
   $('road-button').onclick = () => {
     if (state.level !== 'surface') return;
     cancelRoadDrag(); state.placement = null; state.buildMenuOpen = false;
@@ -1073,10 +1071,7 @@
     const active = standalone || nativeFullscreen;
     fullscreenButton.setAttribute('aria-pressed', String(active));
     fullscreenButton.setAttribute('aria-label', active ? 'Quitter le plein écran' : 'Passer en plein écran');
-    fullscreenButton.title = active ? 'Quitter le plein écran' : 'Plein écran';
-    fullscreenButton.innerHTML = active
-      ? '<svg viewBox="0 0 24 24"><path d="M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5"/></svg>'
-      : '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
+    $('fullscreen-state').textContent = active ? 'QUITTER' : 'ACTIVER';
   }
   fullscreenButton.onclick = async () => {
     const active = currentFullscreenElement();
@@ -1126,11 +1121,9 @@
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
   function setPause(value) {
-    state.paused = value; $('motion-toggle').checked = !value;
-    $('pause-button').innerHTML = value ? '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
-    $('pause-button').setAttribute('aria-label', value ? 'Animer les orbites' : 'Mettre les orbites en pause'); updateUI();
+    state.paused = value; $('motion-toggle').checked = !value; updateUI();
   }
-  $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
+  $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (factoryEditor.isOpen()) {
       if (e.key === 'Escape') { if (!factoryEditor.dismiss()) factoryEditor.close(); e.preventDefault(); }

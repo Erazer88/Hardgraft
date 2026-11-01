@@ -34,6 +34,14 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   leur nom au-dessus. Noms par défaut « Usine 1 », « Usine 2 »… numérotés par type sur
   toute la galaxie, modifiables dans l'inspecteur ou le menu de la colonie.
 
+### Interface
+
+- Vue principale épurée : barre du haut (population, points, « Compétences », menu ☰),
+  barre d'actions en bas (retour nommé d'après l'échelle visée, « Route », « Construction »,
+  « Sonde » en vue galaxie). Pause, plein écran et version sont dans le menu ; plus de
+  boutons de zoom, d'échelle, de recentrage, de titres ni de graduations à l'écran
+  (zoom au pincement, à la molette ou aux touches + et −).
+
 ### Colonie et progression
 
 - La Colonie est le premier bâtiment, unique et indestructible, générateur 12 MW.

@@ -20,7 +20,7 @@ pas requis de les lire intégralement.
 
 Chaque livraison publie aussi un export versionné, ouvrable par un lien figé sur le commit :
 `https://raw.githack.com/Erazer88/Hardgraft/<commit>/dist/nereide-zoom-continu-<version>.html`
-(HTMLPreview en secours). Le numéro de version apparaît en bas de l'écran.
+(HTMLPreview en secours). Le numéro de version apparaît en bas du menu (bouton ☰).
 
 Les exports autonomes sont disponibles dans `dist/` : `nereide-zoom-continu.html`, sa copie versionnée `nereide-zoom-continu-<version>.html`, `nereide-prototype.html` et `nereide-sources.zip`. `python3 build.py` les régénère. Le HTML autonome embarque le JavaScript et le CSS ; il n'a pas besoin de dépendances réseau.
 
@@ -35,11 +35,16 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Can
 
 ## Navigation
 
-- Glisser pour déplacer la caméra. Pincer, tourner la molette ou utiliser + et − pour zoomer autour du point visé.
+L'écran principal se limite à deux barres : en haut, la population, les points (Contexte,
+puis points de technologie), le bouton « Compétences » et le menu ☰ ; en bas, le retour
+vers l'échelle supérieure, « Route » et « Construction » sur une planète, « Sonde » en vue
+galaxie.
+
+- Glisser pour déplacer la caméra. Pincer, tourner la molette ou utiliser les touches + et − pour zoomer autour du point visé.
 - Zoomer sur une étoile pour voir son système, puis sur une planète pour afficher sa carte dans la même scène.
 - Toucher une étoile puis **Zoomer sur le système**, ou double-toucher, pour recentrer la vue.
 - Toucher une planète puis **Zoomer sur la surface** pour la centrer. Les géantes gazeuses n'ont pas de surface solide.
-- Le retour et le fil d'Ariane remontent d'un niveau. Sur une planète, le bouton de cadrage remplit l'écran avec le terrain, sans bandes vides sur les côtés ; glisser permet d'explorer le reste de la carte. La cible recentre la vue.
+- Le bouton de retour (en bas à gauche, nommé d'après l'échelle visée : « Système », « Galaxie ») et le fil d'Ariane remontent d'un niveau.
 - En vue galaxie, activer la sonde puis toucher une zone pour révéler des systèmes après son trajet. L'option **Révéler tous les systèmes** dans le menu facilite l'examen de la génération.
 - Sur la surface, toucher le terrain pour lire le type de terrain, les coordonnées et l'altitude. La sélection affiche aussi la composition du sol (roche, fer, cuivre, silice, carbone). Un Extracteur se pose n'importe où sur la terre ferme et fore de la roche brute qui garde la composition du sol ; une Plateforme pétrolière se pose n'importe où en mer profonde.
 - La colonie est le premier bâtiment : elle abrite la population, produit du contexte et grandit en zone néon avec la roche brute, le goudron puis les plaques de métal qu'on lui livre. Les bâtiments et les cartes apparaissent quand elle en a besoin. Un clic sur elle ouvre son menu : paliers, flux requis, arrivées, fournisseurs, réserve, zone et énergie (voir [docs/COLONY.md](docs/COLONY.md)).
@@ -52,7 +57,7 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Can
 - Une plateforme pétrolière ou un autre port se relie à un port de surface par une voie maritime, en faisant glisser l'outil route d'un bâtiment à l'autre. Un port peut recevoir plusieurs liaisons, qui partagent son point d'amarrage au large. Les voies maritimes ne créent pas de carrefour en mer et prolongent le réseau routier pour les livraisons.
 - Tout nouveau tracé terrestre qui coupe une autre route terrestre crée un carrefour au point exact du croisement. Quand une ressource passe d'un bâtiment à un autre, une impulsion lumineuse parcourt le chemin ; elle est purement informative.
 - Le menu permet de reprendre l'exploration, de réinitialiser la progression avec la même graine, de saisir une autre graine ou d'afficher tous les systèmes.
-- L'icône pause ou la barre d'espace suspend les orbites. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
+- La barre d'espace (ou « Animer les orbites » dans le menu) suspend les orbites ; le plein écran se règle aussi dans le menu. Échap ferme un panneau ; +/− règlent le zoom ; les flèches déplacent la caméra ; Entrée ouvre la sélection.
 
 La graine, les zones sondées et les systèmes visités sont sauvegardés localement lorsque le navigateur autorise le stockage. L'horloge orbitale ne progresse pas hors ligne.
 

@@ -78,9 +78,8 @@
     function drawGrid(cam, blueprint = false) {
       const worldStep = blueprint ? 200 : 500;
       let step = worldStep * cam.zoom;
-      let scaleStep = worldStep;
-      while (step < 45) { step *= 2; scaleStep *= 2; }
-      while (step > 180) { step /= 2; scaleStep /= 2; }
+      while (step < 45) step *= 2;
+      while (step > 180) step /= 2;
       const origin = project(0, 0, cam);
       ctx.lineWidth = 1; ctx.strokeStyle = blueprint ? '#87bace15' : '#87bace0d';
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
@@ -100,7 +99,6 @@
           line(ctx, [{ x, y: y - 2.5 }, { x, y: y + 2.5 }], '#9ebacd25');
         }
       }
-      for (let x = x0; x < W; x += step) label(ctx, String(Math.round((x - origin.x) / cam.zoom / scaleStep)), x + 6, H - 97, '#557184', 8);
     }
 
     function drawGalaxy(cam) {

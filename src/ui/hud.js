@@ -468,11 +468,9 @@
       // Once the data network exists, technology points take the place of context.
       const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
       $('secondary-label').textContent = techShown ? 'POINTS TECH' : 'CONTEXTE';
+      $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
-      $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
-        level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';
-      $('view-title').textContent = level === 'galaxy' ? 'Secteur Néréide' : level === 'system' ? state.system.name : state.planet.name;
       $('system-crumb-wrap').hidden = level === 'galaxy';
       $('surface-crumb-wrap').hidden = level !== 'surface';
       $('breadcrumb-system').textContent = state.system?.name.toUpperCase() || '';
@@ -516,30 +514,12 @@
       const anyColony = (state.surfaceBuildings || []).some(building => building.type === 'colony');
       $('build-menu-hint').hidden = !(level === 'surface' && anyColony && !settled);
       $('build-menu-hint').textContent = root.OrbitProgression.buildBlockedHere(state, 'factory', state.planet) || '';
-      $('back-button').disabled = level === 'galaxy';
-      $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
+      // Back names the scale it returns to; the galaxy has none above.
+      $('back-button').hidden = level === 'galaxy';
+      $('back-label').textContent = level === 'surface' ? 'SYSTÈME' : 'GALAXIE';
       $('scan-button').classList.toggle('active', state.tool === 'scan');
       $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
       $('road-button').classList.toggle('active', state.tool === 'road');
-      const constructing = (state.surfaceBuildings || []).filter(building =>
-        building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
-      const placementLabel = BuildingData.get(state.placement?.type)?.label || 'BÂTIMENT';
-      const buildingWord = constructing > 1 ? 'INFRASTRUCTURES' : 'INFRASTRUCTURE';
-      $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
-        state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'road' ? 'TRACÉ ROUTIER MANUEL' : state.tool === 'build' ?
-            `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
-              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
-      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
-        level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'road' ?
-            'Glisser · Bâtiment ou route → bâtiment ou route' : state.tool === 'build' ?
-            `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
-              'Choisir une infrastructure à poser' :
-              'Glisser · Inspecter le terrain · Pincer pour zoomer';
-      const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
-      const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
-      $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
     }
 
     // The build menu's second tab: buildings the player saved (state.library),

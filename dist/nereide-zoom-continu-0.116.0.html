@@ -428,6 +428,46 @@ body[data-level="surface"] .corner-note{display:none}
 .hf-destination span{color:#839cab;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.4px}
 .hf-destination select{width:100%;padding:7px 8px;border:1px solid #6fc8ff55;border-radius:4px;background:#0b1928;color:#d6ecf7;font-family:var(--mono);font-size:calc(10px*var(--ta) + var(--tb))}
 
+/* Main view: one bar on top (population, points, skills) with the menu
+   beside it; one action bar at the bottom (back, road, construction). */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hud{top:calc(var(--edge) + var(--safe-top));left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));gap:8px;align-items:stretch}
+.top-bar{display:flex;align-items:center;gap:14px;min-height:54px;padding:6px 8px 6px 16px;border-radius:10px}
+.top-stat{display:flex;align-items:center;gap:8px;color:#d6e5eb;font-size:calc(15px*var(--ta) + var(--tb));letter-spacing:.5px;white-space:nowrap}
+.top-stat svg{width:20px;height:20px;color:#9fb8c6;flex:0 0 auto}
+.top-divider{width:1px;align-self:stretch;margin:8px 0;background:var(--line)}
+.top-bar .skill-tree-button{display:flex;align-items:center;gap:9px;width:auto;margin:0 0 0 6px;padding:9px 14px;border:1px solid #efa35a99;border-radius:8px;background:#2a1d1055;color:#f1dcc4;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:2px;text-align:left}
+.top-bar .skill-tree-button svg{width:18px;height:18px;color:#ffd9b0}
+.top-bar .skill-tree-button:hover{background:#3a281466}
+.hud .menu-button{min-width:54px;height:auto;border-radius:10px;margin-left:auto}
+.breadcrumb,body[data-level="surface"] .breadcrumb{top:calc(var(--edge) + 70px + var(--safe-top));left:calc(var(--edge) + 8px + var(--safe-left))}
+.alerts{top:calc(var(--edge) + 66px + var(--safe-top))}
+.controls{left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));bottom:calc(var(--edge) + var(--safe-bottom));justify-content:center}
+.action-bar{display:flex;gap:8px;padding:6px;border-radius:12px}
+.action-button{display:flex;align-items:center;justify-content:center;gap:10px;min-width:150px;min-height:48px;padding:0 18px;border:1px solid var(--line);border-radius:8px;background:#0e1d2ccc;color:#c5d6df;font-size:calc(11px*var(--ta) + var(--tb));letter-spacing:2px;transition:background .15s,border-color .15s}
+.action-button svg{width:22px;height:22px;flex:0 0 auto}
+.action-button:hover{background:#183043}
+.action-button.active{border-color:#9fd8ffaa;background:#173a52;color:#e3f4ff}
+.action-button.accent{border-color:#efa35acc;background:#2a1d10cc;color:#ffd9b0}
+.action-button.accent svg{color:#efa35a}
+.action-button.accent.active,.action-button.accent:hover{background:#3a2814}
+.inspector,.build-menu{bottom:calc(84px + var(--safe-bottom))}
+.toast{bottom:calc(92px + var(--safe-bottom))}
+.menu-card .game-version{position:static;margin:14px 0 0;color:#7e9bad;text-align:center}
+@media(max-width:600px){
+  .top-bar{flex:1 1 auto;min-width:0;gap:10px;padding:6px 6px 6px 12px}
+  .top-stat{gap:6px}
+  .top-bar .skill-tree-button{margin-left:auto;padding:8px 10px;letter-spacing:1.2px}
+  .controls{left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right))}
+  .action-bar{flex:1 1 auto;min-width:0;gap:6px;padding:5px}
+  .action-button{flex:1 1 auto;min-width:0;padding:0 8px;gap:6px;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:.6px}
+  .action-button svg{width:19px;height:19px}
+  .inspector,.build-menu{bottom:calc(84px + var(--safe-bottom))}
+  .toast{bottom:calc(92px + var(--safe-bottom))}
+  .colony-panel{bottom:calc(84px + var(--safe-bottom))}
+}
+@media(max-width:380px){.top-bar .skill-tree-button span{display:none}.action-button span{font-size:calc(9px*var(--ta) + var(--tb))}}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
@@ -439,21 +479,24 @@ body[data-level="surface"] .corner-note{display:none}
   <canvas id="universe" aria-label="Carte spatiale interactive. Glisser pour naviguer, pincer ou utiliser les boutons pour zoomer."></canvas>
   <div class="vignette" aria-hidden="true"></div>
   <header class="hud">
-    <div class="telemetry panel">
-      <div class="telemetry-heading"><span class="signal-light"></span><span>ATLAS ORBITAL</span><span class="version">01</span></div>
-      <div class="telemetry-row"><span class="label" id="stat-label">SYSTÈMES</span><span id="stat-value">—</span></div>
-      <div class="telemetry-row secondary"><span id="secondary-label">SECTEUR CONNU</span><span id="secondary-value">—</span></div>
-      <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden><span aria-hidden="true">✦</span> COMPÉTENCES</button>
+    <div class="top-bar panel">
+      <div class="top-stat" id="primary-stat" title="Population">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="16.8" cy="9" r="2.5"/><path d="M15.2 13.9c2.8-.4 4.8 1.2 5.3 4.6"/></svg>
+        <span class="sr-only" id="stat-label">POPULATION</span><span id="stat-value">—</span>
+      </div>
+      <span class="top-divider" aria-hidden="true"></span>
+      <div class="top-stat" id="secondary-stat" title="Contexte">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/></svg>
+        <span class="sr-only" id="secondary-label">CONTEXTE</span><span id="secondary-value">—</span>
+      </div>
+      <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5.5" cy="18" r="2.2"/><circle cx="18.5" cy="18" r="2.2"/><path d="M12 7.2V12m0 0-5.2 4.3M12 12l5.2 4.3"/></svg>
+        <span>COMPÉTENCES</span>
+      </button>
     </div>
-    <div class="header-actions">
-      <button class="icon-button" id="pause-button" aria-label="Mettre les orbites en pause" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button>
-      <button class="icon-button" id="fullscreen-button" aria-label="Passer en plein écran" title="Plein écran" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
-      <button class="icon-button" id="menu-button" aria-label="Ouvrir le menu" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-    </div>
+    <button class="icon-button menu-button" id="menu-button" aria-label="Ouvrir le menu" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   </header>
   <nav class="breadcrumb" aria-label="Échelle de navigation"><button id="breadcrumb-galaxy">GALAXIE</button><span id="system-crumb-wrap" hidden><span class="slash">/</span><button id="breadcrumb-system"></button></span><span id="surface-crumb-wrap" hidden><span class="slash">/</span><span id="breadcrumb-surface"></span></span></nav>
-  <div class="view-heading"><span id="view-subtitle">BRAS DE PERSÉE</span><h1 id="view-title">Secteur Néréide</h1></div>
-  <div class="corner-note"><span class="signal-light"></span><span id="live-status">RECONNAISSANCE ACTIVE</span></div>
   <aside class="inspector panel" id="inspector" hidden>
     <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <h2 id="selection-name">Néréide</h2>
@@ -601,19 +644,13 @@ body[data-level="surface"] .corner-note{display:none}
   </section>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <footer class="controls">
-    <div class="toolbox panel">
-      <button id="back-button" class="tool-button" aria-label="Revenir à l’échelle précédente" title="Retour"><svg viewBox="0 0 24 24"><path d="m14 5-7 7 7 7M7 12h14"/></svg></button>
-      <button id="pan-button" class="tool-button active" aria-label="Parcourir la carte" title="Parcourir"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18m-12-6 3-3 3 3m-9 9-3-3 3-3m12 0 3 3-3 3m-9 3 3 3 3-3"/></svg></button>
-      <button id="scan-button" class="tool-button" aria-label="Envoyer une sonde : choisir une zone sur la carte" title="Sonder une zone"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button>
-      <button id="build-button" class="tool-button" aria-label="Ouvrir le catalogue des bâtiments" title="Construire" hidden><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></button>
-      <button id="road-button" class="tool-button" aria-label="Créer une route par glisser-déposer" title="Relier par une route" hidden><svg viewBox="0 0 24 24"><circle cx="5" cy="18" r="2.4"/><circle cx="19" cy="6" r="2.4"/><path d="M7.2 16.8c2.8-1.3 1.2-5.5 4.2-6.8 2.1-.9 3.4.8 5.4-1.9"/></svg></button>
-      <button id="home-button" class="tool-button" aria-label="Recentrer la carte" title="Recentrer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-      <button id="overview-button" class="tool-button" aria-label="Voir toute la carte" title="Vue d’ensemble"><svg viewBox="0 0 24 24"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button>
-    </div>
-    <div class="scale-controls"><button id="zoom-out" class="icon-button" aria-label="Dézoomer">−</button><div class="scale-legend"><div class="scale-line"></div><span id="scale-text">500 a.l.</span></div><button id="zoom-in" class="icon-button" aria-label="Zoomer">+</button></div>
+    <nav class="action-bar panel" aria-label="Actions">
+      <button id="back-button" class="action-button" aria-label="Revenir à l’échelle précédente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m11 5-7 7 7 7M4 12h16"/></svg><span id="back-label">RETOUR</span></button>
+      <button id="scan-button" class="action-button" aria-label="Envoyer une sonde : choisir une zone sur la carte"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 12 17 7M12 2v2M12 20v2M2 12h2M20 12h2"/></svg><span>SONDE</span></button>
+      <button id="road-button" class="action-button" aria-label="Créer une route par glisser-déposer" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="18" r="2.4"/><circle cx="19" cy="6" r="2.4"/><path d="M7.2 16.8c2.8-1.3 1.2-5.5 4.2-6.8 2.1-.9 3.4.8 5.4-1.9"/></svg><span>ROUTE</span></button>
+      <button id="build-button" class="action-button accent" aria-label="Ouvrir le catalogue des bâtiments" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg><span>CONSTRUCTION</span></button>
+    </nav>
   </footer>
-  <div class="gesture-hint" id="gesture-hint">Glisser pour naviguer <span>·</span> Toucher une étoile <span>·</span> Pincer pour zoomer</div>
-  <div class="game-version" id="game-version" aria-label="Version du jeu"></div>
   <dialog id="menu-dialog">
     <div class="menu-card">
       <div class="menu-kicker"><span class="signal-light"></span> EXPÉDITION 001 <span class="menu-build">PROTOTYPE</span></div>
@@ -625,9 +662,11 @@ body[data-level="surface"] .corner-note{display:none}
       <button id="reset-system-button" class="menu-toggle" type="button"><span>RÉINITIALISER LE SYSTÈME</span><span class="menu-toggle-state">MÊME GRAINE</span></button>
       <p class="menu-reset-note">Efface l’exploration de cet univers.</p>
       <div class="seed-controls"><label for="seed-input">GRAINE DE L’UNIVERS</label><div class="seed-row"><input id="seed-input" maxlength="64" value="NEREIDE-01" autocomplete="off" spellcheck="false"><button id="generate-button" aria-label="Générer cet univers" title="Générer cet univers">↻</button></div><p>Même graine, mêmes mondes.</p></div>
-      <div class="menu-options"><label><input type="checkbox" id="reveal-toggle"><span>Révéler tous les systèmes</span></label><label><input type="checkbox" id="motion-toggle" checked><span>Animer les orbites</span></label></div>
+      <div class="menu-options"><label><input type="checkbox" id="reveal-toggle"><span>Révéler tous les systèmes</span></label><label><input type="checkbox" id="motion-toggle" checked><span>Animer les orbites (Espace)</span></label></div>
+      <button id="fullscreen-button" class="menu-toggle" type="button" aria-pressed="false"><span>PLEIN ÉCRAN</span><span class="menu-toggle-state" id="fullscreen-state">ACTIVER</span></button>
       <button id="developer-tools-button" class="menu-toggle" type="button"><span>OUTILS DÉVELOPPEUR</span><span class="menu-toggle-state">RÉGLAGES</span></button>
       <div class="menu-footnote"><span>GALAXIE</span><span>→</span><span>SYSTÈME</span><span>→</span><span>SURFACE</span></div>
+      <div class="game-version" id="game-version" aria-label="Version du jeu"></div>
     </div>
   </dialog>
   <dialog id="developer-dialog" aria-labelledby="developer-title">
@@ -643,7 +682,7 @@ body[data-level="surface"] .corner-note{display:none}
   </dialog>
   <script>
 // Generated by build.py from package.json; do not edit.
-globalThis.OrbitVersion = "0.115.0";
+globalThis.OrbitVersion = "0.116.0";
 
 </script>
   <script>
@@ -10512,9 +10551,9 @@ globalThis.OrbitVersion = "0.115.0";
     function drawSurfaceGrid(cam) {
       const style = SurfaceStyle.grid, viewport = getViewport();
       const worldStep = style.worldStep;
-      let step = worldStep * cam.zoom, scaleStep = worldStep;
-      while (step < style.minSpacingPx) { step *= 2; scaleStep *= 2; }
-      while (step > style.maxSpacingPx) { step /= 2; scaleStep /= 2; }
+      let step = worldStep * cam.zoom;
+      while (step < style.minSpacingPx) step *= 2;
+      while (step > style.maxSpacingPx) step /= 2;
       const origin = project(0, 0, cam);
       canvasContext.lineWidth = style.lineWidthPx; canvasContext.strokeStyle = style.lineColor;
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
@@ -10528,9 +10567,6 @@ globalThis.OrbitVersion = "0.115.0";
           dependencies.drawLine(canvasContext, [{ x, y: y - style.tickHalfLengthPx }, { x, y: y + style.tickHalfLengthPx }], style.tickColor);
         }
       }
-      for (let x = x0; x < viewport.width; x += step) dependencies.drawLabel(canvasContext,
-        String(Math.round((x - origin.x) / cam.zoom / scaleStep)),
-        x + style.labelOffsetXPx, viewport.height - style.labelOffsetBottomPx, style.labelColor, style.labelSizePx);
     }
 
     function makeSurfaceFrame(cam, planet, record) {
@@ -10712,9 +10748,8 @@ globalThis.OrbitVersion = "0.115.0";
     function drawGrid(cam, blueprint = false) {
       const worldStep = blueprint ? 200 : 500;
       let step = worldStep * cam.zoom;
-      let scaleStep = worldStep;
-      while (step < 45) { step *= 2; scaleStep *= 2; }
-      while (step > 180) { step /= 2; scaleStep /= 2; }
+      while (step < 45) step *= 2;
+      while (step > 180) step /= 2;
       const origin = project(0, 0, cam);
       ctx.lineWidth = 1; ctx.strokeStyle = blueprint ? '#87bace15' : '#87bace0d';
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
@@ -10734,7 +10769,6 @@ globalThis.OrbitVersion = "0.115.0";
           line(ctx, [{ x, y: y - 2.5 }, { x, y: y + 2.5 }], '#9ebacd25');
         }
       }
-      for (let x = x0; x < W; x += step) label(ctx, String(Math.round((x - origin.x) / cam.zoom / scaleStep)), x + 6, H - 97, '#557184', 8);
     }
 
     function drawGalaxy(cam) {
@@ -11400,11 +11434,9 @@ globalThis.OrbitVersion = "0.115.0";
       // Once the data network exists, technology points take the place of context.
       const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
       $('secondary-label').textContent = techShown ? 'POINTS TECH' : 'CONTEXTE';
+      $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
-      $('view-subtitle').textContent = level === 'galaxy' ? 'RECONNAISSANCE / BRAS 01' :
-        level === 'system' ? 'NAVIGATION ORBITALE' : 'CARTOGRAPHIE';
-      $('view-title').textContent = level === 'galaxy' ? 'Secteur Néréide' : level === 'system' ? state.system.name : state.planet.name;
       $('system-crumb-wrap').hidden = level === 'galaxy';
       $('surface-crumb-wrap').hidden = level !== 'surface';
       $('breadcrumb-system').textContent = state.system?.name.toUpperCase() || '';
@@ -11448,30 +11480,12 @@ globalThis.OrbitVersion = "0.115.0";
       const anyColony = (state.surfaceBuildings || []).some(building => building.type === 'colony');
       $('build-menu-hint').hidden = !(level === 'surface' && anyColony && !settled);
       $('build-menu-hint').textContent = root.OrbitProgression.buildBlockedHere(state, 'factory', state.planet) || '';
-      $('back-button').disabled = level === 'galaxy';
-      $('pan-button').classList.toggle('active', state.tool === 'pan' && !state.buildMenuOpen);
+      // Back names the scale it returns to; the galaxy has none above.
+      $('back-button').hidden = level === 'galaxy';
+      $('back-label').textContent = level === 'surface' ? 'SYSTÈME' : 'GALAXIE';
       $('scan-button').classList.toggle('active', state.tool === 'scan');
       $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
       $('road-button').classList.toggle('active', state.tool === 'road');
-      const constructing = (state.surfaceBuildings || []).filter(building =>
-        building.planetId === state.planet?.id && building.constructionState === 'constructing').length;
-      const placementLabel = BuildingData.get(state.placement?.type)?.label || 'BÂTIMENT';
-      const buildingWord = constructing > 1 ? 'INFRASTRUCTURES' : 'INFRASTRUCTURE';
-      $('live-status').textContent = state.paused ? 'SIMULATION EN PAUSE' :
-        state.tool === 'scan' ? 'SONDE EN ATTENTE' : level === 'galaxy' ? 'RECONNAISSANCE ACTIVE' :
-          level === 'system' ? 'ÉPHÉMÉRIDES EN DIRECT' : state.tool === 'road' ? 'TRACÉ ROUTIER MANUEL' : state.tool === 'build' ?
-            `${placementLabel} · POSITION ${state.placement?.valid ? 'VALIDE' : 'INVALIDE'}` : state.buildMenuOpen ? 'CHOIX DES INFRASTRUCTURES' :
-              constructing ? `ASSEMBLAGE · ${constructing} ${buildingWord}` : 'TOPOGRAPHIE LOCALE';
-      $('gesture-hint').textContent = state.tool === 'scan' ? 'Touchez la zone à sonder' :
-        level === 'galaxy' ? 'Glisser · Toucher une étoile · Pincer pour zoomer' :
-          level === 'system' ? 'Glisser · Toucher une planète · Pincer pour zoomer' : state.tool === 'road' ?
-            'Glisser · Bâtiment ou route → bâtiment ou route' : state.tool === 'build' ?
-            `Déplacer l’aperçu · Toucher pour poser ${placementLabel.toLowerCase()} · Échap pour annuler` : state.buildMenuOpen ?
-              'Choisir une infrastructure à poser' :
-              'Glisser · Inspecter le terrain · Pincer pour zoomer';
-      const units = level === 'galaxy' ? ' a.l.' : level === 'system' ? ' UA' : ' km';
-      const span = (width < 600 ? 50 : 96) / scaleCamera.zoom;
-      $('scale-text').textContent = (level === 'system' ? (span * state.system.auPerUnit).toFixed(2) : fmt(Math.max(1, Math.round(span)))) + units;
     }
 
     // The build menu's second tab: buildings the player saved (state.library),
@@ -14517,9 +14531,7 @@ globalThis.OrbitVersion = "0.115.0";
   canvas.addEventListener('pointercancel', e => release(e, true));
   canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * .0015), e.clientX, e.clientY); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
-  $('zoom-in').onclick = () => zoomAt(1.55); $('zoom-out').onclick = () => zoomAt(1 / 1.55);
-  $('back-button').onclick = back; $('overview-button').onclick = overview; $('home-button').onclick = focusHome;
-  $('pan-button').onclick = () => { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false; updateUI(); };
+  $('back-button').onclick = back;
   $('road-button').onclick = () => {
     if (state.level !== 'surface') return;
     cancelRoadDrag(); state.placement = null; state.buildMenuOpen = false;
@@ -14627,10 +14639,7 @@ globalThis.OrbitVersion = "0.115.0";
     const active = standalone || nativeFullscreen;
     fullscreenButton.setAttribute('aria-pressed', String(active));
     fullscreenButton.setAttribute('aria-label', active ? 'Quitter le plein écran' : 'Passer en plein écran');
-    fullscreenButton.title = active ? 'Quitter le plein écran' : 'Plein écran';
-    fullscreenButton.innerHTML = active
-      ? '<svg viewBox="0 0 24 24"><path d="M8 3v5H3m13-5v5h5M3 16h5v5m13-5h-5v5"/></svg>'
-      : '<svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>';
+    $('fullscreen-state').textContent = active ? 'QUITTER' : 'ACTIVER';
   }
   fullscreenButton.onclick = async () => {
     const active = currentFullscreenElement();
@@ -14680,11 +14689,9 @@ globalThis.OrbitVersion = "0.115.0";
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
   function setPause(value) {
-    state.paused = value; $('motion-toggle').checked = !value;
-    $('pause-button').innerHTML = value ? '<svg viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
-    $('pause-button').setAttribute('aria-label', value ? 'Animer les orbites' : 'Mettre les orbites en pause'); updateUI();
+    state.paused = value; $('motion-toggle').checked = !value; updateUI();
   }
-  $('pause-button').onclick = () => setPause(!state.paused); $('motion-toggle').onchange = e => setPause(!e.target.checked);
+  $('motion-toggle').onchange = e => setPause(!e.target.checked);
   document.addEventListener('keydown', e => {
     if (factoryEditor.isOpen()) {
       if (e.key === 'Escape') { if (!factoryEditor.dismiss()) factoryEditor.close(); e.preventDefault(); }

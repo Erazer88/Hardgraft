@@ -417,6 +417,46 @@ body[data-level="surface"] .corner-note{display:none}
 .hf-destination span{color:#839cab;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.4px}
 .hf-destination select{width:100%;padding:7px 8px;border:1px solid #6fc8ff55;border-radius:4px;background:#0b1928;color:#d6ecf7;font-family:var(--mono);font-size:calc(10px*var(--ta) + var(--tb))}
 
+/* Main view: one bar on top (population, points, skills) with the menu
+   beside it; one action bar at the bottom (back, road, construction). */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hud{top:calc(var(--edge) + var(--safe-top));left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));gap:8px;align-items:stretch}
+.top-bar{display:flex;align-items:center;gap:14px;min-height:54px;padding:6px 8px 6px 16px;border-radius:10px}
+.top-stat{display:flex;align-items:center;gap:8px;color:#d6e5eb;font-size:calc(15px*var(--ta) + var(--tb));letter-spacing:.5px;white-space:nowrap}
+.top-stat svg{width:20px;height:20px;color:#9fb8c6;flex:0 0 auto}
+.top-divider{width:1px;align-self:stretch;margin:8px 0;background:var(--line)}
+.top-bar .skill-tree-button{display:flex;align-items:center;gap:9px;width:auto;margin:0 0 0 6px;padding:9px 14px;border:1px solid #efa35a99;border-radius:8px;background:#2a1d1055;color:#f1dcc4;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:2px;text-align:left}
+.top-bar .skill-tree-button svg{width:18px;height:18px;color:#ffd9b0}
+.top-bar .skill-tree-button:hover{background:#3a281466}
+.hud .menu-button{min-width:54px;height:auto;border-radius:10px;margin-left:auto}
+.breadcrumb,body[data-level="surface"] .breadcrumb{top:calc(var(--edge) + 70px + var(--safe-top));left:calc(var(--edge) + 8px + var(--safe-left))}
+.alerts{top:calc(var(--edge) + 66px + var(--safe-top))}
+.controls{left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));bottom:calc(var(--edge) + var(--safe-bottom));justify-content:center}
+.action-bar{display:flex;gap:8px;padding:6px;border-radius:12px}
+.action-button{display:flex;align-items:center;justify-content:center;gap:10px;min-width:150px;min-height:48px;padding:0 18px;border:1px solid var(--line);border-radius:8px;background:#0e1d2ccc;color:#c5d6df;font-size:calc(11px*var(--ta) + var(--tb));letter-spacing:2px;transition:background .15s,border-color .15s}
+.action-button svg{width:22px;height:22px;flex:0 0 auto}
+.action-button:hover{background:#183043}
+.action-button.active{border-color:#9fd8ffaa;background:#173a52;color:#e3f4ff}
+.action-button.accent{border-color:#efa35acc;background:#2a1d10cc;color:#ffd9b0}
+.action-button.accent svg{color:#efa35a}
+.action-button.accent.active,.action-button.accent:hover{background:#3a2814}
+.inspector,.build-menu{bottom:calc(84px + var(--safe-bottom))}
+.toast{bottom:calc(92px + var(--safe-bottom))}
+.menu-card .game-version{position:static;margin:14px 0 0;color:#7e9bad;text-align:center}
+@media(max-width:600px){
+  .top-bar{flex:1 1 auto;min-width:0;gap:10px;padding:6px 6px 6px 12px}
+  .top-stat{gap:6px}
+  .top-bar .skill-tree-button{margin-left:auto;padding:8px 10px;letter-spacing:1.2px}
+  .controls{left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right))}
+  .action-bar{flex:1 1 auto;min-width:0;gap:6px;padding:5px}
+  .action-button{flex:1 1 auto;min-width:0;padding:0 8px;gap:6px;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:.6px}
+  .action-button svg{width:19px;height:19px}
+  .inspector,.build-menu{bottom:calc(84px + var(--safe-bottom))}
+  .toast{bottom:calc(92px + var(--safe-bottom))}
+  .colony-panel{bottom:calc(84px + var(--safe-bottom))}
+}
+@media(max-width:380px){.top-bar .skill-tree-button span{display:none}.action-button span{font-size:calc(9px*var(--ta) + var(--tb))}}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

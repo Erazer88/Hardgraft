@@ -870,9 +870,9 @@
     function drawSurfaceGrid(cam) {
       const style = SurfaceStyle.grid, viewport = getViewport();
       const worldStep = style.worldStep;
-      let step = worldStep * cam.zoom, scaleStep = worldStep;
-      while (step < style.minSpacingPx) { step *= 2; scaleStep *= 2; }
-      while (step > style.maxSpacingPx) { step /= 2; scaleStep /= 2; }
+      let step = worldStep * cam.zoom;
+      while (step < style.minSpacingPx) step *= 2;
+      while (step > style.maxSpacingPx) step /= 2;
       const origin = project(0, 0, cam);
       canvasContext.lineWidth = style.lineWidthPx; canvasContext.strokeStyle = style.lineColor;
       const x0 = ((origin.x % step) + step) % step, y0 = ((origin.y % step) + step) % step;
@@ -886,9 +886,6 @@
           dependencies.drawLine(canvasContext, [{ x, y: y - style.tickHalfLengthPx }, { x, y: y + style.tickHalfLengthPx }], style.tickColor);
         }
       }
-      for (let x = x0; x < viewport.width; x += step) dependencies.drawLabel(canvasContext,
-        String(Math.round((x - origin.x) / cam.zoom / scaleStep)),
-        x + style.labelOffsetXPx, viewport.height - style.labelOffsetBottomPx, style.labelColor, style.labelSizePx);
     }
 
     function makeSurfaceFrame(cam, planet, record) {
