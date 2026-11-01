@@ -165,13 +165,6 @@
     };
     const tile = (icon, label, value) => ({ icon, label, value });
     const rate = value => `${fmtDecimal(Math.round((Number.isFinite(value) ? value : 0) * 10) / 10)} /min`;
-    // Cards of a building's plan: how many are at work.
-    function cardsTile(building) {
-      const machines = currentState?.factoryPlans?.[building.id]?.machines || [];
-      return tile('cards', 'Cartes', machines.length
-        ? `${fmt(machines.filter(machine => machine.state === 'active').length)} / ${fmt(machines.length)} actives` : 'Aucune');
-    }
-
     // What a building's sheet shows: a few tiles of what matters to play it.
     function buildingStats(building) {
       if (building.constructionState === 'supplying') {
@@ -186,22 +179,99 @@
       const flow = building.flowPerMinute;
       // The richest of the ground, as shares.
       const ground = () => Object.entries(building.composition || {}).filter(([, share]) => share >= .005)
-        .sort((a, b) => b[1] - a[1]).slice(0, 2)
+        .sort((a, b) => b[1] - a[1])
         .map(([id, share]) => tile(id === 'rock' ? 'rock' : 'ore', id === 'rock' ? 'Roche' : resourceName(id), approximateShare(share)));
       switch (building.type) {
         case 'extractor': return [tile('speed', 'Vitesse', rate(flow)), ...ground()];
-        case 'factory': return [tile('flow', 'Production', rate(flow)), cardsTile(building)];
+        case 'factory': return [];
         case 'oil_platform': return [tile('speed', 'Extraction', rate(flow)),
           tile('ore', 'Pétrole', Number.isFinite(building.resourceShare) ? approximateShare(building.resourceShare) : '—')];
         case 'water_station': return [tile('water', 'Eau', building.resourceId === 'salt_water' ? 'Salée' : 'Douce'), tile('flow', 'Débit', rate(flow))];
-        case 'storage': return [tile('flow', 'Portes', rate(flow)), cardsTile(building)];
-        case 'waste_heap': return [tile('flow', 'Sortie', rate(flow)), cardsTile(building)];
+        case 'storage': case 'waste_heap': return [];
         case 'antenna': case 'datacenter': case 'hf_antenna': case 'lab': return dataStats(building);
         default: return [];
       }
     }
 
+    // Where a building's goods come from and go to, by resource, with the
+    // names of the buildings: arrivals by road (docks, depot gates) and
+    // departures (its docks' destinations, its depot gates).
+    function buildingFlows(building) {
+      const buildings = currentState?.surfaceBuildings || [], plans = currentState?.factoryPlans || {};
+      const nameOf = item => item?.customName || BuildingData.get(item?.type)?.label || '—';
+      const group = entries => {
+        const byResource = new Map();
+        for (const { resource, name } of entries) {
+          const names = byResource.get(resource) || new Set(); names.add(name); byResource.set(resource, names);
+        }
+        return [...byResource].map(([resource, names]) => ({ resource, names: [...names].join(', ') }))
+          .sort((a, b) => a.resource.localeCompare(b.resource));
+      };
+      const arrivals = [], departures = [];
+      for (const source of buildings) {
+        if (source.id === building.id || source.planetId !== building.planetId) continue;
+        for (const [resourceId, destination] of Object.entries(source.dockDestinations || {})) {
+          if (destination === building.id) arrivals.push({ resource: resourceName(resourceId), name: nameOf(source) });
+        }
+        if ((plans[source.id]?.machines || []).some(machine => machine.type === 'depot_output' && machine.config?.destinationId === building.id)) {
+          arrivals.push({ resource: 'Flux du dépôt', name: nameOf(source) });
+        }
+      }
+      for (const [resourceId, destination] of Object.entries(building.dockDestinations || {})) {
+        if (building.type === 'datacenter') continue;
+        departures.push({ resource: resourceName(resourceId), name: nameOf(buildings.find(item => item.id === destination)) });
+      }
+      for (const machine of plans[building.id]?.machines || []) {
+        if (machine.type !== 'depot_output' || !machine.config?.destinationId) continue;
+        const filter = machine.config.filterResourceId;
+        departures.push({ resource: filter ? resourceName(filter) : 'Porte de sortie',
+          name: nameOf(buildings.find(item => item.id === machine.config.destinationId)) });
+      }
+      return { arrivals: group(arrivals), departures: group(departures) };
+    }
+
+    function renderFlows(building) {
+      const list = $('building-flows');
+      const shown = building.constructionState === 'complete' && ['factory', 'storage', 'waste_heap', 'extractor', 'water_station', 'oil_platform'].includes(building.type);
+      const flows = shown ? buildingFlows(building) : { arrivals: [], departures: [] };
+      // A relay antenna: the buildings it gathers, by kind of data.
+      const relayed = building.type === 'antenna' ? (currentState?.dataLinks?.[building.id]?.sources || []).map(id => {
+        const source = currentState.surfaceBuildings.find(item => item.id === id);
+        const spec = root.OrbitDataNetworkData.sources[source?.type];
+        return { resource: resourceName(spec?.resourceId), name: source?.customName || '—' };
+      }) : [];
+      if (relayed.length) {
+        const byResource = new Map();
+        for (const item of relayed) byResource.set(item.resource, [...(byResource.get(item.resource) || []), item.name]);
+        flows.sources = [...byResource].map(([resource, names]) => ({ resource, names: names.join(', ') }));
+      }
+      const key = JSON.stringify(flows);
+      if (list.dataset.key === key) return;
+      list.dataset.key = key;
+      const section = (title, entries, arrow, empty) => {
+        const block = document.createElement('section'); block.className = 'building-flow';
+        const heading = document.createElement('h3'); heading.textContent = title; block.append(heading);
+        if (!entries.length) {
+          const none = document.createElement('p'); none.textContent = empty; block.append(none);
+        }
+        for (const entry of entries) {
+          const row = document.createElement('div'); row.className = 'building-flow-row';
+          const resource = document.createElement('strong'); resource.textContent = entry.resource;
+          const names = document.createElement('span'); names.textContent = `${arrow} ${entry.names}`;
+          row.append(resource, names); block.append(row);
+        }
+        return block;
+      };
+      const blocks = [];
+      if (shown && ['factory', 'storage', 'waste_heap'].includes(building.type)) blocks.push(section('PROVENANCE', flows.arrivals, '←', 'Rien n’arrive encore.'));
+      if (shown) blocks.push(section('DESTINATIONS', flows.departures, '→', 'Aucune destination choisie (cartes du bâtiment).'));
+      if (flows.sources) blocks.push(section('SOURCES', flows.sources, '←', ''));
+      list.replaceChildren(...blocks);
+      list.hidden = !blocks.length;
+    }
+
     function renderBuildingReadout(building) {
+      renderFlows(building);
       const definition = BuildingData.get(building.type);
       $('building-kind').textContent = definition?.label || 'BÂTIMENT';
       $('building-level').textContent = `NIV. ${fmt(building.upgradeLevel || 1)}`;
@@ -409,10 +479,6 @@
       $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
-      $('system-crumb-wrap').hidden = level === 'galaxy';
-      $('surface-crumb-wrap').hidden = level !== 'surface';
-      $('breadcrumb-system').textContent = state.system?.name.toUpperCase() || '';
-      $('breadcrumb-surface').textContent = state.planet?.name.replace(state.system?.name || '', '').trim() || '';
       $('scan-button').hidden = level !== 'galaxy';
       $('scan-button').disabled = level !== 'galaxy';
       $('build-button').hidden = level !== 'surface';

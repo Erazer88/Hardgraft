@@ -32,7 +32,6 @@
     </div>
     <button class="icon-button menu-button" id="menu-button" aria-label="Ouvrir le menu" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   </header>
-  <nav class="breadcrumb" aria-label="Échelle de navigation"><button id="breadcrumb-galaxy">GALAXIE</button><span id="system-crumb-wrap" hidden><span class="slash">/</span><button id="breadcrumb-system"></button></span><span id="surface-crumb-wrap" hidden><span class="slash">/</span><span id="breadcrumb-surface"></span></span></nav>
   <div class="power-gauge" id="power-gauge" title="Énergie de la planète : consommation / production" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
     <span id="power-value">0 / 0 MW</span>
@@ -61,6 +60,7 @@
     </label>
     <div class="building-readout" id="building-readout" hidden>
       <div class="building-stats" id="building-stats"></div>
+      <div class="building-flows" id="building-flows" hidden></div>
     </div>
     <div class="orbital-logistics" id="platform-logistics" hidden>
       <section class="logistics-card"><strong>RÉCEPTION</strong><div id="platform-reception-data"></div><small id="platform-received-total"></small></section>
@@ -97,10 +97,12 @@
     <ul class="alerts-list panel" id="alerts-list" hidden></ul>
   </div>
   <section class="colony-panel panel" id="colony-panel" role="dialog" aria-label="Colonie" hidden>
-    <header class="colony-panel-header">
-      <div><span>COLONIE</span><input class="building-name-input" id="colony-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom de la colonie"></div>
-      <button class="text-icon" id="colony-panel-close" aria-label="Fermer le menu de la colonie">×</button>
+    <header class="colony-panel-header building-head">
+      <canvas class="building-icon" id="colony-panel-icon" width="96" height="96" aria-hidden="true"></canvas>
+      <div class="building-head-text"><span>COLONIE</span><input class="building-name-input" id="colony-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom de la colonie"></div>
+      <button class="building-close" id="colony-panel-close" type="button" aria-label="Fermer le menu de la colonie"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </header>
+    <div class="building-meta panel-meta" id="colony-panel-meta"></div>
     <div class="colony-panel-body" id="colony-panel-body"></div>
   </section>
   <section class="skill-tree" id="skill-tree" role="dialog" aria-modal="true" aria-labelledby="skill-tree-title" hidden>
@@ -116,10 +118,12 @@
     <aside class="skill-tree-detail panel" id="skill-tree-detail" aria-live="polite"></aside>
   </section>
   <section class="colony-panel hub-panel panel" id="hub-panel" role="dialog" aria-label="Hub" hidden>
-    <header class="colony-panel-header">
-      <div><span>HUB · PLATEFORME DE LANCEMENT</span><input class="building-name-input" id="hub-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du hub"></div>
-      <button class="text-icon" id="hub-panel-close" aria-label="Fermer le menu du hub">×</button>
+    <header class="colony-panel-header building-head">
+      <canvas class="building-icon" id="hub-panel-icon" width="96" height="96" aria-hidden="true"></canvas>
+      <div class="building-head-text"><span>HUB · PLATEFORME DE LANCEMENT</span><input class="building-name-input" id="hub-panel-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du hub"></div>
+      <button class="building-close" id="hub-panel-close" type="button" aria-label="Fermer le menu du hub"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </header>
+    <div class="building-meta panel-meta" id="hub-panel-meta"></div>
     <div class="colony-panel-body" id="hub-panel-body"></div>
     <div class="building-actions hub-panel-actions">
       <button class="demolish-button" id="hub-panel-demolish" type="button">DÉMOLIR</button>

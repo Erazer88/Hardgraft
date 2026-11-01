@@ -495,6 +495,27 @@ body[data-level="surface"] .corner-note{display:none}
 .inspector.building-panel .demolish-button{border-color:#ef8a6a99;color:#ffb39a}
 .inspector.building-panel .hf-destination{margin:0 0 8px}
 
+/* Building sheet: values may wrap; where goods come from and go to. */
+.inspector.building-panel{max-height:min(82dvh,640px)}
+.building-tile strong{white-space:normal;overflow-wrap:anywhere}
+.building-flows{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.building-flows[hidden]{display:none}
+.building-flow{padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.building-flow h3{margin:0 0 6px;color:#7e9bad;font-size:calc(8px*var(--ta) + var(--tb));font-weight:500;letter-spacing:2px}
+.building-flow p{margin:0;color:#8ea9b8;font-size:calc(10px*var(--ta) + var(--tb))}
+.building-flow-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:4px 0;border-top:1px solid #8bb1c914}
+.building-flow-row:first-of-type{border-top:0}
+.building-flow-row strong{color:#d6e5eb;font-size:calc(11px*var(--ta) + var(--tb));font-weight:500}
+.building-flow-row span{color:#9fb8c6;font-size:calc(10px*var(--ta) + var(--tb))}
+
+/* Colony and hub menus: the same bottom sheet as a building's. */
+.colony-panel{position:fixed;z-index:30;top:auto;left:calc(var(--edge) + var(--safe-left));right:calc(var(--edge) + var(--safe-right));bottom:calc(var(--edge) + var(--safe-bottom));width:auto;max-width:560px;margin:0 auto;max-height:min(82dvh,640px);padding:12px 14px;border-radius:14px;--ta:.9;--tb:1px}
+.colony-panel-header.building-head{align-items:center;border-bottom:0;padding-bottom:0}
+.colony-panel-header .building-head-text span{color:#8ba6b5;font-size:calc(9px*var(--ta) + var(--tb));letter-spacing:2.5px}
+.colony-panel-header .building-name-input{margin:0;padding:2px 4px;font-size:calc(18px*var(--ta) + var(--tb))}
+.panel-meta{justify-content:flex-start;color:#d6e5eb;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:.5px;padding:6px 10px}
+.colony-panel .colony-row small{white-space:normal}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

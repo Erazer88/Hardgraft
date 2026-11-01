@@ -31,65 +31,47 @@
       body.replaceChildren();
       quantities = []; renderedState = building.constructionState;
 
-      // Where it stands: site, robots, or assembled.
-      const status = section('ÉTAT');
+      Kit.badge(document.getElementById('hub-panel-icon'), building.type);
+      // Where it stands: site, robots, or assembled; its launch site.
       const supply = Construction.supplyFraction(building);
-      const stateText = building.constructionState === 'supplying' ? `CHANTIER · ${fmt(supply * 100)} % LIVRÉ`
+      const stateText = building.constructionState === 'supplying' ? `chantier · ${fmt(supply * 100)} % livré`
         : building.constructionState === 'constructing'
-          ? building.status === 'queued' ? 'EN ATTENTE DES ROBOTS' : `ASSEMBLAGE ${fmt((building.constructionProgress || 0) * 100)} %`
-          : 'ASSEMBLÉ';
-      row(status, 'HUB', stateText, siteText(building) || '');
-      status.append(bar(building.constructionState === 'complete' ? 1 : building.constructionState === 'supplying' ? supply
-        : building.constructionProgress || 0, 1, null, 'gold'));
+          ? building.status === 'queued' ? 'en attente des robots' : `assemblage ${fmt((building.constructionProgress || 0) * 100)} %`
+          : 'assemblé';
+      document.getElementById('hub-panel-meta').textContent = [stateText, siteText(building)].filter(Boolean).join(' · ');
 
       if (building.constructionState === 'supplying') {
         // Each material still awaited, with its delivered share and pace.
         const needs = section('MATÉRIAUX À RECEVOIR');
         for (const [id, amount] of Object.entries(definition?.constructionNeeds || {})) {
           const done = Math.min(amount, building.constructionSupplied?.[id] || 0), rate = live.resources[id] || 0;
-          const detail = done >= amount ? 'livré' : rate > .05
-            ? `${perMinute(rate)} reçus · ≈ ${fmt(Math.max(1, (amount - done) / rate))} min restantes` : 'aucune arrivée récente';
+          const detail = done >= amount ? 'livré' : rate > .05 ? `≈ ${fmt(Math.max(1, (amount - done) / rate))} min` : 'rien n’arrive';
           const line = row(needs, resourceName(id), `${units(done)} / ${units(amount)}`, detail);
           const track = bar(done, amount, null, done >= amount ? 'ok' : 'gold');
           needs.append(track);
           quantities.push({ id, amount, value: line.querySelector('strong'), fill: track.firstChild });
         }
-        needs.append(element('p', 'colony-note', 'Choisissez ce hub comme destination dans les Docks de sortie : il ne prend que ce qui lui manque.'));
+        needs.append(element('p', 'colony-note', 'Choisissez ce hub comme destination dans les Docks de sortie.'));
       }
 
       if (building.constructionState === 'complete') {
-        // What waits to leave, and the launches to the Ark.
-        const exportSection = section('EXPORT VERS L’ARCHE');
+        // The launches to the Ark, and what waits for them.
+        const exportSection = section('VERS L’ARCHE');
         const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, building.id, state.simulation.time);
         const launch = root.OrbitOrbitalLogisticsData.launch;
-        row(exportSection, 'ÉTAT', root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time));
-        row(exportSection, 'DÉBIT DE LANCEMENT', `${fmt(metrics.throughput * 60)} / ${fmt(launch.capacityUPerSecond * 60)} u/min`);
+        row(exportSection, 'Lancements', `${fmt(metrics.throughput * 60)} / ${fmt(launch.capacityUPerSecond * 60)} u/min`,
+          root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time).toLowerCase());
         exportSection.append(bar(metrics.throughput, launch.capacityUPerSecond, null, 'ok'));
-        row(exportSection, 'ÉNERGIE', `${fmt((building.energyUse || 0) / 1e6)} / ${fmt(launch.energyMW)} MW`);
-        const stock = Object.entries(building.launchStock || {}).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]);
-        const waiting = section('EN ATTENTE DE LANCEMENT');
-        if (!stock.length) waiting.append(element('p', 'colony-note', 'Rien n’attend sur la plateforme.'));
-        for (const [id, amount] of stock) row(waiting, resourceName(id), units(amount));
-        const sent = Object.values(building.launchReceivedTotal || {}).reduce((sum, amount) => sum + amount, 0);
-        row(waiting, 'REÇU AU TOTAL', units(sent));
-      }
-
-      // What arrives now, and from where.
-      const incoming = section('ARRIVÉES · MOYENNE SUR 30 S');
-      const arriving = Object.entries(live.resources).filter(([, rate]) => rate > .05).sort((a, b) => b[1] - a[1]);
-      if (!arriving.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
-      for (const [id, rate] of arriving) row(incoming, resourceName(id), perMinute(rate));
-      const suppliers = Object.entries(live.sources).map(([sourceId, perResource]) => ({
-        source: state.surfaceBuildings.find(candidate => candidate.id === sourceId), perResource,
-        total: Object.values(perResource).reduce((sum, rate) => sum + rate, 0)
-      })).filter(item => item.source && item.total > .05).sort((a, b) => b.total - a.total);
-      if (suppliers.length) {
-        const from = section('FOURNISSEURS');
-        for (const { source, perResource } of suppliers) {
-          row(from, source.customName || source.type, Object.entries(perResource).filter(([, rate]) => rate > .05)
-            .map(([id, rate]) => `${resourceName(id)} ${perMinute(rate)}`).join(' · '));
+        for (const [id, amount] of Object.entries(building.launchStock || {}).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1])) {
+          row(exportSection, resourceName(id), units(amount), 'en attente');
         }
       }
+
+      // What arrives now (30 s average), and who sends it.
+      const incoming = section('ARRIVÉES');
+      const list = Kit.arrivals(live, state, resourceName);
+      if (!list.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
+      for (const item of list) row(incoming, item.label, perMinute(item.rate), item.from.length ? `← ${item.from.join(', ')}` : '');
     }
 
     // Quick update of the delivered quantities; a change of state redraws.

@@ -1054,12 +1054,6 @@
     if (state.level === 'galaxy') enterSystem();
     else if (state.level === 'system') enterPlanet();
   };
-  $('breadcrumb-galaxy').onclick = () => {
-    if (state.level === 'galaxy') { overview(); return; }
-    const star = state.context.star; state.tracking = null; state.focusPlanet = null; clearSelection();
-    focusCamera(star.x - 200, star.y - 160, Math.max(.09, fitZoom(1900)));
-  };
-  $('breadcrumb-system').onclick = () => { if (state.level === 'surface') back(); };
   $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
   const fullscreenButton = $('fullscreen-button');
   const fullscreenMedia = typeof matchMedia === 'function' ? matchMedia('(display-mode: fullscreen), (display-mode: standalone)') : null;

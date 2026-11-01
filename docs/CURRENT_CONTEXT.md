@@ -42,9 +42,13 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   boutons de zoom, d'échelle, de recentrage, de titres ni de graduations à l'écran
   (zoom au pincement, à la molette ou aux touches + et −).
 - Fiche de bâtiment en panneau bas condensé : badge et nom, ligne niveau / énergie
-  (consommée, ou produite en vert), quelques tuiles à icônes utiles au jeu (vitesse,
-  teneurs, production, cartes actives, débits de données…), sans stocks à quai, puis
-  « Modifier », « Enregistrer » et « Démolir ». En vue planète, une jauge discrète
+  (consommée, ou produite en vert), des tuiles à icônes (vitesse et toutes les teneurs,
+  débits de données…, valeurs sur plusieurs lignes), la provenance et les destinations
+  des matières avec les noms des bâtiments (usine, dépôt, terril ; destinations des
+  extracteurs et stations), les sources nommées d'une antenne relais, puis « Modifier »,
+  « Enregistrer » et « Démolir ». Colonie et hub ont le même panneau : résumé, paliers
+  ou matériaux à recevoir, flux, arrivées avec leurs expéditeurs. Plus de fil d'Ariane
+  ni de libellé de lieu sur la carte. En vue planète, une jauge discrète
   « ⚡ consommation / production MW » sous la barre du haut (rouge en déficit).
 
 ### Colonie et progression

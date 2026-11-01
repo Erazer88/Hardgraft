@@ -76,5 +76,22 @@
     return { sample, reset: () => { sampledId = null; samples = []; } };
   }
 
-  root.OrbitPanelKit = Object.freeze({ fmt, units, perMinute, clamp, builders, rateTracker });
+  // One list of what arrives: per resource, its rate and the buildings
+  // sending it (from a rateTracker sample).
+  function arrivals(live, state, resourceName) {
+    return Object.entries(live.resources).filter(([, rate]) => rate > .05).sort((a, b) => b[1] - a[1]).map(([id, rate]) => ({
+      id, label: resourceName(id), rate,
+      from: Object.entries(live.sources).filter(([, perResource]) => (perResource[id] || 0) > .05)
+        .map(([sourceId]) => state.surfaceBuildings.find(candidate => candidate.id === sourceId)?.customName).filter(Boolean)
+    }));
+  }
+
+  // A small header badge of a building type (drawn once per canvas).
+  function badge(canvas, type) {
+    if (!canvas || canvas.dataset.type === type) return;
+    canvas.dataset.type = type;
+    root.OrbitBuildingRenderer?.drawBadge(canvas, type);
+  }
+
+  root.OrbitPanelKit = Object.freeze({ fmt, units, perMinute, clamp, builders, rateTracker, arrivals, badge });
 })(globalThis);

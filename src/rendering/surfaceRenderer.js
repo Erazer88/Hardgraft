@@ -940,13 +940,6 @@
       }
     }
 
-    function drawLabels(frame) {
-      if (frame.zoom < SurfaceStyle.lod.terrainDetailsZoom) return;
-      const top = frame.project(0, 0), bottom = frame.project(frame.terrainWidth, frame.terrainHeight);
-      dependencies.drawLabel(canvasContext, frame.planet.name.toUpperCase() + ' / CARTOGRAPHIE',
-        top.x + 15, bottom.y - 16, '#c3c9b1', SurfaceStyle.labels.siteDetailSizePx);
-    }
-
     function drawSurface(cam, planet, record, planetPreview = false) {
       const frame = makeSurfaceFrame(cam, planet, record);
       const developerSettings = root.OrbitDeveloperSettings;
@@ -956,7 +949,6 @@
       layers.buildings.renderPhysical(frame);
       layers.vehicles.render(frame);
       drawSelection(frame);
-      drawLabels(frame);
     }
 
     function drawPlanetTerrain(planet, context, center, radius, planetPreview = false) {
