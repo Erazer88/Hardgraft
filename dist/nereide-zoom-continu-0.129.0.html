@@ -1056,6 +1056,15 @@ globalThis.OrbitVersion = "0.129.0";
     // One wind turbine powers about one full ore line (≈ 23,5 MW).
     windPowerUnlimited: false,
     windPowerMW: 32,
+    // Wind turbines (src/simulation/windPower.js): a site's factor goes from
+    // roughBase on broken ground to openBase on open ground (spread of the
+    // relief within siteRadiusKm, against roughnessScaleM), plus altitude
+    // (per 1 000 m, capped), within minSite–maxSite. Turbines closer than
+    // wakeRadiusKm take each other's wind: efficiency 1 / (1 + wakeLoss × Σ
+    // (1 − distance / wakeRadiusKm)).
+    wind: { siteRadiusKm: 15, roughnessScaleM: 420, roughBase: .55, openBase: 1.08,
+      altitudeBonusPer1000M: .2, altitudeBonusMax: .45, minSite: .5, maxSite: 1.5,
+      wakeRadiusKm: 90, wakeLoss: .6 },
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).
     waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },
@@ -1673,10 +1682,12 @@ globalThis.OrbitVersion = "0.129.0";
     wind_turbine: {
       id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
       description: 'Produit de l’énergie sur la terre ferme.',
-      details: 'Produit 32 MW pour toute la planète, sans carburant ni entretien. Une puissance insuffisante ralentit toutes les cartes de la planète.',
+      details: 'Produit environ 32 MW pour toute la planète, sans carburant. Le vent dépend du site : les grandes plaines et les hauts plateaux rapportent plus qu’un relief accidenté. Une éolienne trop proche d’une autre perd du vent (sillage) : espacez-les. Une puissance insuffisante ralentit toutes les cartes de la planète.',
       functions: { generatesEnergy: true },
       cost: { iron: 12, copper: 8, carbon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 22, height: 30 }, roadRequired: true,
+      // Placed with a finger, the preview stands this far above it.
+      touchLiftPx: 72,
       roadPortOffset: { x: 0, y: 15 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
@@ -1713,6 +1724,8 @@ globalThis.OrbitVersion = "0.129.0";
       functions: { relaysData: true },
       cost: { iron: 10, copper: 8, silicon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 18, height: 18 }, roadRequired: true,
+      // Placed with a finger, the preview stands this far above it.
+      touchLiftPx: 72,
       roadPortOffset: { x: 0, y: 9 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
@@ -2322,6 +2335,13 @@ globalThis.OrbitVersion = "0.129.0";
       // relief hides; links in sight green, cut by a hill red.
       coverageSeen: Object.freeze([60, 255, 110, 104]), coverageHidden: Object.freeze([255, 40, 64, 78]),
       seenColor: '#6fe88a', blockedColor: '#ff6b6b' }),
+    // Wind view of a turbine placed or selected: richer sites than average
+    // (×1) green, poorer red, more opaque the further from average (up to
+    // alpha, 0–255), clear within `neutral` of it; see-through over the
+    // relief. Dashed wake circles of the turbines standing and of the one
+    // being placed.
+    windView: Object.freeze({ poor: Object.freeze([255, 56, 64]), rich: Object.freeze([60, 255, 110]),
+      alpha: 120, neutral: .06, wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,
@@ -4852,6 +4872,8 @@ globalThis.OrbitVersion = "0.129.0";
     const siteTemperature = isFiniteNumber(properties.siteTemperature) ? properties.siteTemperature : null;
     // Kind of the planet a lab studies (its data depends on it).
     const siteKind = typeof properties.siteKind === 'string' ? properties.siteKind : null;
+    // A wind turbine's site factor, read from the relief when placed.
+    const windSite = isFiniteNumber(properties.windSite) && properties.windSite > 0 ? properties.windSite : null;
     // Where a high-frequency antenna sends: 'ark' (default) or another antenna's id.
     const hfTarget = typeof properties.hfTarget === 'string' && properties.hfTarget ? properties.hfTarget : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
@@ -4898,6 +4920,7 @@ globalThis.OrbitVersion = "0.129.0";
       composition,
       siteTemperature,
       siteKind,
+      windSite,
       hfTarget,
       upgradeLevel,
       status,
@@ -5802,6 +5825,94 @@ globalThis.OrbitVersion = "0.129.0";
   }
 
   root.OrbitLineOfSight = Object.freeze({ clear, viewshed, groundAt });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  // Wind turbines. A site catches more wind on wide plains and high plateaus:
+  // open ground (little relief around it) and altitude raise its factor,
+  // broken ground lowers it. A turbine in the wake of others (closer than
+  // wakeRadiusKm) catches less: its efficiency falls with each neighbour, the
+  // more the closer, so ten turbines on one spot give little more than a few.
+  // Output = windPowerMW × site factor × wake efficiency. No DOM.
+  const settings = () => root.OrbitProcessData?.config.wind;
+  const scaleKm = () => root.OrbitConfig?.terrain?.textureScale || 1;
+  const metersPerLevel = () => root.OrbitDataNetworkData?.relief?.metersPerLevel || 35;
+
+  // Site factor of every cell of a terrain (0 on water), computed once per
+  // terrain with summed-area tables: the relief's spread around each cell
+  // (standard deviation of the land within siteRadiusKm; the sea is open, it
+  // does not count as broken ground) and its altitude.
+  const grids = new WeakMap();
+  function siteGrid(terrain) {
+    if (grids.has(terrain)) return grids.get(terrain);
+    const wind = settings(), { width, height, seaLevel, elevation } = terrain, relief = terrain.relief || elevation;
+    const ground = new Float64Array(width * height), water = new Uint8Array(width * height);
+    for (let cell = 0; cell < ground.length; cell++) {
+      ground[cell] = Math.max(0, relief[cell] - seaLevel) * metersPerLevel();
+      water[cell] = elevation[cell] <= seaLevel ? 1 : 0;
+    }
+    // Summed-area tables of the land cells, their ground and its square,
+    // (width+1)×(height+1).
+    const stride = width + 1, size = stride * (height + 1);
+    const lands = new Float64Array(size), sum = new Float64Array(size), squares = new Float64Array(size);
+    for (let y = 0; y < height; y++) {
+      let rowLand = 0, row = 0, rowSquares = 0;
+      for (let x = 0; x < width; x++) {
+        const cell = y * width + x, land = water[cell] ? 0 : 1, value = land ? ground[cell] : 0;
+        rowLand += land; row += value; rowSquares += value * value;
+        const at = (y + 1) * stride + x + 1, above = y * stride + x + 1;
+        lands[at] = lands[above] + rowLand; sum[at] = sum[above] + row; squares[at] = squares[above] + rowSquares;
+      }
+    }
+    const radius = Math.max(1, Math.round(wind.siteRadiusKm / scaleKm())), factors = new Float32Array(width * height);
+    const area = (table, x0, y0, x1, y1) => table[y1 * stride + x1] - table[y0 * stride + x1] - table[y1 * stride + x0] + table[y0 * stride + x0];
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const cell = y * width + x;
+      if (water[cell]) continue;
+      const x0 = Math.max(0, x - radius), y0 = Math.max(0, y - radius), x1 = Math.min(width, x + radius + 1), y1 = Math.min(height, y + radius + 1);
+      const count = Math.max(1, area(lands, x0, y0, x1, y1)), mean = area(sum, x0, y0, x1, y1) / count;
+      const spread = Math.sqrt(Math.max(0, area(squares, x0, y0, x1, y1) / count - mean * mean));
+      const openness = Math.max(0, 1 - spread / wind.roughnessScaleM);
+      const altitude = Math.min(wind.altitudeBonusMax, ground[cell] / 1000 * wind.altitudeBonusPer1000M);
+      factors[cell] = Math.max(wind.minSite, Math.min(wind.maxSite, wind.roughBase + (wind.openBase - wind.roughBase) * openness + altitude));
+    }
+    grids.set(terrain, factors);
+    return factors;
+  }
+
+  // Site factor at a world point (1 without terrain).
+  function siteFactor(terrain, point) {
+    if (!terrain?.elevation || !settings()) return 1;
+    const scale = scaleKm();
+    const x = Math.max(0, Math.min(terrain.width - 1, Math.floor(point.x / scale)));
+    const y = Math.max(0, Math.min(terrain.height - 1, Math.floor(point.y / scale)));
+    return siteGrid(terrain)[y * terrain.width + x] || settings().minSite;
+  }
+
+  // Share of its wind a turbine keeps among `turbines` (itself skipped).
+  function wakeEfficiency(turbine, turbines) {
+    const wind = settings();
+    if (!wind) return 1;
+    let shadow = 0;
+    for (const other of turbines) {
+      if (other === turbine || other.id === turbine.id || other.planetId !== turbine.planetId) continue;
+      const distance = Math.hypot(other.x - turbine.x, other.y - turbine.y);
+      if (distance < wind.wakeRadiusKm) shadow += 1 - distance / wind.wakeRadiusKm;
+    }
+    return 1 / (1 + wind.wakeLoss * shadow);
+  }
+
+  // Megawatts a turbine gives, its site and the others of its planet counted.
+  function outputMW(turbine, turbines) {
+    const site = Number.isFinite(turbine.windSite) ? turbine.windSite : 1;
+    return (root.OrbitProcessData?.config.windPowerMW || 0) * site * wakeEfficiency(turbine, turbines);
+  }
+
+  root.OrbitWindPower = Object.freeze({ siteGrid, siteFactor, wakeEfficiency, outputMW });
 })(globalThis);
 
 </script>
@@ -8163,6 +8274,8 @@ globalThis.OrbitVersion = "0.129.0";
 
   function step(state, seconds) {
     const power = new Map(), demands = new Map();
+    // Wind turbines at work, for their wakes.
+    const turbines = state.surfaceBuildings.filter(building => building.type === 'wind_turbine' && building.constructionState === 'complete');
     for (const building of state.surfaceBuildings) {
       const complete = building.constructionState === 'complete';
       building.energyOutputUnlimited = complete && building.type === 'wind_turbine' && Data.config.windPowerUnlimited;
@@ -8170,8 +8283,12 @@ globalThis.OrbitVersion = "0.129.0";
       const entry = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
       if (building.energyOutputUnlimited) entry.unlimited = true;
       if (building.type === 'wind_turbine') {
-        building.energyOutputWatts = building.energyOutputUnlimited ? 0 : Data.config.windPowerMW * 1e6;
-        if (!building.energyOutputUnlimited) entry.megawatts += Data.config.windPowerMW;
+        // Its site and the turbines around it set what it gives.
+        const Wind = root.OrbitWindPower;
+        building.windWake = Wind ? Wind.wakeEfficiency(building, turbines) : 1;
+        const megawatts = Wind ? Wind.outputMW(building, turbines) : Data.config.windPowerMW;
+        building.energyOutputWatts = building.energyOutputUnlimited ? 0 : megawatts * 1e6;
+        if (!building.energyOutputUnlimited) entry.megawatts += megawatts;
       }
       if (building.type === 'geothermal') {
         building.energyOutputWatts = Data.config.geothermalPowerMW * 1e6;
@@ -9336,6 +9453,61 @@ globalThis.OrbitVersion = "0.129.0";
     ctx.restore();
   }
 
+  // A wind turbine's view, while one is placed or selected: the wind of the
+  // whole planet (green where turbines catch more, red where less, see-
+  // through over the relief) and the wake of each turbine standing.
+  const windCache = new WeakMap();
+  function windLayer(terrain) {
+    const Wind = root.OrbitWindPower, wind = root.OrbitProcessData?.config.wind;
+    if (!Wind || !wind || !terrain?.elevation || !root.document) return null;
+    if (windCache.has(terrain)) return windCache.get(terrain);
+    const factors = Wind.siteGrid(terrain), style = Style.windView;
+    const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
+    const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
+    // An average site (×1) stays clear; richer ones turn green, poorer ones
+    // red, the more the further from average.
+    for (let cell = 0; cell < factors.length; cell++) {
+      const factor = factors[cell];
+      if (!factor) continue;
+      const rich = factor >= 1, strength = rich ? (factor - 1) / (wind.maxSite - 1) : (1 - factor) / (1 - wind.minSite);
+      if (strength < style.neutral) continue;
+      image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
+    }
+    context.putImageData(image, 0, 0);
+    windCache.set(terrain, canvas);
+    return canvas;
+  }
+
+  function renderWindView(frame) {
+    const state = frame.state, ctx = frame.context, wind = root.OrbitProcessData?.config.wind;
+    const placing = state.tool === 'build' && state.placement?.type === 'wind_turbine' ? state.placement : null;
+    const selected = state.selected?.kind === 'building' && state.selected.type === 'wind_turbine' ? state.selected : null;
+    if ((!placing && !selected) || !wind) return;
+    const layer = windLayer(frame.terrain);
+    if (layer) {
+      const top = frame.project(0, 0), scale = root.OrbitConfig.terrain.textureScale * frame.zoom;
+      ctx.save(); ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(layer, top.x, top.y, layer.width * scale, layer.height * scale);
+      ctx.restore();
+    }
+    // Each turbine's wake: a turbine set inside loses wind, the more the closer.
+    const style = Style.windView;
+    ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 1.3;
+    for (const turbine of visibleBuildings(frame)) {
+      if (turbine.type !== 'wind_turbine') continue;
+      const point = frame.project(turbine.x, turbine.y), radius = wind.wakeRadiusKm * frame.zoom;
+      ctx.globalAlpha = .12; ctx.fillStyle = style.wakeColor;
+      ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = .8; ctx.strokeStyle = style.wakeColor; ctx.stroke();
+    }
+    if (placing) {
+      const point = frame.project(placing.x, placing.y);
+      ctx.globalAlpha = .7; ctx.strokeStyle = style.ownWakeColor;
+      ctx.beginPath(); ctx.arc(point.x, point.y, wind.wakeRadiusKm * frame.zoom, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderDataLinks(frame) {
     const state = frame.state, style = Style.dataLinks, ctx = frame.context;
     // The relief view of the antenna being placed or selected, under its links.
@@ -9401,6 +9573,7 @@ globalThis.OrbitVersion = "0.129.0";
     frame.pixelRatio = Math.abs(frame.context.getTransform?.().a || 1);
     renderColonyZones(frame);
     renderLatitudeGrid(frame);
+    renderWindView(frame);
     renderDataLinks(frame);
     const labels = [], beacons = [];
     for (const building of visibleBuildings(frame)) {
@@ -11611,7 +11784,7 @@ globalThis.OrbitVersion = "0.129.0";
     }
     function powerText(definition) {
       if (definition.generatorMW) return `+${fmt(definition.generatorMW)} MW`;
-      if (definition.id === 'wind_turbine') return `+${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW`;
+      if (definition.id === 'wind_turbine') return `≈ ${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW, selon le site et les voisines`;
       if (definition.id === 'lab') return 'Autonome';
       if (BuildingData.processTypes.includes(definition.id)) return 'Selon ses cartes';
       return '';
@@ -11808,6 +11981,9 @@ globalThis.OrbitVersion = "0.129.0";
         case 'waste_heap': return [];
         case 'storage': return [];
         case 'antenna': case 'datacenter': case 'hf_antenna': case 'lab': return dataStats(building);
+        case 'wind_turbine': return [
+          tile('speed', 'Vent du site', `×${fmtDecimal(Math.round((building.windSite ?? 1) * 100) / 100)}`),
+          tile('link', 'Sillage', (building.windWake ?? 1) < .995 ? `−${Math.round((1 - building.windWake) * 100)} %` : 'aucun')];
         default: return [];
       }
     }
@@ -14651,10 +14827,14 @@ globalThis.OrbitVersion = "0.129.0";
     state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     $('inspector').hidden = true; $('toast').classList.remove('visible'); colonyPanel.close(); hubPanel.close();
   }
+  // The kind of the last pointer on the map (mouse, pen or touch).
+  let pointerKind = 'mouse';
   function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
     const definition = BuildingData.get(type);
     if (!definition) return;
+    // Some buildings stand above the finger, so it does not hide them.
+    if (pointerKind === 'touch' && definition.touchLiftPx) screenY -= definition.touchLiftPx;
     const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
     const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
     const validation = BuildingPlacement.validate({ terrain: terrainData,
@@ -14664,8 +14844,10 @@ globalThis.OrbitVersion = "0.129.0";
     const siteTemperature = type === 'datacenter' ? temperatureAt(position) : null;
     // A lab studies its planet: its data depends on the planet's kind.
     const siteKind = type === 'lab' ? state.planet?.kind || null : null;
-    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature, siteKind,
-      groundText: siteReadout({ type, ...position, ...validation, siteTemperature, siteKind }) };
+    // A wind turbine catches the wind of its site (open ground, altitude).
+    const windSite = type === 'wind_turbine' ? globalThis.OrbitWindPower.siteFactor(terrainData, position) : null;
+    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature, siteKind, windSite,
+      groundText: siteReadout({ type, ...position, ...validation, siteTemperature, siteKind, windSite }) };
   }
   // Local temperature (°C) on the current planet: its mean, the latitude and
   // the altitude of the spot.
@@ -14696,6 +14878,13 @@ globalThis.OrbitVersion = "0.129.0";
       return `Données planétaires · ${formatAmount(network.sourceRate(network.sources.lab, building))} Mo/s`;
     }
     if (building.type === 'hf_antenna') return 'Vers l’Arche et les autres planètes';
+    if (building.type === 'wind_turbine' && Number.isFinite(building.windSite)) {
+      // Its site's wind, what the turbines around take from it, what it gives.
+      const Wind = globalThis.OrbitWindPower, turbine = { ...building, id: building.id || 'placing', planetId: state.planet?.id };
+      const others = state.surfaceBuildings.filter(item => item.type === 'wind_turbine' && item.constructionState === 'complete');
+      const wake = Wind.wakeEfficiency(turbine, others);
+      return `Vent ×${formatAmount(Math.round(building.windSite * 100) / 100)}${wake < .995 ? ` · sillage −${Math.round((1 - wake) * 100)} %` : ''} · ≈ ${formatAmount(Math.round(Wind.outputMW(turbine, others)))} MW`;
+    }
     if (building.type === 'antenna') {
       const links = state.dataLinks?.[building.id];
       const network = globalThis.OrbitDataNetworkData.antenna;
@@ -14729,7 +14918,7 @@ globalThis.OrbitVersion = "0.129.0";
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, siteKind: preview.siteKind, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, siteKind: preview.siteKind, windSite: preview.windSite, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -15149,6 +15338,7 @@ globalThis.OrbitVersion = "0.129.0";
   }
   canvas.addEventListener('pointerdown', e => {
     if ($('menu-dialog').open) return;
+    pointerKind = e.pointerType;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
@@ -15167,6 +15357,7 @@ globalThis.OrbitVersion = "0.129.0";
     if (pointers.size === 2) beginPinch();
   });
   canvas.addEventListener('pointermove', e => {
+    pointerKind = e.pointerType;
     if (!pointers.has(e.pointerId)) {
       if (state.tool === 'build') updateBuildingPreview(e.clientX, e.clientY);
       return;
@@ -15493,6 +15684,16 @@ globalThis.OrbitVersion = "0.129.0";
   }
   const terrainOf = planetId => terrainRecord(planetId)?.data || null;
 
+  // Wind turbines placed before sites counted take theirs once their
+  // planet's terrain is known.
+  function settleWindSites() {
+    for (const turbine of state.surfaceBuildings) {
+      if (turbine.type !== 'wind_turbine' || Number.isFinite(turbine.windSite)) continue;
+      const terrain = terrainOf(turbine.planetId);
+      if (terrain) turbine.windSite = globalThis.OrbitWindPower.siteFactor(terrain, turbine);
+    }
+  }
+
   // A colony's zone grows over its planet's terrain as it consumes. A zone
   // that could not grow is tried again only once something changed (its
   // target, its cells, the buildings of its planet, the terrain).
@@ -15522,6 +15723,7 @@ globalThis.OrbitVersion = "0.129.0";
     const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
     Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
     if (!state.paused && !document.hidden) {
+      settleWindSites();
       Construction.advance(state.surfaceBuildings, simulationDt);
       RoadConstruction.advance(state.roadNetworks, simulationDt);
       globalThis.OrbitIndustry.advance(state, simulationDt);

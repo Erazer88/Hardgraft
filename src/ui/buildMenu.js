@@ -135,7 +135,7 @@
     }
     function powerText(definition) {
       if (definition.generatorMW) return `+${fmt(definition.generatorMW)} MW`;
-      if (definition.id === 'wind_turbine') return `+${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW`;
+      if (definition.id === 'wind_turbine') return `≈ ${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW, selon le site et les voisines`;
       if (definition.id === 'lab') return 'Autonome';
       if (BuildingData.processTypes.includes(definition.id)) return 'Selon ses cartes';
       return '';

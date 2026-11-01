@@ -51,6 +51,8 @@
 
   function step(state, seconds) {
     const power = new Map(), demands = new Map();
+    // Wind turbines at work, for their wakes.
+    const turbines = state.surfaceBuildings.filter(building => building.type === 'wind_turbine' && building.constructionState === 'complete');
     for (const building of state.surfaceBuildings) {
       const complete = building.constructionState === 'complete';
       building.energyOutputUnlimited = complete && building.type === 'wind_turbine' && Data.config.windPowerUnlimited;
@@ -58,8 +60,12 @@
       const entry = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
       if (building.energyOutputUnlimited) entry.unlimited = true;
       if (building.type === 'wind_turbine') {
-        building.energyOutputWatts = building.energyOutputUnlimited ? 0 : Data.config.windPowerMW * 1e6;
-        if (!building.energyOutputUnlimited) entry.megawatts += Data.config.windPowerMW;
+        // Its site and the turbines around it set what it gives.
+        const Wind = root.OrbitWindPower;
+        building.windWake = Wind ? Wind.wakeEfficiency(building, turbines) : 1;
+        const megawatts = Wind ? Wind.outputMW(building, turbines) : Data.config.windPowerMW;
+        building.energyOutputWatts = building.energyOutputUnlimited ? 0 : megawatts * 1e6;
+        if (!building.energyOutputUnlimited) entry.megawatts += megawatts;
       }
       if (building.type === 'geothermal') {
         building.energyOutputWatts = Data.config.geothermalPowerMW * 1e6;

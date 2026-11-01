@@ -103,6 +103,8 @@
     const siteTemperature = isFiniteNumber(properties.siteTemperature) ? properties.siteTemperature : null;
     // Kind of the planet a lab studies (its data depends on it).
     const siteKind = typeof properties.siteKind === 'string' ? properties.siteKind : null;
+    // A wind turbine's site factor, read from the relief when placed.
+    const windSite = isFiniteNumber(properties.windSite) && properties.windSite > 0 ? properties.windSite : null;
     // Where a high-frequency antenna sends: 'ark' (default) or another antenna's id.
     const hfTarget = typeof properties.hfTarget === 'string' && properties.hfTarget ? properties.hfTarget : null;
     const upgradeLevel = properties.upgradeLevel ?? 1;
@@ -149,6 +151,7 @@
       composition,
       siteTemperature,
       siteKind,
+      windSite,
       hfTarget,
       upgradeLevel,
       status,

@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/windPower.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -953,4 +953,51 @@ test('a high-frequency antenna pointed at another one relays through it toward t
   assert.equal(state.techPoints, 4);
   relay.hfTarget = 'hf-a';
   assert.equal(DataTransit.destinationAntenna(state, 'home', sender), null, 'two antennas pointed at each other do not loop');
+});
+
+// Wind: a square of land at one height, optionally broken ground or water.
+function windTerrain(level, { rough = false, water = false } = {}) {
+  const width = 40, height = 40, seaLevel = 100, elevation = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    elevation[y * width + x] = water ? 90 : rough ? ((x + y) % 2 ? level + 25 : level) : level;
+  }
+  return { width, height, seaLevel, elevation };
+}
+
+test('a wind site catches more on open ground and high plateaus, less on broken ground, nothing on water', () => {
+  const Wind = context.OrbitWindPower, wind = context.OrbitProcessData.config.wind;
+  const middle = { x: cellX(20), y: cellX(20) };
+  const plain = Wind.siteFactor(windTerrain(110), middle);
+  const plateau = Wind.siteFactor(windTerrain(157), middle);
+  const broken = Wind.siteFactor(windTerrain(110, { rough: true }), middle);
+  // Flat ground at 350 m: open ground and a small altitude bonus.
+  assert.ok(Math.abs(plain - (wind.openBase + .35 * wind.altitudeBonusPer1000M)) < 1e-3, `${plain}`);
+  assert.ok(plateau > plain + .25 && plateau <= wind.maxSite, `a high plateau (${plateau}) beats a low plain (${plain})`);
+  assert.ok(broken < .8 && broken >= wind.minSite, `broken ground catches less (${broken})`);
+  assert.equal(Wind.siteGrid(windTerrain(110, { water: true }))[20 * 40 + 20], 0, 'no wind site on water');
+  assert.equal(Wind.siteFactor(null, middle), 1, 'unknown terrain: an average site');
+});
+
+test('a turbine in the wake of others loses wind: ten on one spot give little more than two', () => {
+  const Wind = context.OrbitWindPower, wind = context.OrbitProcessData.config.wind;
+  const at = (id, x) => ({ id, type: 'wind_turbine', planetId, x, y: 0, constructionState: 'complete', windSite: 1 });
+  const alone = at('a', 0);
+  assert.equal(Wind.wakeEfficiency(alone, [alone]), 1);
+  assert.equal(Wind.wakeEfficiency(alone, [alone, at('far', wind.wakeRadiusKm + 1)]), 1, 'beyond the wake radius: no loss');
+  const half = Wind.wakeEfficiency(alone, [alone, at('b', wind.wakeRadiusKm / 2)]);
+  assert.ok(Math.abs(half - 1 / (1 + wind.wakeLoss * .5)) < 1e-9, `${half}`);
+  const stack = Array.from({ length: 10 }, (_, index) => at(`s${index}`, index));
+  const total = stack.reduce((sum, turbine) => sum + Wind.outputMW(turbine, stack), 0);
+  const single = context.OrbitProcessData.config.windPowerMW;
+  assert.ok(total < single * 2.5, `ten stacked turbines give ${total} MW, about two turbines' worth`);
+  const spread = Array.from({ length: 3 }, (_, index) => at(`p${index}`, index * (wind.wakeRadiusKm + 5)));
+  assert.equal(spread.reduce((sum, turbine) => sum + Wind.outputMW(turbine, spread), 0), single * 3, 'spaced out: full power each');
+  // The planet's supply follows: site factor × wake efficiency per turbine.
+  const state = { surfaceBuildings: [at('w1', 0), at('w2', wind.wakeRadiusKm / 2), { ...at('w3', 2000), windSite: 1.4 }],
+    factoryPlans: {}, seed: 'wind' };
+  context.OrbitIndustry.advance(state, 1);
+  const expected = state.surfaceBuildings.reduce((sum, turbine) => sum + Wind.outputMW(turbine, state.surfaceBuildings), 0);
+  assert.ok(Math.abs(state.powerStatus[planetId].supplyMW - expected) < 1e-9);
+  assert.ok(Math.abs(state.surfaceBuildings[2].energyOutputWatts - single * 1.4 * 1e6) < 1e-3, 'a rich site gives more');
+  assert.ok(state.surfaceBuildings[0].windWake < 1, 'the wake is kept for the sheet');
 });

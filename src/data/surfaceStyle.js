@@ -154,6 +154,13 @@
       // relief hides; links in sight green, cut by a hill red.
       coverageSeen: Object.freeze([60, 255, 110, 104]), coverageHidden: Object.freeze([255, 40, 64, 78]),
       seenColor: '#6fe88a', blockedColor: '#ff6b6b' }),
+    // Wind view of a turbine placed or selected: richer sites than average
+    // (×1) green, poorer red, more opaque the further from average (up to
+    // alpha, 0–255), clear within `neutral` of it; see-through over the
+    // relief. Dashed wake circles of the turbines standing and of the one
+    // being placed.
+    windView: Object.freeze({ poor: Object.freeze([255, 56, 64]), rich: Object.freeze([60, 255, 110]),
+      alpha: 120, neutral: .06, wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,

@@ -177,8 +177,25 @@ puis une plaque par 10 fers.
 
 ## Énergie et prix
 
-Chaque éolienne fournit 32 MW à sa planète ; le générateur de la colonie en fournit
-12, de quoi faire tourner un ou deux bâtiments. La puissance se partage entre les plans
+Chaque éolienne fournit environ 32 MW à sa planète, multipliés par le **vent de son
+site** et par son **sillage** (`src/simulation/windPower.js`, réglages `config.wind`) :
+
+- Le site (fixé à la pose, `building.windSite`) va de ×0,55 sur un relief accidenté à
+  ×1,08 sur un terrain dégagé, plus l'altitude (+0,2 par 1 000 m, +0,45 au plus),
+  borné entre ×0,5 et ×1,5. Le relief se mesure par l'écart-type des altitudes des
+  terres dans un rayon de 15 km (la mer ne compte pas) : grandes plaines et hauts
+  plateaux rapportent plus. Sur une planète type, la médiane est d'environ ×1.
+- Le sillage : une éolienne à moins de 90 km d'une autre perd du vent, d'autant plus
+  que l'autre est proche ; rendement 1 / (1 + 0,6 × Σ (1 − distance / 90 km)). Dix
+  éoliennes au même endroit donnent à peine plus que deux.
+- À la pose ou à la sélection, la vue vent colore toute la planète : vert où le site
+  dépasse la moyenne, rouge où il est moins bon, clair autour de ×1, en transparence ;
+  les cercles de sillage des éoliennes existantes sont en pointillés. Le texte sous
+  l'aperçu donne « Vent ×1,2 · sillage −15 % · ≈ 33 MW », la fiche le vent du site et
+  le sillage. Les éoliennes posées avant reçoivent leur site dès que le terrain de leur
+  planète est connu.
+
+Le générateur de la colonie fournit 12 MW, de quoi faire tourner un ou deux bâtiments. La puissance se partage entre les plans
 au prorata de leur demande ; une puissance insuffisante ralentit les cartes. Les prix
 des bâtiments et des cartes restent dans les données mais sont masqués
 (`construction.pricesEnabled: false`).

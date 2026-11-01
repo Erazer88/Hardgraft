@@ -513,6 +513,61 @@
     ctx.restore();
   }
 
+  // A wind turbine's view, while one is placed or selected: the wind of the
+  // whole planet (green where turbines catch more, red where less, see-
+  // through over the relief) and the wake of each turbine standing.
+  const windCache = new WeakMap();
+  function windLayer(terrain) {
+    const Wind = root.OrbitWindPower, wind = root.OrbitProcessData?.config.wind;
+    if (!Wind || !wind || !terrain?.elevation || !root.document) return null;
+    if (windCache.has(terrain)) return windCache.get(terrain);
+    const factors = Wind.siteGrid(terrain), style = Style.windView;
+    const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
+    const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
+    // An average site (×1) stays clear; richer ones turn green, poorer ones
+    // red, the more the further from average.
+    for (let cell = 0; cell < factors.length; cell++) {
+      const factor = factors[cell];
+      if (!factor) continue;
+      const rich = factor >= 1, strength = rich ? (factor - 1) / (wind.maxSite - 1) : (1 - factor) / (1 - wind.minSite);
+      if (strength < style.neutral) continue;
+      image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
+    }
+    context.putImageData(image, 0, 0);
+    windCache.set(terrain, canvas);
+    return canvas;
+  }
+
+  function renderWindView(frame) {
+    const state = frame.state, ctx = frame.context, wind = root.OrbitProcessData?.config.wind;
+    const placing = state.tool === 'build' && state.placement?.type === 'wind_turbine' ? state.placement : null;
+    const selected = state.selected?.kind === 'building' && state.selected.type === 'wind_turbine' ? state.selected : null;
+    if ((!placing && !selected) || !wind) return;
+    const layer = windLayer(frame.terrain);
+    if (layer) {
+      const top = frame.project(0, 0), scale = root.OrbitConfig.terrain.textureScale * frame.zoom;
+      ctx.save(); ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(layer, top.x, top.y, layer.width * scale, layer.height * scale);
+      ctx.restore();
+    }
+    // Each turbine's wake: a turbine set inside loses wind, the more the closer.
+    const style = Style.windView;
+    ctx.save(); ctx.setLineDash([5, 5]); ctx.lineWidth = 1.3;
+    for (const turbine of visibleBuildings(frame)) {
+      if (turbine.type !== 'wind_turbine') continue;
+      const point = frame.project(turbine.x, turbine.y), radius = wind.wakeRadiusKm * frame.zoom;
+      ctx.globalAlpha = .12; ctx.fillStyle = style.wakeColor;
+      ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = .8; ctx.strokeStyle = style.wakeColor; ctx.stroke();
+    }
+    if (placing) {
+      const point = frame.project(placing.x, placing.y);
+      ctx.globalAlpha = .7; ctx.strokeStyle = style.ownWakeColor;
+      ctx.beginPath(); ctx.arc(point.x, point.y, wind.wakeRadiusKm * frame.zoom, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderDataLinks(frame) {
     const state = frame.state, style = Style.dataLinks, ctx = frame.context;
     // The relief view of the antenna being placed or selected, under its links.
@@ -578,6 +633,7 @@
     frame.pixelRatio = Math.abs(frame.context.getTransform?.().a || 1);
     renderColonyZones(frame);
     renderLatitudeGrid(frame);
+    renderWindView(frame);
     renderDataLinks(frame);
     const labels = [], beacons = [];
     for (const building of visibleBuildings(frame)) {

@@ -154,6 +154,9 @@
         case 'waste_heap': return [];
         case 'storage': return [];
         case 'antenna': case 'datacenter': case 'hf_antenna': case 'lab': return dataStats(building);
+        case 'wind_turbine': return [
+          tile('speed', 'Vent du site', `×${fmtDecimal(Math.round((building.windSite ?? 1) * 100) / 100)}`),
+          tile('link', 'Sillage', (building.windWake ?? 1) < .995 ? `−${Math.round((1 - building.windWake) * 100)} %` : 'aucun')];
         default: return [];
       }
     }

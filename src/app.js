@@ -402,10 +402,14 @@
     state.selected = null; state.tool = 'pan'; state.placement = null; state.buildMenuOpen = false;
     $('inspector').hidden = true; $('toast').classList.remove('visible'); colonyPanel.close(); hubPanel.close();
   }
+  // The kind of the last pointer on the map (mouse, pen or touch).
+  let pointerKind = 'mouse';
   function updateBuildingPreview(screenX, screenY, type = state.placement?.type) {
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
     const definition = BuildingData.get(type);
     if (!definition) return;
+    // Some buildings stand above the finger, so it does not hide them.
+    if (pointerKind === 'touch' && definition.touchLiftPx) screenY -= definition.touchLiftPx;
     const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
     const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
     const validation = BuildingPlacement.validate({ terrain: terrainData,
@@ -415,8 +419,10 @@
     const siteTemperature = type === 'datacenter' ? temperatureAt(position) : null;
     // A lab studies its planet: its data depends on the planet's kind.
     const siteKind = type === 'lab' ? state.planet?.kind || null : null;
-    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature, siteKind,
-      groundText: siteReadout({ type, ...position, ...validation, siteTemperature, siteKind }) };
+    // A wind turbine catches the wind of its site (open ground, altitude).
+    const windSite = type === 'wind_turbine' ? globalThis.OrbitWindPower.siteFactor(terrainData, position) : null;
+    state.placement = { type, ...position, rotation: 0, ...validation, siteTemperature, siteKind, windSite,
+      groundText: siteReadout({ type, ...position, ...validation, siteTemperature, siteKind, windSite }) };
   }
   // Local temperature (°C) on the current planet: its mean, the latitude and
   // the altitude of the spot.
@@ -447,6 +453,13 @@
       return `Données planétaires · ${formatAmount(network.sourceRate(network.sources.lab, building))} Mo/s`;
     }
     if (building.type === 'hf_antenna') return 'Vers l’Arche et les autres planètes';
+    if (building.type === 'wind_turbine' && Number.isFinite(building.windSite)) {
+      // Its site's wind, what the turbines around take from it, what it gives.
+      const Wind = globalThis.OrbitWindPower, turbine = { ...building, id: building.id || 'placing', planetId: state.planet?.id };
+      const others = state.surfaceBuildings.filter(item => item.type === 'wind_turbine' && item.constructionState === 'complete');
+      const wake = Wind.wakeEfficiency(turbine, others);
+      return `Vent ×${formatAmount(Math.round(building.windSite * 100) / 100)}${wake < .995 ? ` · sillage −${Math.round((1 - wake) * 100)} %` : ''} · ≈ ${formatAmount(Math.round(Wind.outputMW(turbine, others)))} MW`;
+    }
     if (building.type === 'antenna') {
       const links = state.dataLinks?.[building.id];
       const network = globalThis.OrbitDataNetworkData.antenna;
@@ -480,7 +493,7 @@
     const building = BuildingModel.create({ id: `${preview.type}-${state.planet.id}-${nextBuildingId++}`,
       type: preview.type, planetId: state.planet.id, x: preview.x, y: preview.y, rotation: preview.rotation,
       resourceId: preview.resourceId, resourceShare: preview.resourceShare, composition: preview.composition,
-      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, siteKind: preview.siteKind, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
+      waterPort: preview.waterPort, siteTemperature: preview.siteTemperature, siteKind: preview.siteKind, windSite: preview.windSite, customName: template ? freeName(template.name) : BuildingNames.nextName(state, preview.type),
       constructionState: 'planned', constructionProgress: 0, status: 'planned' });
     const construction = Construction.start(building, state.inventory,
       Construction.costFor(building.type));
@@ -900,6 +913,7 @@
   }
   canvas.addEventListener('pointerdown', e => {
     if ($('menu-dialog').open) return;
+    pointerKind = e.pointerType;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     pointerMoved = false;
@@ -918,6 +932,7 @@
     if (pointers.size === 2) beginPinch();
   });
   canvas.addEventListener('pointermove', e => {
+    pointerKind = e.pointerType;
     if (!pointers.has(e.pointerId)) {
       if (state.tool === 'build') updateBuildingPreview(e.clientX, e.clientY);
       return;
@@ -1244,6 +1259,16 @@
   }
   const terrainOf = planetId => terrainRecord(planetId)?.data || null;
 
+  // Wind turbines placed before sites counted take theirs once their
+  // planet's terrain is known.
+  function settleWindSites() {
+    for (const turbine of state.surfaceBuildings) {
+      if (turbine.type !== 'wind_turbine' || Number.isFinite(turbine.windSite)) continue;
+      const terrain = terrainOf(turbine.planetId);
+      if (terrain) turbine.windSite = globalThis.OrbitWindPower.siteFactor(terrain, turbine);
+    }
+  }
+
   // A colony's zone grows over its planet's terrain as it consumes. A zone
   // that could not grow is tried again only once something changed (its
   // target, its cells, the buildings of its planet, the terrain).
@@ -1273,6 +1298,7 @@
     const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
     Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
     if (!state.paused && !document.hidden) {
+      settleWindSites();
       Construction.advance(state.surfaceBuildings, simulationDt);
       RoadConstruction.advance(state.roadNetworks, simulationDt);
       globalThis.OrbitIndustry.advance(state, simulationDt);

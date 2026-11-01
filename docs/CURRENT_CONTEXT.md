@@ -107,7 +107,11 @@ laboratoires sur d'autres mondes.
   destination n'absorbe rien (« SANS DESTINATION ») et bloque l'amont.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
-- Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Deux
+- Énergie limitée (colonie 12 MW, incinérateur lissé sur 20 s). Une éolienne donne
+  ≈ 32 MW × le vent de son site (×0,55 relief accidenté → ×1,5 haut plateau dégagé)
+  × son sillage (perte si une autre est à moins de 90 km) ; vue vent verte/rouge à la
+  pose et à la sélection, avec les cercles de sillage. Au doigt, l'antenne relais et
+  l'éolienne se posent 72 px au-dessus du point touché (`touchLiftPx`). Deux
   équipes de robots, 2 s de construction par bâtiment. Prix masqués
   (`pricesEnabled: false`). Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 
