@@ -166,8 +166,34 @@
       while (amount >= (decimals ? 100 : 1000) && scale < UNIT_SCALES.length - 1) { amount /= 1000; scale++; }
       return `${decimals ? decimal.format(amount) : Math.round(amount)} ${UNIT_SCALES[scale]}u`;
     }
+    // Docks and depot gates pass units in bursts: their rate is the units
+    // moved over the last 5 s, refreshed every 5 s (first value after 1 s).
+    const RATE_WINDOW_MS = 5000, FIRST_RATE_MS = 1000;
+    const metered = def => Boolean(def.externalInput || def.externalOutput || def.gate);
+    function meteredView(machine, entry, now) {
+      const total = machine.movedTotal || 0;
+      if (!entry.window) Object.assign(entry, { window: { at: now, total }, at: now, done: 0, rate: 0, measured: false });
+      const elapsed = now - entry.window.at;
+      if (elapsed >= RATE_WINDOW_MS || (!entry.measured && elapsed >= FIRST_RATE_MS)) {
+        entry.rate = Math.max(0, total - entry.window.total) / (elapsed / 1000);
+        entry.window = { at: now, total }; entry.measured = true;
+      }
+      if (machine.state === 'active' || total !== entry.lastTotal) entry.activeAt = now;
+      // Units counted on the bar, at the shown rate while units pass.
+      if (now - entry.activeAt < 1200) entry.done += entry.rate * (now - entry.at) / 1000;
+      entry.lastTotal = total; entry.at = now;
+      const block = BAR_BLOCKS.filter(size => size === 1 || entry.rate >= size).at(-1);
+      return { state: now - entry.activeAt < 1200 ? 'active' : machine.state, rate: entry.rate,
+        active: now - entry.activeAt < 1200, done: entry.done, block, unit: units(block, 1) };
+    }
     function smoothed(machine, def) {
-      const now = performance.now(), entry = shown.get(machine.id) || { rate: machine.currentRate || 0, activeAt: -Infinity, at: now };
+      const now = performance.now();
+      if (metered(def)) {
+        const entry = shown.get(machine.id) || {};
+        shown.set(machine.id, entry);
+        return meteredView(machine, entry, now);
+      }
+      const entry = shown.get(machine.id) || { rate: machine.currentRate || 0, activeAt: -Infinity, at: now };
       const blend = 1 - Math.exp(-(now - entry.at) / 700);
       entry.rate += ((Number.isFinite(machine.currentRate) ? machine.currentRate : 0) - entry.rate) * blend;
       // Units handled since the plan was opened, from the smoothed rate.
@@ -176,14 +202,12 @@
       if (machine.state === 'active') entry.activeAt = now;
       shown.set(machine.id, entry);
       const active = now - entry.activeAt < 1200;
-      // Cards cycling several times a second show a steady bar instead of a flicker.
-      const primary = def.recipe?.inputs[0]?.amount || 1, fast = entry.rate / primary >= 1.5;
       // The processing bar follows the input: it completes once per unit (6
       // times a second at 6 u/s), then per 0,1 ku from 100 u/s, 1 ku from
       // 1 000 u/s, 0,1 Mu from 100 000 u/s…
       const block = BAR_BLOCKS.filter(size => size === 1 || entry.rate >= size).at(-1);
       return { state: active ? 'active' : machine.state, rate: Number.isFinite(machine.currentRate) ? entry.rate : machine.currentRate || 0,
-        active, fast, done: entry.done || 0, block, unit: units(block, 1) };
+        active, done: entry.done || 0, block, unit: units(block, 1) };
     }
 
     // How full a dock is: what the building received of the chosen resource
@@ -220,12 +244,12 @@
       if (energy.textContent !== energyText) energy.textContent = energyText;
       energy.hidden = !energyText;
       energy.dataset.tone = def.generatesMW ? 'made' : view.state === 'no_energy' ? 'short' : view.active ? 'on' : 'idle';
-      // The bar: a dock's fill (out of dockCapacity); elsewhere the unit being
-      // processed, reset at each unit (or ku, Mu… when fast).
+      // The bar counts the units handled, reset at each unit (or ku, Mu… when
+      // fast); a dock's fill stays in its note.
       const cycle = card.querySelector('.factory-cycle-fill');
-      const counted = !def.routing && !def.externalInput && !def.externalOutput && !def.storesResources;
+      const counted = metered(def) || (!def.routing && !def.storesResources);
       const dock = dockFill(machine, def);
-      const fill = dock ? dock.amount / dock.capacity : counted ? (view.done % view.block) / view.block : view.active ? 1 : 0;
+      const fill = counted ? (view.done % view.block) / view.block : view.active ? 1 : 0;
       cycle.style.width = `${clamp(fill * 100, 0, 100)}%`;
       // One short note: a dock's stock, a separator's grade, a depot card's load.
       const held = Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0);

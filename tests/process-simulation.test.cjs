@@ -432,6 +432,8 @@ test('rock on the move keeps one composition per stock; an output dock holds 100
   // Nothing takes the tailings away: the dock fills to its capacity, then
   // the cards before it stop.
   assert.equal(extractor.dockStock.tailings, Data.config.dockCapacity);
+  // Each dock counts the units it sent (the editor averages its rate from it).
+  assert.equal(graph.machines.find(item => item.id === 'dock-t').movedTotal, Data.config.dockCapacity);
   assert.equal(graph.machines.find(item => item.id === 'separator').state, 'output_full');
   assert.deepEqual(Object.keys(extractor.dockMix), ['tailings'], 'concentrate is refined: no composition kept');
   assert.ok(extractor.dockMix.tailings.iron < composition.iron && extractor.dockMix.tailings.copper > composition.copper,

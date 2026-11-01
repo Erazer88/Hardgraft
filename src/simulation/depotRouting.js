@@ -124,6 +124,8 @@
     for (const machine of graph.machines) {
       const held = total(machine.storedResources), elapsed = Math.max(step, ticks * step);
       machine.currentRate = machine.movedUnits / elapsed;
+      // Units moved since the game started (runtime only), for the editor's rate.
+      machine.movedTotal = (machine.movedTotal || 0) + machine.movedUnits;
       machine.state = machine.movedUnits > 0 ? 'active' : held > 0 ? 'output_full' : 'waiting_input';
       machine.energyMW = 0;
       if (machine.splitSent && machine.splitSent.a + machine.splitSent.b > 1000) {

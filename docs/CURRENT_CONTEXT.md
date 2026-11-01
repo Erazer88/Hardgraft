@@ -79,9 +79,10 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   vue vent (voir plus bas), en teintes transparentes qui laissent lire le relief. Au
   doigt, tout bâtiment se pose 72 px au-dessus du point touché
   (`OrbitBuildingData.placement.touchLiftPx`) pour rester visible.
-- Éditeur de cartes : état et débit sur une ligne, une large barre bleue (unité en
-  cours, ou remplissage d'un quai sur 100), « ⚡ MW » et une note (stock d'un quai,
-  teneur d'un séparateur). Liaisons courbes ou à angle droit (bouton de l'en-tête,
+- Éditeur de cartes : état et débit sur une ligne, une large barre bleue qui compte
+  les unités, « ⚡ MW » et une note (stock d'un quai sur 100, teneur d'un séparateur).
+  Quais, Docks et Portes de dépôt affichent le débit moyen des 5 dernières secondes,
+  mis à jour toutes les 5 s. Liaisons courbes ou à angle droit (bouton de l'en-tête,
   choix gardé par le navigateur). Pas de symbole ∞ dans l'interface.
 
 ### Colonie et progression

@@ -201,6 +201,9 @@
         externalStock[resourceId] -= 1;
         Mix?.prune(externalMix, resourceId, externalStock[resourceId]);
         machine.outputBuffer.material += 1;
+        // Units let in since the game started (runtime only): the editor
+        // averages its rate from it.
+        machine.movedTotal = (machine.movedTotal || 0) + 1;
         machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
       }
       if (def.throughput == null) machine.cycleProgress = 0;

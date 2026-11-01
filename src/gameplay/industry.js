@@ -176,6 +176,8 @@
       if (Mix) Mix.add(building.dockMix, resource, resource, building.dockStock[resource] || 0, amount, Mix.of(machine.inputMix, input.id));
       building.dockStock[resource] = (building.dockStock[resource] || 0) + amount;
       machine.inputBuffer[input.id] -= amount;
+      // Units sent since the game started (runtime only), for the editor's rate.
+      machine.movedTotal = (machine.movedTotal || 0) + amount;
       if (Mix) Mix.prune(machine.inputMix, input.id, machine.inputBuffer[input.id]);
     }
   }

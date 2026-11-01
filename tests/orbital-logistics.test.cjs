@@ -268,6 +268,7 @@ test('road delivery feeds a receiving factory processor through its input dock, 
     toMachineId: 'crusher', toInputId: 'rock' }).ok, true);
   for (let i = 0; i < 7; i++) Industry.advance(state, 1);
   assert.equal(receiver.inventory.raw_rock || 0, 0);
+  assert.equal(graph.machines[0].movedTotal, 8, 'the input dock counts the units it let in');
   assert.equal(graph.machines[1].outputBuffer.rock, 8);
   assert.deepEqual(plain(graph.machines[1].outputMix.rock), { copper: .3, rock: .7 });
   assert.equal(factory.dockStock.raw_rock, undefined);

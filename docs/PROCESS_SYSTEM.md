@@ -172,10 +172,13 @@ puissance (« ⚡ 3 MW », ambre en manque d'énergie, « +x / 8 MW » pour un g
 une note : stock d'un quai (« Stock 45 / 100 u »), teneur d'un séparateur, charge d'une
 carte de dépôt. États : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`,
 `SANS DESTINATION`. L'affichage est lissé (un état actif est tenu 1,2 s, le débit lissé
-sur 0,7 s) pour ne pas clignoter à haut débit. La barre d'une carte de traitement
-compte les unités par blocs et repart de zéro sans animation de retour : bloc de 1 u
-sous 100 u/s, puis 0,1 ku, 1 ku, 0,1 Mu… selon le débit (`BAR_BLOCKS`) ; celle d'un quai
-ou d'un Dock de sortie montre son remplissage sur 100. Les liaisons sont des courbes ou
+sur 0,7 s) pour ne pas clignoter à haut débit. Quais d'entrée, Docks de sortie et Portes
+de dépôt, qui passent leurs unités par à-coups, affichent plutôt le débit moyen des
+5 dernières secondes, mis à jour toutes les 5 s (première valeur après 1 s), calculé sur
+le compteur d'unités passées `machine.movedTotal` (non sauvegardé). La barre compte les
+unités par blocs et repart de zéro sans animation de retour : bloc de 1 u sous
+100 u/s, puis 0,1 ku, 1 ku, 0,1 Mu… selon le débit (`BAR_BLOCKS`) ; le remplissage d'un
+quai sur 100 reste dans sa note. Les liaisons sont des courbes ou
 des angles droits arrondis (bouton de l'en-tête de l'éditeur, gardé dans le
 navigateur). L'affichage ne modifie pas la simulation.
 
