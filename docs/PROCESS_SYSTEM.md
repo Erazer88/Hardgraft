@@ -121,9 +121,9 @@ n'a pas atteint 100 ; au-delà il se remplit et arrête l'amont. De même, la lo
 ne livre à un bâtiment à cartes que ce qui manque pour atteindre 100 u de chaque
 ressource reçue (`building.inventory`) ; le reste attend au Dock source. La Colonie et
 la Plateforme de lancement reçoivent tout. Sa destination
-est choisie par matière parmi la Colonie, les usines et terrils terminés équipés d'un
-Quai d'entrée, les dépôts dotés d'une Porte d'entrée et les Plateformes de lancement
-terminées de la planète, reliés par un chemin construit. Tant que sa matière n'a pas
+est choisie par matière parmi la Colonie, les usines, terrils et dépôts terminés et les
+Plateformes de lancement terminées de la planète, reliés par un chemin construit ; la
+carte d'entrée d'une usine, d'un terril ou d'un dépôt se crée d'elle-même (ci-dessous). Tant que sa matière n'a pas
 de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui l'alimente
 s'arrête. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
@@ -137,20 +137,20 @@ supprime pas les Docks ou Portes de sortie qui l'alimentaient : leur destination
 seulement effacée. La synchronisation se fait à chaque choix de destination, à chaque
 démolition et toutes les 2 s.
 
-Le Quai d'entrée rend un bâtiment disponible comme destination. Il affiche les
-matières livrées dans `building.inventory` et possède une sortie `material` raccordable
-aux machines. La première matière reçue est sélectionnée automatiquement ; le joueur
-peut en choisir une autre lorsque le quai est débranché et son buffer vide. Plusieurs
-quais partagent le même stock sans dupliquer les unités. Un quai peut alimenter plusieurs cartes : son stock se
-partage à tour de rôle entre ses liaisons. Dans l'éditeur, le port partagé d'un quai
+Le Quai d'entrée affiche les matières livrées dans `building.inventory` et possède une sortie `material` raccordable
+aux machines. Un quai créé automatiquement prend la ressource qui lui est envoyée
+(un quai ouvert, pour le flux mêlé d'un dépôt, prend la première matière reçue) ; le
+joueur peut en choisir une autre lorsque le quai est débranché et son buffer vide. Plusieurs
+quais partagent le même stock sans dupliquer les unités. Un quai peut alimenter
+plusieurs cartes : son stock se partage à tour de rôle entre ses liaisons. Dans l'éditeur, le port partagé d'un quai
 (sortie) ou d'un Dock de sortie (entrée) montre un point par liaison et un point libre
 de plus. La Colonie et les Plateformes
 de lancement reçoivent nativement, sans cette carte.
 
 Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire, un
 Quai d'entrée un bouton vers ses bâtiments sources et la Porte d'entrée d'un dépôt sa
-« PROVENANCE » (tous les bâtiments qui lui envoient quelque chose) ; le changement de bâtiment se fait
-par un court glissement.
+« PROVENANCE » (tous les bâtiments qui lui envoient quelque chose) ; le changement de
+bâtiment se fait par un court glissement.
 
 **Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans
 enregistrés. « Sélectionner une région » passe en mode sélection : un glisser trace un

@@ -12,8 +12,8 @@ livraison, branche, langue) sont dans [`AGENTS.md`](../AGENTS.md).
   `globalThis` ; garder cet ordre et la compatibilité avec `build.py`.
 - `src/data/` contient les réglages, `src/world/` la génération, `src/simulation/`
   les modèles, `src/gameplay/` leur raccordement, `src/ui/` les interactions,
-  `src/rendering/` le dessin et `src/app.js` l'initialisation et la boucle. Voir
-  [`ARCHITECTURE.md`](ARCHITECTURE.md).
+  `src/rendering/` le dessin, `src/storage/` sauvegardes et bibliothèque, `src/app.js`
+  l'initialisation et la boucle. Voir [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - La génération est déterministe par graine. Préserver navigation, sauvegardes et
   compatibilité mobile/desktop lors des changements.
 - Performances en vue planète : sol (relief, minerais, côte, routes terminées) en
@@ -27,7 +27,7 @@ livraison, branche, langue) sont dans [`AGENTS.md`](../AGENTS.md).
 Le gameplay est fonctionnel jusqu'à l'Arche puis l'arbre de compétences : colonie et
 paliers jusqu'à 1 600 habitants, chaîne roche → goudron → plaques, hub de lancement,
 fret vers l'Arche, réseau de données et points de technologie, colonies et
-laboratoires sur d'autres mondes.
+laboratoires sur d'autres mondes, plusieurs parties par navigateur.
 
 ## Décisions actives
 
@@ -52,25 +52,33 @@ laboratoires sur d'autres mondes.
 
 ### Interface
 
-- Vue principale épurée : barre du haut (population « HAB. », points de technologie
-  « TECH » en légende sous chaque chiffre, dans toute partie ; « Compétences » réduit à son icône quand
-  la place manque, menu ☰) ; barre d'actions en bas (retour nommé d'après l'échelle
-  visée, « Route », « Construction », « Sonde » en vue galaxie). Pause, plein écran et
-  version sont dans le menu ; zoom au pincement, à la molette ou aux touches + et −.
-  En vue planète, une jauge « ⚡ consommation / production MW » (rouge en déficit).
+- Vue principale épurée. Barre du haut : population « HAB. » et points de technologie
+  « TECH » (légende sous chaque chiffre, dans toute partie), « Compétences » réduit à
+  son icône quand la place manque, menu ☰. Barre d'actions en bas : retour nommé
+  d'après l'échelle visée, « Route », « Construction », « Sonde » en vue galaxie.
+  Pause, plein écran, parties et version sont dans le menu ; zoom au pincement, à la
+  molette ou aux touches + et −. En vue planète, une jauge « ⚡ consommation /
+  production MW » (rouge en déficit).
 - Un même panneau bas pour tout ce qu'on touche sur une planète : badge et nom, tuiles
   à icônes, lignes pleine largeur (provenances et arrivées en bleu, destinations en
-  ambre, stocks). Fiche de bâtiment : niveau / énergie, tuiles (vitesse et teneurs,
-  débits de données…), provenance et destinations nommées, sources d'une antenne
-  relais, puis « Modifier », « Enregistrer » et « Démolir ». Colonie
-  (`colonyPanel.js`) : paliers, flux, stock, arrivées. Hub (`hubPanel.js`) : matériaux
-  à recevoir, puis le prochain fret (barre de chargement, unités à bord) et le dernier. Arche : plateformes, arrivées, énergie,
-  points tech, arrivées et stock. Relevé de terrain (clic sur le sol) : altitude,
-  rayon de forage, composition du sol en barres.
+  ambre, stocks).
+  - Fiche de bâtiment : niveau / énergie, tuiles (vitesse et teneurs, débits de
+    données, vent d'une éolienne…), provenance et destinations nommées, sources d'une
+    antenne relais, puis « Modifier », « Enregistrer » et « Démolir ».
+  - Colonie (`colonyPanel.js`) : paliers, flux, stock, arrivées.
+  - Hub (`hubPanel.js`) : matériaux à recevoir, puis le prochain fret (barre de
+    chargement, unités à bord) et le dernier.
+  - Arche : plateformes, arrivées, énergie, points tech, stock.
+  - Relevé de terrain (clic sur le sol) : altitude, rayon de forage, composition du
+    sol en barres.
 - Menu Construction (`buildMenu.js`) : puces de tri (Tout, Production, Industrie,
   Énergie, Transport, Données, Enregistrés), une carte par bâtiment (badge, nom, motif
   d'indisponibilité) et un bouton « i » qui ouvre sa fiche de fonctionnement
   (`details`, emplacement, route, énergie, chantier) avec « Construire ».
+- Vues de pose et de sélection : l'antenne relais montre sa vue relief, l'éolienne sa
+  vue vent (voir plus bas), en teintes transparentes qui laissent lire le relief. Au
+  doigt, ces deux bâtiments se posent 72 px au-dessus du point touché (`touchLiftPx`)
+  pour rester visibles.
 - Éditeur de cartes : état et débit sur une ligne, une large barre bleue (unité en
   cours, ou remplissage d'un quai sur 100), « ⚡ MW » et une note (stock d'un quai,
   teneur d'un séparateur). Liaisons courbes ou à angle droit (bouton de l'en-tête,
@@ -78,16 +86,15 @@ laboratoires sur d'autres mondes.
 
 ### Colonie et progression
 
-- La Colonie est le premier bâtiment, unique et indestructible, générateur 12 MW.
-  Population 100 → 200 → 400 → 800 → 1 600 par paliers : 1 000 roches brutes, puis
-  150 goudrons, puis 25 plaques, puis un hub assemblé. Dès le palier 2, les ressources
-  des paliers précédents sont exigées en flux (roche 500/min, goudron 25/min, plaque
-  1/min). Contexte : 1/min.
+- La Colonie est le premier bâtiment, unique par planète et indestructible,
+  générateur 12 MW. Population 100 → 200 → 400 → 800 → 1 600 par paliers : 1 000
+  roches brutes, puis 150 goudrons, puis 25 plaques, puis un hub assemblé. Dès le
+  palier 2, les ressources des paliers précédents sont exigées en flux (roche
+  500/min, goudron 25/min, plaque 1/min).
 - À 800 habitants s'ouvrent le cuivre, le silicium, l'eau (station de pompage) et le
   hub, qui se bâtit avec des ressources livrées par route (plaques, goudron, cuivre,
   silicium, eau douce).
-- Zone néon qui grandit avec ce que la colonie consomme ; on n'y construit pas. Une
-  colonie par planète.
+- Zone néon qui grandit avec ce que la colonie consomme ; on n'y construit pas.
 - Les bâtiments et cartes apparaissent selon les besoins de la colonie ; le réglage
   développeur « Tout débloquer » montre tout. Voir [`COLONY.md`](COLONY.md).
 
@@ -105,18 +112,29 @@ laboratoires sur d'autres mondes.
   un quai garde au plus 100 u par ressource (`dockCapacity`) : un bâtiment à cartes ne
   reçoit plus au-delà, un Dock de sortie plein arrête l'amont. Un Dock de sortie sans
   destination n'absorbe rien (« SANS DESTINATION ») et bloque l'amont.
+- Cartes d'entrée automatiques (`src/gameplay/entryGates.js`) : choisir une usine, un
+  terril ou un dépôt comme destination crée sa carte d'entrée (un Quai d'entrée par
+  ressource envoyée, une Porte d'entrée pour un dépôt), qui disparaît quand plus rien
+  ne lui est envoyé. La supprimer à la main efface seulement la destination de ce qui
+  l'alimentait. Ces cartes ne sont plus dans « Ajouter un bloc ».
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
-- Énergie limitée (colonie 12 MW, incinérateur lissé sur 20 s). Une éolienne donne
-  ≈ 32 MW × le vent de son site (quasi nul en zone rouge, montée lente, jusqu'à ×1,5
-  sur les grandes plaines dégagées et hauts plateaux, en vert)
-  × son sillage (−50 % en entrant dans le sillage d'une autre, à moins de 140 km,
-  jusqu'à −95 % juste à côté ; les sillages se cumulent) ; vue vent en dégradé (rouge
-  vers zéro, jaune pâle au milieu, vert sur les bons sites) à la pose et à la
-  sélection, avec les cercles de sillage. Au doigt, l'antenne relais et
-  l'éolienne se posent 72 px au-dessus du point touché (`touchLiftPx`). Deux
-  équipes de robots, 2 s de construction par bâtiment. Prix masqués
+- Deux équipes de robots, 2 s de construction par bâtiment. Prix masqués
   (`pricesEnabled: false`). Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
+
+### Énergie
+
+- Énergie limitée par planète : colonie 12 MW, incinérateur lissé sur 20 s, éoliennes.
+  Une puissance insuffisante ralentit les cartes.
+- Une éolienne donne ≈ 32 MW × le vent de son site × son sillage
+  (`src/simulation/windPower.js`, `config.wind`) :
+  - site : quasi nul en zone rouge (relief accidenté, côte), montée lente, jusqu'à
+    ×1,5 sur les grandes plaines dégagées et les hauts plateaux, en vert ;
+  - sillage : −50 % en entrant dans celui d'une autre éolienne (à moins de 140 km),
+    jusqu'à −95 % juste à côté ; les sillages se cumulent.
+- Vue vent à la pose et à la sélection : dégradé rouge (vers zéro), jaune pâle au
+  milieu, vert sur les bons sites, avec les cercles de sillage. Le vent du site est
+  recalculé dès que le terrain est connu ; le sillage n'est pas sauvegardé.
 
 ### Arche, compétences et données
 
@@ -127,44 +145,43 @@ laboratoires sur d'autres mondes.
 - Les données (géologiques, industrielles, planétaires) vont par une chaîne
   d'antennes relais au datacenter, ses analyses par l'antenne haute fréquence à
   l'Arche, où chacune devient un point de technologie (monnaie de l'arbre, seule
-  affichée en haut). Débit stable, coupé par la conjonction solaire, 3× plus rapide que le
-  fret ; un envoi (un point dans la vue système) toutes les 5 s.
-- Les antennes relais ne relient que ce que leur mât (120 m) voit au-dessus du relief :
-  les petites bosses (jusqu'à 70 m au-dessus de la ligne) laissent passer, une colline
-  coupe le réseau. Sélectionnée ou en cours de pose, une antenne montre sa vue relief en
-  teintes transparentes : vert en vue, rouge caché, liaisons vertes ou rouges. Voir
-  [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
+  affichée en haut). Débit stable, coupé par la conjonction solaire, 3× plus rapide
+  que le fret ; un envoi (un point dans la vue système) toutes les 5 s.
+- Les antennes relais ne relient que ce que leur mât (120 m) voit au-dessus du relief
+  (`src/simulation/lineOfSight.js`) : les petites bosses (jusqu'à 70 m au-dessus de
+  la ligne) laissent passer, une colline coupe le réseau. Vue relief : vert en vue,
+  rouge caché, liaisons vertes ou rouges. Voir [`SKILL_TREE.md`](SKILL_TREE.md) et
+  [`DATA_NETWORK.md`](DATA_NETWORK.md).
 
 ### Routes et logistique
 
 - Routes manuelles qui suivent le relief (vallées, lacets, ponts sur les rivières et
   sur les détroits étroits), affichées en filament néon. Voies maritimes entre ports
   et plateformes. Démolir un bâtiment retire ses routes propres.
-- Le Dock envoie vers la Colonie, une usine ou un terril avec Quai d'entrée, un dépôt
-  avec Porte d'entrée ou une Plateforme de lancement, si un chemin construit les relie
+- Un Dock de sortie envoie sa matière vers la Colonie, une usine, un terril, un dépôt
+  ou une Plateforme de lancement de la planète, si un chemin construit les relie
   (routes et voies maritimes via les ports). Transfert instantané, sans capacité de
   route ; des impulsions lumineuses purement informatives montrent les liaisons
-  actives. Le hub lance un fret par minute qui emporte tout son stock (barre de
-  chargement dans son menu, un vaisseau par fret dans la vue système). Le fret vers
-  l'Arche est 2× plus lent qu'avant (`cargoSpeedMultiplier: .35`). Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
+  actives.
+- Le hub lance un fret par minute qui emporte tout son stock (barre de chargement
+  dans son menu, un vaisseau par fret dans la vue système). Le fret voyage vers
+  l'Arche à `cargoSpeedMultiplier: .35`. Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ### Joueur, alertes et sauvegardes
 
 - Bibliothèque du joueur hors sauvegarde (`src/storage/library.js`) : bâtiments
   enregistrés (menu Construction, filtre « Enregistrés ») et blueprints de cartes
-  (éditeur, bouton « Blueprints »).
+  (éditeur, bouton « Blueprints »). Elle survit à toutes les parties.
 - Le bouton « PROBLÈMES » liste les alertes en cours : énergie insuffisante, dock sans
   destination, flux de colonie en retard ; une alerte reste 3 s après sa cause et
   sélectionne son bâtiment au toucher.
 - Plusieurs parties par navigateur (`src/storage/saveSlots.js`) : le menu ☰ liste les
   parties (graine, population, points tech, dernière sauvegarde), ouvre ou supprime
   celles mises de côté, et lance une nouvelle partie avec une graine tirée au hasard,
-  modifiable. La partie jouée reste sous la clé `nereide-atlas-v1` ; les autres sous
+  modifiable. « Réinitialiser le système » recommence la partie jouée avec la même
+  graine. La partie jouée reste sous la clé `nereide-atlas-v1` ; les autres sous
   `nereide-atlas-v1:slot:<id>`, avec l'index `nereide-atlas-saves-v1`.
-- Cartes d'entrée automatiques : choisir un bâtiment comme destination crée son Quai
-  ou sa Porte d'entrée, qui disparaît quand plus rien ne lui est envoyé ; la supprimer
-  à la main efface seulement la destination de ce qui l'alimentait.
 - `saveVersion` 10 ; une sauvegarde plus ancienne démarre une nouvelle partie.
 
 ## Questions ouvertes
@@ -178,7 +195,7 @@ Proposées au joueur, non décidées — ne pas implémenter sans demande :
 - les matériaux rendus à la démolition vont dans `state.colonyMaterials`, que rien ne
   lit encore ;
 - le Contexte (`state.contextPoints`, 1/min par colonie) s'accumule et se sauvegarde
-  mais n'est plus affiché ni dépensé ;
+  mais n'est ni affiché ni dépensé ;
 - pistes du dernier check-up des menus : menu ☰ au style des panneaux ; étoiles et
   planètes dans le panneau bas (tuiles température, atmosphère, distance) ; tuiles
   pour le hub en chantier et graduations de latitude écartées de la jauge d'énergie ;
@@ -193,13 +210,15 @@ Proposées au joueur, non décidées — ne pas implémenter sans demande :
 | Monde et graine | `src/world.js`, `src/data/worldgen.js` | `node --test src/world.test.cjs` |
 | Caméra et navigation | `src/navigation/camera.js`, `src/app.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
 | Processus industriels | `src/simulation/processGraph.js`, `src/simulation/processSimulation.js` | `node --test tests/process-simulation.test.cjs` |
+| Cartes d'entrée | `src/gameplay/entryGates.js`, `src/ui/factoryEditor.js` | `node --test tests/orbital-logistics.test.cjs` |
 | Colonie et déblocage | `src/simulation/colony.js`, `src/gameplay/progression.js`, `src/gameplay/colonyZone.js` | `node --test tests/orbital-logistics.test.cjs` |
+| Énergie et vent | `src/simulation/windPower.js`, `src/data/processes.js` | `node --test tests/orbital-logistics.test.cjs` |
 | Routes | `src/simulation/roadNetwork.js`, `src/gameplay/roadPlacement.js` | `node --test tests/architecture.test.cjs` |
-| Logistique | `src/simulation/logisticsNetwork.js`, `src/gameplay/logistics.js` | `node --test tests/orbital-logistics.test.cjs` |
-| Données et compétences | `src/simulation/dataNetwork.js`, `src/simulation/dataTransit.js`, `src/gameplay/skills.js` | `node --test tests/orbital-logistics.test.cjs` |
+| Logistique et hub | `src/simulation/logisticsNetwork.js`, `src/gameplay/logistics.js` | `node --test tests/orbital-logistics.test.cjs` |
+| Données et compétences | `src/simulation/dataNetwork.js`, `dataTransit.js`, `lineOfSight.js`, `src/gameplay/skills.js` | `node --test tests/orbital-logistics.test.cjs` |
 | Interface | `src/ui/hud.js`, `src/ui/buildMenu.js`, `src/ui/panelKit.js`, `styles.css` | captures navigateur ciblées |
 | Rendu de surface | `src/rendering/surfaceRenderer.js`, `buildingRenderer.js`, `roadRenderer.js` | `npm run bench:planet` |
-| Sauvegardes | `src/storage/save.js`, `src/state.js` | `node --test tests/architecture.test.cjs` |
+| Sauvegardes et parties | `src/storage/save.js`, `src/storage/saveSlots.js`, `src/state.js` | `node --test tests/architecture.test.cjs`, `npm run test:orbital-seed-reset` |
 | Export autonome | `build.py`, `index.html` | `python3 build.py` |
 
 Pour une livraison complète, `npm test` lance la suite ; les tests navigateur sont

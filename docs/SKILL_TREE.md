@@ -8,8 +8,8 @@ l'instant.
 
 - **Ouverture.** L'arbre se révèle quand les premières ressources arrivent dans le
   stock d'une Arche (`OrbitSkills.advance`, `state.skills.revealed`, sauvegardé). Un
-  message l'annonce et un bouton « ✦ COMPÉTENCES » apparaît dans la télémétrie, sous
-  le Contexte. Le réglage développeur « Tout débloquer » le montre d'office.
+  message l'annonce et un bouton « ✦ COMPÉTENCES » apparaît dans la barre du haut, à côté
+  des points de technologie. Le réglage développeur « Tout débloquer » le montre d'office.
 - **Menu.** Écran plein (`src/ui/skillTree.js`) : les compétences connues sont des
   nœuds (acquise, à débloquer, verrouillée), le reste des silhouettes « ? » dans le
   brouillard (`OrbitSkillData.fog`, décoratives). Le panneau du bas décrit la
