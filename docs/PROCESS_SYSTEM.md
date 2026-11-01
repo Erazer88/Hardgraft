@@ -137,8 +137,9 @@ partage à tour de rôle entre ses liaisons. Dans l'éditeur, le port partagé d
 de plus. La Colonie et les Plateformes
 de lancement reçoivent nativement, sans cette carte.
 
-Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire et un
-Quai d'entrée un bouton vers ses bâtiments sources ; le changement de bâtiment se fait
+Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire, un
+Quai d'entrée un bouton vers ses bâtiments sources et la Porte d'entrée d'un dépôt sa
+« PROVENANCE » (tous les bâtiments qui lui envoient quelque chose) ; le changement de bâtiment se fait
 par un court glissement.
 
 **Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans

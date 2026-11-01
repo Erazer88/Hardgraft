@@ -60,9 +60,12 @@
       remove(id) { state.library.blueprints = state.library.blueprints.filter(item => item.id !== id); saveLibrary(); }
     },
     // Buildings sending this resource to the building: docks and depot gates.
+    // Buildings sending `resourceId` to `building` (any resource when null):
+    // by their output docks, or by a depot's output gate.
     getSources(building, resourceId) {
       return state.surfaceBuildings.filter(source => source.id !== building.id && source.planetId === building.planetId &&
-        (source.dockDestinations?.[resourceId] === building.id ||
+        ((resourceId ? source.dockDestinations?.[resourceId] === building.id
+          : Object.values(source.dockDestinations || {}).includes(building.id)) ||
           state.factoryPlans[source.id]?.machines?.some(machine => machine.type === 'depot_output' && machine.config?.destinationId === building.id)));
     },
     onOpenBuilding(buildingId) {

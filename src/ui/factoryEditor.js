@@ -67,6 +67,8 @@
       const definition = typeOf(value);
       if (definition.externalInput) return NODE.inputDockHeight;
       if (definition.routing && routingControl(definition.id)) return NODE.height + 64;
+      // A depot's entry gate lists where its goods come from.
+      if (definition.id === 'depot_input') return NODE.height + 44;
       if (definition.externalOutput) return NODE.outputDockHeight;
       const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
       return NODE.height + (portRows - 1) * 24;
@@ -254,6 +256,12 @@
       }
       updateDockDestination(machine);
       if (def.externalInput) updateInputDock(machine);
+      if (def.id === 'depot_input') {
+        const sources = getSources(activeBuilding, null);
+        updateJumps(card, sources, '←');
+        const label = card.querySelector('[data-sources-label]'), text = sources.length ? 'PROVENANCE' : 'PROVENANCE · AUCUN ENVOI';
+        if (label && label.textContent !== text) label.textContent = text;
+      }
       if (def.routing) updateRoutingControl(machine);
     }
 
@@ -446,6 +454,14 @@
         select.setAttribute('aria-label', `${label.textContent} · ${def.label}`);
         control.append(label, select);
         dockControl = control;
+      }
+      if (def.id === 'depot_input') {
+        // Where the depot's goods come from: buttons to open their cards.
+        const sources = document.createElement('div'); sources.className = 'factory-dock-route';
+        const label = document.createElement('span'); label.textContent = 'PROVENANCE'; label.dataset.sourcesLabel = '';
+        const jumps = document.createElement('div'); jumps.className = 'factory-dock-jumps'; jumps.dataset.jumps = '';
+        sources.append(label, jumps);
+        dockControl = sources;
       }
       card.style.height = `${heightOf(machine)}px`;
       if (def.externalOutput || def.externalInput) {
