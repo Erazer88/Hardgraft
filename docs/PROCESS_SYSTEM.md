@@ -127,6 +127,16 @@ terminées de la planète, reliés par un chemin construit. Tant que sa matière
 de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui l'alimente
 s'arrête. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
+**Cartes d'entrée automatiques** (`src/gameplay/entryGates.js`). Choisir un bâtiment
+comme destination d'un Dock de sortie ou d'une Porte de sortie de dépôt crée sa carte
+d'entrée : un Quai d'entrée par ressource envoyée pour une usine ou un terril (un de
+plus, ouvert à toute ressource, pour le flux mêlé d'un dépôt), une Porte d'entrée pour
+un dépôt. Quand plus rien ne lui est envoyé, la carte disparaît. Ces cartes ne sont
+plus dans le menu « Ajouter un bloc ». Supprimer une carte d'entrée à la main ne
+supprime pas les Docks ou Portes de sortie qui l'alimentaient : leur destination est
+seulement effacée. La synchronisation se fait à chaque choix de destination, à chaque
+démolition et toutes les 2 s.
+
 Le Quai d'entrée rend un bâtiment disponible comme destination. Il affiche les
 matières livrées dans `building.inventory` et possède une sortie `material` raccordable
 aux machines. La première matière reçue est sélectionnée automatiquement ; le joueur

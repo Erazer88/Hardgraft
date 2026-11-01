@@ -573,6 +573,22 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .colony-bar.loading{height:8px;border-radius:4px}
 .colony-bar.loading i{border-radius:4px}
 
+/* Saves in the menu: the game being played and those aside, a new game. */
+.menu-saves{margin:18px 0 6px}
+.menu-saves h3{margin:0 0 8px;color:#83a1b4;font-size:calc(9px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1.8px}
+.save-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;max-height:220px;overflow:auto}
+.save-item{display:flex;align-items:stretch;gap:6px}
+.save-open{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#101e2b8a;color:#c5d6df;text-align:left}
+.save-open:hover{border-color:#6fc8ff66;background:#15283a}
+.save-item.active .save-open{border-color:#efa35a88;background:#2a1d1044;cursor:default}
+.save-open strong{font-size:calc(11px*var(--ta) + var(--tb));font-weight:500;letter-spacing:.6px}
+.save-open span{color:#8ea9b8;font-size:calc(9px*var(--ta) + var(--tb));overflow-wrap:anywhere}
+.save-badge{display:grid;place-items:center;padding:0 9px;border-radius:8px;color:#f1c28e;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.2px}
+.save-delete{width:38px;flex:0 0 38px;border:1px solid var(--line);border-radius:8px;color:#9fb3bf;font-size:calc(16px*var(--ta) + var(--tb))}
+.save-delete:hover{border-color:#ef8a6a99;color:#ffb39a}
+.seed-row #random-seed-button{font-size:calc(18px*var(--ta) + var(--tb))}
+.new-game-button{margin-top:10px;border-color:#efa35a88!important;color:#f1c28e!important}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

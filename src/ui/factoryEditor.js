@@ -46,6 +46,7 @@
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
     onAddCard = null, onRemoveCard = null, isCardAvailable = () => true,
+    onRemoveMachine = null, onGateDestinationChange = null,
     getSources = () => [], onOpenBuilding = null, library = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
@@ -698,8 +699,9 @@
       palette.replaceChildren();
       for (const def of Data.catalog(activeBuilding?.type || 'factory',
         processingResource())) {
-        // Cards appear as the colony needs them.
-        if (!isCardAvailable(def)) continue;
+        // Cards appear as the colony needs them; entry cards come by
+        // themselves when a building is chosen as a destination.
+        if (!isCardAvailable(def) || ['input_dock', 'depot_input'].includes(def.id)) continue;
         // A card with a per-building limit (one drill) leaves the menu once placed.
         if (def.maxPerBuilding && machines.filter(item => item.type === def.id).length >= def.maxPerBuilding) continue;
         const button = document.createElement('button');
@@ -781,6 +783,8 @@
       if (!result.ok) { status(result.reason); return; }
       if (removedDefinition) onRemoveCard?.(activeBuilding, removedDefinition);
       machines = graph.machines; connections = graph.connections;
+      // An entry card removed by hand clears the destination of what fed it.
+      if (machine) onRemoveMachine?.(activeBuilding, machine);
       renderNodes(); persist();
       status(discardedUnits
         ? `CARTE SUPPRIMÉE · ${fmt(discardedUnits)} ${discardedUnits === 1 ? 'UNITÉ RETIRÉE' : 'UNITÉS RETIRÉES'}`
@@ -1039,6 +1043,7 @@
         else delete machine.config[key];
         if (key === 'splitPercent') machine.splitSent = { a: 0, b: 0 };
         updateMachineReadout(machine); persist();
+        if (key === 'destinationId') onGateDestinationChange?.();
         status(key === 'destinationId' ? (routingSelect.value ? `PORTE · ${routingSelect.selectedOptions[0]?.textContent}` : 'DESTINATION SUPPRIMÉE')
           : key === 'splitPercent' ? `RÉPARTITION · ${routingSelect.selectedOptions[0]?.textContent}` : 'FILTRE MIS À JOUR');
         return;
@@ -1081,7 +1086,7 @@
     }
 
     return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh, dismiss,
-      isOpen: () => !editor.hidden,
+      isOpen: () => !editor.hidden, activeId: () => activeBuilding?.id || null,
       getViewportState: () => ({ camera: viewportController.camera(), mode: viewportController.mode() }) });
   }
 

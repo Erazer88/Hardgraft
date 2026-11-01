@@ -584,6 +584,22 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .colony-bar.loading{height:8px;border-radius:4px}
 .colony-bar.loading i{border-radius:4px}
 
+/* Saves in the menu: the game being played and those aside, a new game. */
+.menu-saves{margin:18px 0 6px}
+.menu-saves h3{margin:0 0 8px;color:#83a1b4;font-size:calc(9px*var(--ta) + var(--tb));font-weight:500;letter-spacing:1.8px}
+.save-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;max-height:220px;overflow:auto}
+.save-item{display:flex;align-items:stretch;gap:6px}
+.save-open{display:flex;flex:1;flex-direction:column;gap:3px;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#101e2b8a;color:#c5d6df;text-align:left}
+.save-open:hover{border-color:#6fc8ff66;background:#15283a}
+.save-item.active .save-open{border-color:#efa35a88;background:#2a1d1044;cursor:default}
+.save-open strong{font-size:calc(11px*var(--ta) + var(--tb));font-weight:500;letter-spacing:.6px}
+.save-open span{color:#8ea9b8;font-size:calc(9px*var(--ta) + var(--tb));overflow-wrap:anywhere}
+.save-badge{display:grid;place-items:center;padding:0 9px;border-radius:8px;color:#f1c28e;font-size:calc(8px*var(--ta) + var(--tb));letter-spacing:1.2px}
+.save-delete{width:38px;flex:0 0 38px;border:1px solid var(--line);border-radius:8px;color:#9fb3bf;font-size:calc(16px*var(--ta) + var(--tb))}
+.save-delete:hover{border-color:#ef8a6a99;color:#ffb39a}
+.seed-row #random-seed-button{font-size:calc(18px*var(--ta) + var(--tb))}
+.new-game-button{margin-top:10px;border-color:#efa35a88!important;color:#f1c28e!important}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
@@ -789,7 +805,9 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
       <button id="continue-button" class="primary-button"><span>Commencer l’exploration</span><span aria-hidden="true">↗</span></button>
       <button id="reset-system-button" class="menu-toggle" type="button"><span>RÉINITIALISER LE SYSTÈME</span><span class="menu-toggle-state">MÊME GRAINE</span></button>
       <p class="menu-reset-note">Efface l’exploration de cet univers.</p>
-      <div class="seed-controls"><label for="seed-input">GRAINE DE L’UNIVERS</label><div class="seed-row"><input id="seed-input" maxlength="64" value="NEREIDE-01" autocomplete="off" spellcheck="false"><button id="generate-button" aria-label="Générer cet univers" title="Générer cet univers">↻</button></div><p>Même graine, mêmes mondes.</p></div>
+      <section class="menu-saves" aria-labelledby="saves-title"><h3 id="saves-title">PARTIES</h3><ul class="save-list" id="save-list"></ul></section>
+      <div class="seed-controls"><label for="seed-input">NOUVELLE PARTIE · GRAINE</label><div class="seed-row"><input id="seed-input" maxlength="64" value="NEREIDE-01" autocomplete="off" spellcheck="false"><button id="random-seed-button" type="button" aria-label="Tirer une graine au hasard" title="Tirer une graine au hasard">↻</button></div><p>Graine tirée au hasard, modifiable : même graine, mêmes mondes.</p></div>
+      <button id="generate-button" class="menu-toggle new-game-button" type="button"><span>NOUVELLE PARTIE</span><span class="menu-toggle-state">LANCER</span></button>
       <div class="menu-options"><label><input type="checkbox" id="reveal-toggle"><span>Révéler tous les systèmes</span></label><label><input type="checkbox" id="motion-toggle" checked><span>Animer les orbites (Espace)</span></label></div>
       <button id="fullscreen-button" class="menu-toggle" type="button" aria-pressed="false"><span>PLEIN ÉCRAN</span><span class="menu-toggle-state" id="fullscreen-state">ACTIVER</span></button>
       <button id="developer-tools-button" class="menu-toggle" type="button"><span>OUTILS DÉVELOPPEUR</span><span class="menu-toggle-state">RÉGLAGES</span></button>
@@ -8493,6 +8511,114 @@ globalThis.OrbitVersion = "0.129.0";
 (function (root) {
   'use strict';
 
+  // Entry cards follow what is sent to a building: choosing a building as
+  // the destination of an output dock (or of a depot's output gate) creates
+  // its entry card, clearing the last such choice removes it. Factories and
+  // waste heaps take one input dock per resource sent (one more, open to any
+  // resource, for a depot's mixed flow); a depot takes one entry gate.
+  // Removing an entry card by hand keeps the output docks that fed it and
+  // only clears their destination. No DOM.
+  const Graph = () => root.OrbitProcessGraph;
+  const ENTRY = Object.freeze({ factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' });
+  const MIXED = null;
+
+  const entryType = building => ENTRY[building?.type] || null;
+
+  // What reaches `target`: resource ids from docks, MIXED from depot gates.
+  function incoming(state, target) {
+    const wanted = new Set();
+    for (const source of state.surfaceBuildings || []) {
+      if (source.id === target.id || source.planetId !== target.planetId) continue;
+      for (const [resourceId, destination] of Object.entries(source.dockDestinations || {})) {
+        if (destination === target.id) wanted.add(resourceId);
+      }
+      if ((state.factoryPlans?.[source.id]?.machines || []).some(machine =>
+        machine.type === 'depot_output' && machine.config?.destinationId === target.id)) wanted.add(MIXED);
+    }
+    return wanted;
+  }
+
+  // A free spot on the left of the plan for a new entry card.
+  function freeSpot(graph) {
+    const width = 258, height = 220, x = 40;
+    for (let y = 40; y < 5000; y += 30) {
+      const clear = graph.machines.every(machine => machine.x + width + 20 <= x || x + width + 20 <= machine.x ||
+        machine.y + height + 20 <= y || y + height + 20 <= machine.y);
+      if (clear) return { x, y };
+    }
+    return { x, y: 40 };
+  }
+
+  function addEntry(graph, type, importResourceId) {
+    const ids = new Set(graph.machines.map(machine => machine.id));
+    let index = graph.machines.length + 1;
+    while (ids.has(`entry-${index}`)) index++;
+    const result = Graph().addMachine(graph, { id: `entry-${index}`, type, ...freeSpot(graph),
+      ...(type === 'input_dock' ? { importResourceId } : {}) });
+    return result.ok;
+  }
+
+  // Brings a building's entry cards in line with what is sent to it; returns
+  // whether its plan changed.
+  function sync(state, target) {
+    const type = entryType(target);
+    if (!type || target.constructionState !== 'complete' || !root.OrbitIndustry) return false;
+    const wanted = incoming(state, target);
+    if (!wanted.size && !state.factoryPlans?.[target.id]) return false;
+    const graph = root.OrbitIndustry.ensureGraph(state, target);
+    const entries = graph.machines.filter(machine => machine.type === type);
+    let changed = false;
+    if (type === 'depot_input') {
+      if (wanted.size && !entries.length) changed = addEntry(graph, type, null) || changed;
+      if (!wanted.size) for (const entry of entries) changed = Graph().removeMachine(graph, entry.id).ok || changed;
+      return changed;
+    }
+    // One input dock per resource sent; the dock of a mixed flow takes any.
+    const kept = new Set();
+    for (const resourceId of wanted) {
+      if (resourceId === MIXED) continue;
+      const dock = entries.find(entry => entry.importResourceId === resourceId && !kept.has(entry));
+      if (dock) kept.add(dock);
+      else changed = addEntry(graph, type, resourceId) || changed;
+    }
+    if (wanted.has(MIXED)) {
+      const open = entries.find(entry => !kept.has(entry));
+      if (open) kept.add(open); else changed = addEntry(graph, type, null) || changed;
+    }
+    for (const entry of entries) if (!kept.has(entry)) changed = Graph().removeMachine(graph, entry.id).ok || changed;
+    return changed;
+  }
+
+  // Every building of the game; returns the ids whose plans changed.
+  function syncAll(state) {
+    return (state.surfaceBuildings || []).filter(building => sync(state, building)).map(building => building.id);
+  }
+
+  // An entry card removed by hand: the output docks and gates that fed it
+  // keep their card, only their destination is cleared.
+  function detach(state, target, entry) {
+    const resourceId = entry.type === 'input_dock' ? entry.importResourceId || MIXED : MIXED;
+    const everything = entry.type === 'depot_input';
+    for (const source of state.surfaceBuildings || []) {
+      if (source.id === target.id) continue;
+      for (const [id, destination] of Object.entries(source.dockDestinations || {})) {
+        if (destination === target.id && (everything || id === resourceId)) delete source.dockDestinations[id];
+      }
+      if (!everything && resourceId !== MIXED) continue;
+      for (const machine of state.factoryPlans?.[source.id]?.machines || []) {
+        if (machine.type === 'depot_output' && machine.config?.destinationId === target.id) delete machine.config.destinationId;
+      }
+    }
+  }
+
+  root.OrbitEntryGates = Object.freeze({ entryType, incoming, sync, syncAll, detach });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
   const Data = root.OrbitOrbitalLogisticsData;
   const Network = root.OrbitLogisticsNetwork;
   const Transit = root.OrbitOrbitalTransit;
@@ -8769,6 +8895,105 @@ globalThis.OrbitVersion = "0.129.0";
   }
 
   root.OrbitSave = Object.freeze({ load, save, snapshot, restore });
+})(globalThis);
+
+</script>
+  <script>
+(function (root) {
+  'use strict';
+
+  // Several games kept in this browser. The game being played always lives
+  // under config.storageKey (as before); the others wait under their own key
+  // (storageKey + ':slot:' + id). An index lists them all with what the
+  // saves menu shows: name, seed, population, technology points, last save.
+  // Opening a game puts the current one aside and brings the other in.
+  const config = root.OrbitConfig;
+  const INDEX_KEY = 'nereide-atlas-saves-v1';
+  const slotKey = id => `${config.storageKey}:slot:${id}`;
+
+  function readIndex(storage) {
+    try {
+      const index = JSON.parse(storage.getItem(INDEX_KEY) || 'null');
+      if (index && Array.isArray(index.slots) && typeof index.activeId === 'string') return index;
+    } catch (_) { /* rebuilt below */ }
+    return null;
+  }
+  function writeIndex(storage, index) {
+    try { storage.setItem(INDEX_KEY, JSON.stringify(index)); return true; } catch (_) { return false; }
+  }
+  const nextId = index => `s${index.slots.reduce((max, slot) => Math.max(max, Number(slot.id.slice(1)) || 0), 0) + 1}`;
+  const nextName = index => `Partie ${index.slots.reduce((max, slot) => Math.max(max, Number(slot.name.match(/(\d+)$/)?.[1]) || 0), 0) + 1}`;
+
+  // The index, created on first use around the game already saved, if any.
+  function ensure(storage) {
+    const existing = readIndex(storage);
+    if (existing) return existing;
+    let seed = null;
+    try { seed = JSON.parse(storage.getItem(config.storageKey) || 'null')?.seed ?? null; } catch (_) { seed = null; }
+    const index = { activeId: 's1', slots: [{ id: 's1', name: 'Partie 1', seed: seed === null ? null : String(seed), updatedAt: Date.now() }] };
+    writeIndex(storage, index);
+    return index;
+  }
+
+  function list(storage) {
+    const index = ensure(storage);
+    return index.slots.map(slot => ({ ...slot, active: slot.id === index.activeId }))
+      .sort((a, b) => (b.active - a.active) || (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+
+  // What the menu shows of the game being played, after each save.
+  function touch(storage, summary) {
+    const index = ensure(storage), slot = index.slots.find(item => item.id === index.activeId);
+    if (!slot) return;
+    Object.assign(slot, summary, { updatedAt: Date.now() });
+    writeIndex(storage, index);
+  }
+
+  // Puts the game being played aside, under its own key.
+  function stash(storage) {
+    const index = ensure(storage), data = storage.getItem(config.storageKey);
+    if (data === null) return true;
+    try { storage.setItem(slotKey(index.activeId), data); return true; } catch (_) { return false; }
+  }
+
+  // A new game becomes the one being played; returns its slot.
+  function create(storage, seed) {
+    const index = ensure(storage), slot = { id: nextId(index), name: nextName(index), seed: String(seed), updatedAt: Date.now() };
+    index.slots.push(slot); index.activeId = slot.id;
+    writeIndex(storage, index);
+    return slot;
+  }
+
+  // Brings a game aside back in; returns its saved data (null if lost).
+  function activate(storage, id) {
+    const index = ensure(storage);
+    if (!index.slots.some(slot => slot.id === id) || id === index.activeId) return null;
+    let data = null;
+    try { data = JSON.parse(storage.getItem(slotKey(id)) || 'null'); } catch (_) { data = null; }
+    if (!data || !['string', 'number'].includes(typeof data.seed)) return null;
+    index.activeId = id;
+    writeIndex(storage, index);
+    try { storage.removeItem(slotKey(id)); } catch (_) { /* kept */ }
+    return data;
+  }
+
+  // Forgets a game aside (never the one being played).
+  function remove(storage, id) {
+    const index = ensure(storage);
+    if (id === index.activeId) return false;
+    index.slots = index.slots.filter(slot => slot.id !== id);
+    writeIndex(storage, index);
+    try { storage.removeItem(slotKey(id)); } catch (_) { /* gone anyway */ }
+    return true;
+  }
+
+  // A seed to suggest for a new game: a word and a number.
+  function randomSeed(random = Math.random) {
+    const words = ['NEREIDE', 'TETHYS', 'AURORE', 'BOREAL', 'CALYPSO', 'DORIS', 'ELARA', 'HALO', 'IRIS', 'LYRA', 'NOVA', 'ORION', 'PHEBE', 'SELENE', 'THALIA', 'VESTA'];
+    return `${words[Math.floor(random() * words.length)]}-${String(Math.floor(random() * 100)).padStart(2, '0')}`;
+  }
+
+  root.OrbitSaveSlots = Object.freeze({ ensure, list, touch, stash, create, activate, remove, randomSeed, slotKey });
 })(globalThis);
 
 </script>
@@ -12681,6 +12906,7 @@ globalThis.OrbitVersion = "0.129.0";
 
   function create(document, { onSave = () => {}, getDestinations = () => [], onDockDestinationChange = null,
     onAddCard = null, onRemoveCard = null, isCardAvailable = () => true,
+    onRemoveMachine = null, onGateDestinationChange = null,
     getSources = () => [], onOpenBuilding = null, library = null } = {}) {
     const $ = id => document.getElementById(id);
     const editor = $('factory-editor'), viewport = $('factory-viewport');
@@ -13333,8 +13559,9 @@ globalThis.OrbitVersion = "0.129.0";
       palette.replaceChildren();
       for (const def of Data.catalog(activeBuilding?.type || 'factory',
         processingResource())) {
-        // Cards appear as the colony needs them.
-        if (!isCardAvailable(def)) continue;
+        // Cards appear as the colony needs them; entry cards come by
+        // themselves when a building is chosen as a destination.
+        if (!isCardAvailable(def) || ['input_dock', 'depot_input'].includes(def.id)) continue;
         // A card with a per-building limit (one drill) leaves the menu once placed.
         if (def.maxPerBuilding && machines.filter(item => item.type === def.id).length >= def.maxPerBuilding) continue;
         const button = document.createElement('button');
@@ -13416,6 +13643,8 @@ globalThis.OrbitVersion = "0.129.0";
       if (!result.ok) { status(result.reason); return; }
       if (removedDefinition) onRemoveCard?.(activeBuilding, removedDefinition);
       machines = graph.machines; connections = graph.connections;
+      // An entry card removed by hand clears the destination of what fed it.
+      if (machine) onRemoveMachine?.(activeBuilding, machine);
       renderNodes(); persist();
       status(discardedUnits
         ? `CARTE SUPPRIMÉE · ${fmt(discardedUnits)} ${discardedUnits === 1 ? 'UNITÉ RETIRÉE' : 'UNITÉS RETIRÉES'}`
@@ -13674,6 +13903,7 @@ globalThis.OrbitVersion = "0.129.0";
         else delete machine.config[key];
         if (key === 'splitPercent') machine.splitSent = { a: 0, b: 0 };
         updateMachineReadout(machine); persist();
+        if (key === 'destinationId') onGateDestinationChange?.();
         status(key === 'destinationId' ? (routingSelect.value ? `PORTE · ${routingSelect.selectedOptions[0]?.textContent}` : 'DESTINATION SUPPRIMÉE')
           : key === 'splitPercent' ? `RÉPARTITION · ${routingSelect.selectedOptions[0]?.textContent}` : 'FILTRE MIS À JOUR');
         return;
@@ -13716,7 +13946,7 @@ globalThis.OrbitVersion = "0.129.0";
     }
 
     return Object.freeze({ open, switchTo, close, refresh, refreshProgress: refresh, dismiss,
-      isOpen: () => !editor.hidden,
+      isOpen: () => !editor.hidden, activeId: () => activeBuilding?.id || null,
       getViewportState: () => ({ camera: viewportController.camera(), mode: viewportController.mode() }) });
   }
 
@@ -14468,7 +14698,6 @@ globalThis.OrbitVersion = "0.129.0";
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const Logistics = globalThis.OrbitLogistics;
-  const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const surfaceAspect = Config.terrain.width / Config.terrain.height;
@@ -14505,8 +14734,8 @@ globalThis.OrbitVersion = "0.129.0";
       if (building.type === 'datacenter') return globalThis.OrbitDataNetwork.uplinkCandidates(state, building);
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
         candidate.planetId === building.planetId && ['complete', 'supplying'].includes(candidate.constructionState) &&
+        // Its entry card comes by itself once chosen (src/gameplay/entryGates.js).
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
-        LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     isCardAvailable: definition => Progression.cardUnlocked(state, definition),
@@ -14548,7 +14777,14 @@ globalThis.OrbitVersion = "0.129.0";
         return true;
       }
       if (!building || !Logistics.setDockDestination(building, resourceId, destinationId)) return false;
+      syncEntryCards();
       return true;
+    },
+    onGateDestinationChange() { syncEntryCards(); },
+    onRemoveMachine(building, machine) {
+      if (machine.type !== globalThis.OrbitEntryGates.entryType(building)) return;
+      globalThis.OrbitEntryGates.detach(state, building, machine);
+      syncEntryCards(); persist();
     }
   });
   const colonyPanel = globalThis.OrbitColonyPanel.create(document, {
@@ -14614,7 +14850,12 @@ globalThis.OrbitVersion = "0.129.0";
       if (!Save.save(localStorage, state, galaxy, performance.now())) {
         if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
         storageWarningShown = true;
-      } else storageWarningShown = false;
+      } else {
+        storageWarningShown = false;
+        // What the saves menu shows of this game.
+        globalThis.OrbitSaveSlots.touch(localStorage, { seed: state.seed,
+          population: Math.round(globalThis.OrbitColony.totalPopulation(state)), techPoints: Math.floor(state.techPoints || 0) });
+      }
     } catch (_) {
       if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
       storageWarningShown = true;
@@ -15043,6 +15284,7 @@ globalThis.OrbitVersion = "0.129.0";
     }
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
     globalThis.OrbitIndustry.reclaimBuilding(state, building);
+    syncEntryCards();
     state.selected = null; $('inspector').hidden = true;
     const refunded = Object.values(refund).some(amount => amount > 0);
     toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli.${refunded ? ` Récupéré : ${amountSummary(refund)}.` : ''}`);
@@ -15545,7 +15787,7 @@ globalThis.OrbitVersion = "0.129.0";
     if (state.level === 'galaxy') enterSystem();
     else if (state.level === 'system') enterPlanet();
   };
-  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
+  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; showMenu(); };
   const fullscreenButton = $('fullscreen-button');
   const fullscreenMedia = typeof matchMedia === 'function' ? matchMedia('(display-mode: fullscreen), (display-mode: standalone)') : null;
   function standaloneDisplay() { return Boolean(navigator.standalone || fullscreenMedia?.matches); }
@@ -15602,8 +15844,74 @@ globalThis.OrbitVersion = "0.129.0";
     $('menu-dialog').close();
     toast(`Système réinitialisé avec la graine ${state.seed}.`);
   };
-  $('generate-button').onclick = () => { regenerate($('seed-input').value); $('continue-button').firstElementChild.textContent = 'Explorer cet univers'; };
+  // Saved games: the one being played and those aside, a new game.
+  const SaveSlots = globalThis.OrbitSaveSlots;
+  const ago = time => {
+    const minutes = Math.max(0, Math.round((Date.now() - (time || 0)) / 60000));
+    return minutes < 1 ? 'à l’instant' : minutes < 60 ? `il y a ${minutes} min` : minutes < 1440 ? `il y a ${Math.round(minutes / 60)} h`
+      : new Date(time).toLocaleDateString('fr-FR');
+  };
+  function renderSaves() {
+    $('save-list').replaceChildren(...SaveSlots.list(localStorage).map(slot => {
+      const item = document.createElement('li'); item.className = `save-item${slot.active ? ' active' : ''}`;
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'save-open';
+      if (!slot.active) open.dataset.openSave = slot.id;
+      const name = document.createElement('strong'); name.textContent = slot.name;
+      const detail = document.createElement('span');
+      detail.textContent = [slot.seed, Number.isFinite(slot.population) ? `${formatAmount(slot.population)} hab.` : '',
+        Number.isFinite(slot.techPoints) && slot.techPoints ? `${formatAmount(slot.techPoints)} tech` : '', ago(slot.updatedAt)].filter(Boolean).join(' · ');
+      open.append(name, detail);
+      const side = document.createElement(slot.active ? 'span' : 'button');
+      if (slot.active) { side.className = 'save-badge'; side.textContent = 'EN COURS'; }
+      else { side.type = 'button'; side.className = 'save-delete'; side.dataset.deleteSave = slot.id; side.textContent = '×';
+        side.setAttribute('aria-label', `Supprimer ${slot.name}`); }
+      item.append(open, side);
+      return item;
+    }));
+  }
+  function showMenu() {
+    renderSaves();
+    $('seed-input').value = SaveSlots.randomSeed();
+    $('menu-dialog').showModal();
+  }
+  // Puts the game being played aside; false if the storage is full.
+  function setAside() {
+    persist();
+    if (SaveSlots.stash(localStorage)) return true;
+    toast('Stockage plein : impossible de mettre la partie actuelle de côté.');
+    return false;
+  }
+  function newGame(seed) {
+    if (!setAside()) return;
+    const slot = SaveSlots.create(localStorage, normalizedSeed(seed));
+    regenerate(seed);
+    renderSaves();
+    $('continue-button').firstElementChild.textContent = 'Explorer cet univers';
+    $('menu-dialog').close();
+    toast(`${slot.name} : nouvel univers, graine ${state.seed}.`);
+  }
+  function openGame(id) {
+    if (!setAside()) return;
+    const data = SaveSlots.activate(localStorage, id);
+    if (!data) { toast('Cette sauvegarde est illisible.'); renderSaves(); return; }
+    regenerate(data.seed, data);
+    const slot = SaveSlots.list(localStorage).find(item => item.active);
+    $('menu-dialog').close();
+    toast(`${slot?.name || 'Partie'} ouverte.`);
+  }
+  $('generate-button').onclick = () => newGame($('seed-input').value || SaveSlots.randomSeed());
+  $('random-seed-button').onclick = () => { $('seed-input').value = SaveSlots.randomSeed(); };
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
+  $('save-list').addEventListener('click', event => {
+    const remove = event.target.closest('[data-delete-save]');
+    if (remove) {
+      const slot = SaveSlots.list(localStorage).find(item => item.id === remove.dataset.deleteSave);
+      if (slot && confirm(`Supprimer ${slot.name} (${slot.seed}) ?`)) { SaveSlots.remove(localStorage, slot.id); renderSaves(); }
+      return;
+    }
+    const open = event.target.closest('[data-open-save]');
+    if (open) openGame(open.dataset.openSave);
+  });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
   function setPause(value) {
     state.paused = value; $('motion-toggle').checked = !value; updateUI();
@@ -15729,6 +16037,20 @@ globalThis.OrbitVersion = "0.129.0";
     }
   }
 
+  // Entry cards follow the destinations chosen in output docks and gates
+  // (src/gameplay/entryGates.js). An open plan that changed is shown again.
+  let lastEntrySync = -Infinity;
+  function syncEntryCards() {
+    lastEntrySync = performance.now();
+    const changed = globalThis.OrbitEntryGates.syncAll(state);
+    const openId = factoryEditor.isOpen() && factoryEditor.activeId();
+    if (openId && changed.includes(openId)) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === openId);
+      if (building) factoryEditor.open(building, globalThis.OrbitIndustry.ensureGraph(state, building));
+    }
+    if (changed.length) persist();
+  }
+
   // A colony's zone grows over its planet's terrain as it consumes. A zone
   // that could not grow is tried again only once something changed (its
   // target, its cells, the buildings of its planet, the terrain).
@@ -15757,6 +16079,8 @@ globalThis.OrbitVersion = "0.129.0";
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
     Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
+    // Entry cards also catch up now and then (buildings finished, saves).
+    if (now - lastEntrySync > 2000) syncEntryCards();
     if (!state.paused && !document.hidden) {
       settleWindSites();
       Construction.advance(state.surfaceBuildings, simulationDt);
@@ -15839,9 +16163,10 @@ globalThis.OrbitVersion = "0.129.0";
     advanceOrbitalSimulationTo,
     scanAt, setPause
   });
+  globalThis.OrbitSaveSlots.ensure(localStorage);
   resize(); const previous = stored(); menuStarted = Boolean(previous);
   regenerate(previous?.seed ?? 'NEREIDE-01', previous);
-  if (!previous) $('menu-dialog').showModal();
+  if (!previous) showMenu();
   requestAnimationFrame(frame);
 })();
 

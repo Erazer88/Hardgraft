@@ -12,7 +12,6 @@
   const RoadConstruction = globalThis.OrbitRoadConstruction;
   const RoadPlacement = globalThis.OrbitRoadPlacement;
   const Logistics = globalThis.OrbitLogistics;
-  const LogisticsNetwork = globalThis.OrbitLogisticsNetwork;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
   const surfaceAspect = Config.terrain.width / Config.terrain.height;
@@ -49,8 +48,8 @@
       if (building.type === 'datacenter') return globalThis.OrbitDataNetwork.uplinkCandidates(state, building);
       return state.surfaceBuildings.filter(candidate => candidate.id !== building.id &&
         candidate.planetId === building.planetId && ['complete', 'supplying'].includes(candidate.constructionState) &&
+        // Its entry card comes by itself once chosen (src/gameplay/entryGates.js).
         OrbitalLogisticsData.dockDestinationTypes.includes(candidate.type) &&
-        LogisticsNetwork.hasReceivingDock(state, candidate) &&
         BuildingData.get(candidate.type)?.roadRequired);
     },
     isCardAvailable: definition => Progression.cardUnlocked(state, definition),
@@ -92,7 +91,14 @@
         return true;
       }
       if (!building || !Logistics.setDockDestination(building, resourceId, destinationId)) return false;
+      syncEntryCards();
       return true;
+    },
+    onGateDestinationChange() { syncEntryCards(); },
+    onRemoveMachine(building, machine) {
+      if (machine.type !== globalThis.OrbitEntryGates.entryType(building)) return;
+      globalThis.OrbitEntryGates.detach(state, building, machine);
+      syncEntryCards(); persist();
     }
   });
   const colonyPanel = globalThis.OrbitColonyPanel.create(document, {
@@ -158,7 +164,12 @@
       if (!Save.save(localStorage, state, galaxy, performance.now())) {
         if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
         storageWarningShown = true;
-      } else storageWarningShown = false;
+      } else {
+        storageWarningShown = false;
+        // What the saves menu shows of this game.
+        globalThis.OrbitSaveSlots.touch(localStorage, { seed: state.seed,
+          population: Math.round(globalThis.OrbitColony.totalPopulation(state)), techPoints: Math.floor(state.techPoints || 0) });
+      }
     } catch (_) {
       if (!storageWarningShown) toast('Échec de sauvegarde : le stockage local est indisponible ou plein. La partie actuelle risque de ne pas être conservée.');
       storageWarningShown = true;
@@ -587,6 +598,7 @@
     }
     state.surfaceBuildings = state.surfaceBuildings.filter(candidate => candidate.id !== building.id);
     globalThis.OrbitIndustry.reclaimBuilding(state, building);
+    syncEntryCards();
     state.selected = null; $('inspector').hidden = true;
     const refunded = Object.values(refund).some(amount => amount > 0);
     toast(`${BuildingData.get(building.type)?.label || 'Bâtiment'} démoli.${refunded ? ` Récupéré : ${amountSummary(refund)}.` : ''}`);
@@ -1089,7 +1101,7 @@
     if (state.level === 'galaxy') enterSystem();
     else if (state.level === 'system') enterPlanet();
   };
-  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; $('menu-dialog').showModal(); };
+  $('menu-button').onclick = () => { state.buildMenuOpen = false; updateUI(); $('continue-button').firstElementChild.textContent = 'Reprendre l’exploration'; showMenu(); };
   const fullscreenButton = $('fullscreen-button');
   const fullscreenMedia = typeof matchMedia === 'function' ? matchMedia('(display-mode: fullscreen), (display-mode: standalone)') : null;
   function standaloneDisplay() { return Boolean(navigator.standalone || fullscreenMedia?.matches); }
@@ -1146,8 +1158,74 @@
     $('menu-dialog').close();
     toast(`Système réinitialisé avec la graine ${state.seed}.`);
   };
-  $('generate-button').onclick = () => { regenerate($('seed-input').value); $('continue-button').firstElementChild.textContent = 'Explorer cet univers'; };
+  // Saved games: the one being played and those aside, a new game.
+  const SaveSlots = globalThis.OrbitSaveSlots;
+  const ago = time => {
+    const minutes = Math.max(0, Math.round((Date.now() - (time || 0)) / 60000));
+    return minutes < 1 ? 'à l’instant' : minutes < 60 ? `il y a ${minutes} min` : minutes < 1440 ? `il y a ${Math.round(minutes / 60)} h`
+      : new Date(time).toLocaleDateString('fr-FR');
+  };
+  function renderSaves() {
+    $('save-list').replaceChildren(...SaveSlots.list(localStorage).map(slot => {
+      const item = document.createElement('li'); item.className = `save-item${slot.active ? ' active' : ''}`;
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'save-open';
+      if (!slot.active) open.dataset.openSave = slot.id;
+      const name = document.createElement('strong'); name.textContent = slot.name;
+      const detail = document.createElement('span');
+      detail.textContent = [slot.seed, Number.isFinite(slot.population) ? `${formatAmount(slot.population)} hab.` : '',
+        Number.isFinite(slot.techPoints) && slot.techPoints ? `${formatAmount(slot.techPoints)} tech` : '', ago(slot.updatedAt)].filter(Boolean).join(' · ');
+      open.append(name, detail);
+      const side = document.createElement(slot.active ? 'span' : 'button');
+      if (slot.active) { side.className = 'save-badge'; side.textContent = 'EN COURS'; }
+      else { side.type = 'button'; side.className = 'save-delete'; side.dataset.deleteSave = slot.id; side.textContent = '×';
+        side.setAttribute('aria-label', `Supprimer ${slot.name}`); }
+      item.append(open, side);
+      return item;
+    }));
+  }
+  function showMenu() {
+    renderSaves();
+    $('seed-input').value = SaveSlots.randomSeed();
+    $('menu-dialog').showModal();
+  }
+  // Puts the game being played aside; false if the storage is full.
+  function setAside() {
+    persist();
+    if (SaveSlots.stash(localStorage)) return true;
+    toast('Stockage plein : impossible de mettre la partie actuelle de côté.');
+    return false;
+  }
+  function newGame(seed) {
+    if (!setAside()) return;
+    const slot = SaveSlots.create(localStorage, normalizedSeed(seed));
+    regenerate(seed);
+    renderSaves();
+    $('continue-button').firstElementChild.textContent = 'Explorer cet univers';
+    $('menu-dialog').close();
+    toast(`${slot.name} : nouvel univers, graine ${state.seed}.`);
+  }
+  function openGame(id) {
+    if (!setAside()) return;
+    const data = SaveSlots.activate(localStorage, id);
+    if (!data) { toast('Cette sauvegarde est illisible.'); renderSaves(); return; }
+    regenerate(data.seed, data);
+    const slot = SaveSlots.list(localStorage).find(item => item.active);
+    $('menu-dialog').close();
+    toast(`${slot?.name || 'Partie'} ouverte.`);
+  }
+  $('generate-button').onclick = () => newGame($('seed-input').value || SaveSlots.randomSeed());
+  $('random-seed-button').onclick = () => { $('seed-input').value = SaveSlots.randomSeed(); };
   $('seed-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('generate-button').click(); });
+  $('save-list').addEventListener('click', event => {
+    const remove = event.target.closest('[data-delete-save]');
+    if (remove) {
+      const slot = SaveSlots.list(localStorage).find(item => item.id === remove.dataset.deleteSave);
+      if (slot && confirm(`Supprimer ${slot.name} (${slot.seed}) ?`)) { SaveSlots.remove(localStorage, slot.id); renderSaves(); }
+      return;
+    }
+    const open = event.target.closest('[data-open-save]');
+    if (open) openGame(open.dataset.openSave);
+  });
   $('reveal-toggle').onchange = e => { state.reveal = e.target.checked; updateUI(); };
   function setPause(value) {
     state.paused = value; $('motion-toggle').checked = !value; updateUI();
@@ -1273,6 +1351,20 @@
     }
   }
 
+  // Entry cards follow the destinations chosen in output docks and gates
+  // (src/gameplay/entryGates.js). An open plan that changed is shown again.
+  let lastEntrySync = -Infinity;
+  function syncEntryCards() {
+    lastEntrySync = performance.now();
+    const changed = globalThis.OrbitEntryGates.syncAll(state);
+    const openId = factoryEditor.isOpen() && factoryEditor.activeId();
+    if (openId && changed.includes(openId)) {
+      const building = state.surfaceBuildings.find(candidate => candidate.id === openId);
+      if (building) factoryEditor.open(building, globalThis.OrbitIndustry.ensureGraph(state, building));
+    }
+    if (changed.length) persist();
+  }
+
   // A colony's zone grows over its planet's terrain as it consumes. A zone
   // that could not grow is tried again only once something changed (its
   // target, its cells, the buildings of its planet, the terrain).
@@ -1301,6 +1393,8 @@
     const dt = lastTime ? Math.min((now - lastTime) / 1000, Config.simulation.maxFrameSeconds) : 0; lastTime = now;
     const simulationDt = dt * (globalThis.OrbitDeveloperSettings?.get('simulationSpeed') || 1);
     Simulation.advance(state.simulation, simulationDt, !state.paused && !document.hidden);
+    // Entry cards also catch up now and then (buildings finished, saves).
+    if (now - lastEntrySync > 2000) syncEntryCards();
     if (!state.paused && !document.hidden) {
       settleWindSites();
       Construction.advance(state.surfaceBuildings, simulationDt);
@@ -1383,8 +1477,9 @@
     advanceOrbitalSimulationTo,
     scanAt, setPause
   });
+  globalThis.OrbitSaveSlots.ensure(localStorage);
   resize(); const previous = stored(); menuStarted = Boolean(previous);
   regenerate(previous?.seed ?? 'NEREIDE-01', previous);
-  if (!previous) $('menu-dialog').showModal();
+  if (!previous) showMenu();
   requestAnimationFrame(frame);
 })();

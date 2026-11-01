@@ -153,10 +153,8 @@ async function main() {
     assert.equal(ui.count, 2);
     assert.equal(ui.oldSystems, false, 'removed stocks, inspectors, screen and smelter controls are absent');
     await openBlockMenu();
-    assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="input_dock"]\'))'),
-      'the input dock is available in a factory machine palette');
-    assert.ok(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="input_dock"] .factory-block-description\')?.textContent.trim())'),
-      'the input dock has a useful description');
+    assert.equal(await cdp.evaluate('Boolean(document.querySelector(\'[data-add-machine="input_dock"]\'))'), false,
+      'the input dock comes by itself when the factory is chosen as a destination, not from the palette');
     await cdp.click('#factory-palette-close');
     assert.ok(ui.ports.includes('raw_ore') && ui.ports.includes('crushed_ore'));
     assert.ok(ui.fields.includes('rate') && ui.fields.includes('energy') && ui.fields.includes('cycle') && ui.fields.includes('state'));

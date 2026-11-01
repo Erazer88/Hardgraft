@@ -157,6 +157,14 @@ laboratoires sur d'autres mondes.
 - Le bouton « PROBLÈMES » liste les alertes en cours : énergie insuffisante, dock sans
   destination, flux de colonie en retard ; une alerte reste 3 s après sa cause et
   sélectionne son bâtiment au toucher.
+- Plusieurs parties par navigateur (`src/storage/saveSlots.js`) : le menu ☰ liste les
+  parties (graine, population, points tech, dernière sauvegarde), ouvre ou supprime
+  celles mises de côté, et lance une nouvelle partie avec une graine tirée au hasard,
+  modifiable. La partie jouée reste sous la clé `nereide-atlas-v1` ; les autres sous
+  `nereide-atlas-v1:slot:<id>`, avec l'index `nereide-atlas-saves-v1`.
+- Cartes d'entrée automatiques : choisir un bâtiment comme destination crée son Quai
+  ou sa Porte d'entrée, qui disparaît quand plus rien ne lui est envoyé ; la supprimer
+  à la main efface seulement la destination de ce qui l'alimentait.
 - `saveVersion` 10 ; une sauvegarde plus ancienne démarre une nouvelle partie.
 
 ## Questions ouvertes

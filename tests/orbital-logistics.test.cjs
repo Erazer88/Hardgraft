@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
   'simulation/composition.js', 'data/colony.js', 'data/progression.js', 'simulation/colony.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
-  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
+  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js', 'gameplay/entryGates.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
   'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/windPower.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
@@ -1016,4 +1016,43 @@ test('a turbine in the wake of another loses 50 % of its wind at the edge, up to
   assert.ok(Math.abs(state.powerStatus[planetId].supplyMW - expected) < 1e-9);
   assert.ok(Math.abs(state.surfaceBuildings[2].energyOutputWatts - single * 1.4 * 1e6) < 1e-3, 'a rich site gives more');
   assert.ok(state.surfaceBuildings[0].windWake < 1, 'the wake is kept for the sheet');
+});
+
+test('entry cards come and go with the destinations chosen for them', () => {
+  const Gates = context.OrbitEntryGates, Graph = context.OrbitProcessGraph;
+  const at = (id, type, extras = {}) => ({ id, type, planetId, x: 0, y: 0, constructionState: 'complete', ...extras });
+  const mine = at('mine', 'extractor'), mill = at('mill', 'factory'), depot = at('depot', 'storage');
+  const state = { surfaceBuildings: [mine, mill, depot], factoryPlans: {}, seed: 'gates' };
+  const entries = (id, type) => (state.factoryPlans[id]?.machines || []).filter(machine => machine.type === type);
+  // A factory chosen for crushed rock gets its input dock for it.
+  mine.dockDestinations = { crushed_rock: 'mill' };
+  Gates.syncAll(state);
+  assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId)), ['crushed_rock']);
+  // A second resource: a second dock; synced again, nothing doubles.
+  mine.dockDestinations.raw_rock = 'mill';
+  Gates.syncAll(state); Gates.syncAll(state);
+  assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId).sort()), ['crushed_rock', 'raw_rock']);
+  // Choosing the depot instead: the factory's dock for that resource goes,
+  // the depot gets its entry gate.
+  mine.dockDestinations.raw_rock = 'depot';
+  Gates.syncAll(state);
+  assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId)), ['crushed_rock']);
+  assert.equal(entries('depot', 'depot_input').length, 1);
+  // A depot's output gate pointed at the factory: one more dock, open to any resource.
+  Graph.addMachine(state.factoryPlans.depot, { id: 'gate-out', type: 'depot_output', x: 400, y: 0, config: { destinationId: 'mill' } });
+  Gates.syncAll(state);
+  assert.equal(entries('mill', 'input_dock').length, 2);
+  // Removing the depot's entry gate by hand clears what fed it, not the docks.
+  const [gate] = entries('depot', 'depot_input');
+  Graph.removeMachine(state.factoryPlans.depot, gate.id);
+  Gates.detach(state, depot, gate);
+  assert.equal(mine.dockDestinations.raw_rock, undefined, 'the destination is cleared');
+  assert.equal(mine.dockDestinations.crushed_rock, 'mill', 'the other destination stays');
+  Gates.syncAll(state);
+  assert.equal(entries('depot', 'depot_input').length, 0, 'and the gate does not come back');
+  // Clearing the last destination toward the factory removes its docks.
+  delete mine.dockDestinations.crushed_rock;
+  delete state.factoryPlans.depot.machines.find(machine => machine.id === 'gate-out').config.destinationId;
+  Gates.syncAll(state);
+  assert.equal(entries('mill', 'input_dock').length, 0);
 });

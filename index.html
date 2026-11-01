@@ -209,7 +209,9 @@
       <button id="continue-button" class="primary-button"><span>Commencer l’exploration</span><span aria-hidden="true">↗</span></button>
       <button id="reset-system-button" class="menu-toggle" type="button"><span>RÉINITIALISER LE SYSTÈME</span><span class="menu-toggle-state">MÊME GRAINE</span></button>
       <p class="menu-reset-note">Efface l’exploration de cet univers.</p>
-      <div class="seed-controls"><label for="seed-input">GRAINE DE L’UNIVERS</label><div class="seed-row"><input id="seed-input" maxlength="64" value="NEREIDE-01" autocomplete="off" spellcheck="false"><button id="generate-button" aria-label="Générer cet univers" title="Générer cet univers">↻</button></div><p>Même graine, mêmes mondes.</p></div>
+      <section class="menu-saves" aria-labelledby="saves-title"><h3 id="saves-title">PARTIES</h3><ul class="save-list" id="save-list"></ul></section>
+      <div class="seed-controls"><label for="seed-input">NOUVELLE PARTIE · GRAINE</label><div class="seed-row"><input id="seed-input" maxlength="64" value="NEREIDE-01" autocomplete="off" spellcheck="false"><button id="random-seed-button" type="button" aria-label="Tirer une graine au hasard" title="Tirer une graine au hasard">↻</button></div><p>Graine tirée au hasard, modifiable : même graine, mêmes mondes.</p></div>
+      <button id="generate-button" class="menu-toggle new-game-button" type="button"><span>NOUVELLE PARTIE</span><span class="menu-toggle-state">LANCER</span></button>
       <div class="menu-options"><label><input type="checkbox" id="reveal-toggle"><span>Révéler tous les systèmes</span></label><label><input type="checkbox" id="motion-toggle" checked><span>Animer les orbites (Espace)</span></label></div>
       <button id="fullscreen-button" class="menu-toggle" type="button" aria-pressed="false"><span>PLEIN ÉCRAN</span><span class="menu-toggle-state" id="fullscreen-state">ACTIVER</span></button>
       <button id="developer-tools-button" class="menu-toggle" type="button"><span>OUTILS DÉVELOPPEUR</span><span class="menu-toggle-state">RÉGLAGES</span></button>
@@ -273,10 +275,12 @@
   <script src="src/gameplay/buildingNames.js"></script>
   <script src="src/gameplay/roadPlacement.js"></script>
   <script src="src/gameplay/industry.js"></script>
+  <script src="src/gameplay/entryGates.js"></script>
   <script src="src/gameplay/logistics.js"></script>
   <script src="src/gameplay/alerts.js"></script>
   <script src="src/state.js"></script>
   <script src="src/storage/save.js"></script>
+  <script src="src/storage/saveSlots.js"></script>
   <script src="src/storage/library.js"></script>
   <script src="src/navigation/camera.js"></script>
   <script src="src/rendering/textScale.js"></script>
