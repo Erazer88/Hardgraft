@@ -103,6 +103,24 @@
       ctx.moveTo(x - size * .36, y + size * .25); ctx.lineTo(x + size * .36, y + size * .25);
       ctx.stroke(); return;
     }
+    if (icon === 'ark') {
+      // The mothership: a long hull, its bridge and two wings.
+      ctx.ellipse(x, y, size * .72, size * .2, 0, 0, Math.PI * 2);
+      ctx.moveTo(x - size * .2, y - size * .2); ctx.lineTo(x - size * .45, y - size * .58); ctx.lineTo(x - size * .02, y - size * .2);
+      ctx.moveTo(x - size * .2, y + size * .2); ctx.lineTo(x - size * .45, y + size * .58); ctx.lineTo(x - size * .02, y + size * .2);
+      ctx.moveTo(x + size * .3, y - size * .06); ctx.lineTo(x + size * .5, y - size * .06);
+      ctx.stroke(); return;
+    }
+    if (icon === 'survey') {
+      // A sight over the ground: crosshair and relief.
+      ctx.arc(x, y - size * .12, size * .36, 0, Math.PI * 2);
+      ctx.moveTo(x, y - size * .62); ctx.lineTo(x, y - size * .36); ctx.moveTo(x, y + size * .12); ctx.lineTo(x, y + size * .38);
+      ctx.moveTo(x - size * .62, y - size * .12); ctx.lineTo(x - size * .36, y - size * .12);
+      ctx.moveTo(x + size * .36, y - size * .12); ctx.lineTo(x + size * .62, y - size * .12);
+      ctx.moveTo(x - size * .74, y + size * .62); ctx.lineTo(x - size * .32, y + size * .3); ctx.lineTo(x - size * .05, y + size * .5);
+      ctx.lineTo(x + size * .3, y + size * .22); ctx.lineTo(x + size * .74, y + size * .62);
+      ctx.stroke(); return;
+    }
     if (icon === 'geothermal') {
       ctx.moveTo(x - size * .7, y + size * .55); ctx.lineTo(x + size * .7, y + size * .55);
       for (const offset of [-.32, 0, .32]) {
@@ -192,7 +210,6 @@
     const groundText = ghost ? frame.state.placement?.groundText : selected ? frame.state.selected.groundText : null;
     if (groundText) drawGroundReadout(frame, building, definition, groundText, color);
     drawPin(frame, building, definition, ghost);
-    if (!ghost && building.customName) drawName(frame, building, color);
     if (ghost) {
       const head = pinGeometry(frame, building).head;
       ctx.save(); ctx.font = `${root.OrbitTextScale.px(8)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
@@ -201,18 +218,55 @@
         head.x + pinGeometry(frame, building).radius + 6, head.y);
       ctx.restore();
     }
+    return color;
   }
 
-  // The building's name, just above its beacon.
-  function drawName(frame, building, color) {
-    const ctx = frame.context, style = Style.buildings.name, { head, radius } = pinGeometry(frame, building);
-    const size = root.OrbitTextScale.px(style.sizePx, style.scaleDamping ?? 1);
+  // Labels of the beacons: each building's name above it, the colony's
+  // population under it. Names show once beacons are big enough; then each
+  // label is placed by priority (selected, colony, hub, others) and left out
+  // where it would cover a label already placed or another beacon.
+  const LABEL_FONT = 'ui-monospace, SFMono-Regular, Consolas, monospace';
+  function beaconLabels(frame, building, definition, color) {
+    const style = Style.buildings.name, colonyStyle = Style.colonyZone, pin = Style.buildings.pin;
+    const { head, radius, scale } = pinGeometry(frame, building);
+    const selected = frame.state.selected?.kind === 'building' && frame.state.selected.id === building.id;
+    const priority = selected ? 3 : building.type === 'colony' ? 2 : building.type === 'launch_platform' ? 1 : 0;
+    const labels = [];
+    if (building.type === 'colony') {
+      const size = root.OrbitTextScale.px(colonyStyle.labelSizePx);
+      labels.push({ priority: 2.5, text: `${new Intl.NumberFormat('fr-FR').format(building.colony?.population || 0)} HAB.`,
+        x: head.x, top: head.y + radius + 6, size, pad: 12, color: pin.categoryColors.colony, fill: pin.readoutFill, owner: building.id });
+    }
+    if (building.customName && (selected || scale >= style.minPinScale)) {
+      const factor = Math.max(style.minFactor, Math.min(style.maxFactor, scale ** style.zoomFollow));
+      const size = root.OrbitTextScale.px(style.sizePx, style.scaleDamping ?? 1) * factor;
+      // Above the beacon, or under it when the space above is taken.
+      labels.push({ priority, text: building.customName, x: head.x, bottom: head.y - radius - style.gapPx,
+        below: head.y + radius + style.gapPx, size, pad: 10, color, fill: style.fill, owner: building.id });
+    }
+    return labels;
+  }
+
+  function drawLabels(frame, labels, beacons) {
+    const ctx = frame.context, margin = Style.buildings.name.marginPx;
+    const placed = [];
+    const overlaps = (a, b) => a.x0 < b.x1 + margin && b.x0 < a.x1 + margin && a.y0 < b.y1 + margin && b.y0 < a.y1 + margin;
     ctx.save();
-    ctx.font = `600 ${size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    const y = head.y - radius - style.gapPx, width = ctx.measureText(building.customName).width + 10;
-    ctx.fillStyle = style.fill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - size - 4, width, size + 6, 3); ctx.fill();
-    ctx.fillStyle = color; ctx.fillText(building.customName, head.x, y + 1);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const label of labels.map((item, index) => ({ ...item, index })).sort((a, b) => b.priority - a.priority || a.index - b.index)) {
+      ctx.font = `600 ${label.size}px ${LABEL_FONT}`;
+      const width = ctx.measureText(label.text).width + label.pad, height = label.size + 6;
+      const tops = label.top !== undefined ? [label.top] : [label.bottom - height, ...(label.below !== undefined ? [label.below] : [])];
+      // The selected name always shows; the colony's labels only give way to
+      // it; the other names also leave the beacons in view.
+      const free = box => label.priority >= 3 || !placed.some(other => overlaps(box, other)) &&
+        (label.priority >= 2 || !beacons.some(beacon => beacon.owner !== label.owner && overlaps(box, beacon)));
+      const box = tops.map(y0 => ({ x0: label.x - width / 2, x1: label.x + width / 2, y0, y1: y0 + height })).find(free);
+      if (!box) continue;
+      placed.push(box);
+      ctx.fillStyle = label.fill; ctx.beginPath(); ctx.roundRect(box.x0, box.y0, width, height, 3); ctx.fill();
+      ctx.fillStyle = label.color; ctx.fillText(label.text, label.x, box.y0 + height / 2 + .5);
+    }
     ctx.restore();
   }
 
@@ -326,19 +380,6 @@
     }
   }
 
-  // The colony's population, under its beacon.
-  function drawPopulation(frame, building) {
-    const ctx = frame.context, style = Style.colonyZone, pin = Style.buildings.pin, head = pinGeometry(frame, building).head;
-    const text = `${new Intl.NumberFormat('fr-FR').format(building.colony?.population || 0)} HAB.`;
-    ctx.save();
-    ctx.font = `600 ${root.OrbitTextScale.px(style.labelSizePx)}px ui-monospace, SFMono-Regular, Consolas, monospace`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const y = head.y + pinGeometry(frame, building).radius + 6, width = ctx.measureText(text).width + 12;
-    ctx.fillStyle = pin.readoutFill; ctx.beginPath(); ctx.roundRect(head.x - width / 2, y - 3, width, style.labelSizePx + 7, 4); ctx.fill();
-    ctx.fillStyle = pin.categoryColors.colony; ctx.fillText(text, head.x, y + 1);
-    ctx.restore();
-  }
-
   // Where the launch platform pays least to reach orbit: the equator, the
   // favorable band around it, parallels and meridians with their degrees.
   function renderLatitudeGrid(frame) {
@@ -443,11 +484,16 @@
     renderColonyZones(frame);
     renderLatitudeGrid(frame);
     renderDataLinks(frame);
+    const labels = [], beacons = [];
     for (const building of visibleBuildings(frame)) {
       const definition = Data.get(building.type);
-      if (definition) drawFootprint(frame, building, definition);
-      if (building.type === 'colony') drawPopulation(frame, building);
+      if (!definition) continue;
+      const color = drawFootprint(frame, building, definition);
+      const { head, radius } = pinGeometry(frame, building);
+      beacons.push({ owner: building.id, x0: head.x - radius * .87, x1: head.x + radius * .87, y0: head.y - radius, y1: head.y + radius });
+      labels.push(...beaconLabels(frame, building, definition, color));
     }
+    drawLabels(frame, labels, beacons);
     const preview = frame.state.placement;
     if (frame.state.tool === 'build' && preview) {
       const definition = Data.get(preview.type);
@@ -457,10 +503,14 @@
 
   // A building's badge for its sheet: the beacon's hexagon and icon, drawn
   // into a small canvas of its own.
+  // Badges for things that are not buildings: the Ark and a ground survey.
+  const OTHER_BADGES = { ark: { icon: 'ark', color: '#ffd27b' }, survey: { icon: 'survey', color: '#9fd8ff' } };
   function drawBadge(canvas, type) {
-    const ctx = canvas.getContext('2d'), definition = Data.get(type), pin = Style.buildings.pin;
+    const ctx = canvas.getContext('2d'), pin = Style.buildings.pin;
+    const building = Data.get(type), definition = building || OTHER_BADGES[type];
     if (!ctx || !definition) return;
-    const size = canvas.width, center = size / 2, color = pin.categoryColors[definition.category] || pin.defaultColor;
+    const size = canvas.width, center = size / 2,
+      color = building ? pin.categoryColors[building.category] || pin.defaultColor : definition.color;
     ctx.clearRect(0, 0, size, size);
     ctx.save();
     ctx.shadowColor = color; ctx.shadowBlur = size * .12;

@@ -152,16 +152,19 @@
       const definition = Graph.definitionOf(machine);
       if (!definition.externalOutput) continue;
       const input = definition.inputPorts[0];
-      // An uplink hands over only what its antenna can still take in (uplinkMb).
-      const room = definition.dataUplink ? Math.max(0, (root.OrbitDataNetworkData?.datacenter.uplinkMb ?? Infinity) -
-        Object.values(building.dockStock).reduce((sum, value) => sum + value, 0)) : Infinity;
-      const amount = Math.min(machine.inputBuffer[input.id] || 0, room);
-      if (!amount) continue;
       const connection = graph.connections.find(item => item.toMachineId === machine.id && item.toInputId === input.id);
       const source = connection && graph.machines.find(item => item.id === connection.fromMachineId);
       const resource = source && Graph.definitionOf(source).outputPorts
         .find(port => port.id === connection.fromOutputId)?.resourceId;
       if (!resource) continue;
+      // An uplink hands over only what its antenna can still take in
+      // (uplinkMb); an output dock holds up to dockCapacity units waiting to
+      // leave, then fills and stops the cards before it.
+      const room = definition.dataUplink ? Math.max(0, (root.OrbitDataNetworkData?.datacenter.uplinkMb ?? Infinity) -
+        Object.values(building.dockStock).reduce((sum, value) => sum + value, 0))
+        : Math.max(0, Data.config.dockCapacity - (building.dockStock[resource] || 0));
+      const amount = Math.min(machine.inputBuffer[input.id] || 0, room);
+      if (!amount) continue;
       // Docked rock keeps its composition on the way out.
       building.dockMix ||= {};
       if (Mix) Mix.add(building.dockMix, resource, resource, building.dockStock[resource] || 0, amount, Mix.of(machine.inputMix, input.id));

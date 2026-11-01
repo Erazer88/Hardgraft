@@ -44,6 +44,16 @@
     return Math.max(0, left - Math.floor(destination.inventory?.[resourceId] || 0));
   }
 
+  // A building with cards keeps at most dockCapacity units of each resource
+  // received (its input docks draw from there); the colony and the launch
+  // platform take everything.
+  function dockRoom(destination, resourceId) {
+    if (destination.type === 'colony' || destination.type === 'launch_platform') return null;
+    const capacity = root.OrbitProcessData?.config.dockCapacity;
+    if (!Number.isFinite(capacity)) return null;
+    return Math.max(0, capacity - Math.floor(destination.inventory?.[resourceId] || 0));
+  }
+
   function hasReceivingDock(state, building) {
     if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
@@ -66,7 +76,7 @@
           !['complete', 'supplying'].includes(destination.constructionState) ||
           !hasReceivingDock(state, destination) ||
           !hasBuiltLandPath(network, source.id, destination.id)) return 0;
-      const room = siteRoom(destination, resourceId);
+      const room = siteRoom(destination, resourceId) ?? dockRoom(destination, resourceId);
       const amount = room === null ? offered : Math.min(offered, room);
       if (!amount) return 0;
       const site = destination.constructionState === 'supplying';

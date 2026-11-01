@@ -3,7 +3,7 @@
 
   const Data = root.OrbitProcessData;
   const Graph = root.OrbitProcessGraph;
-  const NODE = Object.freeze({ width: 258, height: 162, outputDockHeight: 252, inputDockHeight: 282 });
+  const NODE = Object.freeze({ width: 258, height: 128, outputDockHeight: 196, inputDockHeight: 196 });
   const WORLD = Object.freeze({ width: 7800, height: 5400 });
   const SVG = 'http://www.w3.org/2000/svg';
   const BLOCK_ART = Object.freeze({
@@ -129,14 +129,15 @@
 
     function baseSpecification(def) {
       if (def.externalInput) return Number.isFinite(def.throughput)
-        ? `PARABOLES · ${fmt(def.throughput)} Mo/s · ${fmt(def.energyMW)} MW` : 'RÉSEAU TERRESTRE';
-      if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE · SANS LIMITE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
+        ? `PARABOLES · ${fmt(def.throughput)} Mo/s · ${fmt(def.energyMW)} MW` : `ROUTE · ${fmt(Data.config.dockCapacity)} u PAR RESSOURCE`;
+      if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
       if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
-      if (def.storesResources) return 'STOCKAGE ILLIMITÉ';
-      if (def.externalOutput) return 'CONNECTEUR · DÉBIT ILLIMITÉ';
-      const throughput = Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '∞';
-      return `${throughput} · ${fmt(def.energyMW)} MW`;
+      if (def.storesResources) return 'STOCKAGE';
+      if (def.dataUplink) return `ANTENNE HF · ${fmt(def.energyMW)} MW`;
+      if (def.externalOutput) return `ROUTE · ${fmt(Data.config.dockCapacity)} u EN ATTENTE`;
+      return [Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '', def.energyMW ? `${fmt(def.energyMW)} MW` : '']
+        .filter(Boolean).join(' · ') || 'SANS ÉNERGIE';
     }
 
     function persist() {
@@ -182,6 +183,17 @@
         active, fast, done: entry.done || 0, block, unit: units(block, 1) };
     }
 
+    // How full a dock is: what the building received of the chosen resource
+    // (input dock), or what waits to leave (output dock, uplink).
+    function dockFill(machine, def) {
+      if (def.externalInput && !Number.isFinite(def.throughput)) return { amount: Math.floor(activeBuilding?.inventory?.[machine.importResourceId] || 0),
+        capacity: Data.config.dockCapacity };
+      if (!def.externalOutput) return null;
+      const resourceId = connectedDockResource(machine);
+      return { amount: Math.floor(resourceId ? activeBuilding?.dockStock?.[resourceId] || 0 : 0),
+        capacity: def.dataUplink ? root.OrbitDataNetworkData?.datacenter.uplinkMb ?? Data.config.dockCapacity : Data.config.dockCapacity };
+    }
+
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
@@ -191,38 +203,38 @@
       }
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const view = smoothed(machine, def), rate = view.rate;
-      const rateText = `DÉBIT ACTUEL · ${fmt(rate)} / ${finite ? fmt(def.throughput) : '∞'} u/s`;
+      // State and rate on one line.
+      const rateText = finite ? `${fmt(rate)} / ${fmt(def.throughput)} u/s` : `${fmt(rate)} u/s`;
       const rateElement = card.querySelector('[data-readout="rate"]');
       if (rateElement.textContent !== rateText) rateElement.textContent = rateText;
-      const rateFill = card.querySelector('.factory-rate-fill');
-      const ratePercent = finite ? (def.throughput > 0 ? rate / def.throughput * 100 : 0) : rate > 0 ? 100 : 0;
-      rateFill.style.width = `${clamp(ratePercent, 0, 100)}%`;
-      const energy = card.querySelector('[data-readout="energy"]');
-      energy.textContent = def.generatesMW
-        ? `+${fmt(machine.generatedMW || 0)} / ${fmt(def.generatesMW)} MW PRODUITS`
-        : def.routing ? 'SANS ÉNERGIE' : `${fmt(machine.energyMW)} / ${fmt(def.energyMW)} MW`;
       if (card.dataset.state !== view.state) card.dataset.state = view.state;
       const state = card.querySelector('[data-readout="state"]'), stateText = Data.statuses[view.state] || Data.statuses.waiting_input;
       if (state.textContent !== stateText) state.textContent = stateText;
+      // Power: what the card draws (or makes), plainly.
+      const energy = card.querySelector('[data-readout="energy"]');
+      const energyText = def.generatesMW ? `+${fmt(machine.generatedMW || 0)} / ${fmt(def.generatesMW)} MW`
+        : def.energyMW > 0 ? view.state === 'no_energy' ? `${fmt(machine.energyMW || 0)} / ${fmt(def.energyMW)} MW` : `${fmt(def.energyMW)} MW` : '';
+      if (energy.textContent !== energyText) energy.textContent = energyText;
+      energy.hidden = !energyText;
+      energy.dataset.tone = def.generatesMW ? 'made' : view.state === 'no_energy' ? 'short' : view.active ? 'on' : 'idle';
+      // The bar: a dock's fill (out of dockCapacity); elsewhere the unit being
+      // processed, reset at each unit (or ku, Mu… when fast).
       const cycle = card.querySelector('.factory-cycle-fill');
-      // Unit bar: resets to 0 at each unit (or ku, Mu…), with no animation back.
-      const counted = !def.routing && !def.externalInput && !def.storesResources;
-      cycle.style.width = `${counted ? (view.done % view.block) / view.block * 100 : view.active ? 100 : 0}%`;
-      const cycleLabel = card.querySelector('[data-readout="cycle"]');
+      const counted = !def.routing && !def.externalInput && !def.externalOutput && !def.storesResources;
+      const dock = dockFill(machine, def);
+      const fill = dock ? dock.amount / dock.capacity : counted ? (view.done % view.block) / view.block : view.active ? 1 : 0;
+      cycle.style.width = `${clamp(fill * 100, 0, 100)}%`;
+      // One short note: a dock's stock, a separator's grade, a depot card's load.
       const held = Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0);
-      // A separator shows the grade of the rock it works: nothing comes out of barren rock.
       const graded = def.recipe?.outputs.find(item => item.yieldOf);
-      const gradeText = graded ? (() => {
-        const rock = machine.inputMix?.[def.recipe.inputs[0].inputId];
-        const names = { iron: 'FER', copper: 'CUIVRE', silicon: 'SILICE', carbon: 'CARBONE' };
-        return rock ? `TENEUR ${names[graded.yieldOf] || graded.yieldOf} ≈ ${Math.round((rock[graded.yieldOf] || 0) * 100)} % · ` : '';
-      })() : '';
-      cycleLabel.textContent = gradeText + (def.routing ? `${def.id === 'depot_buffer' ? 'STOCK' : 'EN TRANSIT'} · ${held} U`
-        : def.externalInput && !Number.isFinite(def.throughput) ? 'CONNECTEUR LOGIQUE · SANS LIMITE'
-        : def.externalInput ? `REÇU · ${units(view.done)} · BARRE ${view.unit}`
-        : def.storesResources
-        ? `STOCKAGE · ${Object.values(machine.storedResources || {}).reduce((sum, amount) => sum + amount, 0)} U`
-        : `${def.source ? 'EXTRAIT' : def.externalOutput ? 'ENVOYÉ' : 'TRAITÉ'} · ${units(view.done)} · BARRE ${view.unit}`);
+      const rock = graded && machine.inputMix?.[def.recipe.inputs[0].inputId];
+      const names = { iron: 'fer', copper: 'cuivre', silicon: 'silice', carbon: 'carbone' };
+      const noteText = dock ? `Stock ${fmt(dock.amount)} / ${fmt(dock.capacity)} u`
+        : rock ? `Teneur ${names[graded.yieldOf] || graded.yieldOf} ${Math.round((rock[graded.yieldOf] || 0) * 100)} %`
+        : def.routing || def.storesResources ? held ? `${def.id === 'depot_buffer' || def.storesResources ? 'Stock' : 'En transit'} ${fmt(held)} u` : ''
+        : '';
+      const note = card.querySelector('[data-readout="cycle"]');
+      if (note.textContent !== noteText) note.textContent = noteText;
       for (const port of def.inputPorts) {
         const label = card.querySelector(`[data-input-label="${port.id}"]`);
         if (label) {
@@ -308,8 +320,6 @@
       const title = disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
       if (select.title !== title) select.title = title;
       updateJumps(card, machine.importResourceId ? getSources(activeBuilding, machine.importResourceId) : [], '←');
-      card.querySelector('[data-received-stock]').textContent = `STOCK REÇU · ${Object.entries(stock)
-        .filter(([, amount]) => amount > 0).map(([id, amount]) => `${root.OrbitResourceData.get(id)?.label || id} : ${amount} u`).join(' · ') || 'VIDE'}`;
     }
 
     function connectedDockResource(machine) {
@@ -436,14 +446,14 @@
         select.setAttribute('aria-label', `${label.textContent} · ${def.label}`);
         control.append(label, select);
         dockControl = control;
-        card.style.height = `${heightOf(machine)}px`;
       }
+      card.style.height = `${heightOf(machine)}px`;
       if (def.externalOutput || def.externalInput) {
         if (def.externalInput) card.classList.add('factory-node-input-dock');
         else card.classList.add('factory-node-output-dock');
         const destination = document.createElement('label'); destination.className = 'factory-dock-route';
         const label = document.createElement('span');
-        label.textContent = def.externalInput ? 'RESSOURCE À SORTIR' : def.dataUplink ? 'ANTENNE HAUTE FRÉQUENCE' : 'DESTINATION DU QUAI';
+        label.textContent = def.externalInput ? 'RESSOURCE' : def.dataUplink ? 'ANTENNE HF' : 'DESTINATION';
         const select = document.createElement('select');
         if (def.externalInput) select.dataset.dockResource = machine.id;
         else select.dataset.dockDestination = machine.id;
@@ -452,24 +462,20 @@
         destination.append(label, select, jumps);
         dockControl = destination;
       }
-      const rate = document.createElement('div'); rate.className = 'factory-readout-row';
-      const rateLabel = document.createElement('span'); rateLabel.dataset.readout = 'rate';
-      const rateBar = document.createElement('div'); rateBar.className = 'factory-meter';
-      const rateFill = document.createElement('i'); rateFill.className = 'factory-rate-fill'; rateBar.append(rateFill);
-      rate.append(rateLabel, rateBar);
-      const energy = document.createElement('div'); energy.className = 'factory-energy'; energy.dataset.readout = 'energy';
-      const cycleRow = document.createElement('div'); cycleRow.className = 'factory-cycle-row';
-      const cycleLabel = document.createElement('span'); cycleLabel.dataset.readout = 'cycle';
+      // State and rate, the bar, then power and one note.
+      const status = document.createElement('div'); status.className = 'factory-status-row';
+      const state = document.createElement('small'); state.className = 'factory-state'; state.dataset.readout = 'state';
+      const rateLabel = document.createElement('span'); rateLabel.className = 'factory-rate'; rateLabel.dataset.readout = 'rate';
+      status.append(state, rateLabel);
       const cycleBar = document.createElement('div'); cycleBar.className = 'factory-meter factory-cycle-meter';
       const cycleFill = document.createElement('i'); cycleFill.className = 'factory-cycle-fill'; cycleBar.append(cycleFill);
-      cycleRow.append(cycleLabel, cycleBar);
-      const state = document.createElement('small'); state.className = 'factory-state'; state.dataset.readout = 'state';
-      body.append(rows, rate, energy, cycleRow, state);
+      const footer = document.createElement('div'); footer.className = 'factory-footer';
+      const energy = document.createElement('span'); energy.className = 'factory-energy'; energy.dataset.readout = 'energy';
+      const note = document.createElement('span'); note.className = 'factory-note'; note.dataset.readout = 'cycle';
+      if (def.externalInput) note.dataset.receivedStock = '';
+      footer.append(energy, note);
+      body.append(rows, status, cycleBar, footer);
       if (dockControl) body.append(dockControl);
-      if (def.externalInput) {
-        const stock = document.createElement('small'); stock.className = 'factory-received-stock'; stock.dataset.receivedStock = '';
-        body.append(stock);
-      }
       card.append(header, body);
       return card;
     }
@@ -508,7 +514,55 @@
       path.setAttribute('d', linkPath(start, end)); linkLayer.append(path);
     }
 
+    // Links are curves, or right angles (horizontal and vertical runs with
+    // rounded corners); the player's choice is kept in this browser.
+    const LINK_STYLE_KEY = 'nereide-atlas-link-style-v1';
+    let linkStyle = (() => { try { return root.localStorage?.getItem(LINK_STYLE_KEY) === 'square' ? 'square' : 'curve'; } catch (_) { return 'curve'; } })();
+    function showLinkStyle() {
+      const button = $('factory-link-style');
+      if (!button) return;
+      const square = linkStyle === 'square';
+      button.setAttribute('aria-pressed', String(square));
+      button.querySelector('span').textContent = square ? 'ANGLES DROITS' : 'COURBES';
+      button.querySelector('path').setAttribute('d', square ? 'M4 6h8v12h8' : 'M4 6c9 0 7 12 16 12');
+    }
+    $('factory-link-style')?.addEventListener('click', () => {
+      linkStyle = linkStyle === 'square' ? 'curve' : 'square';
+      try { root.localStorage?.setItem(LINK_STYLE_KEY, linkStyle); } catch (_) { /* kept for this session only */ }
+      showLinkStyle(); renderConnections();
+    });
+    showLinkStyle();
+
+    // A polyline through `points` with its corners rounded.
+    function roundedPath(points, radius) {
+      let path = `M ${points[0].x} ${points[0].y}`;
+      for (let index = 1; index < points.length - 1; index++) {
+        const before = points[index - 1], corner = points[index], after = points[index + 1];
+        const inLength = Math.hypot(corner.x - before.x, corner.y - before.y), outLength = Math.hypot(after.x - corner.x, after.y - corner.y);
+        const round = Math.min(radius, inLength / 2, outLength / 2);
+        if (!(round > .5)) { path += ` L ${corner.x} ${corner.y}`; continue; }
+        const from = { x: corner.x - (corner.x - before.x) / inLength * round, y: corner.y - (corner.y - before.y) / inLength * round };
+        const to = { x: corner.x + (after.x - corner.x) / outLength * round, y: corner.y + (after.y - corner.y) / outLength * round };
+        path += ` L ${from.x} ${from.y} Q ${corner.x} ${corner.y} ${to.x} ${to.y}`;
+      }
+      const last = points.at(-1);
+      return `${path} L ${last.x} ${last.y}`;
+    }
+
     function linkPath(start, end) {
+      if (linkStyle === 'square') {
+        const lead = 24, radius = 12;
+        // Forward: out, across at mid-distance, in.
+        if (end.x - start.x >= lead * 2) {
+          const middle = Math.round((start.x + end.x) / 2);
+          return roundedPath([start, { x: middle, y: start.y }, { x: middle, y: end.y }, end], radius);
+        }
+        // Backward: out to the right, around between the two cards (or below
+        // them when level), in from the left.
+        const between = Math.abs(end.y - start.y) > 80 ? (start.y + end.y) / 2 : Math.max(start.y, end.y) + 90;
+        return roundedPath([start, { x: start.x + lead, y: start.y }, { x: start.x + lead, y: between },
+          { x: end.x - lead, y: between }, { x: end.x - lead, y: end.y }, end], radius);
+      }
       const bend = Math.max(32, Math.abs(end.x - start.x) * .45);
       return `M ${start.x} ${start.y} C ${start.x + bend} ${start.y}, ${end.x - bend} ${end.y}, ${end.x} ${end.y}`;
     }

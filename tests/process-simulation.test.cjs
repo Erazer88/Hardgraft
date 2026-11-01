@@ -147,6 +147,82 @@ test('a separator recovers its material in proportion to the grade; the rest lea
   }
 });
 
+// Grade checks: every separator pays out grade × recovery of the rock it
+// works, in whole units, and the metal it leaves goes into the tailings.
+test('separators pay out exactly grade × 90 % in whole units, and no metal is lost or created', () => {
+  const recovery = Data.config.separation.recovery;
+  for (const [type, material, batch, product] of [['magnetic_separator', 'iron', 5, 'concentrate'],
+    ['gravity_separator', 'copper', 5, 'concentrate'], ['carbon_separator', 'carbon', 5, 'concentrate'],
+    ['silicon_washer', 'silicon', 20, 'wet_silicon']]) {
+    for (const grade of [0, .03, .05, .07, .1, .3, .5, .8]) {
+      const graph = Graph.create(), separator = machine(graph, 's', type);
+      if (type === 'silicon_washer') {
+        machine(graph, 'water', 'water_supply', 0);
+        connect(graph, 'water-s', 'water', 'water', 's', 'water');
+      }
+      let rock = 0, concentrate = 0, tailings = 0, tailingsMetal = 0;
+      for (let cycle = 0; cycle < 50; cycle++) {
+        separator.inputBuffer.rock = batch; separator.inputMix = { rock: { [material]: grade, rock: 1 - grade } };
+        rock += batch;
+        advance(graph, 20);
+        assert.equal(separator.inputBuffer.rock, 0, `${type} ${grade}: the batch is worked`);
+        concentrate += separator.outputBuffer[product]; tailings += separator.outputBuffer.residue;
+        tailingsMetal += separator.outputBuffer.residue * (separator.outputMix.residue?.[material] || 0);
+        separator.outputBuffer[product] = 0; separator.outputBuffer.residue = 0; delete separator.outputMix.residue;
+      }
+      const label = `${type} at ${grade * 100} %`;
+      assert.equal(concentrate, Math.floor(rock * grade * recovery + 1e-9), `${label}: concentrate`);
+      assert.equal(concentrate + tailings, rock, `${label}: units are conserved`);
+      const credit = separator.yieldCredit[product] || 0;
+      assert.ok(Math.abs(rock * grade * recovery - concentrate - credit) < 1e-6, `${label}: the fraction waits in the credit`);
+      assert.ok(Math.abs(concentrate + credit + tailingsMetal - rock * grade) < .05,
+        `${label}: metal in ${rock * grade}, out ${concentrate + credit + tailingsMetal}`);
+      if (tailings && grade) assert.ok(Math.abs(tailingsMetal / tailings - grade * (1 - recovery) / (1 - grade * recovery)) < 1e-3,
+        `${label}: tailings grade ${tailingsMetal / tailings}`);
+    }
+  }
+});
+
+test('reprocessed tailings carry only the metal the separator left', () => {
+  const graph = Graph.create();
+  const separator = machine(graph, 'separator', 'magnetic_separator');
+  const reprocessor = machine(graph, 'reprocessor', 'reprocessor', 300, 'rock');
+  connect(graph, 'tailings', 'separator', 'residue', 'reprocessor', 'waste');
+  for (let cycle = 0; cycle < 40; cycle++) {
+    separator.inputBuffer.rock = 5; separator.inputMix = { rock: { iron: .3, rock: .7 } };
+    advance(graph, 20);
+    separator.outputBuffer.concentrate = 0;
+  }
+  assert.ok(reprocessor.outputBuffer.rock >= 10, `${reprocessor.outputBuffer.rock} ground rock`);
+  const grade = reprocessor.outputMix.rock.iron, expected = .3 * .1 / (1 - .3 * .9);
+  assert.ok(Math.abs(grade - expected) < 1e-3, `reprocessed rock at ${grade} iron, expected ${expected}`);
+});
+
+test('from the ground to plates: a 30 % iron line makes the plates its grade allows', () => {
+  const graph = chain({ iron: .3, rock: .7 });
+  machine(graph, 'mill', 'rolling_mill', 1750);
+  for (const [id, x] of [['tailings', 1400], ['slag', 1750], ['plates', 2100]]) machine(graph, id, 'terril', x);
+  connect(graph, 'c5', 'furnace', 'product', 'mill', 'iron');
+  connect(graph, 'c6', 'separator', 'residue', 'tailings', 'material');
+  connect(graph, 'c7', 'furnace', 'slag', 'slag', 'material');
+  connect(graph, 'c8', 'mill', 'plate', 'plates', 'material');
+  const seconds = 300;
+  for (let i = 0; i < seconds; i++) advance(graph, 1);
+  const byId = id => graph.machines.find(item => item.id === id);
+  const stored = (id, resourceId) => byId(id).storedResources[resourceId] || 0;
+  // 6 rock/s → 1,62 concentrate/s → 0,81 raw iron/s → 0,081 plate/s, less
+  // what is still on its way through the line.
+  const rock = 6 * seconds, plates = stored('plates', 'metal_plate');
+  const expected = rock * .3 * Data.config.separation.recovery / 2 / 10;
+  assert.ok(plates <= expected && plates >= expected - 2, `${plates} plates, ≈ ${expected} expected`);
+  for (const id of ['drill', 'crusher', 'grinder', 'separator']) assert.equal(byId(id).state, 'active', `${id} never stalls`);
+  assert.ok(Math.abs(stored('tailings', 'tailings') / rock - (1 - .3 * Data.config.separation.recovery)) < .02,
+    `${stored('tailings', 'tailings')} tailings for ${rock} rock`);
+  const rawIron = plates * 10 + byId('mill').inputBuffer.iron + byId('furnace').outputBuffer.product;
+  assert.ok(Math.abs(stored('slag', 'iron_slag') - rawIron) <= 1, `${stored('slag', 'iron_slag')} slag for ${rawIron} raw iron`);
+  assert.ok(integral(graph));
+});
+
 test('the furnace smelts concentrate 2:1, the rolling mill makes one plate from ten raw iron', () => {
   const graph = Graph.create();
   const furnace = machine(graph, 'furnace', 'reduction_furnace', 0, 'iron');
@@ -337,7 +413,7 @@ test('an input dock passes received rock on, with its composition', () => {
   assert.equal(graph.geology, null, 'a factory never drills');
 });
 
-test('thousands of rock units on the move keep one composition per stock', () => {
+test('rock on the move keeps one composition per stock; an output dock holds 100 units at most', () => {
   const composition = { iron: .2, copper: .1, rock: .7 };
   const extractor = { id: 'e', type: 'extractor', planetId: 'p', x: 0, y: 0, constructionState: 'complete', composition,
     dockDestinations: { iron_concentrate: 'factory', tailings: 'heap' } };
@@ -353,7 +429,10 @@ test('thousands of rock units on the move keep one composition per stock', () =>
   connect(graph, 'c4', 'separator', 'concentrate', 'dock-c', 'material');
   connect(graph, 'c5', 'separator', 'residue', 'dock-t', 'material');
   for (let i = 0; i < 1500; i++) Industry.advance(state, 1);
-  assert.ok(extractor.dockStock.tailings > 2000, `${extractor.dockStock.tailings} tailings`);
+  // Nothing takes the tailings away: the dock fills to its capacity, then
+  // the cards before it stop.
+  assert.equal(extractor.dockStock.tailings, Data.config.dockCapacity);
+  assert.equal(graph.machines.find(item => item.id === 'separator').state, 'output_full');
   assert.deepEqual(Object.keys(extractor.dockMix), ['tailings'], 'concentrate is refined: no composition kept');
   assert.ok(extractor.dockMix.tailings.iron < composition.iron && extractor.dockMix.tailings.copper > composition.copper,
     JSON.stringify(extractor.dockMix.tailings));

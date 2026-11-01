@@ -7,6 +7,9 @@
     maxTicksPerAdvance: 100,
     inputCapacity: 20,
     outputCapacity: 20,
+    // A dock holds at most this many units per resource: what a building
+    // received (input docks) and what waits to leave it (output docks).
+    dockCapacity: 100,
     // Construction materials are counted for real; the developer setting
     // "Minerais infinis" still lifts mineral costs for testing.
     colonyReserveInfinite: false,
@@ -185,7 +188,7 @@
       inputPorts: [], outputPorts: [output('material', 'Ressource reçue', null)], recipe: null, throughput: null, energyMW: 0
     },
     terril: {
-      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke sans limite les matières et résidus.', sink: true, storesResources: true,
+      id: 'terril', label: 'TERRIL', mark: 'TE', description: 'Stocke les matières et résidus.', sink: true, storesResources: true,
       inputPorts: [input('material', 'Toutes ressources', null, { acceptsAnyResource: true })],
       outputPorts: [], recipe: null, throughput: null, energyMW: 0
     },

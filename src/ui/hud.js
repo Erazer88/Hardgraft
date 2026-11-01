@@ -13,20 +13,28 @@
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
     const fmtDecimal = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
     const mineralLabels = ['Fer', 'Cuivre', 'Silice', 'Carbone'];
-    let toastTimer;
+    let toastTimer, topBarSignature = null;
 
+    // The build menu: one card per building (badge, name, an "i" for how it
+    // works), filtered by group; the info opens in place of the list.
     const buildOptions = $('build-options');
+    const nameCase = label => label.charAt(0) + label.slice(1).toLowerCase();
     for (const definition of BuildingData.catalog()) {
+      const card = document.createElement('div'); card.className = 'build-card'; card.dataset.buildingCard = definition.id;
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'build-option'; button.dataset.buildingType = definition.id;
-      const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition.shortLabel;
-      const copy = document.createElement('span'); copy.className = 'build-option-copy';
-      const title = document.createElement('strong'); title.textContent = definition.label;
-      const description = document.createElement('small'); description.textContent = definition.description;
-      const cost = document.createElement('small'); cost.className = 'build-option-cost';
-      cost.textContent = root.OrbitConstruction?.pricesEnabled() ? resourceSummary(definition.cost) : '';
-      copy.append(title, description, cost); button.append(icon, copy); buildOptions.append(button);
+      const icon = document.createElement('canvas'); icon.className = 'build-option-badge'; icon.width = icon.height = 72;
+      icon.setAttribute('aria-hidden', 'true');
+      root.OrbitBuildingRenderer?.drawBadge(icon, definition.id);
+      const name = document.createElement('strong'); name.textContent = nameCase(definition.label);
+      const note = document.createElement('small'); note.className = 'build-option-note'; note.hidden = true;
+      button.append(icon, name, note);
+      const info = document.createElement('button');
+      info.type = 'button'; info.className = 'build-info-button'; info.dataset.buildingInfo = definition.id;
+      info.setAttribute('aria-label', `Fonctionnement : ${nameCase(definition.label)}`); info.textContent = 'i';
+      card.append(button, info); buildOptions.append(card);
     }
+    const groupOf = definition => BuildingData.menuGroups.find(group => group.categories.includes(definition?.category)) || null;
 
     function toast(text) {
       $('toast').textContent = text;
@@ -109,42 +117,59 @@
       appendLogisticsRow(launch, 'État', status);
     }
 
+    // The Ark, like a building's sheet: a few tiles, what arrives, what it holds.
     function renderOrbitalHub(state, system) {
       const hub = state.orbitalLogistics.hubs?.[system.id] || { id: system.ark.id, stock: {} };
       const metrics = root.OrbitOrbitalTransit.currentHubMetrics(state, system.id, state.simulation.time);
       const platforms = (state.surfaceBuildings || []).filter(building => building.type === 'launch_platform' &&
-        building.planetId.startsWith(system.id + ':p-'));
-      const connectedPlatforms = platforms.filter(platform => (state.surfaceBuildings || []).some(source => source.id !== platform.id &&
-        source.planetId === platform.planetId && source.constructionState === 'complete' &&
-        root.OrbitLogisticsNetwork.hasBuiltLandPath(state.roadNetworks?.[platform.planetId], source.id, platform.id)));
-      const currentRate = Object.values(metrics.rates).reduce((sum, rate) => sum + rate, 0);
-      const quays = $('hub-quays-data'); quays.replaceChildren();
-      appendLogisticsRow(quays, 'Plateformes reliées', String(connectedPlatforms.length));
-      appendLogisticsRow(quays, 'Débit / capacité', `${fmtDecimal(currentRate)} / ${fmt(connectedPlatforms.length * Data.launch.capacityUPerSecond)} u/s`);
-      appendLogisticsRow(quays, 'État', connectedPlatforms.length && currentRate >= connectedPlatforms.length * Data.launch.capacityUPerSecond ? 'SATURÉ' : 'DISPONIBLE');
-
-      const core = $('hub-core-data'); core.replaceChildren();
-      appendLogisticsRow(core, 'Débit traité', `${fmtDecimal(currentRate)} u/s`);
-      appendLogisticsRow(core, 'Stockage', 'Direct · sans limite');
-
-      const stock = $('hub-stock-data'); stock.replaceChildren();
-      const stocked = Object.entries(metrics.stock).sort(([a], [b]) => a.localeCompare(b));
-      if (!stocked.length) appendLogisticsRow(stock, 'En attente de matières', '—');
-      for (const [resourceId, amount] of stocked) appendLogisticsRow(stock, resourceName(resourceId), `${fmt(amount)} u`);
-
-      const energy = $('hub-energy-data'); energy.replaceChildren();
+        building.planetId.startsWith(system.id + ':p-') && building.constructionState === 'complete');
+      const perMinute = value => `${fmtDecimal(Math.round((value || 0) * 600) / 10)} u/min`;
+      const currentRate = Object.values(metrics.rates).reduce((sum, value) => sum + value, 0);
       const activeLaunches = platforms.filter(platform => Number.isFinite(platform.lastLaunchTime) &&
         state.simulation.time - platform.lastLaunchTime < 1).length;
-      appendLogisticsRow(energy, 'Consommation actuelle', `${fmt(activeLaunches * Data.launch.energyMW)} MW`);
-      appendLogisticsRow(energy, 'Par plateforme active', `${fmt(Data.launch.energyMW)} MW`);
-
-      const incoming = $('hub-incoming-data'); incoming.replaceChildren();
-      const resourceIds = new Set([...Object.keys(metrics.stock), ...Object.keys(metrics.inTransit), ...Object.keys(metrics.rates)]);
-      if (!resourceIds.size) appendLogisticsRow(incoming, 'Aucun flux en transit', '—');
-      for (const resourceId of [...resourceIds].sort()) appendLogisticsRow(incoming, resourceName(resourceId),
-        `Stock ${fmt(metrics.stock[resourceId] || 0)} · Transit ${fmt(metrics.inTransit[resourceId] || 0)} u`,
-        `Entrée · +${fmtDecimal(metrics.rates[resourceId] || 0)} u/s`);
+      const tiles = [tile('link', 'Plateformes', fmt(platforms.length)), tile('flow', 'Arrivées', perMinute(currentRate)),
+        tile('power', 'Énergie', `${fmt(activeLaunches * Data.launch.energyMW)} MW`), tile('data', 'Points tech', fmt(state.techPoints || 0))];
+      const arriving = [...new Set([...Object.keys(metrics.inTransit), ...Object.keys(metrics.rates)])]
+        .filter(id => (metrics.inTransit[id] || 0) > 0 || (metrics.rates[id] || 0) > 0).sort()
+        .map(id => ['in', resourceName(id), metrics.inTransit[id] ? `${fmt(metrics.inTransit[id])} u en route` : '', `+${perMinute(metrics.rates[id])}`]);
+      const held = Object.entries(metrics.stock).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1])
+        .map(([id, amount]) => ['stock', resourceName(id), '', `${fmt(amount)} u`]);
+      renderSheet($('orbital-hub-logistics'), tiles, [['ARRIVÉES', arriving, 'Rien en route.'], ['STOCK', held, 'Vide.']]);
       return hub;
+    }
+
+    // A ground survey: altitude, then what a drill set here would drain.
+    function renderSurvey(item) {
+      const tiles = [tile('planet', 'Altitude', `${fmt(item.altitude)} m`)];
+      if (item.radiusKm) tiles.push(tile('rock', 'Forage', `${fmt(item.radiusKm)} km`));
+      const shares = Object.entries(item.composition || {}).filter(([, share]) => share >= .005).sort((a, b) => b[1] - a[1])
+        .map(([id, share]) => ['share', id === 'rock' ? 'Roche' : resourceName(id), share, approximateShare(share)]);
+      renderSheet($('survey-readout'), tiles, [['COMPOSITION DU SOL', shares, 'Composition inconnue.']]);
+    }
+
+    // Tiles, then titled sections of full-width lines (in, out, stock) or
+    // shares (a bar); rebuilt only when what they show changes.
+    function renderSheet(container, tiles, sections) {
+      const key = JSON.stringify([tiles, sections]);
+      if (container.dataset.key === key) return;
+      container.dataset.key = key;
+      const stats = tilesElement(tiles);
+      const blocks = sections.map(([title, lines, empty]) => {
+        const block = document.createElement('section'); block.className = 'building-flow';
+        const heading = document.createElement('h3'); heading.textContent = title; block.append(heading);
+        if (!lines.length) { const none = document.createElement('p'); none.textContent = empty; block.append(none); }
+        for (const [kind, name, detail, value] of lines) {
+          if (kind !== 'share') { block.append(root.OrbitPanelKit.line(document, kind, name, detail, value)); continue; }
+          const line = document.createElement('div'); line.className = 'share-line';
+          const label = document.createElement('span'); label.textContent = name;
+          const track = document.createElement('i'); const fill = document.createElement('b');
+          fill.style.width = `${Math.max(2, Math.min(100, detail * 100))}%`; track.append(fill);
+          const amount = document.createElement('strong'); amount.textContent = value;
+          line.append(label, track, amount); block.append(line);
+        }
+        return block;
+      });
+      container.replaceChildren(...(tiles.length ? [stats] : []), ...blocks);
     }
 
     // Small line icons of the building sheet's tiles (24×24 paths).
@@ -304,7 +329,11 @@
       if (stats.dataset.key === key) return;
       stats.dataset.key = key;
       stats.hidden = !tiles.length;
-      stats.replaceChildren(...tiles.map(item => {
+      stats.replaceChildren(...tileCells(tiles));
+    }
+
+    function tileCells(tiles) {
+      return tiles.map(item => {
         const cell = document.createElement('div'); cell.className = 'building-tile';
         cell.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[item.icon] || ICONS.box}"/></svg>`;
         const text = document.createElement('div');
@@ -312,7 +341,12 @@
         const value = document.createElement('strong'); value.textContent = item.value;
         text.append(label, value); cell.append(text);
         return cell;
-      }));
+      });
+    }
+    function tilesElement(tiles) {
+      const stats = document.createElement('div'); stats.className = `building-stats${tiles.length === 4 ? ' quad' : ''}`;
+      stats.append(...tileCells(tiles));
+      return stats;
     }
 
     function clearBuildingPanelPosition() {
@@ -329,11 +363,17 @@
       $('toast').classList.remove('visible');
       const isBuilding = item.kind === 'building';
       const isArk = item.kind === 'orbital-hub';
+      const isSurvey = Boolean(item.surfacePoint);
       const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
       const hasFactoryEditor = isBuilding && BuildingData.processTypes.includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
       panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);
+      // The Ark and a ground survey open as the same sheet as a building.
+      panel.classList.toggle('sheet-panel', isArk || isSurvey);
+      $('sheet-icon').hidden = !(isArk || isSurvey);
+      if (isArk || isSurvey) root.OrbitPanelKit?.badge($('sheet-icon'), isArk ? 'ark' : 'survey');
+      $('survey-readout').hidden = !isSurvey;
       clearBuildingPanelPosition();
       $('building-head').hidden = !isBuilding;
       $('building-meta').hidden = !isBuilding || isLaunchPlatform;
@@ -349,8 +389,8 @@
       $('save-building-button').hidden = !hasFactoryEditor;
       $('hf-destination').hidden = !(isBuilding && item.type === 'hf_antenna');
       if (state.level !== 'system' || item.kind !== 'gazeuse') $('orbital-lab-button').hidden = true;
-      $('selection-info').hidden = isBuilding || isArk;
-      $('selection-meta').hidden = isBuilding || isArk;
+      $('selection-info').hidden = isBuilding || isArk || isSurvey;
+      $('selection-meta').hidden = isBuilding || isArk || isSurvey;
       if (state.level === 'galaxy') {
         const planets = systemModel.planets.length, belts = systemModel.debris.length;
         $('selection-type').textContent = 'SYSTÈME STELLAIRE';
@@ -361,7 +401,7 @@
         $('enter-button').hidden = false;
         $('enter-button').disabled = false;
       } else if (isArk) {
-        $('selection-type').textContent = 'HUB ORBITAL · VAISSEAU-MÈRE';
+        $('selection-type').textContent = 'VAISSEAU-MÈRE';
         $('selection-name').textContent = item.name || 'L’ARCHE';
         $('selection-info').textContent = '';
         $('selection-meta').textContent = '';
@@ -402,8 +442,9 @@
         $('selection-type').textContent = 'RELEVÉ DE TERRAIN';
         $('selection-name').textContent = item.name;
         $('selection-info').textContent = item.info;
-        $('selection-meta').textContent = `X ${Math.round(item.x)} km · Y ${Math.round(item.y)} km   /   ALT. ${item.altitude} m`;
+        $('selection-meta').textContent = '';
         $('enter-button').hidden = true;
+        renderSurvey(item);
       }
     }
 
@@ -487,14 +528,23 @@
       // Galaxy-wide totals: population of every colony and context gathered.
       const population = root.OrbitColony.totalPopulation(state);
       const contextText = fmt(Math.floor((root.OrbitSkills.isUnlocked(state, 'computer_network') ? state.techPoints : state.contextPoints) || 0));
-      $('stat-label').textContent = 'POPULATION';
+      $('stat-label').textContent = 'HAB.';
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
       // Once the data network exists, technology points take the place of context.
       const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
-      $('secondary-label').textContent = techShown ? 'POINTS TECH' : 'CONTEXTE';
+      $('secondary-label').textContent = techShown ? 'TECH' : 'CONTEXTE';
+      $('secondary-stat').classList.toggle('tech', techShown);
       $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
       if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
+      // The skills button drops its word when the bar runs out of room.
+      const bar = $('skill-tree-button').parentElement;
+      const topSignature = [population, contextText, techShown, $('skill-tree-button').hidden, bar.clientWidth].join('|');
+      if (topSignature !== topBarSignature) {
+        topBarSignature = topSignature;
+        bar.classList.remove('compact');
+        if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add('compact');
+      }
       $('scan-button').hidden = level !== 'galaxy';
       $('scan-button').disabled = level !== 'galaxy';
       $('build-button').hidden = level !== 'surface';
@@ -505,30 +555,30 @@
       $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
       $('road-button').setAttribute('aria-pressed', String(state.tool === 'road'));
       $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
-      for (const option of buildOptions.children) {
-        const definition = BuildingData.get(option.dataset.buildingType);
-        const price = root.OrbitConstruction.costFor(option.dataset.buildingType) || {};
-        const showPrice = root.OrbitConstruction.pricesEnabled();
+      const filter = buildFilter(state);
+      for (const card of buildOptions.children) {
+        const option = card.querySelector('.build-option'), type = card.dataset.buildingCard;
+        const definition = BuildingData.get(type);
+        const price = root.OrbitConstruction.costFor(type) || {};
         const unique = (definition?.placementRules?.uniquePerPlanet || definition?.placementRules?.uniqueInGame) &&
           (state.surfaceBuildings || []).some(building => building.type === definition.id &&
             (definition.placementRules.uniqueInGame || building.planetId === state.planet?.id));
-        // Buildings appear as the colony needs them.
-        option.hidden = !root.OrbitProgression.buildingUnlocked(state, option.dataset.buildingType);
+        // Buildings appear as the colony needs them, in their group.
+        card.hidden = !root.OrbitProgression.buildingUnlocked(state, type) || (filter !== 'all' && groupOf(definition)?.id !== filter);
         // A world without colony takes only a colony or labs (skill "Atterrisseur").
-        const blocked = state.planet ? root.OrbitProgression.buildBlockedHere(state, option.dataset.buildingType, state.planet) : null;
+        const blocked = state.planet ? root.OrbitProgression.buildBlockedHere(state, type, state.planet) : null;
         option.disabled = unique || Boolean(blocked) || !Inventory.canAfford(state.inventory, price);
-        // Prices are masked for now: only the unique-base notice shows.
-        const costLabel = option.querySelector('.build-option-cost'), costText = unique ? 'Déjà posée' : blocked && !option.hidden ? 'Hors colonie' : showPrice ? resourceSummary(price) : '';
-        if (costLabel && costLabel.textContent !== costText) costLabel.textContent = costText;
-        if (costLabel) costLabel.hidden = !costText;
-        if (definition) option.title = unique ? 'Un seul exemplaire possible.' : blocked || option.disabled
-          ? `Ressources requises : ${resourceSummary(price)}` : definition.description;
+        // Prices are masked for now: only why it can't be placed shows.
+        const note = option.querySelector('.build-option-note');
+        const noteText = unique ? 'Déjà posée' : blocked ? 'Hors colonie'
+          : root.OrbitConstruction.pricesEnabled() ? resourceSummary(price) : '';
+        if (note.textContent !== noteText) note.textContent = noteText;
+        note.hidden = !noteText;
+        option.title = unique ? 'Un seul exemplaire possible.' : blocked || '';
       }
-      renderBuildMenuTabs(state);
-      $('resource-stock').textContent = root.OrbitProcessData?.config.colonyReserveInfinite ? 'RÉSERVE COLONIE ∞ · MODE V1' :
-        `STOCK · ${ResourceData.catalog().filter(resource => Object.hasOwn(ResourceData.startingInventory, resource.id))
-          .map(resource => `${resource.label} ${Inventory.isInfinite(resource.id) ? '∞' : fmt(state.inventory?.[resource.id] || 0)}`).join(' · ')}`;
-      $('build-menu-title').textContent = 'INFRASTRUCTURES';
+      renderBuildMenuTabs(state, filter);
+      renderBuildInfo(state);
+      $('build-menu-title').textContent = 'CONSTRUCTION';
       // On a world without colony, say what may be built there.
       const settled = (state.surfaceBuildings || []).some(building => building.type === 'colony' && building.planetId === state.planet?.id);
       const anyColony = (state.surfaceBuildings || []).some(building => building.type === 'colony');
@@ -539,7 +589,7 @@
       $('power-gauge').hidden = !power;
       if (power) {
         const supply = power.supplyMW, finite = Number.isFinite(supply);
-        const text = `${fmt(Math.round(power.demandMW))} / ${finite ? fmt(Math.round(supply)) : '∞'} MW`;
+        const text = finite ? `${fmt(Math.round(power.demandMW))} / ${fmt(Math.round(supply))} MW` : `${fmt(Math.round(power.demandMW))} MW`;
         if ($('power-value').textContent !== text) $('power-value').textContent = text;
         $('power-fill').style.width = `${finite && supply > 0 ? Math.min(100, power.demandMW / supply * 100) : 0}%`;
         $('power-gauge').classList.toggle('short', finite && power.demandMW > supply + 1e-6);
@@ -552,49 +602,106 @@
       $('road-button').classList.toggle('active', state.tool === 'road');
     }
 
-    // The build menu's second tab: buildings the player saved (state.library),
-    // placed again with their name and cards.
-    let savedSignature = null;
-    function renderBuildMenuTabs(state) {
-      const saved = (state.library?.buildings || []).filter(item => BuildingData.processTypes.includes(item.type));
-      const tab = state.buildMenuTab === 'saved' ? 'saved' : 'catalog';
-      for (const [id, name] of [['build-tab-catalog', 'catalog'], ['build-tab-saved', 'saved']]) {
-        $(id).classList.toggle('active', tab === name);
-        $(id).setAttribute('aria-selected', String(tab === name));
+    // The build menu's filter: all, one group, or the buildings the player
+    // saved (state.library), placed again with their name and cards.
+    const savedBuildings = state => (state.library?.buildings || []).filter(item => BuildingData.processTypes.includes(item.type));
+    function buildFilter(state) {
+      const wanted = state.buildMenuTab || 'all';
+      if (wanted === 'saved') return savedBuildings(state).length ? 'saved' : 'all';
+      return BuildingData.menuGroups.some(group => group.id === wanted) ? wanted : 'all';
+    }
+    let filterSignature = null, savedSignature = null;
+    function renderBuildMenuTabs(state, filter) {
+      const saved = savedBuildings(state);
+      // Only the groups holding an available building, and "saved" once
+      // something is saved.
+      const groups = BuildingData.menuGroups.filter(group => BuildingData.catalog()
+        .some(definition => group.categories.includes(definition.category) && root.OrbitProgression.buildingUnlocked(state, definition.id)));
+      const chips = [{ id: 'all', label: 'TOUT' }, ...groups, ...(saved.length ? [{ id: 'saved', label: `ENREGISTRÉS ${saved.length}` }] : [])];
+      const signature = JSON.stringify([chips.map(chip => chip.label), filter]);
+      if (signature !== filterSignature) {
+        filterSignature = signature;
+        $('build-filters').replaceChildren(...chips.map(chip => {
+          const button = document.createElement('button');
+          button.type = 'button'; button.dataset.buildFilter = chip.id; button.textContent = chip.label;
+          button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(chip.id === filter));
+          button.classList.toggle('active', chip.id === filter);
+          return button;
+        }));
       }
-      $('build-options').hidden = tab !== 'catalog';
-      $('resource-stock').hidden = tab !== 'catalog';
-      $('saved-buildings').hidden = tab !== 'saved';
-      $('saved-buildings-count').textContent = String(saved.length);
+      const info = Boolean(state.buildInfoType);
+      $('build-filters').hidden = info;
+      $('build-options').hidden = info || filter === 'saved';
+      $('saved-buildings').hidden = info || filter !== 'saved';
       const available = saved.map(item => root.OrbitProgression.buildingUnlocked(state, item.type));
-      const signature = JSON.stringify([saved.map(item => [item.id, item.name]), available]);
-      if (signature === savedSignature) return;
-      savedSignature = signature;
-      const list = $('saved-buildings');
-      if (!saved.length) {
-        const empty = document.createElement('p'); empty.className = 'saved-buildings-empty';
-        empty.textContent = 'Aucun bâtiment enregistré. Touchez un bâtiment, puis « Enregistrer le bâtiment ».';
-        list.replaceChildren(empty); return;
-      }
-      list.replaceChildren(...saved.map((item, index) => {
+      const savedNow = JSON.stringify([saved.map(item => [item.id, item.name]), available]);
+      if (savedNow === savedSignature) return;
+      savedSignature = savedNow;
+      $('saved-buildings').replaceChildren(...saved.map((item, index) => {
         const definition = BuildingData.get(item.type);
-        const entry = document.createElement('div'); entry.className = 'saved-building';
+        const entry = document.createElement('div'); entry.className = 'build-card saved-building';
         const button = document.createElement('button');
         button.type = 'button'; button.className = 'build-option'; button.dataset.savedBuildingId = item.id;
         button.disabled = !available[index] || !definition;
-        const icon = document.createElement('span'); icon.className = 'build-option-icon'; icon.textContent = definition?.shortLabel || '?';
-        const copy = document.createElement('span'); copy.className = 'build-option-copy';
-        const title = document.createElement('strong'); title.textContent = item.name;
+        const icon = document.createElement('canvas'); icon.className = 'build-option-badge'; icon.width = icon.height = 72;
+        icon.setAttribute('aria-hidden', 'true');
+        if (definition) root.OrbitBuildingRenderer?.drawBadge(icon, definition.id);
+        const name = document.createElement('strong'); name.textContent = item.name;
         const cards = item.plan.machines.length;
-        const description = document.createElement('small');
-        description.textContent = `${definition?.label || item.type}${cards ? ` · ${cards} carte${cards > 1 ? 's' : ''}` : ''}${available[index] ? '' : ' · pas encore disponible'}`;
-        copy.append(title, description); button.append(icon, copy);
+        const note = document.createElement('small'); note.className = 'build-option-note';
+        note.textContent = available[index] ? `${cards} carte${cards > 1 ? 's' : ''}` : 'Indisponible';
+        button.append(icon, name, note);
         const remove = document.createElement('button');
         remove.type = 'button'; remove.className = 'saved-building-remove'; remove.dataset.deleteSavedBuilding = item.id;
         remove.setAttribute('aria-label', `Retirer ${item.name} des bâtiments enregistrés`); remove.textContent = '×';
         entry.append(button, remove);
         return entry;
       }));
+    }
+
+    // How a building works, opened by its "i": what it does, where it goes,
+    // what it needs, and a button to place it.
+    let infoShown = null;
+    function placementText(definition) {
+      const rules = definition.placementRules || {};
+      if (rules.deepWaterOnly) return 'En mer profonde';
+      if (rules.coastRequired) return 'Sur la côte, face à la mer';
+      if (rules.shoreRequired) return `À moins de ${rules.shoreReach || 30} km d’une eau`;
+      return 'Sur la terre ferme';
+    }
+    function powerText(definition) {
+      if (definition.generatorMW) return `+${fmt(definition.generatorMW)} MW`;
+      if (definition.id === 'wind_turbine') return `+${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW`;
+      if (definition.id === 'lab') return 'Autonome';
+      if (BuildingData.processTypes.includes(definition.id)) return 'Selon ses cartes';
+      return '';
+    }
+    function renderBuildInfo(state) {
+      const type = state.buildMenuOpen ? state.buildInfoType : null;
+      const definition = type ? BuildingData.get(type) : null;
+      $('build-info').hidden = !definition;
+      if (!definition) { infoShown = null; return; }
+      const option = buildOptions.querySelector(`[data-building-type="${type}"]`);
+      $('build-info-place').disabled = !option || option.disabled;
+      $('build-info-place').textContent = option?.disabled ? (option.querySelector('.build-option-note').textContent || 'INDISPONIBLE').toUpperCase() : 'CONSTRUIRE';
+      if (infoShown === type) return;
+      infoShown = type;
+      root.OrbitPanelKit?.badge($('build-info-icon'), type);
+      $('build-info-name').textContent = nameCase(definition.label);
+      $('build-info-group').textContent = groupOf(definition)?.label || 'COLONIE';
+      $('build-info-details').textContent = definition.details || definition.description;
+      const facts = [['Emplacement', placementText(definition)],
+        ['Route', definition.roadRequired ? 'À relier par route' : 'Par voie maritime'],
+        ['Énergie', powerText(definition)],
+        ['Limite', definition.placementRules?.uniquePerPlanet ? 'Une par planète' : ''],
+        ['Chantier', Object.entries(definition.constructionNeeds || {})
+          .map(([id, amount]) => `${fmt(amount)} ${ResourceData.get(id)?.label || id}`).join(' · ')]];
+      $('build-info-facts').replaceChildren(...facts.filter(([, value]) => value).flatMap(([label, value]) => {
+        const term = document.createElement('dt'); term.textContent = label;
+        const detail = document.createElement('dd'); detail.textContent = value;
+        return [term, detail];
+      }));
+      $('build-menu').scrollTop = 0;
     }
 
     return Object.freeze({ toast, showSelection, update, compositionText });

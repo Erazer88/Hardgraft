@@ -3,9 +3,8 @@
 
   // The hub's own menu (launch platform), opened like the colony's. On its
   // site: what it still waits for, how fast each material arrives (30 s
-  // moving average) and who sends it. Assembled: what waits to leave for the
-  // Ark, the launch rate, its power and state. Redrawn every REDRAW_MS; the
-  // delivered quantities follow every refresh.
+  // moving average) and who sends it. Assembled: the launch rate and state.
+  // Redrawn every REDRAW_MS; the delivered quantities follow every refresh.
   const Kit = root.OrbitPanelKit;
   const { fmt, units, perMinute } = Kit;
   const REDRAW_MS = 5000;
@@ -55,16 +54,12 @@
       }
 
       if (building.constructionState === 'complete') {
-        // The launches to the Ark, and what waits for them.
+        // The launches to the Ark.
         const exportSection = section('VERS L’ARCHE');
         const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, building.id, state.simulation.time);
         const launch = root.OrbitOrbitalLogisticsData.launch;
         row(exportSection, 'Lancements', `${fmt(metrics.throughput * 60)} / ${fmt(launch.capacityUPerSecond * 60)} u/min`,
           root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time).toLowerCase());
-        exportSection.append(bar(metrics.throughput, launch.capacityUPerSecond, null, 'ok'));
-        for (const [id, amount] of Object.entries(building.launchStock || {}).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1])) {
-          exportSection.append(Kit.line(document, 'stock', resourceName(id), 'en attente de lancement', units(amount)));
-        }
       }
 
       // What arrives now (30 s average), and who sends it.

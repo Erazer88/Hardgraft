@@ -113,9 +113,14 @@ commence que si tous ses ingrédients entiers sont présents et s'il y a de la p
 tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de matière.
 Une simulation avance au plus 100 pas de 0,1 s par appel (`maxTicksPerAdvance`).
 
-**Docks et quais.** Ce sont des connecteurs logiques, sans limite de débit. Le Dock de
+**Docks et quais.** Ce sont des connecteurs logiques, sans limite de débit, qui gardent
+au plus `config.dockCapacity` (100) unités par ressource. Le Dock de
 sortie accepte plusieurs connexions entrantes, toutes de la même matière, et déplace
-les unités vers `building.dockStock` (distinct de l'inventaire reçu). Sa destination
+les unités vers `building.dockStock` (distinct de l'inventaire reçu) tant que ce stock
+n'a pas atteint 100 ; au-delà il se remplit et arrête l'amont. De même, la logistique
+ne livre à un bâtiment à cartes que ce qui manque pour atteindre 100 u de chaque
+ressource reçue (`building.inventory`) ; le reste attend au Dock source. La Colonie et
+la Plateforme de lancement reçoivent tout. Sa destination
 est choisie par matière parmi la Colonie, les usines et terrils terminés équipés d'un
 Quai d'entrée, les dépôts dotés d'une Porte d'entrée et les Plateformes de lancement
 terminées de la planète, reliés par un chemin construit. Tant que sa matière n'a pas
@@ -146,18 +151,29 @@ vivent dans la bibliothèque du joueur (`src/storage/library.js`), à part de la
 sauvegarde, et survivent à une nouvelle partie.
 
 **Bâtiments enregistrés.** Sur la fiche d'un bâtiment à cartes (usine, extracteur, terril, dépôt, station de pompage, datacenter…), « ENREGISTRER » copie son type,
-son nom et ses cartes (sans stocks ni destinations) dans l'onglet « ENREGISTRÉS » du
-menu +. Le poser crée le bâtiment avec ce nom (numéroté s'il est déjà pris) et ses
+son nom et ses cartes (sans stocks ni destinations) sous le filtre « ENREGISTRÉS » du
+menu Construction. Le poser crée le bâtiment avec ce nom (numéroté s'il est déjà pris) et ses
 cartes ; seules restent celles que son catalogue accepte à cet endroit.
 
-**Lecture des cartes.** Chaque carte montre ses ports, son débit, son énergie, son état
-et sa barre de traitement. États : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`,
-`SANS ÉNERGIE`, `SANS DESTINATION`. L'affichage est lissé (un état actif est tenu
-1,2 s, le débit lissé sur 0,7 s) pour ne pas clignoter à haut débit. La barre compte
-les unités traitées par blocs et repart de zéro sans animation de retour : bloc de
-1 u sous 100 u/s, puis 0,1 ku, 1 ku, 0,1 Mu… selon le débit (`BAR_BLOCKS`). Son libellé
-donne « TRAITÉ / EXTRAIT / ENVOYÉ · total · BARRE bloc » ; un séparateur affiche aussi la
-teneur moyenne de sa roche. L'affichage ne modifie pas la simulation.
+**Lecture des cartes.** Chaque carte montre ses ports, puis son état et son débit sur
+une ligne (« 0,8 / 6 u/s », ou « 2 u/s » sans plafond), une large barre bleue, sa
+puissance (« ⚡ 3 MW », ambre en manque d'énergie, « +x / 8 MW » pour un générateur) et
+une note : stock d'un quai (« Stock 45 / 100 u »), teneur d'un séparateur, charge d'une
+carte de dépôt. États : `ACTIF`, `ATTENTE ENTRÉE`, `SORTIE PLEINE`, `SANS ÉNERGIE`,
+`SANS DESTINATION`. L'affichage est lissé (un état actif est tenu 1,2 s, le débit lissé
+sur 0,7 s) pour ne pas clignoter à haut débit. La barre d'une carte de traitement
+compte les unités par blocs et repart de zéro sans animation de retour : bloc de 1 u
+sous 100 u/s, puis 0,1 ku, 1 ku, 0,1 Mu… selon le débit (`BAR_BLOCKS`) ; celle d'un quai
+ou d'un Dock de sortie montre son remplissage sur 100. Les liaisons sont des courbes ou
+des angles droits arrondis (bouton de l'en-tête de l'éditeur, gardé dans le
+navigateur). L'affichage ne modifie pas la simulation.
+
+**Teneurs.** Un séparateur crédite, à chaque lot, lot × teneur × 90 % de son matériau
+et en sort les unités entières (la fraction attend dans `yieldCredit`) ; ses résidus
+perdent exactement cette part récupérée, si bien que concentré + crédit + métal des
+résidus = métal entré. Exemple à 30 % de fer : 100 roches broyées donnent 27
+concentrés et 73 résidus à ≈ 4,1 % de fer ; 27 concentrés font 13 fers bruts (2:1),
+puis une plaque par 10 fers.
 
 ## Énergie et prix
 

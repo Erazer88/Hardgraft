@@ -446,14 +446,10 @@ async function checkDeveloperSettings(cdp, name) {
   })()`);
   assert.deepEqual(infiniteMinerals, { enabled: true, missing: [], consumed: true,
     stock: {}, waterIsInfinite: false }, `${name} infinite minerals cover mineral costs only`);
-  await cdp.until('document.querySelector("#resource-stock").textContent.includes("Fer ∞")',
-    `${name} infinite minerals display`);
 
   await cdp.click('#developer-reset');
   assert.equal(await cdp.evaluate('window.OrbitDeveloperSettings.get("infiniteMinerals")'), false,
     `${name} developer reset disables infinite minerals`);
-  await cdp.until('/STOCK · Fer \\d/.test(document.querySelector("#resource-stock").textContent)',
-    `${name} counted colony stock returns after developer reset`);
   await cdp.until('/FER\\s*\\d/.test(document.querySelector("#colony-stock").textContent)',
     `${name} colony stock stays visible in the telemetry`);
   await cdp.click('#developer-tools-close');
@@ -529,8 +525,8 @@ async function runViewport(cdp, viewport, runtimeErrors) {
   assert.equal((await cdp.evaluate(stateExpression)).selectedId, arkPoint.id, `${name} real tap selects the Ark`);
   assert.equal(await cdp.evaluate('document.querySelector("#orbital-hub-logistics").hidden'), false,
     `${name} Ark selection opens its logistics panel`);
-  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#orbital-hub-logistics .logistics-card > strong")].map(item => item.textContent)'),
-    ['QUAIS', 'CORE', 'STOCK · ∞', 'ÉNERGIE', 'FLUX ENTRANTS'], `${name} hub panel shows the five V1 cards`);
+  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#orbital-hub-logistics .building-flow > h3")].map(item => item.textContent)'),
+    ['ARRIVÉES', 'STOCK'], `${name} the Ark sheet shows its arrivals and stock`);
   assert.equal(await cdp.evaluate('document.querySelector("#enter-button").hidden'), true,
     `${name} Ark cannot be mistaken for a planet surface`);
   await cdp.screenshot(`${name}-ark-hub.png`);

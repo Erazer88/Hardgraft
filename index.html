@@ -18,12 +18,12 @@
     <div class="top-bar panel">
       <div class="top-stat" id="primary-stat" title="Population">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="16.8" cy="9" r="2.5"/><path d="M15.2 13.9c2.8-.4 4.8 1.2 5.3 4.6"/></svg>
-        <span class="sr-only" id="stat-label">POPULATION</span><span id="stat-value">—</span>
+        <span class="top-stat-text"><span id="stat-value">—</span><span class="top-stat-label" id="stat-label">HAB.</span></span>
       </div>
       <span class="top-divider" aria-hidden="true"></span>
       <div class="top-stat" id="secondary-stat" title="Contexte">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/></svg>
-        <span class="sr-only" id="secondary-label">CONTEXTE</span><span id="secondary-value">—</span>
+        <span class="top-stat-text"><span id="secondary-value">—</span><span class="top-stat-label" id="secondary-label">CONTEXTE</span></span>
       </div>
       <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5.5" cy="18" r="2.2"/><circle cx="18.5" cy="18" r="2.2"/><path d="M12 7.2V12m0 0-5.2 4.3M12 12l5.2 4.3"/></svg>
@@ -38,8 +38,7 @@
     <i aria-hidden="true"><b id="power-fill"></b></i>
   </div>
   <aside class="inspector panel" id="inspector" hidden>
-    <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
-    <h2 id="selection-name">Néréide</h2>
+    <div class="inspector-top"><canvas class="sheet-icon" id="sheet-icon" width="96" height="96" aria-hidden="true" hidden></canvas><div class="sheet-title"><span id="selection-type">SYSTÈME STELLAIRE</span><h2 id="selection-name">Néréide</h2></div><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <div class="building-head" id="building-head" hidden>
       <canvas class="building-icon" id="building-icon" width="96" height="96" aria-hidden="true"></canvas>
       <div class="building-head-text">
@@ -66,13 +65,8 @@
       <section class="logistics-card"><strong>RÉCEPTION</strong><div id="platform-reception-data"></div><small id="platform-received-total"></small></section>
       <section class="logistics-card"><strong>LANCEMENT</strong><div id="platform-launch-data"></div></section>
     </div>
-    <div class="orbital-logistics" id="orbital-hub-logistics" hidden>
-      <section class="logistics-card"><strong>QUAIS</strong><div id="hub-quays-data"></div></section>
-      <section class="logistics-card"><strong>CORE</strong><div id="hub-core-data"></div></section>
-      <section class="logistics-card"><strong>STOCK · ∞</strong><div id="hub-stock-data"></div></section>
-      <section class="logistics-card"><strong>ÉNERGIE</strong><div id="hub-energy-data"></div></section>
-      <section class="logistics-card"><strong>FLUX ENTRANTS</strong><div id="hub-incoming-data"></div></section>
-    </div>
+    <div class="sheet-readout" id="orbital-hub-logistics" hidden></div>
+    <div class="sheet-readout" id="survey-readout" hidden></div>
     <div class="building-actions">
       <button class="factory-edit-button" id="factory-edit-button" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span>MODIFIER</span></button>
       <button class="factory-edit-button" id="save-building-button" type="button" aria-label="Enregistrer le bâtiment avec son nom et ses cartes" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>ENREGISTRER</span></button>
@@ -82,15 +76,17 @@
     <button class="primary-button orbital-lab-button" id="orbital-lab-button" type="button" hidden><span id="orbital-lab-label">Poser un laboratoire en orbite</span><span aria-hidden="true">+</span></button>
   </aside>
   <aside class="build-menu panel" id="build-menu" aria-label="Catalogue des infrastructures" hidden>
-    <div class="build-menu-header"><div><span>CONSTRUCTION</span><strong id="build-menu-title">INFRASTRUCTURES</strong></div><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
-    <div class="build-menu-tabs" role="tablist" aria-label="Catalogue ou bâtiments enregistrés">
-      <button type="button" role="tab" id="build-tab-catalog" aria-selected="true">INFRASTRUCTURES</button>
-      <button type="button" role="tab" id="build-tab-saved" aria-selected="false">ENREGISTRÉS <span id="saved-buildings-count">0</span></button>
-    </div>
+    <div class="build-menu-header"><strong id="build-menu-title">CONSTRUCTION</strong><button id="build-menu-close" class="text-icon" aria-label="Fermer le catalogue">×</button></div>
+    <div class="build-filters" id="build-filters" role="tablist" aria-label="Trier les bâtiments"></div>
     <p class="build-menu-hint" id="build-menu-hint" hidden></p>
-    <div class="resource-stock" id="resource-stock"></div>
     <div class="build-options" id="build-options"></div>
     <div class="build-options saved-buildings" id="saved-buildings" hidden></div>
+    <div class="build-info" id="build-info" role="dialog" aria-modal="false" aria-labelledby="build-info-name" hidden>
+      <div class="build-info-head"><canvas id="build-info-icon" width="96" height="96" aria-hidden="true"></canvas><div><strong id="build-info-name"></strong><span id="build-info-group"></span></div><button type="button" class="text-icon" id="build-info-close" aria-label="Fermer la fiche">×</button></div>
+      <p id="build-info-details"></p>
+      <dl class="build-info-facts" id="build-info-facts"></dl>
+      <button type="button" class="build-info-place" id="build-info-place">CONSTRUIRE</button>
+    </div>
   </aside>
   <div class="alerts" id="alerts" hidden>
     <button class="alerts-toggle" id="alerts-toggle" aria-expanded="false" aria-controls="alerts-list" aria-label="Problèmes en cours"><span aria-hidden="true">⚠</span><span id="alerts-count">0</span><span class="alerts-label">PROBLÈMES</span></button>
@@ -140,6 +136,7 @@
       </div>
       <div class="factory-header-tools">
         <span id="factory-editor-status" aria-live="polite">PLAN ENREGISTRÉ</span>
+        <button type="button" class="factory-link-style" id="factory-link-style" aria-pressed="false" aria-label="Forme des liaisons : courbes ou angles droits"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6c9 0 7 12 16 12"/></svg><span>COURBES</span></button>
       </div>
     </header>
     <div class="factory-editor-layout">

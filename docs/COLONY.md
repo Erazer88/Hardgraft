@@ -43,7 +43,7 @@ l'assemblent (2 s). Sa balise et le menu de la colonie montrent l'avancement.
 Un clic sur le hub ouvre son propre menu (`src/ui/hubPanel.js`, bâti comme celui de la
 colonie) : état du chantier, matériaux à recevoir (livré / demandé, débit reçu et temps
 estimé), arrivées et fournisseurs en moyenne glissante sur 30 s ; une fois assemblé,
-l'export vers l'Arche (état, débit de lancement, énergie, stock en attente). Le menu
+les lancements vers l'Arche (débit et état). Le menu
 permet aussi de le renommer et de le démolir.
 
 La population ne baisse pas et n'a pas d'autre effet pour l'instant. Après le dernier

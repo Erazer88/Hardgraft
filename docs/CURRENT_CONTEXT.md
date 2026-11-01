@@ -32,11 +32,17 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   révélée par un scan ; ratios et rendements restent à calibrer.
 - Les bâtiments sont des balises hexagonales dont la taille suit le zoom (bornée), avec
   leur nom au-dessus. Noms par défaut « Usine 1 », « Usine 2 »… numérotés par type sur
-  toute la galaxie, modifiables dans l'inspecteur ou le menu de la colonie.
+  toute la galaxie, modifiables dans l'inspecteur ou le menu de la colonie. Les noms
+  n'apparaissent qu'une fois les balises assez grandes (toujours pour la sélection),
+  suivent un peu le zoom et ne se chevauchent jamais : un nom qui couvrirait un autre
+  nom ou une balise passe sous sa balise, sinon il est omis (sélection, colonie et hub
+  d'abord).
 
 ### Interface
 
-- Vue principale épurée : barre du haut (population, points, « Compétences », menu ☰),
+- Vue principale épurée : barre du haut (population « HAB. », points « TECH » ou
+  « CONTEXTE » en légende sous chaque chiffre, « Compétences » qui se réduit à son
+  icône quand la place manque, menu ☰),
   barre d'actions en bas (retour nommé d'après l'échelle visée, « Route », « Construction »,
   « Sonde » en vue galaxie). Pause, plein écran et version sont dans le menu ; plus de
   boutons de zoom, d'échelle, de recentrage, de titres ni de graduations à l'écran
@@ -50,6 +56,19 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   ou matériaux à recevoir, flux, arrivées avec leurs expéditeurs. Plus de fil d'Ariane
   ni de libellé de lieu sur la carte. En vue planète, une jauge discrète
   « ⚡ consommation / production MW » sous la barre du haut (rouge en déficit).
+- L'Arche et le relevé de terrain (clic sur le sol) ouvrent le même panneau bas : badge,
+  tuiles (plateformes, arrivées, énergie, points tech ; altitude et rayon de forage),
+  puis lignes d'arrivées et de stock, ou composition du sol en barres. Le menu du hub
+  assemblé ne garde que les lancements.
+- Menu Construction : filtres en puces (Tout, Production, Industrie, Énergie,
+  Transport, Données, Enregistrés), une carte par bâtiment (badge et nom, motif
+  d'indisponibilité) et un bouton « i » qui ouvre sa fiche de fonctionnement
+  (`details`, emplacement, route, énergie, chantier) avec « Construire ». Plus de ligne
+  de stock.
+- Cartes de l'éditeur : état et débit sur une ligne, une large barre bleue (unité en
+  cours, ou remplissage d'un quai), « ⚡ MW » de la carte et une note (stock d'un quai,
+  teneur d'un séparateur). Liaisons courbes ou à angle droit (bouton de l'en-tête,
+  choix gardé par le navigateur). Plus de symbole ∞.
 
 ### Colonie et progression
 
@@ -76,9 +95,13 @@ système restent dans sa documentation spécialisée ; les anciens plans de
 - La roche reste une seule ressource à chaque étape ; chaque stock garde une
   composition moyenne et les séparateurs tirent leur matériau selon la teneur
   (récupération 90 %).
-- Docks, Quais, Portes de dépôt et trieurs logiques n'ont pas de limite de débit. Un
-  Dock de sortie sans destination n'absorbe rien (« SANS DESTINATION ») et bloque
-  l'amont.
+- Docks, Quais, Portes de dépôt et trieurs logiques n'ont pas de limite de débit, mais
+  un quai garde au plus 100 u par ressource (`dockCapacity`) : un bâtiment à cartes ne
+  reçoit plus au-delà, un Dock de sortie plein arrête l'amont. Un Dock de sortie sans
+  destination n'absorbe rien (« SANS DESTINATION ») et bloque l'amont.
+- Les résidus d'un séparateur perdent exactement la part récupérée (lot × teneur ×
+  90 %), même quand le crédit de rendement paie une unité entière : le métal est
+  conservé (tests de teneurs de 0 à 80 % sur tous les séparateurs).
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
 - Le gameplay est fonctionnel jusqu'à l'Arche. L'arbre de compétences s'ouvre aux
@@ -92,8 +115,8 @@ système restent dans sa documentation spécialisée ; les anciens plans de
   [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
 - Une colonie par planète. Le fret vers l'Arche est 2× plus lent qu'avant
   (`cargoSpeedMultiplier: .35`).
-- Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu +, onglet
-  « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
+- Bibliothèque du joueur hors sauvegarde : bâtiments enregistrés (menu Construction,
+  filtre « Enregistrés ») et blueprints de cartes (éditeur, bouton « Blueprints »).
 - Énergie limitée (colonie 12 MW, éolienne 32 MW, incinérateur lissé sur 20 s). Un
   bouton « PROBLÈMES » en haut à droite liste les alertes en cours : énergie
   insuffisante, dock sans destination, flux de colonie en retard ; une alerte reste 3 s

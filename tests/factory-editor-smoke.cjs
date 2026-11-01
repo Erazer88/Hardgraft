@@ -160,7 +160,7 @@ async function main() {
     await cdp.click('#factory-palette-close');
     assert.ok(ui.ports.includes('raw_ore') && ui.ports.includes('crushed_ore'));
     assert.ok(ui.fields.includes('rate') && ui.fields.includes('energy') && ui.fields.includes('cycle') && ui.fields.includes('state'));
-    assert.match(ui.drillRate, /∞/);
+    assert.doesNotMatch(ui.drillRate, /∞/);
     assert.match(ui.crusherRate, /2 u\/s/);
 
     let before = await editorSnapshot();
@@ -373,7 +373,7 @@ async function main() {
         label: card.querySelector('[data-output-label="material"]').textContent,
         portError: Math.abs(port.left + port.width / 2 - bounds.right) };
     })()`);
-    assert.match(receivedUI.stock, /8 u/);
+    assert.match(receivedUI.stock, /Stock 8 \/ 100 u/);
     assert.match(receivedUI.label, /Roche ferrifère brute/);
     assert.ok(receivedUI.portError < 2, 'the input dock has a usable output centered on its right edge');
     source = await point('[data-machine-id="received-dock"] .factory-port.output');

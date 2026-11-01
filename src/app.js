@@ -37,7 +37,7 @@
   // The player's saved buildings and blueprints, kept outside the game save.
   const Library = globalThis.OrbitLibrary;
   state.library = Library.load(globalThis.localStorage);
-  state.buildMenuTab = 'catalog';
+  state.buildMenuTab = 'all'; state.buildInfoType = null;
   const saveLibrary = () => Library.save(globalThis.localStorage, state.library);
   const factoryEditor = globalThis.OrbitFactoryEditor.create(document, {
     onSave(buildingId, plan) {
@@ -874,6 +874,7 @@
       const composition = terrainData.materials ? BuildingPlacement.groundComposition(terrainData,
         Config.terrain.textureScale, { x: terrainPoint.x, y: terrainPoint.y }, drill) : null;
       select({ surfacePoint: true, x: terrainPoint.x, y: terrainPoint.y, altitude, name: names,
+        composition, radiusKm: drill.catchmentRadius,
         info: composition ? `Sol, moyenne sur ${drill.catchmentRadius} km : ${hud.compositionText(composition)}.` : 'Composition du sol inconnue.' });
     }
   }
@@ -976,18 +977,29 @@
     if (state.level !== 'surface') return;
     cancelRoadDrag();
     if (state.tool === 'build') { state.tool = 'pan'; state.placement = null; }
-    else state.buildMenuOpen = !state.buildMenuOpen;
+    else { state.buildMenuOpen = !state.buildMenuOpen; state.buildInfoType = null; }
     if (state.buildMenuOpen) { state.tool = 'pan'; state.placement = null; state.selected = null; $('inspector').hidden = true; }
     updateUI();
   };
-  $('build-menu-close').onclick = () => { state.buildMenuOpen = false; updateUI(); };
+  $('build-menu-close').onclick = () => { state.buildMenuOpen = false; state.buildInfoType = null; updateUI(); };
   $('build-options').addEventListener('click', event => {
+    const info = event.target.closest('[data-building-info]');
+    if (info) { state.buildInfoType = info.dataset.buildingInfo; updateUI(); return; }
     const option = event.target.closest('[data-building-type]');
     if (option) chooseBuilding(option.dataset.buildingType);
   });
+  $('build-filters').addEventListener('click', event => {
+    const chip = event.target.closest('[data-build-filter]');
+    if (chip) { state.buildMenuTab = chip.dataset.buildFilter; updateUI(); }
+  });
+  $('build-info-close').onclick = () => { state.buildInfoType = null; updateUI(); };
+  $('build-info-place').onclick = () => {
+    const type = state.buildInfoType;
+    state.buildInfoType = null;
+    if (type) chooseBuilding(type);
+    updateUI();
+  };
   $('skill-tree-button').onclick = () => skillTree.open(state);
-  $('build-tab-catalog').onclick = () => { state.buildMenuTab = 'catalog'; updateUI(); };
-  $('build-tab-saved').onclick = () => { state.buildMenuTab = 'saved'; updateUI(); };
   $('saved-buildings').addEventListener('click', event => {
     const remove = event.target.closest('[data-delete-saved-building]');
     if (remove) {
@@ -1007,7 +1019,7 @@
     const template = Library.add(state.library.buildings, Library.buildingTemplate(building, state.factoryPlans[building.id]));
     saveLibrary();
     const cards = template.plan.machines.length;
-    toast(`${template.name} enregistré${cards ? ` avec ${cards} carte${cards > 1 ? 's' : ''}` : ''} : menu +, onglet « Enregistrés ».`);
+    toast(`${template.name} enregistré${cards ? ` avec ${cards} carte${cards > 1 ? 's' : ''}` : ''} : menu Construction, « Enregistrés ».`);
     updateUI();
   }
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
@@ -1130,6 +1142,7 @@
       if (hubPanel.isOpen()) { hubPanel.close(); return; }
       if ($('developer-dialog').open) { $('developer-dialog').close(); return; }
       if ($('menu-dialog').open) $('menu-dialog').close();
+      else if (state.buildInfoType && state.buildMenuOpen) { state.buildInfoType = null; updateUI(); }
       else if (state.buildMenuOpen) { state.buildMenuOpen = false; updateUI(); }
       else if (state.tool !== 'pan') { cancelRoadDrag(); state.tool = 'pan'; state.placement = null; updateUI(); }
       else if (!$('inspector').hidden) { $('inspector').hidden = true; state.selected = null; updateUI(); }

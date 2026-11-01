@@ -168,6 +168,27 @@ test('a dock can route a resource to another built factory inventory instead of 
   assert.deepEqual(plain(platform.launchStock), {});
 });
 
+test('a factory receives at most 100 units of each resource; the rest waits at the source dock', () => {
+  const { factory, state } = fixture({ dockStock: { raw_iron: 250, water: 30 }, dockDestinations: { raw_iron: 'factory-2', water: 'factory-2' } });
+  const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
+    constructionState: 'complete', inventory: { water: 90 } });
+  state.surfaceBuildings.push(receiver);
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  const network = Road.create(planetId);
+  state.roadNetworks[planetId] = network;
+  const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
+  const receiverNode = Road.addNode(network, { x: receiver.x, y: receiver.y, buildingId: receiver.id });
+  Road.addSegment(network, { from: sourceNode.id, to: receiverNode.id,
+    points: [{ x: factory.x, y: factory.y }, { x: receiver.x, y: receiver.y }], builtLength: 110 });
+  Network.transferDockStockToBuildings(state);
+  assert.deepEqual(plain(receiver.inventory), { water: 100, raw_iron: 100 });
+  assert.deepEqual(plain(factory.dockStock), { raw_iron: 150, water: 20 });
+  receiver.inventory.raw_iron = 40;
+  Network.transferDockStockToBuildings(state);
+  assert.equal(receiver.inventory.raw_iron, 100);
+  assert.equal(factory.dockStock.raw_iron, 90);
+});
+
 test('a factory without an input dock keeps routed stock until it adds one', () => {
   const { factory, state } = fixture({ dockStock: { raw_iron: 9 }, dockDestinations: { raw_iron: 'factory-2' } });
   const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,

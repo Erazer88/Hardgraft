@@ -273,7 +273,10 @@
   // One recipe cycle. Rock outputs keep the composition of the rock consumed;
   // a separator emits whole units of concentrate as the grade allows (the
   // fraction carries over to the next cycle) and the rest as tailings,
-  // depleted of what was taken.
+  // depleted of what was taken. The tailings lose exactly the recovered
+  // share (batch × grade × recovery), not the whole units of this cycle:
+  // otherwise a cycle that pays out the carried fraction would leave its
+  // metal in the tailings and a later one would create some.
   function runCycle(machine, def) {
     const primary = primaryInput(machine), batch = primary?.amount || 0;
     const rock = Mix ? Mix.of(machine.inputMix, primary?.inputId) : null;
@@ -281,10 +284,11 @@
     const produced = {}, taken = {};
     for (const item of def.recipe.outputs) {
       if (!item.yieldOf) continue;
-      const credit = (machine.yieldCredit[item.outputId] || 0) + batch * Math.min(1, (rock?.[item.yieldOf] || 0) * Data.config.separation.recovery);
+      const recovered = batch * Math.min(1, (rock?.[item.yieldOf] || 0) * Data.config.separation.recovery);
+      const credit = (machine.yieldCredit[item.outputId] || 0) + recovered;
       produced[item.outputId] = Math.min(batch, Math.floor(credit + 1e-9));
       machine.yieldCredit[item.outputId] = Math.max(0, credit - produced[item.outputId]);
-      taken[item.yieldOf] = (taken[item.yieldOf] || 0) + produced[item.outputId];
+      taken[item.yieldOf] = (taken[item.yieldOf] || 0) + recovered;
     }
     const extracted = Object.values(produced).reduce((sum, amount) => sum + amount, 0);
     for (const item of def.recipe.outputs) {
