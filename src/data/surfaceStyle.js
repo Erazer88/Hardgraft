@@ -162,7 +162,7 @@
       // maxFactor), and a name that would cover another name or beacon is
       // left out (selected, colony and hub first).
       name: Object.freeze({ sizePx: 9, scaleDamping: .4, gapPx: 4, fill: 'rgba(6,14,28,.72)',
-        minPinScale: .8, zoomFollow: .5, minFactor: .85, maxFactor: 1.2, marginPx: 2 }),
+        minPinScale: .68, zoomFollow: .5, minFactor: .85, maxFactor: 1.2, marginPx: 2 }),
       pin: Object.freeze({
         // Size at zoomReference (px per km); it follows the zoom
         // (scale = (zoom / zoomReference) ^ zoomExponent, within minScale–maxScale),
