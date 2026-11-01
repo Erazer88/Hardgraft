@@ -39,14 +39,11 @@
   }
 
   // Output ports a card would send this unit to, in order of preference. A
-  // filter sends each resource to its own output, or to 'other' while that
-  // output is not linked.
-  function routes(machine, resourceId, linked) {
+  // filter sends each resource to its own output (it waits there while that
+  // output is not linked).
+  function routes(machine, resourceId) {
     const config = machine.config || {};
-    if (machine.type === 'depot_filter') {
-      const port = Graph.sortPort(resourceId);
-      return [linked(machine, port) ? port : 'other'];
-    }
+    if (machine.type === 'depot_filter') return [Graph.sortPort(resourceId)];
     if (machine.type === 'depot_priority') return ['primary', 'overflow'];
     if (machine.type === 'depot_splitter') {
       // Keep the sent counts near the chosen share, falling back to the other output.
@@ -97,7 +94,6 @@
       list.push(graph.machines.find(machine => machine.id === connection.toMachineId));
       targets.set(`${connection.fromMachineId}:${connection.fromOutputId}`, list.filter(Boolean));
     }
-    const linked = (machine, port) => (targets.get(`${machine.id}:${port}`) || []).length > 0;
     // A filter lists what its upstream cards hold or let in, before any of it arrives.
     for (const machine of graph.machines) {
       if (definition(machine)?.sortsByResource) for (const resourceId of upstreamResources(graph, machine)) Graph.addSortResource(machine, resourceId);
@@ -150,7 +146,7 @@
         for (const resourceId of Object.keys(machine.storedResources).sort()) {
           while (machine.storedResources[resourceId] > 0) {
             let target = null;
-            for (const port of routes(machine, resourceId, linked)) {
+            for (const port of routes(machine, resourceId)) {
               target = (targets.get(`${machine.id}:${port}`) || []).find(candidate => room(candidate, resourceId) >= 1);
               if (target) { if (machine.splitSent) machine.splitSent[port] = (machine.splitSent[port] || 0) + 1; break; }
             }

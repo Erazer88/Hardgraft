@@ -231,11 +231,10 @@
       description: 'Stocke jusqu’à 1 000 unités et amortit les à-coups.',
       inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('out', 'Sortie')], recipe: null, energyMW: 15 },
     // Filter: one output per resource that reaches it (its sortResources,
-    // ports 'r:<resource>', added as they come, see processGraph.js), and
-    // 'other' for a resource whose output is not linked.
+    // ports 'r:<resource>', added as they come, see processGraph.js).
     depot_filter: { id: 'depot_filter', label: 'FILTRE', mark: 'FI', routing: true, sortsByResource: true,
-      description: 'Une sortie par ressource reçue ; ce qui n’a pas de sortie reliée part dans « Le reste ».',
-      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('other', 'Le reste')],
+      description: 'Une sortie par ressource reçue ; une ressource attend tant que sa sortie n’est pas reliée.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [],
       recipe: null, energyMW: 0 },
     depot_splitter: { id: 'depot_splitter', label: 'RÉPARTITEUR', mark: 'RE', routing: true,
       description: 'Partage le flux entre deux sorties selon un pourcentage.',

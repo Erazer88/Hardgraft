@@ -122,8 +122,9 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   une carte d'entrée à la main efface seulement la destination de ce qui l'alimentait.
 - Dépôt : la carte Stockage (ex-Tampon) garde 1 000 u en tout et consomme 15 MW en
   permanence ; sans énergie elle n'accepte ni ne rend rien. Le Filtre a une sortie par
-  ressource reçue en amont (une ligne par ressource, à côté de son rond), plus « Le
-  reste » pour ce dont la sortie n'est pas reliée ; un ancien filtre garde sa ressource.
+  ressource reçue en amont (une ligne par ressource, à côté de son rond) ; une ressource
+  attend dans le filtre tant que sa sortie n'est pas reliée. Un ancien filtre garde sa
+  ressource.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   et incinération immédiats, carte Stockage sans limite pour la matière récupérée), Plateforme de lancement. Pas de pollution.
 - Deux équipes de robots, 2 s de construction par bâtiment. Prix masqués

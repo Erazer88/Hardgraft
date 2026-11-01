@@ -83,7 +83,7 @@ accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
 | --- | --- | --- |
 | Porte d'entrée | Tire tout le stock reçu (`building.inventory`), à tour de rôle par ressource, sans limite de débit ; note le nom de chaque ressource passée (`machine.transited`, sauvegardé) | — |
 | Stockage | Garde jusqu'à 1 000 unités en tout (`depot.bufferCapacity`) ; 15 MW en permanence, sans énergie il n'accepte ni ne rend rien | — |
-| Filtre | Une sortie par ressource qui lui parvient (ports `r:<ressource>`, liste `machine.sortResources` sauvegardée, nourrie par ce que tiennent ou font entrer les cartes en amont) ; une ressource dont la sortie n'est pas reliée part dans « Le reste » | — |
+| Filtre | Une sortie par ressource qui lui parvient (ports `r:<ressource>`, liste `machine.sortResources` sauvegardée, nourrie par ce que tiennent ou font entrer les cartes en amont) ; une ressource attend dans le filtre tant que sa sortie n'est pas reliée | — |
 | Répartiteur | Partage selon un pourcentage (10 à 90 %) | Part A/B |
 | Priorité | Remplit la sortie prioritaire, puis déborde | — |
 | Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), sans limite de débit | Destination |

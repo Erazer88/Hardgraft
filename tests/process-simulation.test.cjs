@@ -586,9 +586,13 @@ test('depot cards route mixed flows through filters, splitters and priorities to
     toMachineId: 'gate-iron', toInputId: 'in' }).ok, false, 'no output before the resource shows up');
   Industry.advance(state, .1);
   assert.deepEqual(plain(Graph.definitionOf(filter).outputPorts.map(port => [port.id, port.label])),
-    [['r:raw_iron', 'Fer brut'], ['r:water', 'Eau douce'], ['other', 'Le reste']]);
+    [['r:raw_iron', 'Fer brut'], ['r:water', 'Eau douce']]);
+  // While an output is not linked, its resource waits in the filter.
+  Industry.advance(state, 1);
+  assert.equal(depot.gateStock?.['factory-iron']?.raw_iron || 0, 0);
+  assert.ok(Object.values(filter.storedResources).reduce((sum, amount) => sum + amount, 0) > 0);
   connect(graph, 'c2', 'filter', 'r:raw_iron', 'gate-iron', 'in');
-  connect(graph, 'c3', 'filter', 'other', 'split', 'in');
+  connect(graph, 'c3', 'filter', 'r:water', 'split', 'in');
   connect(graph, 'c4', 'split', 'a', 'gate-a', 'in');
   connect(graph, 'c5', 'split', 'b', 'gate-b', 'in');
   assert.equal(Graph.connect(graph, { id: 'mixed-bad', fromMachineId: 'gate-a', fromOutputId: 'out',
