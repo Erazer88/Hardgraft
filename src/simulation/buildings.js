@@ -85,7 +85,6 @@
     const exportEnabled = {};
     const exportResources = root.OrbitOrbitalLogisticsData?.exportResources || [];
     for (const resource of exportResources) exportEnabled[resource.id] = properties.exportEnabled?.[resource.id] === true;
-    const exportCursorResourceId = typeof properties.exportCursorResourceId === 'string' ? properties.exportCursorResourceId : null;
     const logisticsNodeId = properties.logisticsNodeId ?? null;
     if (logisticsNodeId !== null && typeof logisticsNodeId !== 'string') throw new TypeError('Logistics node id must be a string or null');
     const customName = properties.customName ?? null;
@@ -141,7 +140,6 @@
       launchReceivedTotal,
       gateStock,
       exportEnabled,
-      exportCursorResourceId,
       energyUse,
       energyOutputWatts,
       energyOutputUnlimited: properties.energyOutputUnlimited === true,

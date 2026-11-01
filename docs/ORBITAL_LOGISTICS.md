@@ -36,10 +36,13 @@ la colonie en tire ses débits. Chaque transfert note aussi sa liaison dans
 
 La destination est configurée au Dock, et non sur la plateforme. Toute ressource
 transportable peut être routée ; une plateforme lance automatiquement chaque matière
-qui lui est livrée. Les valeurs de départ — débit moyen de 4 u/s, paquets toutes les
-10 secondes (jusqu’à 40 unités par départ) et 5 MW — restent déclarées dans
-`src/data/orbitalLogistics.js`. Les quantités restent entières ; l’agrégation réduit le
-nombre de cargos représentés sans changer le débit moyen nominal. Plusieurs plateformes
+qui lui est livrée. Elle charge ce qu'elle reçoit et lance **un fret par minute**
+(`launch.batchIntervalSeconds: 60`), qui emporte tout son stock d'un coup, sans
+plafond ; le lancement coûte 5 MW à l'équateur, davantage en latitude
+(`src/data/orbitalLogistics.js`). Les quantités restent entières : un fret se compose
+d'un lot par ressource, partis ensemble. Le menu du hub montre une barre de chargement
+jusqu'au prochain départ, les unités à bord et le dernier fret ; la vue système dessine
+un seul vaisseau par fret, étiqueté de sa charge, et un anneau au décollage. Plusieurs plateformes
 peuvent être construites sur la même planète ; aucune n’est requise avant les autres
 bâtiments.
 
@@ -53,7 +56,7 @@ n’altèrent pas l’échéance. Le stock entier infini de l’Arche n’augmen
 La génération d'un nouvel univers réinitialise aussi les corridors, les stocks orbitaux,
 les lots et l'horloge de départ. La restauration d'une sauvegarde conserve ces données.
 Pour les sauvegardes affectées par l'ancien changement de graine, une échéance de départ
-au-delà de la prochaine fenêtre de 10 secondes est recalée sur cette fenêtre, sans
+au-delà de la prochaine fenêtre d'une minute est recalée sur cette fenêtre, sans
 modifier les stocks ni les lots déjà en transit.
 
 L’Arche est un nouvel objet spatial généré de façon déterministe dans le système

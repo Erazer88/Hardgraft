@@ -3,8 +3,10 @@
 
   // The hub's own menu (launch platform), opened like the colony's. On its
   // site: what it still waits for, how fast each material arrives (30 s
-  // moving average) and who sends it. Assembled: the launch rate and state.
-  // Redrawn every REDRAW_MS; the delivered quantities follow every refresh.
+  // moving average) and who sends it. Assembled: the next freight (a loading
+  // bar to its launch, the units on board) and the last one. Redrawn every
+  // REDRAW_MS; the delivered quantities and the loading bar follow every
+  // refresh.
   const Kit = root.OrbitPanelKit;
   const { fmt, units, perMinute } = Kit;
   const REDRAW_MS = 5000;
@@ -17,7 +19,7 @@
     const { element, bar, section, row } = Kit.builders(document, body);
     const resourceName = id => root.OrbitResourceData.get(id)?.label || id;
     const Construction = root.OrbitConstruction;
-    let hubId = null, renderedAt = 0, renderedState = null, quantities = [];
+    let hubId = null, renderedAt = 0, renderedState = null, quantities = [], loading = null;
 
     const find = state => state.surfaceBuildings.find(candidate => candidate.id === hubId);
 
@@ -28,7 +30,7 @@
       const live = tracker.sample(state, building);
       if (document.activeElement !== nameInput) nameInput.value = building.customName || '';
       body.replaceChildren();
-      quantities = []; renderedState = building.constructionState;
+      quantities = []; loading = null; renderedState = building.constructionState;
 
       Kit.badge(document.getElementById('hub-panel-icon'), building.type);
       // Where it stands: site, robots, or assembled; its launch site.
@@ -54,12 +56,15 @@
       }
 
       if (building.constructionState === 'complete') {
-        // The launches to the Ark.
+        // One freight a minute to the Ark, with all the hub holds.
         const exportSection = section('VERS L’ARCHE');
-        const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, building.id, state.simulation.time);
-        const launch = root.OrbitOrbitalLogisticsData.launch;
-        row(exportSection, 'Lancements', `${fmt(metrics.throughput * 60)} / ${fmt(launch.capacityUPerSecond * 60)} u/min`,
-          root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time).toLowerCase());
+        const status = root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time);
+        const next = row(exportSection, 'Prochain fret', '', '');
+        const track = bar(0, 1, null, 'gold loading');
+        exportSection.append(track);
+        const last = row(exportSection, 'Dernier fret', '', '');
+        loading = { status, next, fill: track.firstChild, last };
+        updateLoading(state, building);
       }
 
       // What arrives now (30 s average), and who sends it.
@@ -69,9 +74,29 @@
       for (const item of list) incoming.append(Kit.line(document, 'in', item.label, item.from.join(', '), perMinute(item.rate)));
     }
 
+    // The loading bar: time left to the launch, units on board, the last freight.
+    function updateLoading(state, building) {
+      if (!loading) return;
+      const time = state.simulation.time;
+      const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, building.id, time);
+      const aboard = Object.values(building.launchStock || {}).reduce((sum, amount) => sum + Math.max(0, Math.floor(amount)), 0);
+      const blocked = ['PAS DE HUB', 'PAS DE CONNEXION', 'AUCUN FLUX ASSIGNÉ'].includes(loading.status);
+      loading.next.querySelector('strong').textContent = `dans ${fmt(Math.max(0, Math.ceil(metrics.nextLaunchTime - time)))} s`;
+      const detail = [aboard ? `${units(aboard)} à bord` : 'soute vide', blocked ? loading.status.toLowerCase() : ''].filter(Boolean).join(' · ');
+      let note = loading.next.querySelector('small');
+      if (!note) { note = document.createElement('small'); loading.next.append(note); }
+      note.textContent = detail;
+      loading.fill.style.width = `${Math.round(metrics.loading * 1000) / 10}%`;
+      loading.last.querySelector('strong').textContent = metrics.last ? units(metrics.last.amount) : '—';
+      let lastNote = loading.last.querySelector('small');
+      if (!lastNote) { lastNote = document.createElement('small'); loading.last.append(lastNote); }
+      lastNote.textContent = metrics.last ? `parti il y a ${fmt(Math.max(0, Math.floor(time - metrics.last.time)))} s` : 'aucun depuis une minute';
+    }
+
     // Quick update of the delivered quantities; a change of state redraws.
-    function updateQuantities(building) {
+    function updateQuantities(state, building) {
       if (building.constructionState !== renderedState) return false;
+      updateLoading(state, building);
       for (const { id, amount, value, fill } of quantities) {
         const done = Math.min(amount, building.constructionSupplied?.[id] || 0);
         value.textContent = `${units(done)} / ${units(amount)}`;
@@ -98,7 +123,7 @@
       const building = find(state);
       if (!building) { close(); return; }
       const now = performance.now();
-      if (now - renderedAt >= REDRAW_MS || !updateQuantities(building)) { renderedAt = now; render(state); }
+      if (now - renderedAt >= REDRAW_MS || !updateQuantities(state, building)) { renderedAt = now; render(state); }
       else tracker.sample(state, building);
     }
 

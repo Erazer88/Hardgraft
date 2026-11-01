@@ -570,6 +570,10 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 #secondary-stat.tech svg{color:#9fd8ff}
 .top-bar .skill-tree-button{border-radius:9px;box-shadow:0 0 14px #efa35a1f}
 
+/* The hub's freight loading bar, a little thicker than the others. */
+.colony-bar.loading{height:8px;border-radius:4px}
+.colony-bar.loading i{border-radius:4px}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

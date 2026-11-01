@@ -54,17 +54,17 @@ async function main() {
     })()`);
 
     await addFixture();
-    await cdp.evaluate('OrbitalDebug.advanceOrbitalSimulationTo(10)');
+    await cdp.evaluate('OrbitalDebug.advanceOrbitalSimulationTo(60)');
     assert.equal((await cdp.evaluate('OrbitalDebug.getOrbitalLogistics()')).transit[0].amount, 8);
     await cdp.evaluate('OrbitalDebug.advanceOrbitalSimulationTo(3600)');
-    assert.equal((await cdp.evaluate('OrbitalDebug.getOrbitalLogistics()')).nextDispatchTime, 3610);
+    assert.equal((await cdp.evaluate('OrbitalDebug.getOrbitalLogistics()')).nextDispatchTime, 3660);
     await cdp.evaluate('document.querySelector("#seed-input").value = "FREIGHT-SEED-RESET"');
     await cdp.evaluate('document.querySelector("#generate-button").scrollIntoView({block:"center"})');
     await cdp.click('#generate-button');
     const reset = await cdp.evaluate('({state:OrbitalDebug.getState(), logistics:OrbitalDebug.getOrbitalLogistics()})');
     assert.equal(reset.state.seed, 'FREIGHT-SEED-RESET');
     assert.equal(reset.state.time, 0);
-    assert.equal(reset.logistics.nextDispatchTime, 10, 'a new seed cannot inherit the old dispatch deadline');
+    assert.equal(reset.logistics.nextDispatchTime, 60, 'a new seed cannot inherit the old dispatch deadline');
     assert.deepEqual(reset.logistics.hubs, {});
     assert.deepEqual(reset.logistics.corridors, []);
     assert.deepEqual(reset.logistics.transit, []);
@@ -87,14 +87,14 @@ async function main() {
     assert.equal(await cdp.evaluate('window.__injectedStaleDeadline'), 3610);
     await cdp.evaluate('OrbitalDebug.setPause(true)');
     assert.equal((await cdp.evaluate('OrbitalDebug.getOrbitalBuildingState("freight-platform")')).launchStock.raw_iron, 8);
-    await cdp.evaluate('OrbitalDebug.advanceOrbitalSimulationTo(10)');
+    await cdp.evaluate('OrbitalDebug.advanceOrbitalSimulationTo(60)');
     const launched = await cdp.evaluate('OrbitalDebug.getOrbitalLogistics()');
-    assert.equal(launched.transit.length, 1, 'the new platform dispatches after 10 s, not after the previous world clock');
+    assert.equal(launched.transit.length, 1, 'the new platform dispatches after a minute, not after the previous world clock');
     assert.equal(launched.transit[0].amount, 8);
-    assert.equal(launched.transit[0].departureTime, 10);
+    assert.equal(launched.transit[0].departureTime, 60);
     await cdp.evaluate(`OrbitalDebug.advanceOrbitalSimulationTo(${launched.transit[0].arrivalTime})`);
     assert.equal((await cdp.evaluate('OrbitalDebug.getOrbitalLogistics()')).hubs[systemId].stock.raw_iron, 8);
-    console.log('PASS mobile freight after seed change and reload of an affected save: dispatch at 10 s, arrival at the new Ark, preserved stock');
+    console.log('PASS mobile freight after seed change and reload of an affected save: dispatch at 60 s, arrival at the new Ark, preserved stock');
   } finally {
     if (cdp) cdp.socket.close();
     if (chrome?.child.exitCode === null) {

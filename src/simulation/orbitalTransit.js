@@ -269,29 +269,19 @@
     const logistics = state.orbitalLogistics, ark = system?.ark;
     if (!ark || platform.constructionState !== 'complete') return 0;
     const resources = enabledResources(platform);
-    const available = resources.reduce((sum, id) => sum + Math.max(0, Math.floor(platform.launchStock?.[id] || 0)), 0);
-    if (!available) return 0;
-    const batchCapacity = Math.floor(Data.launch.capacityUPerSecond * Data.launch.batchIntervalSeconds);
-    const amountToLaunch = Math.min(batchCapacity, available);
+    if (!resources.length) return 0;
     const corridor = corridorFor(logistics, platform, ark);
     const planet = system.planets.find(item => item.id === platform.planetId);
     if (!planet) return 0;
     const duration = travelTime(system, planet, departureTime);
-    let left = amountToLaunch, launched = 0;
+    // One freight carries the whole stock, whole units of each resource.
+    let launched = 0;
     const batchByResource = {};
-    let cursor = Math.max(0, resources.indexOf(platform.exportCursorResourceId || resources[0]));
-    while (left > 0) {
-      let resourceId = null, index = cursor;
-      for (let checked = 0; checked < resources.length; checked++) {
-        index = (cursor + checked) % resources.length;
-        if ((platform.launchStock[resources[index]] || 0) > 0) { resourceId = resources[index]; break; }
-      }
-      if (!resourceId) break;
-      platform.launchStock[resourceId] -= 1;
-      batchByResource[resourceId] = (batchByResource[resourceId] || 0) + 1;
-      cursor = (index + 1) % resources.length;
-      platform.exportCursorResourceId = resources[cursor];
-      left--; launched++;
+    for (const resourceId of resources) {
+      const amount = Math.floor(platform.launchStock[resourceId]);
+      platform.launchStock[resourceId] -= amount;
+      batchByResource[resourceId] = amount;
+      launched += amount;
     }
     const arrivalTime = departureTime + duration;
     for (const [resourceId, amount] of Object.entries(batchByResource)) {
@@ -314,7 +304,8 @@
   function advance(state, currentTime, systemsById = {}, allowDispatch = true) {
     if (!Number.isFinite(currentTime) || currentTime < 0) throw new RangeError('Orbital simulation time must be non-negative');
     const previous = state.orbitalLogistics || {};
-    const history = (previous.dispatchHistory || []).filter(item => item && Number.isFinite(item.time) && item.time >= currentTime - 12);
+    const history = (previous.dispatchHistory || []).filter(item => item && Number.isFinite(item.time) &&
+      item.time >= currentTime - Data.launch.batchIntervalSeconds * 2 - 2);
     const hadDispatchClock = Number.isFinite(previous.nextDispatchTime);
     state.orbitalLogistics = normalize(previous);
     const logistics = state.orbitalLogistics;
@@ -414,7 +405,7 @@
       inTransit[lot.resourceId] = (inTransit[lot.resourceId] || 0) + lot.amount;
     }
     const entries = (logistics.dispatchHistory || []).filter(item => item.systemId === systemId && item.time <= currentTime);
-    const window = 10, interval = Data.launch.batchIntervalSeconds;
+    const interval = Data.launch.batchIntervalSeconds, window = interval * 2;
     const recent = entries.filter(item => item.time > currentTime - window);
     const duration = Math.max(interval, Math.min(window, currentTime - (recent[0]?.time ?? currentTime) + interval));
     for (const item of recent) {
@@ -423,16 +414,23 @@
     return { stock: integerMap(hub.stock), inTransit, rates };
   }
 
+  // A platform's launches: rates over the last two intervals, the last
+  // freight (time and units) and when the next one leaves.
   function currentPlatformMetrics(state, platformId, currentTime) {
     const logistics = state.orbitalLogistics || createState(), corridorIds = new Set(
       (logistics.corridors || []).filter(item => item.fromEntityId === platformId).map(item => item.id));
-    const window = 10, interval = Data.launch.batchIntervalSeconds;
+    const interval = Data.launch.batchIntervalSeconds, window = interval * 2;
     const entries = (logistics.dispatchHistory || []).filter(item => corridorIds.has(item.corridorId) &&
       item.time <= currentTime && item.time > currentTime - window);
     const duration = Math.max(interval, Math.min(window, currentTime - (entries[0]?.time ?? currentTime) + interval));
     const rates = {};
     for (const item of entries) rates[item.resourceId] = (rates[item.resourceId] || 0) + item.amount / duration;
-    return { rates, throughput: Object.values(rates).reduce((sum, rate) => sum + rate, 0) };
+    const lastTime = entries.reduce((latest, item) => Math.max(latest, item.time), -Infinity);
+    const last = Number.isFinite(lastTime) ? { time: lastTime,
+      amount: entries.filter(item => item.time === lastTime).reduce((sum, item) => sum + item.amount, 0) } : null;
+    const next = Number.isFinite(logistics.nextDispatchTime) ? logistics.nextDispatchTime : Math.ceil(currentTime / interval) * interval;
+    return { rates, throughput: Object.values(rates).reduce((sum, rate) => sum + rate, 0), last,
+      nextLaunchTime: next, loading: Math.max(0, Math.min(1, 1 - (next - currentTime) / interval)) };
   }
 
   root.OrbitOrbitalTransit = Object.freeze({ platformLaunchMW, createState, normalize, snapshot, travelTime, arkPosition,

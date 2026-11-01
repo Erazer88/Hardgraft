@@ -64,7 +64,7 @@ laboratoires sur d'autres mondes.
   débits de données…), provenance et destinations nommées, sources d'une antenne
   relais, puis « Modifier », « Enregistrer » et « Démolir ». Colonie
   (`colonyPanel.js`) : paliers, flux, stock, arrivées. Hub (`hubPanel.js`) : matériaux
-  à recevoir, puis seulement les lancements. Arche : plateformes, arrivées, énergie,
+  à recevoir, puis le prochain fret (barre de chargement, unités à bord) et le dernier. Arche : plateformes, arrivées, énergie,
   points tech, arrivées et stock. Relevé de terrain (clic sur le sol) : altitude,
   rayon de forage, composition du sol en barres.
 - Menu Construction (`buildMenu.js`) : puces de tri (Tout, Production, Industrie,
@@ -132,8 +132,9 @@ laboratoires sur d'autres mondes.
   avec Porte d'entrée ou une Plateforme de lancement, si un chemin construit les relie
   (routes et voies maritimes via les ports). Transfert instantané, sans capacité de
   route ; des impulsions lumineuses purement informatives montrent les liaisons
-  actives. Le fret vers l'Arche est 2× plus lent qu'avant
-  (`cargoSpeedMultiplier: .35`). Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
+  actives. Le hub lance un fret par minute qui emporte tout son stock (barre de
+  chargement dans son menu, un vaisseau par fret dans la vue système). Le fret vers
+  l'Arche est 2× plus lent qu'avant (`cargoSpeedMultiplier: .35`). Voir [`ROAD_SYSTEM.md`](ROAD_SYSTEM.md) et
   [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
 ### Joueur, alertes et sauvegardes

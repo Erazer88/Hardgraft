@@ -1,7 +1,9 @@
 (function (root) {
   'use strict';
 
-  const launch = Object.freeze({ capacityUPerSecond: 4, batchIntervalSeconds: 10, energyMW: 5 });
+  // The hub loads what it receives and launches one freight a minute,
+  // carrying its whole stock.
+  const launch = Object.freeze({ batchIntervalSeconds: 60, energyMW: 5 });
   const transit = Object.freeze({ minimumSeconds: 5, maximumSeconds: 45, referenceHalfOrbitSeconds: 30,
     cargoSpeedMultiplier: .35 });
   const transfer = Object.freeze({ directCorrectionRadians: .12, radialExcursionFraction: .16,
