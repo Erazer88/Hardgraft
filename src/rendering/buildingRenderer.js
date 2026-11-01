@@ -455,5 +455,21 @@
     }
   }
 
-  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, pinGeometry, pinScale });
+  // A building's badge for its sheet: the beacon's hexagon and icon, drawn
+  // into a small canvas of its own.
+  function drawBadge(canvas, type) {
+    const ctx = canvas.getContext('2d'), definition = Data.get(type), pin = Style.buildings.pin;
+    if (!ctx || !definition) return;
+    const size = canvas.width, center = size / 2, color = pin.categoryColors[definition.category] || pin.defaultColor;
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.shadowColor = color; ctx.shadowBlur = size * .12;
+    hexagon(ctx, center, center, size * .4); ctx.fillStyle = '#0b1928'; ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = size * .035; ctx.stroke();
+    ctx.shadowBlur = 0;
+    drawGlyph(ctx, center, center, size * .36, color, definition.icon, size * .035);
+    ctx.restore();
+  }
+
+  root.OrbitBuildingRenderer = Object.freeze({ renderPhysical, pinGeometry, pinScale, drawBadge });
 })(globalThis);

@@ -33,10 +33,26 @@
     <button class="icon-button menu-button" id="menu-button" aria-label="Ouvrir le menu" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   </header>
   <nav class="breadcrumb" aria-label="Échelle de navigation"><button id="breadcrumb-galaxy">GALAXIE</button><span id="system-crumb-wrap" hidden><span class="slash">/</span><button id="breadcrumb-system"></button></span><span id="surface-crumb-wrap" hidden><span class="slash">/</span><span id="breadcrumb-surface"></span></span></nav>
+  <div class="power-gauge" id="power-gauge" title="Énergie de la planète : consommation / production" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+    <span id="power-value">0 / 0 MW</span>
+    <i aria-hidden="true"><b id="power-fill"></b></i>
+  </div>
   <aside class="inspector panel" id="inspector" hidden>
     <div class="inspector-top"><span id="selection-type">SYSTÈME STELLAIRE</span><button id="close-inspector" class="text-icon" aria-label="Fermer la sélection">×</button></div>
     <h2 id="selection-name">Néréide</h2>
-    <input class="building-name-input" id="building-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du bâtiment" hidden>
+    <div class="building-head" id="building-head" hidden>
+      <canvas class="building-icon" id="building-icon" width="96" height="96" aria-hidden="true"></canvas>
+      <div class="building-head-text">
+        <span id="building-kind"></span>
+        <input class="building-name-input" id="building-name" type="text" maxlength="32" autocomplete="off" spellcheck="false" aria-label="Nom du bâtiment" hidden>
+      </div>
+      <button class="building-close" id="close-building" type="button" aria-label="Fermer la fiche"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="building-meta" id="building-meta" hidden>
+      <span class="building-level" id="building-level"></span>
+      <span class="building-power" id="building-power"></span>
+    </div>
     <p id="selection-info"></p>
     <div class="selection-meta" id="selection-meta"></div>
     <label class="hf-destination" id="hf-destination" hidden>
@@ -44,7 +60,6 @@
       <select id="hf-destination-select" aria-label="Destination de l’antenne haute fréquence"></select>
     </label>
     <div class="building-readout" id="building-readout" hidden>
-      <div class="building-level" id="building-level"></div>
       <div class="building-stats" id="building-stats"></div>
     </div>
     <div class="orbital-logistics" id="platform-logistics" hidden>
@@ -59,10 +74,10 @@
       <section class="logistics-card"><strong>FLUX ENTRANTS</strong><div id="hub-incoming-data"></div></section>
     </div>
     <div class="building-actions">
-      <button class="factory-edit-button" id="factory-edit-button" type="button" hidden>MODIFIER</button>
-      <button class="factory-edit-button" id="save-building-button" type="button" aria-label="Enregistrer le bâtiment avec son nom et ses cartes" hidden>ENREGISTRER</button>
+      <button class="factory-edit-button" id="factory-edit-button" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-5L16 4l4 4L9 19z"/><path d="M14 6l4 4"/></svg><span>MODIFIER</span></button>
+      <button class="factory-edit-button" id="save-building-button" type="button" aria-label="Enregistrer le bâtiment avec son nom et ses cartes" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span>ENREGISTRER</span></button>
+      <button class="demolish-button" id="demolish-button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13M10 11v6M14 11v6"/></svg><span id="demolish-label">DÉMOLIR</span></button>
     </div>
-    <button class="demolish-button" id="demolish-button" hidden>DÉMOLIR · RÉCUPÉRER 100 %</button>
     <button class="primary-button" id="enter-button"><span id="enter-label">Zoomer sur le système</span><span aria-hidden="true">↗</span></button>
     <button class="primary-button orbital-lab-button" id="orbital-lab-button" type="button" hidden><span id="orbital-lab-label">Poser un laboratoire en orbite</span><span aria-hidden="true">+</span></button>
   </aside>

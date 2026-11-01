@@ -1011,7 +1011,7 @@
     updateUI();
   }
   $('scan-button').onclick = () => { cancelRoadDrag(); state.tool = state.tool === 'scan' ? 'pan' : 'scan'; state.buildMenuOpen = false; $('inspector').hidden = true; updateUI(); if (state.tool === 'scan') toast('Touchez la carte pour envoyer une sonde.'); };
-  $('close-inspector').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
+  $('close-inspector').onclick = $('close-building').onclick = () => { state.selected = null; $('inspector').hidden = true; updateUI(); };
   $('factory-edit-button').onclick = () => {
     const building = state.selected?.kind === 'building'
       ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
