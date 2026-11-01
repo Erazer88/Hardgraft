@@ -21,7 +21,7 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 | --- | --- | ---: |
 | 1 | 1 000 roches brutes | 200 |
 | 2 | 150 goudrons | 400 |
-| 3 | 25 plaques de métal | 800 |
+| 3 | 15 plaques de métal | 800 |
 | 4 | un hub (plateforme de lancement) assemblé sur sa planète | 1 600 |
 
 À partir du palier 2, ce que demandaient les paliers précédents doit continuer

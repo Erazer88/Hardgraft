@@ -89,7 +89,7 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
 
 - La Colonie est le premier bâtiment, unique par planète et indestructible,
   générateur 12 MW. Population 100 → 200 → 400 → 800 → 1 600 par paliers : 1 000
-  roches brutes, puis 150 goudrons, puis 25 plaques, puis un hub assemblé. Dès le
+  roches brutes, puis 150 goudrons, puis 15 plaques, puis un hub assemblé. Dès le
   palier 2, les ressources des paliers précédents sont exigées en flux (roche
   500/min, goudron 25/min, plaque 1/min).
 - À 800 habitants s'ouvrent le cuivre, le silicium, l'eau (station de pompage) et le
