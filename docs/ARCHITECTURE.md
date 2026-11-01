@@ -125,6 +125,8 @@ La rastérisation du canvas coûte bien plus que le JavaScript. Le rendu de surf
 - **Impulsions de transport** (`vehicleRenderer.js`) : halo pré-rendu sur la tête et
   trait large translucide au lieu de traits flous.
 - **Routes** : une passe trace toutes les routes en un seul chemin.
+- **Galaxie** (`renderer.js`) : la poussière vue à travers les zones sondées n'est
+  recomposée que lorsque la vue ou les relevés changent (46 → 60 images/s).
 - **Simulation** : la connexité du réseau routier (`hasBuiltLandPath`) est calculée
   une fois par changement du réseau ; une zone de colonie bloquée n'est retentée
   que si sa cible, ses cellules ou les bâtiments de sa planète changent.

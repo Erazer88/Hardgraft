@@ -106,6 +106,13 @@
       const e = galaxyTexture.extent, a = project(-e, -e, cam), z = e * 2 * cam.zoom;
       ctx.save(); ctx.globalAlpha *= .32 * dustDetail; ctx.drawImage(galaxyTexture, a.x, a.y, z, z); ctx.restore();
       if (!fogCanvas || fogCanvas.width !== Math.round(W * DPR) || fogCanvas.height !== Math.round(H * DPR)) fogCanvas = makeCanvas(Math.round(W * DPR), Math.round(H * DPR));
+      // The dust seen through the scanned areas only changes with the view
+      // and the scans: it is composed again only then.
+      const scans = state.exploration.scans, lastScan = scans[scans.length - 1];
+      const fogKey = [Math.round(a.x * 100), Math.round(a.y * 100), Math.round(z * 100), W, H, DPR, state.reveal,
+        scans.length, lastScan?.x, lastScan?.y, lastScan?.radius].join('|');
+      if (fogCanvas.key !== fogKey) {
+      fogCanvas.key = fogKey;
       const f = fogCanvas.getContext('2d'); f.setTransform(DPR, 0, 0, DPR, 0, 0); f.clearRect(0, 0, W, H);
       f.drawImage(galaxyTexture, a.x, a.y, z, z);
       if (!state.reveal) {
@@ -119,6 +126,7 @@
           m.fillStyle = g; m.fillRect(p.x - r, p.y - r, r * 2, r * 2);
         }
         f.drawImage(fogMask, 0, 0, W, H); f.globalCompositeOperation = 'source-over';
+      }
       }
       ctx.save(); ctx.globalAlpha *= .9 * dustDetail; ctx.drawImage(fogCanvas, 0, 0, W, H); ctx.restore();
       }
