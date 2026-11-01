@@ -118,15 +118,15 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   ressource envoyée, une Porte d'entrée pour un dépôt), qui disparaît quand plus rien
   ne lui est envoyé. La supprimer à la main efface seulement la destination de ce qui
   l'alimentait. Ces cartes ne sont plus dans « Ajouter un bloc ».
-- Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement,
-  incinération productrice d'énergie, carte Stockage sans limite pour la matière
-  récupérée), Plateforme de lancement. Pas de pollution.
+- Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
+  et incinération immédiats, carte Stockage sans limite pour la matière récupérée), Plateforme de lancement. Pas de pollution.
 - Deux équipes de robots, 2 s de construction par bâtiment. Prix masqués
   (`pricesEnabled: false`). Voir [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md).
 
 ### Énergie
 
-- Énergie limitée par planète : colonie 12 MW, incinérateur lissé sur 20 s, éoliennes.
+- Énergie limitée par planète : colonie 12 MW, incinérateur (4 MW par déchet brûlé
+  chaque seconde, jusqu'à 8 MW, lissé sur 20 s), éoliennes.
   Une puissance insuffisante ralentit les cartes.
 - Une éolienne donne ≈ 32 MW × le vent de son site × son sillage
   (`src/simulation/windPower.js`, `config.wind`) :

@@ -93,9 +93,14 @@ ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvega
 
 **Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
 Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
-Incinérateur (2 déchets/s brûlés, jusqu'à 8 MW rendus à la planète au prorata de son
-débit), Stockage et Dock de sortie. La puissance de l'incinérateur suit son débit moyen sur environ
-20 s (`generationSmoothingSeconds`, `machine.generatedMW` non sauvegardé) : une
+Incinérateur (4 MW par déchet brûlé chaque seconde, `generatedMWPerUnit`, jusqu'à 8 MW
+par carte), Stockage et Dock de sortie. Retraitement et Incinérateur sont immédiats
+(`instant: true`, sans débit propre) : tout ce qui leur arrive est traité dans le pas de
+simulation, au plus un buffer d'entrée plein (20 u) par pas de 0,1 s ; ils comptent les
+unités reçues (`machine.movedTotal`) pour leur débit affiché, moyen sur 5 s. La
+puissance de l'incinérateur suit ce qu'il a réellement brûlé, lissé sur environ 20 s
+(`generationSmoothingSeconds`, `machine.burningMW` puis `machine.generatedMW` plafonné,
+non sauvegardés) : une
 alimentation irrégulière donne une puissance stable au lieu de l'allumer et l'éteindre.
 La carte Stockage (id `terril`, ex-carte Terril des usines) garde sans limite tout ce
 qu'on lui relie, typiquement la roche broyée du Retraitement (`storesResources`,

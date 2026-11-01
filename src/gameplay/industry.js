@@ -142,12 +142,23 @@
     return graph.machines.reduce((sum, machine) => {
       const definition = Graph.definitionOf(machine);
       if (!definition?.generatesMW) return sum;
-      const target = machine.state === 'active'
-        ? definition.generatesMW * Math.min(1, (machine.currentRate || 0) / definition.throughput) : 0;
+      // An instant generator gives power for what it really burned since the
+      // last advance; another one for its current rate.
+      let target = 0;
+      if (definition.instant) {
+        const burned = Math.max(0, (machine.movedTotal || 0) - (machine.burnedTotal ?? machine.movedTotal ?? 0));
+        machine.burnedTotal = machine.movedTotal || 0;
+        target = seconds > 0 ? burned / seconds * definition.generatedMWPerUnit : 0;
+      } else if (machine.state === 'active') {
+        target = definition.generatesMW * Math.min(1, (machine.currentRate || 0) / definition.throughput);
+      }
       const smoothing = definition.generationSmoothingSeconds || 0;
       const blend = smoothing > 0 ? 1 - Math.exp(-seconds / smoothing) : 1;
-      machine.generatedMW = (machine.generatedMW || 0) + (target - (machine.generatedMW || 0)) * blend;
-      if (machine.generatedMW < 1e-3 && target === 0) machine.generatedMW = 0;
+      // The burning rate is smoothed as is (a burst counts in full), then the
+      // power given is held to generatesMW.
+      machine.burningMW = (machine.burningMW ?? machine.generatedMW ?? 0) + (target - (machine.burningMW ?? machine.generatedMW ?? 0)) * blend;
+      if (machine.burningMW < 1e-3 && target === 0) machine.burningMW = 0;
+      machine.generatedMW = Math.min(definition.generatesMW, machine.burningMW);
       return sum + machine.generatedMW;
     }, 0);
   }

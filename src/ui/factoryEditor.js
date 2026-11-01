@@ -135,11 +135,11 @@
         ? `PARABOLES · ${fmt(def.throughput)} Mo/s · ${fmt(def.energyMW)} MW` : `ROUTE · ${fmt(Data.config.dockCapacity)} u PAR RESSOURCE`;
       if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
-      if (def.generatesMW) return `${fmt(def.throughput)} u/s · +${fmt(def.generatesMW)} MW`;
+      if (def.generatesMW) return `${def.instant ? 'IMMÉDIAT' : `${fmt(def.throughput)} u/s`} · +${fmt(def.generatesMW)} MW`;
       if (def.storesResources) return 'STOCKAGE';
       if (def.dataUplink) return `ANTENNE HF · ${fmt(def.energyMW)} MW`;
       if (def.externalOutput) return `ROUTE · ${fmt(Data.config.dockCapacity)} u EN ATTENTE`;
-      return [Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '', def.energyMW ? `${fmt(def.energyMW)} MW` : '']
+      return [def.instant ? 'IMMÉDIAT' : Number.isFinite(def.throughput) ? `${fmt(def.throughput)} u/s` : '', def.energyMW ? `${fmt(def.energyMW)} MW` : '']
         .filter(Boolean).join(' · ') || 'SANS ÉNERGIE';
     }
 
@@ -166,10 +166,10 @@
       while (amount >= (decimals ? 100 : 1000) && scale < UNIT_SCALES.length - 1) { amount /= 1000; scale++; }
       return `${decimals ? decimal.format(amount) : Math.round(amount)} ${UNIT_SCALES[scale]}u`;
     }
-    // Docks and depot gates pass units in bursts: their rate is the units
-    // moved over the last 5 s, refreshed every 5 s (first value after 1 s).
+    // Docks, depot gates and instant cards pass units in bursts: their rate
+    // is the units moved over the last 5 s, refreshed every 5 s (first value after 1 s).
     const RATE_WINDOW_MS = 5000, FIRST_RATE_MS = 1000;
-    const metered = def => Boolean(def.externalInput || def.externalOutput || def.gate);
+    const metered = def => Boolean(def.externalInput || def.externalOutput || def.gate || def.instant);
     function meteredView(machine, entry, now) {
       const total = machine.movedTotal || 0;
       if (!entry.window) Object.assign(entry, { window: { at: now, total }, at: now, done: 0, rate: 0, measured: false });

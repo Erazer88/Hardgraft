@@ -161,7 +161,7 @@
     waste_heap: {
       id: 'waste_heap', label: 'TERRIL', shortLabel: 'TE', category: 'waste', icon: 'terril',
       description: 'Reçoit les déchets par route ; on en récupère des matières à faible rendement ou de l’énergie.',
-      details: 'Reçoit les déchets par route. Le retraitement rend une roche broyée à faible rendement ; l’incinérateur brûle les déchets et rend jusqu’à 8 MW à la planète.',
+      details: 'Reçoit les déchets par route et les traite aussitôt arrivés. Le retraitement rend une roche broyée à faible rendement ; l’incinérateur brûle les déchets et rend 4 MW par déchet brûlé chaque seconde, jusqu’à 8 MW par incinérateur.',
       functions: { storesWaste: true },
       cost: { iron: 8 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 32, height: 26 }, roadRequired: true,

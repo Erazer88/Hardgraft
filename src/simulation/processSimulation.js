@@ -49,6 +49,13 @@
     return !resourceId || !graph.dockOpen(resourceId);
   }
 
+  // Cycles a card can run per second at this power. An instant card handles
+  // what reaches it within the step: at most a full input buffer per step.
+  function nominalRate(def, powerRatio) {
+    if (def.instant) return def.energyMW > 0 && powerRatio <= 0 ? 0
+      : (def.inputCapacity ?? Data.config.inputCapacity) / Data.config.fixedStepSeconds;
+    return def.throughput * (def.energyMW > 0 ? powerRatio : 1);
+  }
   function sourceRateForTarget(graph, source, target, connection, powerRatio) {
     const sourceDef = definition(source), targetDef = definition(target);
     if (!sourceAvailable(graph, source) || (!targetDef.sink && !outputsReady(target)) || dockClosed(graph, target)) return 0;
@@ -59,7 +66,7 @@
       (sourceDef.throughput || Infinity) * (sourceDef.energyMW > 0 ? powerRatio : 1));
     const primary = primaryInput(target);
     if (!primary) return 0;
-    const targetCycleRate = targetDef.throughput * (targetDef.energyMW > 0 ? powerRatio : 1) / primary.amount;
+    const targetCycleRate = nominalRate(targetDef, powerRatio) / primary.amount;
     const targetRate = targetCycleRate * targetInputAmount;
     return Math.min(sourceDef.throughput ? sourceDef.throughput * (sourceDef.energyMW > 0 ? powerRatio : 1) : Infinity,
       targetRate);
@@ -103,8 +110,7 @@
           ? sourceRateForTarget(graph, machine, target, outgoing, powerRatio) : 0;
       } else {
         const recipe = def.recipe, primary = primaryInput(machine);
-        const nominalCycleRate = primary ? def.throughput *
-          (def.energyMW > 0 ? powerRatio : 1) / primary.amount : 0;
+        const nominalCycleRate = primary ? nominalRate(def, powerRatio) / primary.amount : 0;
         const feedCycleRates = recipe.inputs.map(item => {
           const connection = graph.connections.find(link => link.toMachineId === machine.id && link.toInputId === item.inputId);
           const supplied = connection ? outputRates.get(connection.fromMachineId)?.[connection.fromOutputId] || 0 : 0;
@@ -268,6 +274,16 @@
     machine.state = 'active';
     machine.energyMW = def.energyMW * powerRatio;
     const primary = primaryInput(machine);
+    if (def.instant) {
+      // Every full batch it holds, at once; it counts the units it took in
+      // (movedTotal, runtime only) for its shown rate and its power.
+      while (inputsReady(machine) && outputsReady(machine)) {
+        runCycle(machine, def);
+        machine.movedTotal = (machine.movedTotal || 0) + (primary?.amount || 0);
+      }
+      machine.cycleProgress = 0;
+      return;
+    }
     const cycleRate = primary ? (machine.currentRate > 0 ? machine.currentRate :
       def.throughput * (def.energyMW > 0 ? powerRatio : 1)) / primary.amount : 0;
     machine.cycleProgress += Data.config.fixedStepSeconds * cycleRate;

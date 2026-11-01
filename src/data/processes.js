@@ -135,11 +135,13 @@
     triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
       description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 },
     // Waste heap: the reprocessor recovers a little ground rock from tailings.
+    // Waste heap cards are instant: whatever reaches them is handled within
+    // the step (as fast as the card buffers allow), with no throughput.
     reprocessor: { id: 'reprocessor', label: 'RETRAITEMENT', mark: 'RT',
       description: 'Récupère un peu de roche broyée dans les résidus (10 pour 1), avec ce qu’ils contiennent encore.',
       inputPorts: [input('waste', 'Résidus', 'tailings')], outputPorts: [output('rock', 'Roche broyée', 'ground_rock')],
       recipe: { inputs: [{ inputId: 'waste', amount: 10 }], outputs: [{ outputId: 'rock', resourceId: 'ground_rock', amount: 1 }] },
-      throughput: 2, energyMW: 4 },
+      throughput: null, instant: true, energyMW: 4 },
     // Water station: one pump for every water; the shore decides which.
     water_pump: { id: 'water_pump', label: 'POMPE', mark: 'PO', description: 'Pompe l’eau de la rive : salée en mer, douce dans un lac ou une rivière.',
       source: true, usesGround: true, inputPorts: [], recipe: null },
@@ -153,9 +155,10 @@
     incinerator: { id: 'incinerator', label: 'INCINÉRATEUR', mark: 'IN', description: 'Brûle les déchets reçus et produit de l’énergie.',
       inputPorts: [input('waste', 'Déchets', null, { acceptsAnyResource: true, accepts: { tag: 'waste' } })],
       outputPorts: [], recipe: { inputs: [{ inputId: 'waste', amount: 2 }], outputs: [] },
-      // Its output follows the burning rate averaged over about this many
-      // seconds, so an irregular supply gives steady power.
-      throughput: 2, energyMW: 0, generatesMW: 8, generationSmoothingSeconds: 20 },
+      // It gives generatedMWPerUnit for each unit burned per second, up to
+      // generatesMW, following the burning rate averaged over about
+      // generationSmoothingSeconds, so an irregular supply gives steady power.
+      throughput: null, instant: true, energyMW: 0, generatesMW: 8, generatedMWPerUnit: 4, generationSmoothingSeconds: 20 },
     // Datacenter, after Upload Labs: data beamed by the dishes is received,
     // compressed, analysed by processors and uploaded to the Ark as technology
     // points. 1 unit = 1 Mo. Each card is a bottleneck to balance, and they

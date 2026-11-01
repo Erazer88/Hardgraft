@@ -492,9 +492,14 @@ test('the waste heap reprocesses tailings at a low yield, or burns waste for ene
   waste.importResourceId = 'waste';
   const incinerator = machine(graph, 'incinerator', 'incinerator', 600);
   connect(graph, 'waste-incinerator', 'dock-waste', 'material', 'incinerator', 'waste');
-  for (let second = 0; second < 12; second++) Industry.advance(state, 1);
-  assert.equal(incinerator.state, 'active');
-  assert.ok(heap.inventory.waste < 40);
+  Industry.advance(state, 1);
+  // Both cards are instant: everything received is handled within the second.
+  assert.equal(heap.inventory.waste || 0, 0);
+  assert.equal(incinerator.movedTotal, 40);
+  assert.equal(heap.inventory.tailings || 0, 0);
+  assert.equal(reprocessor.movedTotal, 40);
+  assert.ok(reprocessor.outputBuffer.rock >= 1, 'ten tailings give one ground rock');
+  for (let second = 0; second < 11; second++) Industry.advance(state, 1);
   assert.ok(heap.energyOutputWatts > 0, 'burning waste feeds the grid');
   assert.ok(reprocessor.outputBuffer.rock >= 1, 'ten tailings give one ground rock');
   assert.deepEqual(plain(reprocessor.outputMix.rock), { iron: .1, rock: .9 });
@@ -529,7 +534,7 @@ test('an incinerator fed in bursts gives steady power', () => {
   waste.importResourceId = 'waste';
   machine(graph, 'incinerator', 'incinerator', 600);
   connect(graph, 'waste-incinerator', 'dock-waste', 'material', 'incinerator', 'waste');
-  // Twenty waste every twenty seconds: half the incinerator's rate, in bursts.
+  // Twenty waste every twenty seconds, burnt at once: 1 u/s on average, 4 MW.
   const supply = [];
   for (let second = 0; second < 240; second++) {
     if (second % 20 === 0) heap.inventory.waste = (heap.inventory.waste || 0) + 20;
@@ -537,7 +542,9 @@ test('an incinerator fed in bursts gives steady power', () => {
     if (second >= 120) supply.push(heap.energyOutputWatts / 1e6);
   }
   const low = Math.min(...supply), high = Math.max(...supply);
-  assert.ok(low > 2 && high < 6, `power stays near 4 MW (${low.toFixed(2)}–${high.toFixed(2)})`);
+  assert.ok(low > 2 && high < 6.5, `power stays near 4 MW (${low.toFixed(2)}–${high.toFixed(2)})`);
+  const mean = supply.reduce((sum, value) => sum + value, 0) / supply.length;
+  assert.ok(Math.abs(mean - 4) < .3, `${mean.toFixed(2)} MW on average`);
 });
 
 test('depot cards carry rock compositions through their gates', () => {
@@ -703,12 +710,11 @@ test('the waste heap storage card keeps without limit the rock the reprocessor r
   const reprocessor = machine(graph, 'reprocessor', 'reprocessor', 0, 'rock');
   const kept = machine(graph, 'storage', 'terril', 350);
   connect(graph, 'kept', 'reprocessor', 'rock', 'storage', 'material');
-  // 2 tailings/s → 0,2 ground rock/s: 1 500 s give 300 units, beyond any dock or buffer.
+  // 20 tailings/s, reprocessed at once → 2 ground rock/s: 3 000 units, beyond any dock or buffer.
   for (let second = 0; second < 1500; second++) {
     reprocessor.inputBuffer.waste = Math.max(reprocessor.inputBuffer.waste, 20);
     advance(graph, 1);
   }
-  assert.ok(kept.storedResources.ground_rock >= 290, `${kept.storedResources.ground_rock} ground rock stored`);
-  assert.equal(reprocessor.state, 'active');
+  assert.ok(kept.storedResources.ground_rock >= 2998, `${kept.storedResources.ground_rock} ground rock stored`);
   assert.ok(reprocessor.outputBuffer.rock <= 1, 'nothing piles up before the storage');
 });
