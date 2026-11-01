@@ -21,12 +21,13 @@
     // roughnessScaleM) raised by altitude where open (up to altitudeBoost at
     // altitudeFullM). Its factor stays almost nil below calmBelow, then grows
     // slowly (power `curve`) up to maxSite at fullAt: only open plains and
-    // high plateaus give much. Turbines closer than wakeRadiusKm take each
-    // other's wind: efficiency 1 / (1 + wakeLoss × Σ (1 − distance / wakeRadiusKm));
-    // with wakeLoss above 1, turbines side by side give less than one alone.
+    // high plateaus give much. A turbine within wakeRadiusKm of another loses
+    // wakeLossAtEdge of its wind at the edge of the wake, up to
+    // wakeLossAtCenter right beside it; the wakes of several neighbours add
+    // up (each takes its share of what is left).
     wind: { siteRadiusKm: 15, roughnessScaleM: 350, altitudeFullM: 3000, altitudeBoost: .25,
       calmBelow: .4, fullAt: 1.05, curve: 2, minSite: .02, maxSite: 1.5,
-      wakeRadiusKm: 140, wakeLoss: 1.2 },
+      wakeRadiusKm: 140, wakeLossAtEdge: .5, wakeLossAtCenter: .95 },
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).
     waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },

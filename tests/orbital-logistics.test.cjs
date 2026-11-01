@@ -983,14 +983,20 @@ test('a wind site catches much on open plains and high plateaus, almost nothing 
   assert.equal(Wind.siteFactor(null, middle), 1, 'unknown terrain: an average site');
 });
 
-test('a turbine in the wake of others loses much wind: crowded on one spot, they give less than one alone', () => {
+test('a turbine in the wake of another loses 50 % of its wind at the edge, up to 95 % beside it', () => {
   const Wind = context.OrbitWindPower, wind = context.OrbitProcessData.config.wind;
   const at = (id, x) => ({ id, type: 'wind_turbine', planetId, x, y: 0, constructionState: 'complete', windSite: 1 });
   const alone = at('a', 0);
   assert.equal(Wind.wakeEfficiency(alone, [alone]), 1);
   assert.equal(Wind.wakeEfficiency(alone, [alone, at('far', wind.wakeRadiusKm + 1)]), 1, 'beyond the wake radius: no loss');
+  const edge = Wind.wakeEfficiency(alone, [alone, at('e', wind.wakeRadiusKm - 1e-6)]);
+  assert.ok(Math.abs(edge - .5) < 1e-6, `entering a wake: −50 % (${edge})`);
+  const beside = Wind.wakeEfficiency(alone, [alone, at('n', 0)]);
+  assert.ok(Math.abs(beside - .05) < 1e-9, `right beside another: −95 % (${beside})`);
   const half = Wind.wakeEfficiency(alone, [alone, at('b', wind.wakeRadiusKm / 2)]);
-  assert.ok(Math.abs(half - 1 / (1 + wind.wakeLoss * .5)) < 1e-9, `${half}`);
+  assert.ok(Math.abs(half - (1 - .725)) < 1e-9, `half way: −72,5 % (${half})`);
+  const two = Wind.wakeEfficiency(alone, [alone, at('c', wind.wakeRadiusKm / 2), at('d', -wind.wakeRadiusKm / 2)]);
+  assert.ok(Math.abs(two - half * half) < 1e-9, 'two wakes: each takes its share of what is left');
   const stack = Array.from({ length: 10 }, (_, index) => at(`s${index}`, index));
   const total = stack.reduce((sum, turbine) => sum + Wind.outputMW(turbine, stack), 0);
   const single = context.OrbitProcessData.config.windPowerMW;
@@ -999,7 +1005,7 @@ test('a turbine in the wake of others loses much wind: crowded on one spot, they
   assert.ok(pair.reduce((sum, turbine) => sum + Wind.outputMW(turbine, pair), 0) < single, 'two side by side: less than one');
   const apart = [at('r1', 0), at('r2', wind.wakeRadiusKm * .75)];
   const apartTotal = apart.reduce((sum, turbine) => sum + Wind.outputMW(turbine, apart), 0);
-  assert.ok(apartTotal > single && apartTotal < single * 1.7, `three quarters of the wake apart: ${apartTotal} MW, still well short of two`);
+  assert.ok(apartTotal < single, `even three quarters of the wake apart, two give ${apartTotal} MW, less than one alone`);
   const spread = Array.from({ length: 3 }, (_, index) => at(`p${index}`, index * (wind.wakeRadiusKm + 5)));
   assert.equal(spread.reduce((sum, turbine) => sum + Wind.outputMW(turbine, spread), 0), single * 3, 'spaced out: full power each');
   // The planet's supply follows: site factor × wake efficiency per turbine.

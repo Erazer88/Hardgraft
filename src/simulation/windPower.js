@@ -68,13 +68,16 @@
   function wakeEfficiency(turbine, turbines) {
     const wind = settings();
     if (!wind) return 1;
-    let shadow = 0;
+    // Within a neighbour's wake, from wakeLossAtEdge at its edge to
+    // wakeLossAtCenter beside it; each neighbour takes its share of the rest.
+    let kept = 1;
     for (const other of turbines) {
       if (other === turbine || other.id === turbine.id || other.planetId !== turbine.planetId) continue;
       const distance = Math.hypot(other.x - turbine.x, other.y - turbine.y);
-      if (distance < wind.wakeRadiusKm) shadow += 1 - distance / wind.wakeRadiusKm;
+      if (!(distance < wind.wakeRadiusKm)) continue;
+      kept *= 1 - (wind.wakeLossAtEdge + (wind.wakeLossAtCenter - wind.wakeLossAtEdge) * (1 - distance / wind.wakeRadiusKm));
     }
-    return 1 / (1 + wind.wakeLoss * shadow);
+    return kept;
   }
 
   // Megawatts a turbine gives, its site and the others of its planet counted.

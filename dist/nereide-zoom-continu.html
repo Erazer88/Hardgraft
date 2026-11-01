@@ -1061,12 +1061,13 @@ globalThis.OrbitVersion = "0.129.0";
     // roughnessScaleM) raised by altitude where open (up to altitudeBoost at
     // altitudeFullM). Its factor stays almost nil below calmBelow, then grows
     // slowly (power `curve`) up to maxSite at fullAt: only open plains and
-    // high plateaus give much. Turbines closer than wakeRadiusKm take each
-    // other's wind: efficiency 1 / (1 + wakeLoss × Σ (1 − distance / wakeRadiusKm));
-    // with wakeLoss above 1, turbines side by side give less than one alone.
+    // high plateaus give much. A turbine within wakeRadiusKm of another loses
+    // wakeLossAtEdge of its wind at the edge of the wake, up to
+    // wakeLossAtCenter right beside it; the wakes of several neighbours add
+    // up (each takes its share of what is left).
     wind: { siteRadiusKm: 15, roughnessScaleM: 350, altitudeFullM: 3000, altitudeBoost: .25,
       calmBelow: .4, fullAt: 1.05, curve: 2, minSite: .02, maxSite: 1.5,
-      wakeRadiusKm: 140, wakeLoss: 1.2 },
+      wakeRadiusKm: 140, wakeLossAtEdge: .5, wakeLossAtCenter: .95 },
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).
     waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },
@@ -2337,13 +2338,15 @@ globalThis.OrbitVersion = "0.129.0";
       // relief hides; links in sight green, cut by a hill red.
       coverageSeen: Object.freeze([60, 255, 110, 104]), coverageHidden: Object.freeze([255, 40, 64, 78]),
       seenColor: '#6fe88a', blockedColor: '#ff6b6b' }),
-    // Wind view of a turbine placed or selected: sites from greenFrom (site
-    // factor) green, richer more opaque; below, red, stronger toward nothing
-    // (up to alpha, 0–255); clear within `neutral` of greenFrom; see-through
-    // over the relief. Dashed wake circles of the turbines standing and of
-    // the one being placed.
-    windView: Object.freeze({ poor: Object.freeze([255, 56, 64]), rich: Object.freeze([60, 255, 110]),
-      alpha: 112, neutral: .06, greenFrom: .8, wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
+    // Wind view of a turbine placed or selected: colour and opacity (0–255)
+    // by site factor, between these stops: red toward nothing, orange, pale
+    // yellow midway, light then full green on rich sites; see-through over
+    // the relief. Dashed wake circles of the turbines standing and of the
+    // one being placed.
+    windView: Object.freeze({
+      stops: Object.freeze([[0, [255, 56, 64], 110], [.25, [255, 128, 56], 80], [.55, [255, 224, 96], 42],
+        [.85, [140, 255, 120], 72], [1.25, [60, 255, 110], 118]].map(stop => Object.freeze(stop))),
+      wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,
@@ -5901,13 +5904,16 @@ globalThis.OrbitVersion = "0.129.0";
   function wakeEfficiency(turbine, turbines) {
     const wind = settings();
     if (!wind) return 1;
-    let shadow = 0;
+    // Within a neighbour's wake, from wakeLossAtEdge at its edge to
+    // wakeLossAtCenter beside it; each neighbour takes its share of the rest.
+    let kept = 1;
     for (const other of turbines) {
       if (other === turbine || other.id === turbine.id || other.planetId !== turbine.planetId) continue;
       const distance = Math.hypot(other.x - turbine.x, other.y - turbine.y);
-      if (distance < wind.wakeRadiusKm) shadow += 1 - distance / wind.wakeRadiusKm;
+      if (!(distance < wind.wakeRadiusKm)) continue;
+      kept *= 1 - (wind.wakeLossAtEdge + (wind.wakeLossAtCenter - wind.wakeLossAtEdge) * (1 - distance / wind.wakeRadiusKm));
     }
-    return 1 / (1 + wind.wakeLoss * shadow);
+    return kept;
   }
 
   // Megawatts a turbine gives, its site and the others of its planet counted.
@@ -9468,16 +9474,20 @@ globalThis.OrbitVersion = "0.129.0";
     const factors = Wind.siteGrid(terrain), style = Style.windView;
     const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
     const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
-    // Good sites (from greenFrom) turn green, the more the richer; below,
-    // red, the stronger the closer to nothing; clear right at greenFrom.
-    for (let cell = 0; cell < factors.length; cell++) {
-      const factor = factors[cell];
-      if (!factor) continue;
-      const rich = factor >= style.greenFrom;
-      const strength = rich ? (factor - style.greenFrom) / (wind.maxSite - style.greenFrom) : 1 - factor / style.greenFrom;
-      if (strength < style.neutral) continue;
-      image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
-    }
+    // Colour and opacity follow the site factor along the style's stops:
+    // red toward nothing, orange, pale yellow midway, then green.
+    const stops = style.stops, colour = factor => {
+      if (factor <= stops[0][0]) return [...stops[0][1], stops[0][2]];
+      for (let index = 1; index < stops.length; index++) {
+        const [to, toRgb, toAlpha] = stops[index], [from, fromRgb, fromAlpha] = stops[index - 1];
+        if (factor > to) continue;
+        const t = (factor - from) / (to - from);
+        return [...fromRgb.map((value, channel) => Math.round(value + (toRgb[channel] - value) * t)), Math.round(fromAlpha + (toAlpha - fromAlpha) * t)];
+      }
+      const last = stops[stops.length - 1];
+      return [...last[1], last[2]];
+    };
+    for (let cell = 0; cell < factors.length; cell++) if (factors[cell]) image.data.set(colour(factors[cell]), cell * 4);
     context.putImageData(image, 0, 0);
     windCache.set(terrain, canvas);
     return canvas;

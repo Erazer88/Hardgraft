@@ -524,16 +524,20 @@
     const factors = Wind.siteGrid(terrain), style = Style.windView;
     const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
     const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
-    // Good sites (from greenFrom) turn green, the more the richer; below,
-    // red, the stronger the closer to nothing; clear right at greenFrom.
-    for (let cell = 0; cell < factors.length; cell++) {
-      const factor = factors[cell];
-      if (!factor) continue;
-      const rich = factor >= style.greenFrom;
-      const strength = rich ? (factor - style.greenFrom) / (wind.maxSite - style.greenFrom) : 1 - factor / style.greenFrom;
-      if (strength < style.neutral) continue;
-      image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
-    }
+    // Colour and opacity follow the site factor along the style's stops:
+    // red toward nothing, orange, pale yellow midway, then green.
+    const stops = style.stops, colour = factor => {
+      if (factor <= stops[0][0]) return [...stops[0][1], stops[0][2]];
+      for (let index = 1; index < stops.length; index++) {
+        const [to, toRgb, toAlpha] = stops[index], [from, fromRgb, fromAlpha] = stops[index - 1];
+        if (factor > to) continue;
+        const t = (factor - from) / (to - from);
+        return [...fromRgb.map((value, channel) => Math.round(value + (toRgb[channel] - value) * t)), Math.round(fromAlpha + (toAlpha - fromAlpha) * t)];
+      }
+      const last = stops[stops.length - 1];
+      return [...last[1], last[2]];
+    };
+    for (let cell = 0; cell < factors.length; cell++) if (factors[cell]) image.data.set(colour(factors[cell]), cell * 4);
     context.putImageData(image, 0, 0);
     windCache.set(terrain, canvas);
     return canvas;
