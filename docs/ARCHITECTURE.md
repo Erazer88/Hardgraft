@@ -50,10 +50,12 @@ Modules de la colonie et de la progression :
 | `src/data/dataNetwork.js`, `src/simulation/dataNetwork.js` | Réseau de données en surface : sources, antennes relais, datacenter, température de site |
 | `src/simulation/dataTransit.js`, `src/rendering/dataTrafficRenderer.js` | Paquets de données entre mondes et vers l'Arche, conjonction solaire, rendu bleu |
 | `src/ui/skillTree.js` | Menu de l'arbre de compétences (nœuds, brouillard, détail) |
-| `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, export |
+| `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, lancements |
 | `src/gameplay/alerts.js` | Problèmes en cours (planète sans assez d'énergie, dock sans destination, flux de colonie en retard) |
 | `src/storage/library.js` | Bibliothèque du joueur (clé locale à part de la sauvegarde) : bâtiments enregistrés et blueprints |
 | `src/ui/alertsPanel.js` | Bouton « PROBLÈMES » sous les boutons du haut et sa liste déroulante |
+| `src/ui/buildMenu.js` | Menu Construction : puces de tri, cartes des bâtiments, fiche « i » ; lit l'état, les clics restent dans `app.js` |
+| `src/ui/hud.js` | Barre du haut, jauge d'énergie, inspecteur (fiche de bâtiment, Arche, relevé de terrain, corps célestes), toasts |
 
 ## Dépendances et chargement
 
@@ -145,6 +147,13 @@ immobile et de 12 à 51 en déplacement.
 - `src/rendering/surfaceRenderer.js` gère la texture néon, le trait de côte vectoriel
   et les couches de surface. Le tracé du littoral est le prochain candidat d'extraction
   s'il évolue indépendamment.
+- `src/ui/hud.js` garde la barre du haut et l'inspecteur ; le menu Construction vit
+  dans `src/ui/buildMenu.js`. Les panneaux bas partagent `src/ui/panelKit.js` (lignes,
+  badges) et les tuiles de `hud.js`.
+- `styles.css` empile des blocs ajoutés au fil des refontes, qui surchargent des
+  règles plus anciennes (menu Construction, inspecteur, panneaux). Les sélecteurs
+  morts ont été retirés ; une consolidation par composant reste possible mais doit
+  être vérifiée par captures avant/après.
 - `src/simulation/roadNetwork.js` est volumineux mais porte un modèle cohérent
   (topologie et migration du réseau). Une extraction doit suivre une responsabilité
   modifiée, pas un seuil de lignes.

@@ -1,40 +1,19 @@
 (function (root) {
   'use strict';
-  const Config = root.OrbitConfig;
   const BuildingData = root.OrbitBuildingData;
   const ResourceData = root.OrbitResourceData;
-  const Inventory = root.OrbitInventory;
   const Data = root.OrbitOrbitalLogisticsData;
 
-  function create(document, callbacks = {}) {
+  function create(document) {
     const $ = id => document.getElementById(id);
     $('game-version').textContent = `Version ${root.OrbitVersion}`;
     const TAU = Math.PI * 2;
     const fmt = value => new Intl.NumberFormat('fr-FR').format(value);
     const fmtDecimal = value => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
-    const mineralLabels = ['Fer', 'Cuivre', 'Silice', 'Carbone'];
     let toastTimer, topBarSignature = null;
 
-    // The build menu: one card per building (badge, name, an "i" for how it
-    // works), filtered by group; the info opens in place of the list.
-    const buildOptions = $('build-options');
-    const nameCase = label => label.charAt(0) + label.slice(1).toLowerCase();
-    for (const definition of BuildingData.catalog()) {
-      const card = document.createElement('div'); card.className = 'build-card'; card.dataset.buildingCard = definition.id;
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'build-option'; button.dataset.buildingType = definition.id;
-      const icon = document.createElement('canvas'); icon.className = 'build-option-badge'; icon.width = icon.height = 72;
-      icon.setAttribute('aria-hidden', 'true');
-      root.OrbitBuildingRenderer?.drawBadge(icon, definition.id);
-      const name = document.createElement('strong'); name.textContent = nameCase(definition.label);
-      const note = document.createElement('small'); note.className = 'build-option-note'; note.hidden = true;
-      button.append(icon, name, note);
-      const info = document.createElement('button');
-      info.type = 'button'; info.className = 'build-info-button'; info.dataset.buildingInfo = definition.id;
-      info.setAttribute('aria-label', `Fonctionnement : ${nameCase(definition.label)}`); info.textContent = 'i';
-      card.append(button, info); buildOptions.append(card);
-    }
-    const groupOf = definition => BuildingData.menuGroups.find(group => group.categories.includes(definition?.category)) || null;
+    // The build menu, filled each refresh (src/ui/buildMenu.js).
+    const buildMenu = root.OrbitBuildMenu.create(document, { resourceSummary: amounts => resourceSummary(amounts) });
 
     function toast(text) {
       $('toast').textContent = text;
@@ -75,46 +54,6 @@
 
     function resourceSummary(amounts) {
       return Object.entries(amounts || {}).map(([id, amount]) => `${resourceName(id)} ${fmt(amount)}`).join(' · ') || 'Gratuit';
-    }
-
-    function appendLogisticsRow(container, name, value, detail = '') {
-      const row = document.createElement('div'); row.className = 'logistics-row';
-      const label = document.createElement('span'); label.textContent = name;
-      const reading = document.createElement('span'); reading.textContent = value;
-      row.append(label, reading);
-      if (detail) { const small = document.createElement('small'); small.textContent = detail; row.append(small); }
-      container.append(row);
-    }
-
-    function renderPlatformLogistics(platform, { state, systemsById = new Map() }) {
-      const systemId = platform.planetId.split(':p-')[0], system = systemsById.get(systemId);
-      const stock = platform.launchStock || {}, received = platform.launchReceivedTotal || {};
-      const connectedSources = (state.surfaceBuildings || []).filter(source => source.id !== platform.id &&
-        source.planetId === platform.planetId && source.constructionState === 'complete' &&
-        root.OrbitLogisticsNetwork.hasBuiltLandPath(state.roadNetworks?.[platform.planetId], source.id, platform.id));
-      const routedSources = connectedSources.filter(source => Object.values(source.dockDestinations || {}).includes(platform.id));
-      const inbound = {};
-      for (const source of routedSources) for (const [resourceId, rate] of Object.entries(source.dockFlowByResource || {})) {
-        if (source.dockDestinations?.[resourceId] !== platform.id) continue;
-        inbound[resourceId] = (inbound[resourceId] || 0) + Math.max(0, rate || 0);
-      }
-      const metrics = root.OrbitOrbitalTransit.currentPlatformMetrics(state, platform.id, state.simulation.time);
-      const reception = $('platform-reception-data'); reception.replaceChildren();
-      const resources = new Set([...Object.keys(stock), ...Object.keys(inbound)]);
-      if (!resources.size) appendLogisticsRow(reception, 'Aucune ressource reçue', '—');
-      for (const resourceId of [...resources].sort()) {
-        appendLogisticsRow(reception, resourceName(resourceId), fmt(stock[resourceId] || 0),
-          `Entrée · ${fmtDecimal(inbound[resourceId] || 0)} u/s`);
-      }
-      const receivedTotal = Object.values(received).reduce((sum, amount) => sum + amount, 0);
-      $('platform-received-total').textContent = `TOTAL REÇU · ${fmt(receivedTotal)} u`;
-
-      const launch = $('platform-launch-data'); launch.replaceChildren();
-      const status = root.OrbitLogistics.platformStatus(state, platform, system, state.simulation.time);
-      appendLogisticsRow(launch, 'Débit actuel', `${fmtDecimal(metrics.throughput)} / ${fmt(Data.launch.capacityUPerSecond)} u/s`);
-      const energyMW = (platform.energyUse || 0) / 1e6;
-      appendLogisticsRow(launch, 'Énergie', `${fmtDecimal(energyMW)} / ${fmt(Data.launch.energyMW)} MW`);
-      appendLogisticsRow(launch, 'État', status);
     }
 
     // The Ark, like a building's sheet: a few tiles, what arrives, what it holds.
@@ -364,10 +303,8 @@
       const isBuilding = item.kind === 'building';
       const isArk = item.kind === 'orbital-hub';
       const isSurvey = Boolean(item.surfacePoint);
-      const isLaunchPlatform = isBuilding && item.type === 'launch_platform';
       const hasFactoryEditor = isBuilding && BuildingData.processTypes.includes(item.type);
       panel.classList.toggle('building-panel', isBuilding);
-      panel.classList.toggle('launch-platform-panel', isLaunchPlatform);
       panel.classList.toggle('orbital-hub-panel', isArk);
       // The Ark and a ground survey open as the same sheet as a building.
       panel.classList.toggle('sheet-panel', isArk || isSurvey);
@@ -376,10 +313,9 @@
       $('survey-readout').hidden = !isSurvey;
       clearBuildingPanelPosition();
       $('building-head').hidden = !isBuilding;
-      $('building-meta').hidden = !isBuilding || isLaunchPlatform;
+      $('building-meta').hidden = !isBuilding;
       panel.querySelector('.inspector-top').hidden = isBuilding;
-      $('building-readout').hidden = !isBuilding || isLaunchPlatform;
-      $('platform-logistics').hidden = !isLaunchPlatform;
+      $('building-readout').hidden = !isBuilding;
       $('orbital-hub-logistics').hidden = !isArk;
       $('demolish-button').hidden = !isBuilding || Boolean(BuildingData.get(item.type)?.indestructible);
       $('selection-name').hidden = isBuilding;
@@ -432,8 +368,7 @@
         if (document.activeElement !== nameInput) nameInput.value = item.customName || '';
         $('selection-info').textContent = '';
         $('selection-meta').textContent = '';
-        if (!isLaunchPlatform) renderBuildingReadout(item);
-        else renderPlatformLogistics(item, { state, systemsById: new Map([[state.system?.id, state.system]]) });
+        renderBuildingReadout(item);
         $('enter-button').hidden = true;
         const refundRate = Number.isFinite(item.demolitionRefundRate) ? item.demolitionRefundRate : 1;
         $('demolish-label').textContent = root.OrbitConstruction?.pricesEnabled()
@@ -514,11 +449,6 @@
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
       if (selectedBuilding?.type === 'hf_antenna' && !$('hf-destination').hidden) renderHfDestination(selectedBuilding);
       if (selectedBuilding && !$('building-readout').hidden) renderBuildingReadout(selectedBuilding);
-      const systemsById = new Map();
-      if (state.system) systemsById.set(state.system.id, state.system);
-      if (selectedBuilding?.type === 'launch_platform' && !$('platform-logistics').hidden) {
-        renderPlatformLogistics(selectedBuilding, { state, systemsById });
-      }
       if (state.selected?.kind === 'orbital-hub' && !$('orbital-hub-logistics').hidden && state.system) {
         renderOrbitalHub(state, state.system);
       }
@@ -554,36 +484,7 @@
       $('build-button').setAttribute('aria-expanded', String(state.buildMenuOpen));
       $('build-button').setAttribute('aria-label', state.tool === 'build' ? 'Annuler la pose' : 'Ouvrir le catalogue des bâtiments');
       $('road-button').setAttribute('aria-pressed', String(state.tool === 'road'));
-      $('build-menu').hidden = level !== 'surface' || !state.buildMenuOpen;
-      const filter = buildFilter(state);
-      for (const card of buildOptions.children) {
-        const option = card.querySelector('.build-option'), type = card.dataset.buildingCard;
-        const definition = BuildingData.get(type);
-        const price = root.OrbitConstruction.costFor(type) || {};
-        const unique = (definition?.placementRules?.uniquePerPlanet || definition?.placementRules?.uniqueInGame) &&
-          (state.surfaceBuildings || []).some(building => building.type === definition.id &&
-            (definition.placementRules.uniqueInGame || building.planetId === state.planet?.id));
-        // Buildings appear as the colony needs them, in their group.
-        card.hidden = !root.OrbitProgression.buildingUnlocked(state, type) || (filter !== 'all' && groupOf(definition)?.id !== filter);
-        // A world without colony takes only a colony or labs (skill "Atterrisseur").
-        const blocked = state.planet ? root.OrbitProgression.buildBlockedHere(state, type, state.planet) : null;
-        option.disabled = unique || Boolean(blocked) || !Inventory.canAfford(state.inventory, price);
-        // Prices are masked for now: only why it can't be placed shows.
-        const note = option.querySelector('.build-option-note');
-        const noteText = unique ? 'Déjà posée' : blocked ? 'Hors colonie'
-          : root.OrbitConstruction.pricesEnabled() ? resourceSummary(price) : '';
-        if (note.textContent !== noteText) note.textContent = noteText;
-        note.hidden = !noteText;
-        option.title = unique ? 'Un seul exemplaire possible.' : blocked || '';
-      }
-      renderBuildMenuTabs(state, filter);
-      renderBuildInfo(state);
-      $('build-menu-title').textContent = 'CONSTRUCTION';
-      // On a world without colony, say what may be built there.
-      const settled = (state.surfaceBuildings || []).some(building => building.type === 'colony' && building.planetId === state.planet?.id);
-      const anyColony = (state.surfaceBuildings || []).some(building => building.type === 'colony');
-      $('build-menu-hint').hidden = !(level === 'surface' && anyColony && !settled);
-      $('build-menu-hint').textContent = root.OrbitProgression.buildBlockedHere(state, 'factory', state.planet) || '';
+      buildMenu.update(state, level);
       // The planet's power, discreet: drawn / produced, with a thin bar.
       const power = level === 'surface' ? state.powerStatus?.[state.planet?.id] : null;
       $('power-gauge').hidden = !power;
@@ -600,108 +501,6 @@
       $('scan-button').classList.toggle('active', state.tool === 'scan');
       $('build-button').classList.toggle('active', state.tool === 'build' || state.buildMenuOpen);
       $('road-button').classList.toggle('active', state.tool === 'road');
-    }
-
-    // The build menu's filter: all, one group, or the buildings the player
-    // saved (state.library), placed again with their name and cards.
-    const savedBuildings = state => (state.library?.buildings || []).filter(item => BuildingData.processTypes.includes(item.type));
-    function buildFilter(state) {
-      const wanted = state.buildMenuTab || 'all';
-      if (wanted === 'saved') return savedBuildings(state).length ? 'saved' : 'all';
-      return BuildingData.menuGroups.some(group => group.id === wanted) ? wanted : 'all';
-    }
-    let filterSignature = null, savedSignature = null;
-    function renderBuildMenuTabs(state, filter) {
-      const saved = savedBuildings(state);
-      // Only the groups holding an available building, and "saved" once
-      // something is saved.
-      const groups = BuildingData.menuGroups.filter(group => BuildingData.catalog()
-        .some(definition => group.categories.includes(definition.category) && root.OrbitProgression.buildingUnlocked(state, definition.id)));
-      const chips = [{ id: 'all', label: 'TOUT' }, ...groups, ...(saved.length ? [{ id: 'saved', label: `ENREGISTRÉS ${saved.length}` }] : [])];
-      const signature = JSON.stringify([chips.map(chip => chip.label), filter]);
-      if (signature !== filterSignature) {
-        filterSignature = signature;
-        $('build-filters').replaceChildren(...chips.map(chip => {
-          const button = document.createElement('button');
-          button.type = 'button'; button.dataset.buildFilter = chip.id; button.textContent = chip.label;
-          button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(chip.id === filter));
-          button.classList.toggle('active', chip.id === filter);
-          return button;
-        }));
-      }
-      const info = Boolean(state.buildInfoType);
-      $('build-filters').hidden = info;
-      $('build-options').hidden = info || filter === 'saved';
-      $('saved-buildings').hidden = info || filter !== 'saved';
-      const available = saved.map(item => root.OrbitProgression.buildingUnlocked(state, item.type));
-      const savedNow = JSON.stringify([saved.map(item => [item.id, item.name]), available]);
-      if (savedNow === savedSignature) return;
-      savedSignature = savedNow;
-      $('saved-buildings').replaceChildren(...saved.map((item, index) => {
-        const definition = BuildingData.get(item.type);
-        const entry = document.createElement('div'); entry.className = 'build-card saved-building';
-        const button = document.createElement('button');
-        button.type = 'button'; button.className = 'build-option'; button.dataset.savedBuildingId = item.id;
-        button.disabled = !available[index] || !definition;
-        const icon = document.createElement('canvas'); icon.className = 'build-option-badge'; icon.width = icon.height = 72;
-        icon.setAttribute('aria-hidden', 'true');
-        if (definition) root.OrbitBuildingRenderer?.drawBadge(icon, definition.id);
-        const name = document.createElement('strong'); name.textContent = item.name;
-        const cards = item.plan.machines.length;
-        const note = document.createElement('small'); note.className = 'build-option-note';
-        note.textContent = available[index] ? `${cards} carte${cards > 1 ? 's' : ''}` : 'Indisponible';
-        button.append(icon, name, note);
-        const remove = document.createElement('button');
-        remove.type = 'button'; remove.className = 'saved-building-remove'; remove.dataset.deleteSavedBuilding = item.id;
-        remove.setAttribute('aria-label', `Retirer ${item.name} des bâtiments enregistrés`); remove.textContent = '×';
-        entry.append(button, remove);
-        return entry;
-      }));
-    }
-
-    // How a building works, opened by its "i": what it does, where it goes,
-    // what it needs, and a button to place it.
-    let infoShown = null;
-    function placementText(definition) {
-      const rules = definition.placementRules || {};
-      if (rules.deepWaterOnly) return 'En mer profonde';
-      if (rules.coastRequired) return 'Sur la côte, face à la mer';
-      if (rules.shoreRequired) return `À moins de ${rules.shoreReach || 30} km d’une eau`;
-      return 'Sur la terre ferme';
-    }
-    function powerText(definition) {
-      if (definition.generatorMW) return `+${fmt(definition.generatorMW)} MW`;
-      if (definition.id === 'wind_turbine') return `+${fmt(root.OrbitProcessData?.config.windPowerMW || 0)} MW`;
-      if (definition.id === 'lab') return 'Autonome';
-      if (BuildingData.processTypes.includes(definition.id)) return 'Selon ses cartes';
-      return '';
-    }
-    function renderBuildInfo(state) {
-      const type = state.buildMenuOpen ? state.buildInfoType : null;
-      const definition = type ? BuildingData.get(type) : null;
-      $('build-info').hidden = !definition;
-      if (!definition) { infoShown = null; return; }
-      const option = buildOptions.querySelector(`[data-building-type="${type}"]`);
-      $('build-info-place').disabled = !option || option.disabled;
-      $('build-info-place').textContent = option?.disabled ? (option.querySelector('.build-option-note').textContent || 'INDISPONIBLE').toUpperCase() : 'CONSTRUIRE';
-      if (infoShown === type) return;
-      infoShown = type;
-      root.OrbitPanelKit?.badge($('build-info-icon'), type);
-      $('build-info-name').textContent = nameCase(definition.label);
-      $('build-info-group').textContent = groupOf(definition)?.label || 'COLONIE';
-      $('build-info-details').textContent = definition.details || definition.description;
-      const facts = [['Emplacement', placementText(definition)],
-        ['Route', definition.roadRequired ? 'À relier par route' : 'Par voie maritime'],
-        ['Énergie', powerText(definition)],
-        ['Limite', definition.placementRules?.uniquePerPlanet ? 'Une par planète' : ''],
-        ['Chantier', Object.entries(definition.constructionNeeds || {})
-          .map(([id, amount]) => `${fmt(amount)} ${ResourceData.get(id)?.label || id}`).join(' · ')]];
-      $('build-info-facts').replaceChildren(...facts.filter(([, value]) => value).flatMap(([label, value]) => {
-        const term = document.createElement('dt'); term.textContent = label;
-        const detail = document.createElement('dd'); detail.textContent = value;
-        return [term, detail];
-      }));
-      $('build-menu').scrollTop = 0;
     }
 
     return Object.freeze({ toast, showSelection, update, compositionText });

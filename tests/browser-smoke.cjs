@@ -575,10 +575,8 @@ async function runViewport(cdp, viewport, runtimeErrors) {
     `${name} launch platform can be selected on the actual planetary map`);
   await cdp.tapAt({ x: platformPoint.x, y: platformPoint.y }, mobile);
   assert.equal((await cdp.evaluate(stateExpression)).selectedId, fixture.platformId, `${name} real tap selects the launch platform`);
-  assert.equal(await cdp.evaluate('document.querySelector("#platform-logistics").hidden'), false,
-    `${name} launch platform opens its dedicated panel`);
-  assert.deepEqual(await cdp.evaluate('[...document.querySelectorAll("#platform-logistics .logistics-card > strong")].map(item => item.textContent)'),
-    ['RÉCEPTION', 'LANCEMENT'], `${name} platform shows reception and launch status only`);
+  assert.equal(await cdp.evaluate('document.querySelector("#hub-panel").hidden'), false,
+    `${name} launch platform opens the hub menu`);
   assert.equal(await cdp.evaluate('Boolean(document.querySelector("#platform-export-data"))'), false,
     `${name} export destination is no longer configured on the platform`);
 

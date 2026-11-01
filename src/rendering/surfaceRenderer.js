@@ -3,7 +3,6 @@
 
   const World = root.OrbitWorld, Config = root.OrbitConfig;
   const SurfaceStyle = root.OrbitSurfaceStyle;
-  const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const ease = t => t * t * (3 - 2 * t);
   const smoothstep = t => ease(clamp(t, 0, 1));

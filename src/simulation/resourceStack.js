@@ -34,16 +34,6 @@
       reprocessingPasses: Math.max(0, Math.floor(value.reprocessingPasses || 0)) };
   }
 
-  function portion(stack, amount) {
-    return stack && amount > EPSILON ? create({ ...stack, amount: Math.min(amount, stack.amount) }) : null;
-  }
-
-  function convert(stack, resourceId, amount, changes = {}) {
-    const definition = Data.get(resourceId);
-    return create({ ...stack, resourceId, amount, tags: definition?.tags || [],
-      quality: definition?.quality || stack.quality, ...changes });
-  }
-
   function merge(first, second) {
     if (!first) return second ? create(second) : null;
     if (!second) return create(first);
@@ -63,25 +53,12 @@
   }
 
   function total(stacks) { return (stacks || []).reduce((sum, stack) => sum + (stack?.amount || 0), 0); }
-  function recoverableAmount(stack, element) {
-    if (!stack) return 0;
-    const mineralFraction = elements.reduce((sum, id) => sum + (stack.composition[id] || 0), 0);
-    return mineralFraction > EPSILON ? stack.amount * (stack.composition[element] || 0) *
-      Math.min(1, stack.recoverableFraction / mineralFraction) : 0;
-  }
+
   function addToStock(stock, stack) {
     if (!stack || stack.amount <= EPSILON) return;
     const index = stock.findIndex(item => item.resourceId === stack.resourceId);
     if (index === -1) stock.push(create(stack)); else stock[index] = merge(stock[index], stack);
   }
-  function takeFromStock(stock, resourceId, amount) {
-    const index = stock.findIndex(item => item.resourceId === resourceId), source = stock[index];
-    if (!source || source.amount + EPSILON < amount || amount <= EPSILON) return null;
-    const taken = portion(source, amount);
-    source.amount -= taken.amount;
-    if (source.amount <= EPSILON) stock.splice(index, 1);
-    return taken;
-  }
-  root.OrbitResourceStack = Object.freeze({ create, portion, convert, merge, total, addToStock, takeFromStock,
-    compositionOf, recoverableAmount, qualities, sizes, elements, EPSILON });
+
+  root.OrbitResourceStack = Object.freeze({ create, merge, total, addToStock, compositionOf, qualities, sizes, elements, EPSILON });
 })(globalThis);

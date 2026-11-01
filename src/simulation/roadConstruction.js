@@ -32,10 +32,6 @@
     return false;
   }
 
-  function hasCompletedConnection(network, fromNodeId, toNodeId) {
-    return hasConnection(completedAdjacency(network), fromNodeId, toNodeId);
-  }
-
   function advance(networks, deltaSeconds, onComplete = null) {
     if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) throw new RangeError('Road construction time must be non-negative');
     let changed = false;
@@ -68,5 +64,5 @@
     return changed;
   }
 
-  root.OrbitRoadConstruction = Object.freeze({ advance, hasCompletedConnection });
+  root.OrbitRoadConstruction = Object.freeze({ advance });
 })(globalThis);

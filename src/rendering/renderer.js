@@ -1,7 +1,6 @@
 (function (root) {
   'use strict';
   const World = root.OrbitWorld, Camera = root.OrbitCamera;
-  const SurfaceStyle = root.OrbitSurfaceStyle;
   const surfaceAspect = root.OrbitConfig.terrain.width / root.OrbitConfig.terrain.height;
   const TAU = Math.PI * 2;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));

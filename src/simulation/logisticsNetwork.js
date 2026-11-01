@@ -138,6 +138,5 @@
     return { transferred, rates, flows };
   }
 
-  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, hasReceivingDock,
-    transferDockStockToBuildings, transferDockStockToPlatforms: transferDockStockToBuildings });
+  root.OrbitLogisticsNetwork = Object.freeze({ hasBuiltLandPath, hasReceivingDock, transferDockStockToBuildings });
 })(globalThis);
