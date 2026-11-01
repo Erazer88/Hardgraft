@@ -81,15 +81,17 @@ accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
 
 | Carte | Rôle | Réglage |
 | --- | --- | --- |
-| Porte d'entrée | Tire le stock reçu (`building.inventory`), à tour de rôle par ressource, sans limite de débit | — |
-| Tampon | Garde jusqu'à 200 unités par ressource | — |
+| Porte d'entrée | Tire du stock reçu (`building.inventory`) sa seule ressource (`importResourceId`), sans limite de débit | Ressource |
+| Stockage | Garde jusqu'à 1 000 unités en tout (`depot.bufferCapacity`) ; 15 MW en permanence, sans énergie il n'accepte ni ne rend rien | — |
 | Filtre | Ressource choisie → sortie 1, le reste → sortie 2 | Ressource filtrée |
 | Répartiteur | Partage selon un pourcentage (10 à 90 %) | Part A/B |
 | Priorité | Remplit la sortie prioritaire, puis déborde | — |
 | Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), sans limite de débit | Destination |
 
-Les autres cartes gardent au plus 20 unités. Le routage (`src/simulation/depotRouting.js`)
-ne consomme pas d'énergie ; les réglages sont dans `machine.config` et sauvegardés.
+Une Porte d'entrée ne gère qu'une ressource : il en faut une par ressource reçue. Les
+autres cartes gardent au plus 20 unités. Seules les cartes Stockage consomment de
+l'énergie (`constantEnergy`, demande du dépôt comptée avec la planète,
+`OrbitDepotRouting.demand`) ; les réglages sont dans `machine.config` et sauvegardés.
 
 **Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
 Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
@@ -134,20 +136,24 @@ carte d'entrée d'une usine, d'un terril ou d'un dépôt se crée d'elle-même (
 de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui l'alimente
 s'arrête. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
-**Cartes d'entrée automatiques** (`src/gameplay/entryGates.js`). Choisir un bâtiment
-comme destination d'un Dock de sortie ou d'une Porte de sortie de dépôt crée sa carte
-d'entrée : un Quai d'entrée par ressource envoyée pour une usine ou un terril (un de
-plus, ouvert à toute ressource, pour le flux mêlé d'un dépôt), une Porte d'entrée pour
-un dépôt. Quand plus rien ne lui est envoyé, la carte disparaît. Ces cartes ne sont
-plus dans le menu « Ajouter un bloc ». Supprimer une carte d'entrée à la main ne
-supprime pas les Docks ou Portes de sortie qui l'alimentaient : leur destination est
-seulement effacée. La synchronisation se fait à chaque choix de destination, à chaque
-démolition et toutes les 2 s.
+**Cartes d'entrée** (`src/gameplay/entryGates.js`). Chaque carte d'entrée (Quai
+d'entrée d'une usine ou d'un terril, Porte d'entrée d'un dépôt) fait entrer une seule
+ressource (`importResourceId`) ; un bâtiment à cartes ne reçoit par route que les
+ressources qui ont leur carte (`hasReceivingDock(state, building, resourceId)`). Le
+joueur peut les poser depuis « Ajouter un bloc » : une carte posée sans ressource est
+libre. Quand on choisit un bâtiment comme destination d'un Dock de sortie ou d'une Porte
+de sortie de dépôt, chaque ressource envoyée prend la carte déjà réglée sur elle, sinon
+une carte libre (qui s'y lie), sinon une carte créée par le jeu (`autoEntry`). Pour une
+Porte de sortie, les ressources envoyées sont celles de sa file et celles déjà livrées
+(`receivedFrom`). Les cartes créées par le jeu disparaissent quand plus rien ne leur est
+envoyé ; celles du joueur restent. Supprimer une carte d'entrée à la main ne supprime
+pas les Docks ou Portes de sortie qui l'alimentaient : leur destination est seulement
+effacée. La synchronisation se fait à chaque choix de destination, à chaque démolition
+et toutes les 2 s.
 
 Le Quai d'entrée affiche les matières livrées dans `building.inventory` et possède une sortie `material` raccordable
-aux machines. Un quai créé automatiquement prend la ressource qui lui est envoyée
-(un quai ouvert, pour le flux mêlé d'un dépôt, prend la première matière reçue) ; le
-joueur peut en choisir une autre lorsque le quai est débranché et son buffer vide. Plusieurs
+aux machines. Le joueur peut changer sa ressource (parmi celles reçues) lorsque la
+carte est débranchée et vide. Plusieurs
 quais partagent le même stock sans dupliquer les unités. Un quai peut alimenter
 plusieurs cartes : son stock se partage à tour de rôle entre ses liaisons. Dans l'éditeur, le port partagé d'un quai
 (sortie) ou d'un Dock de sortie (entrée) montre un point par liaison et un point libre
@@ -155,8 +161,8 @@ de plus. La Colonie et les Plateformes
 de lancement reçoivent nativement, sans cette carte.
 
 Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire, un
-Quai d'entrée un bouton vers ses bâtiments sources et la Porte d'entrée d'un dépôt sa
-« PROVENANCE » (tous les bâtiments qui lui envoient quelque chose) ; le changement de
+Quai d'entrée ou une Porte d'entrée de dépôt sa « RESSOURCE » et des boutons vers les
+bâtiments qui la lui envoient ; le changement de
 bâtiment se fait par un court glissement.
 
 **Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans
@@ -235,7 +241,7 @@ des bâtiments et des cartes restent dans les données mais sont masqués
 | `src/simulation/processGraph.js` | Création, validation, connexions et snapshots du graphe |
 | `src/simulation/composition.js` | Composition moyenne de la roche par stock |
 | `src/simulation/processSimulation.js` | Cycles entiers, transferts, rendements selon la teneur, énergie |
-| `src/simulation/depotRouting.js` | Flux mixtes du dépôt : portes, tampon, filtre, répartiteur, priorité |
+| `src/simulation/depotRouting.js` | Flux mixtes du dépôt : portes, stockage, filtre, répartiteur, priorité |
 | `src/gameplay/industry.js` | Géologie, puissance planétaire et raccord aux bâtiments |
 | `src/ui/factoryEditor.js` | Cartes, ports, traits, palette contextuelle, routage des Docks et lecture lissée |
 | `src/ui/factoryViewport.js` | Gestes de la vue industrielle (glisser, pincer, molette) |

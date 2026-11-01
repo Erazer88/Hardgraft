@@ -113,11 +113,15 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   un quai garde au plus 100 u par ressource (`dockCapacity`) : un bâtiment à cartes ne
   reçoit plus au-delà, un Dock de sortie plein arrête l'amont. Un Dock de sortie sans
   destination n'absorbe rien (« SANS DESTINATION ») et bloque l'amont.
-- Cartes d'entrée automatiques (`src/gameplay/entryGates.js`) : choisir une usine, un
-  terril ou un dépôt comme destination crée sa carte d'entrée (un Quai d'entrée par
-  ressource envoyée, une Porte d'entrée pour un dépôt), qui disparaît quand plus rien
-  ne lui est envoyé. La supprimer à la main efface seulement la destination de ce qui
-  l'alimentait. Ces cartes ne sont plus dans « Ajouter un bloc ».
+- Cartes d'entrée (`src/gameplay/entryGates.js`) : une carte par ressource (Quai
+  d'entrée d'une usine ou d'un terril, Porte d'entrée d'un dépôt ; plus de porte qui
+  laisse tout entrer). Le joueur peut les poser (« Ajouter un bloc ») ; une carte libre
+  se lie à la ressource qu'un bâtiment en amont envoie quand on le règle sur ce
+  bâtiment. À défaut, le jeu crée la carte et la retire quand plus rien ne lui est
+  envoyé ; les cartes du joueur restent. Supprimer une carte d'entrée à la main efface
+  seulement la destination de ce qui l'alimentait.
+- Dépôt : la carte Stockage (ex-Tampon) garde 1 000 u en tout et consomme 15 MW en
+  permanence ; sans énergie elle n'accepte ni ne rend rien.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   et incinération immédiats, carte Stockage sans limite pour la matière récupérée), Plateforme de lancement. Pas de pollution.
 - Deux équipes de robots, 2 s de construction par bâtiment. Prix masqués

@@ -61,10 +61,13 @@
     return Math.max(0, capacity - Math.floor(destination.inventory?.[resourceId] || 0));
   }
 
-  function hasReceivingDock(state, building) {
+  // A building with cards receives a resource through an entry card set to
+  // it (any entry card when no resource is named).
+  function hasReceivingDock(state, building, resourceId = null) {
     if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
-    return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry));
+    return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry &&
+      (!resourceId || machine.importResourceId === resourceId)));
   }
 
   // Moves every docked stock to its assigned destination. Besides the totals,
@@ -81,7 +84,7 @@
       if (!offered || !destination || destination.id === source.id || destination.planetId !== source.planetId ||
           !ALLOWED_DOCK_DESTINATIONS.includes(destination.type) ||
           !['complete', 'supplying'].includes(destination.constructionState) ||
-          !hasReceivingDock(state, destination) ||
+          !hasReceivingDock(state, destination, resourceId) ||
           !hasBuiltLandPath(network, source.id, destination.id)) return 0;
       const room = siteRoom(destination, resourceId) ?? dockRoom(destination, resourceId);
       const amount = room === null ? offered : Math.min(offered, room);

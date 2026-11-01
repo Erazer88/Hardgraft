@@ -1,20 +1,27 @@
 (function (root) {
   'use strict';
 
-  // Entry cards follow what is sent to a building: choosing a building as
-  // the destination of an output dock (or of a depot's output gate) creates
-  // its entry card, clearing the last such choice removes it. Factories and
-  // waste heaps take one input dock per resource sent (one more, open to any
-  // resource, for a depot's mixed flow); a depot takes one entry gate.
-  // Removing an entry card by hand keeps the output docks that fed it and
-  // only clears their destination. No DOM.
+  // Entry cards follow what is sent to a building. Every entry card takes in
+  // one resource (importResourceId): an input dock for a factory or a waste
+  // heap, an entry gate for a depot. When a building is chosen as the
+  // destination of an output dock (or of a depot's output gate), each
+  // resource sent to it gets its entry card: one already set to it, else a
+  // free one the player laid (it is linked to the resource), else a new one
+  // laid by the game (autoEntry). Cards laid by the game go once nothing is
+  // sent to them any more; the player's own cards stay. Removing an entry
+  // card by hand keeps the output docks that fed it and only clears their
+  // destination. No DOM.
   const Graph = () => root.OrbitProcessGraph;
   const ENTRY = Object.freeze({ factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' });
-  const MIXED = null;
 
   const entryType = building => ENTRY[building?.type] || null;
 
-  // What reaches `target`: resource ids from docks, MIXED from depot gates.
+  // Depot output gates sending to `target`.
+  const gatesTo = (state, source, target) => (state.factoryPlans?.[source.id]?.machines || []).some(machine =>
+    machine.type === 'depot_output' && machine.config?.destinationId === target.id);
+
+  // Resource ids sent to `target`: by output docks, and by depot gates
+  // (those waiting in the gate's queue, and those it already delivered).
   function incoming(state, target) {
     const wanted = new Set();
     for (const source of state.surfaceBuildings || []) {
@@ -22,8 +29,9 @@
       for (const [resourceId, destination] of Object.entries(source.dockDestinations || {})) {
         if (destination === target.id) wanted.add(resourceId);
       }
-      if ((state.factoryPlans?.[source.id]?.machines || []).some(machine =>
-        machine.type === 'depot_output' && machine.config?.destinationId === target.id)) wanted.add(MIXED);
+      if (!gatesTo(state, source, target)) continue;
+      for (const [resourceId, amount] of Object.entries(source.gateStock?.[target.id] || {})) if (amount > 0) wanted.add(resourceId);
+      for (const resourceId of Object.keys(target.receivedFrom?.[source.id] || {})) wanted.add(resourceId);
     }
     return wanted;
   }
@@ -43,9 +51,7 @@
     const ids = new Set(graph.machines.map(machine => machine.id));
     let index = graph.machines.length + 1;
     while (ids.has(`entry-${index}`)) index++;
-    const result = Graph().addMachine(graph, { id: `entry-${index}`, type, ...freeSpot(graph),
-      ...(type === 'input_dock' ? { importResourceId } : {}) });
-    return result.ok;
+    return Graph().addMachine(graph, { id: `entry-${index}`, type, ...freeSpot(graph), importResourceId, autoEntry: true }).ok;
   }
 
   // Brings a building's entry cards in line with what is sent to it; returns
@@ -58,24 +64,15 @@
     const graph = root.OrbitIndustry.ensureGraph(state, target);
     const entries = graph.machines.filter(machine => machine.type === type);
     let changed = false;
-    if (type === 'depot_input') {
-      if (wanted.size && !entries.length) changed = addEntry(graph, type, null) || changed;
-      if (!wanted.size) for (const entry of entries) changed = Graph().removeMachine(graph, entry.id).ok || changed;
-      return changed;
-    }
-    // One input dock per resource sent; the dock of a mixed flow takes any.
-    const kept = new Set();
-    for (const resourceId of wanted) {
-      if (resourceId === MIXED) continue;
-      const dock = entries.find(entry => entry.importResourceId === resourceId && !kept.has(entry));
-      if (dock) kept.add(dock);
+    for (const resourceId of [...wanted].sort()) {
+      if (entries.some(entry => entry.importResourceId === resourceId)) continue;
+      const free = entries.find(entry => !entry.importResourceId);
+      if (free) { free.importResourceId = resourceId; changed = true; }
       else changed = addEntry(graph, type, resourceId) || changed;
     }
-    if (wanted.has(MIXED)) {
-      const open = entries.find(entry => !kept.has(entry));
-      if (open) kept.add(open); else changed = addEntry(graph, type, null) || changed;
+    for (const entry of entries) {
+      if (entry.autoEntry && !wanted.has(entry.importResourceId)) changed = Graph().removeMachine(graph, entry.id).ok || changed;
     }
-    for (const entry of entries) if (!kept.has(entry)) changed = Graph().removeMachine(graph, entry.id).ok || changed;
     return changed;
   }
 
@@ -85,16 +82,23 @@
   }
 
   // An entry card removed by hand: the output docks and gates that fed it
-  // keep their card, only their destination is cleared.
+  // keep their card, only their destination is cleared (a gate's, once no
+  // other entry card of the building takes what it sends).
   function detach(state, target, entry) {
-    const resourceId = entry.type === 'input_dock' ? entry.importResourceId || MIXED : MIXED;
-    const everything = entry.type === 'depot_input';
+    const resourceId = entry.importResourceId || null;
+    if (!resourceId) return;
+    const others = new Set((state.factoryPlans?.[target.id]?.machines || [])
+      .filter(machine => machine.id !== entry.id && machine.type === entry.type && machine.importResourceId)
+      .map(machine => machine.importResourceId));
+    if (others.has(resourceId)) return;
     for (const source of state.surfaceBuildings || []) {
       if (source.id === target.id) continue;
-      for (const [id, destination] of Object.entries(source.dockDestinations || {})) {
-        if (destination === target.id && (everything || id === resourceId)) delete source.dockDestinations[id];
-      }
-      if (!everything && resourceId !== MIXED) continue;
+      if (source.dockDestinations?.[resourceId] === target.id) delete source.dockDestinations[resourceId];
+      if (!gatesTo(state, source, target)) continue;
+      // A gate sends a mixed flow: it loses its destination once none of
+      // what it sent there has an entry card left.
+      const sent = new Set([...Object.keys(source.gateStock?.[target.id] || {}), ...Object.keys(target.receivedFrom?.[source.id] || {})]);
+      if ([...sent].some(id => id !== resourceId && others.has(id))) continue;
       for (const machine of state.factoryPlans?.[source.id]?.machines || []) {
         if (machine.type === 'depot_output' && machine.config?.destinationId === target.id) delete machine.config.destinationId;
       }

@@ -66,10 +66,8 @@
       depot_output: 'destinationId' })[type] || null;
     const heightOf = value => {
       const definition = typeOf(value);
-      if (definition.externalInput) return NODE.inputDockHeight;
+      if (definition.externalInput || definition.gate === 'input') return NODE.inputDockHeight;
       if (definition.routing && routingControl(definition.id)) return NODE.height + 64;
-      // A depot's entry gate lists where its goods come from.
-      if (definition.id === 'depot_input') return NODE.height + 44;
       if (definition.externalOutput) return NODE.outputDockHeight;
       const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
       return NODE.height + (portRows - 1) * 24;
@@ -224,10 +222,6 @@
     function updateMachineReadout(machine) {
       const card = cards.get(machine.id);
       if (!card) return;
-      if (typeOf(machine).externalInput) {
-        machine.importResourceId ||= Object.keys(activeBuilding?.inventory || {}).sort()
-          .find(id => activeBuilding.inventory[id] > 0) || null;
-      }
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
       const view = smoothed(machine, def), rate = view.rate;
       // State and rate on one line.
@@ -258,7 +252,8 @@
       const names = { iron: 'fer', copper: 'cuivre', silicon: 'silice', carbon: 'carbone' };
       const noteText = dock ? `Stock ${fmt(dock.amount)} / ${fmt(dock.capacity)} u`
         : rock ? `Teneur ${names[graded.yieldOf] || graded.yieldOf} ${Math.round((rock[graded.yieldOf] || 0) * 100)} %`
-        : def.routing || def.storesResources ? held ? `${def.id === 'depot_buffer' || def.storesResources ? 'Stock' : 'En transit'} ${fmt(held)} u` : ''
+        : def.id === 'depot_buffer' ? `Stock ${fmt(held)} / ${fmt(Data.config.depot.bufferCapacity)} u`
+        : def.routing || def.storesResources ? held ? `${def.storesResources ? 'Stock' : 'En transit'} ${fmt(held)} u` : ''
         : '';
       const note = card.querySelector('[data-readout="cycle"]');
       if (note.textContent !== noteText) note.textContent = noteText;
@@ -280,13 +275,7 @@
         if (label) label.innerHTML = resourceLine(port, machine.outputBuffer[port.id]);
       }
       updateDockDestination(machine);
-      if (def.externalInput) updateInputDock(machine);
-      if (def.id === 'depot_input') {
-        const sources = getSources(activeBuilding, null);
-        updateJumps(card, sources, '←');
-        const label = card.querySelector('[data-sources-label]'), text = sources.length ? 'PROVENANCE' : 'PROVENANCE · AUCUN ENVOI';
-        if (label && label.textContent !== text) label.textContent = text;
-      }
+      if (takesOneResource(def)) updateInputDock(machine);
       if (def.routing) updateRoutingControl(machine);
     }
 
@@ -323,6 +312,11 @@
       select.value = options.some(item => item.value === String(current)) ? String(current) : '';
     }
 
+    // Entry cards (an input dock, a depot's entry gate) take in one resource;
+    // they change it only while unlinked and empty.
+    const takesOneResource = def => Boolean(def.externalInput || def.gate === 'input');
+    const entryHolds = machine => typeOf(machine).externalInput ? machine.outputBuffer.material > 0
+      : Object.values(machine.storedResources || {}).some(amount => amount > 0);
     function updateInputDock(machine) {
       const card = cards.get(machine.id), select = card?.querySelector('[data-dock-resource]');
       if (!select) return;
@@ -337,8 +331,10 @@
       if (select.dataset.stockKey !== key && document.activeElement !== select) {
         select.dataset.stockKey = key;
         select.replaceChildren();
-        if (!resources.length) {
-          const option = document.createElement('option'); option.value = ''; option.textContent = 'En attente de livraison'; select.append(option);
+        // A free card waits for a resource: chosen here, or linked by itself
+        // once a building upstream sends one here.
+        if (!machine.importResourceId) {
+          const option = document.createElement('option'); option.value = ''; option.textContent = 'Libre · en attente d’un envoi'; option.title = 'Choisissez ce bâtiment comme destination en amont : la carte s’y lie.'; select.append(option);
         }
         for (const id of resources) {
           const option = document.createElement('option'); option.value = id;
@@ -347,10 +343,10 @@
         }
         select.value = machine.importResourceId || '';
       }
-      const disabled = !resources.length || machine.outputBuffer.material > 0 ||
+      const disabled = !resources.length || entryHolds(machine) ||
         connections.some(link => link.fromMachineId === machine.id);
       if (select.disabled !== disabled) select.disabled = disabled;
-      const title = disabled && resources.length ? 'Débranchez et videz le quai pour changer de ressource.' : 'Ressource à envoyer aux machines';
+      const title = disabled && resources.length ? 'Débranchez et videz la carte pour changer de ressource.' : 'Ressource à faire entrer';
       if (select.title !== title) select.title = title;
       updateJumps(card, machine.importResourceId ? getSources(activeBuilding, machine.importResourceId) : [], '←');
     }
@@ -480,25 +476,19 @@
         control.append(label, select);
         dockControl = control;
       }
-      if (def.id === 'depot_input') {
-        // Where the depot's goods come from: buttons to open their cards.
-        const sources = document.createElement('div'); sources.className = 'factory-dock-route';
-        const label = document.createElement('span'); label.textContent = 'PROVENANCE'; label.dataset.sourcesLabel = '';
-        const jumps = document.createElement('div'); jumps.className = 'factory-dock-jumps'; jumps.dataset.jumps = '';
-        sources.append(label, jumps);
-        dockControl = sources;
-      }
       card.style.height = `${heightOf(machine)}px`;
-      if (def.externalOutput || def.externalInput) {
-        if (def.externalInput) card.classList.add('factory-node-input-dock');
+      if (def.externalOutput || takesOneResource(def)) {
+        const entry = takesOneResource(def);
+        if (entry) card.classList.add('factory-node-input-dock');
         else card.classList.add('factory-node-output-dock');
+        // An entry card names its resource; its buttons open the buildings sending it.
         const destination = document.createElement('label'); destination.className = 'factory-dock-route';
         const label = document.createElement('span');
-        label.textContent = def.externalInput ? 'RESSOURCE' : def.dataUplink ? 'ANTENNE HF' : 'DESTINATION';
+        label.textContent = entry ? 'RESSOURCE' : def.dataUplink ? 'ANTENNE HF' : 'DESTINATION';
         const select = document.createElement('select');
-        if (def.externalInput) select.dataset.dockResource = machine.id;
+        if (entry) select.dataset.dockResource = machine.id;
         else select.dataset.dockDestination = machine.id;
-        select.setAttribute('aria-label', def.externalInput ? 'Choisir la ressource reçue à envoyer aux machines' : 'Choisir le bâtiment destinataire pour cette ressource');
+        select.setAttribute('aria-label', entry ? 'Choisir la ressource reçue à faire entrer' : 'Choisir le bâtiment destinataire pour cette ressource');
         const jumps = document.createElement('div'); jumps.className = 'factory-dock-jumps'; jumps.dataset.jumps = '';
         destination.append(label, select, jumps);
         dockControl = destination;
@@ -725,7 +715,7 @@
         processingResource())) {
         // Cards appear as the colony needs them; entry cards come by
         // themselves when a building is chosen as a destination.
-        if (!isCardAvailable(def) || ['input_dock', 'depot_input'].includes(def.id)) continue;
+        if (!isCardAvailable(def)) continue;
         // A card with a per-building limit (one drill) leaves the menu once placed.
         if (def.maxPerBuilding && machines.filter(item => item.type === def.id).length >= def.maxPerBuilding) continue;
         const button = document.createElement('button');
@@ -1075,7 +1065,7 @@
       const resourceSelect = event.target.closest('select[data-dock-resource]');
       if (resourceSelect && activeBuilding) {
         const machine = machineById(resourceSelect.dataset.dockResource);
-        if (!machine || machine.outputBuffer.material > 0 || connections.some(link => link.fromMachineId === machine.id)) return;
+        if (!machine || entryHolds(machine) || connections.some(link => link.fromMachineId === machine.id)) return;
         if (!(activeBuilding.inventory?.[resourceSelect.value] > 0)) return;
         machine.importResourceId = resourceSelect.value;
         machine.cycleProgress = 0;

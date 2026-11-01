@@ -69,7 +69,7 @@
     storage: {
       id: 'storage', label: 'DÉPÔT', shortLabel: 'DÉ', category: 'logistics', icon: 'storage',
       description: 'Reçoit tout ce qu’on lui envoie et le répartit vers d’autres bâtiments.',
-      details: 'Reçoit tout ce qu’on lui envoie par sa Porte d’entrée et le répartit avec ses cartes : tampon, filtre, répartiteur, priorité, puis portes de sortie vers d’autres bâtiments.',
+      details: 'Reçoit chaque ressource par une Porte d’entrée qui lui est propre et la répartit avec ses cartes : stockage (1 000 u, 15 MW), filtre, répartiteur, priorité, puis portes de sortie vers d’autres bâtiments.',
       functions: { storesAllMaterials: true, routesMaterials: true },
       cost: { iron: 12, copper: 4 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 28, height: 24 }, roadRequired: true,

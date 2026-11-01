@@ -2,7 +2,9 @@
   'use strict';
 
   // Depot routing: cards pass mixed flows (any resource) between each other.
-  // Input gates draw everything the depot received; buffers, filters,
+  // Each input gate draws the one resource it takes (importResourceId) from
+  // what the depot received; storage cards hold up to bufferCapacity units
+  // while powered; buffers, filters,
   // splitters and priority cards route it; output gates queue it per
   // destination in building.gateStock, which the road network then delivers.
   // Every card holds its units in machine.storedResources.
@@ -14,7 +16,7 @@
 
   function room(machine, resourceId) {
     const settings = Data.config.depot, held = machine.storedResources;
-    if (machine.type === 'depot_buffer') return Math.max(0, settings.bufferCapacity - (held[resourceId] || 0));
+    if (machine.type === 'depot_buffer') return machine.unpowered ? 0 : Math.max(0, settings.bufferCapacity - total(held));
     return Math.max(0, settings.cardCapacity - total(held));
   }
 
@@ -54,8 +56,16 @@
     return Math.min(settings.gateThroughput, (machine.gateCredit || 0) + settings.gateThroughput * step);
   }
 
-  function advance(graph, seconds, building) {
+  // Power the depot's cards ask for: storage cards draw theirs all the time.
+  function demand(graph) {
+    return graph.machines.reduce((sum, machine) => definition(machine)?.constantEnergy ? sum + definition(machine).energyMW : sum, 0);
+  }
+
+  // powerRatio: the share of its demand the planet can give (1 = all).
+  function advance(graph, seconds, building, powerRatio = 1) {
     const step = Data.config.fixedStepSeconds, settings = Data.config.depot;
+    // Without power, a storage card takes nothing in and lets nothing out.
+    for (const machine of graph.machines) machine.unpowered = Boolean(definition(machine)?.constantEnergy) && !(powerRatio > 0);
     graph.accumulator = (graph.accumulator || 0) + seconds;
     const order = Graph.topologicalOrder(graph);
     const targets = new Map();
@@ -72,21 +82,15 @@
       for (const machine of order) {
         const gate = definition(machine).gate;
         if (gate === 'input') {
-          // Draw received stock, one unit at a time across resources.
+          // Draw its one resource from the received stock.
           machine.gateCredit = gateCredit(machine, settings, step);
-          const stock = building.inventory ||= {};
-          let moved = true;
-          while (moved && machine.gateCredit >= 1) {
-            moved = false;
-            for (const resourceId of Object.keys(stock).sort()) {
-              if (machine.gateCredit < 1) break;
-              if (!(stock[resourceId] >= 1) || room(machine, resourceId) < 1) continue;
-              const composition = Mix?.of(building.inventoryMix, resourceId);
-              stock[resourceId] -= 1;
-              if (stock[resourceId] <= 0) { delete stock[resourceId]; Mix?.prune(building.inventoryMix, resourceId, 0); }
-              give(machine, resourceId, 1, composition);
-              machine.gateCredit -= 1; machine.movedUnits++; moved = true;
-            }
+          const stock = building.inventory ||= {}, resourceId = machine.importResourceId;
+          while (resourceId && machine.gateCredit >= 1 && stock[resourceId] >= 1 && room(machine, resourceId) >= 1) {
+            const composition = Mix?.of(building.inventoryMix, resourceId);
+            stock[resourceId] -= 1;
+            if (stock[resourceId] <= 0) { delete stock[resourceId]; Mix?.prune(building.inventoryMix, resourceId, 0); }
+            give(machine, resourceId, 1, composition);
+            machine.gateCredit -= 1; machine.movedUnits++;
           }
         }
         if (gate === 'output') {
@@ -107,6 +111,7 @@
           continue;
         }
         // Push every held unit down its preferred route while there is room.
+        if (machine.unpowered) continue;
         for (const resourceId of Object.keys(machine.storedResources).sort()) {
           while (machine.storedResources[resourceId] > 0) {
             let target = null;
@@ -126,16 +131,16 @@
       machine.currentRate = machine.movedUnits / elapsed;
       // Units moved since the game started (runtime only), for the editor's rate.
       machine.movedTotal = (machine.movedTotal || 0) + machine.movedUnits;
-      machine.state = machine.movedUnits > 0 ? 'active' : held > 0 ? 'output_full' : 'waiting_input';
-      machine.energyMW = 0;
+      machine.state = machine.unpowered ? 'no_energy' : machine.movedUnits > 0 ? 'active' : held > 0 ? 'output_full' : 'waiting_input';
+      machine.energyMW = definition(machine)?.constantEnergy ? definition(machine).energyMW * Math.max(0, Math.min(1, powerRatio)) : 0;
       if (machine.splitSent && machine.splitSent.a + machine.splitSent.b > 1000) {
         machine.splitSent.a /= 2; machine.splitSent.b /= 2;
       }
     }
-    graph.energyUsedMW = 0;
-    graph.energyDemandMW = 0;
+    graph.energyDemandMW = demand(graph);
+    graph.energyUsedMW = graph.machines.reduce((sum, machine) => sum + (machine.energyMW || 0), 0);
     return graph;
   }
 
-  root.OrbitDepotRouting = Object.freeze({ advance });
+  root.OrbitDepotRouting = Object.freeze({ advance, demand });
 })(globalThis);

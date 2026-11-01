@@ -20,6 +20,16 @@
     return byResource.get(resourceId);
   }
 
+  // Entry cards (input docks, depot entry gates) take in one resource,
+  // importResourceId; those the game laid itself (autoEntry) go when nothing
+  // is sent to them any more (src/gameplay/entryGates.js).
+  const takesImport = definition => Boolean(definition?.externalInput || definition?.gate === 'input');
+  function entryFields(definition, value) {
+    if (!takesImport(definition)) return {};
+    return { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null,
+      ...(value.autoEntry === true ? { autoEntry: true } : {}) };
+  }
+
   function createMachine(value = {}, geologyResourceId = null) {
     const resourceId = value.resourceId || geologyResourceId || 'iron';
     const definition = Data.get(value.type, resourceId);
@@ -31,7 +41,7 @@
       id: value.id,
       type: definition.id,
       resourceId,
-      ...(definition.externalInput ? { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null } : {}),
+      ...entryFields(definition, value),
       x: Number.isFinite(value.x) ? value.x : 80,
       y: Number.isFinite(value.y) ? value.y : 80,
       inputBuffer,
@@ -216,7 +226,7 @@
       geology: clone(graph.geology),
       machines: graph.machines.map(machine => ({ id: machine.id, type: machine.type,
         resourceId: machine.resourceId,
-        ...(definitionOf(machine).externalInput ? { importResourceId: machine.importResourceId } : {}),
+        ...entryFields(definitionOf(machine), machine),
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
         storedResources: clone(machine.storedResources),

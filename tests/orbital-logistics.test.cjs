@@ -156,7 +156,7 @@ test('a dock can route a resource to another built factory inventory instead of 
   const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
     constructionState: 'complete' });
   state.surfaceBuildings.push(receiver);
-  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock', importResourceId: 'water' }] } };
   const network = Road.create(planetId);
   state.roadNetworks[planetId] = network;
   const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
@@ -175,7 +175,8 @@ test('a factory receives at most 100 units of each resource; the rest waits at t
   const receiver = Building.create({ id: 'factory-2', type: 'factory', planetId, x: 120, y: 10,
     constructionState: 'complete', inventory: { water: 90 } });
   state.surfaceBuildings.push(receiver);
-  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock', importResourceId: 'raw_iron' },
+    { type: 'input_dock', importResourceId: 'water' }] } };
   const network = Road.create(planetId);
   state.roadNetworks[planetId] = network;
   const sourceNode = Road.addNode(network, { x: factory.x, y: factory.y, buildingId: factory.id });
@@ -206,8 +207,12 @@ test('a factory without an input dock keeps routed stock until it adds one', () 
   assert.equal(Network.transferDockStockToBuildings(state).transferred.size, 0);
   assert.equal(factory.dockStock.raw_iron, 9);
 
-  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock' }] } };
-  assert.equal(Network.hasReceivingDock(state, receiver), true);
+  // An entry card takes one resource: a dock for water lets no iron in.
+  state.factoryPlans = { [receiver.id]: { machines: [{ type: 'input_dock', importResourceId: 'water' }] } };
+  assert.equal(Network.hasReceivingDock(state, receiver, 'raw_iron'), false);
+  assert.equal(Network.transferDockStockToBuildings(state).transferred.size, 0);
+  state.factoryPlans[receiver.id].machines.push({ type: 'input_dock', importResourceId: 'raw_iron' });
+  assert.equal(Network.hasReceivingDock(state, receiver, 'raw_iron'), true);
   assert.equal(Network.transferDockStockToBuildings(state).transferred.get('factory-2:raw_iron'), 9);
 });
 
@@ -253,7 +258,7 @@ test('road delivery feeds a receiving factory processor through its input dock, 
   state.seed = 'received-rock'; state.factoryPlans = {};
   const Graph = context.OrbitProcessGraph, Industry = context.OrbitIndustry;
   const graph = Industry.ensureGraph(state, receiver);
-  Graph.addMachine(graph, { id: 'input', type: 'input_dock' });
+  Graph.addMachine(graph, { id: 'input', type: 'input_dock', importResourceId: 'raw_rock' });
   Graph.addMachine(graph, { id: 'crusher', type: 'crusher' });
   const network = state.roadNetworks[planetId];
   const sourceNode = network.nodes.find(node => node.buildingId === factory.id);
@@ -484,7 +489,8 @@ test('a depot receives by road through its input gate and its output gates deliv
   for (let index = 1; index < nodes.length; index++) Road.addSegment(network, { from: nodes[index - 1].id, to: nodes[index].id,
     points: [{ x: nodes[index - 1].x, y: 10 }, { x: nodes[index].x, y: 10 }], builtLength: 200 });
   assert.equal(Network.hasReceivingDock(state, depot), false, 'a depot without an input gate receives nothing');
-  state.factoryPlans = { [depot.id]: { machines: [{ type: 'depot_input' }] }, [receiver.id]: { machines: [{ type: 'input_dock' }] } };
+  state.factoryPlans = { [depot.id]: { machines: [{ type: 'depot_input', importResourceId: 'raw_iron' }] },
+    [receiver.id]: { machines: [{ type: 'input_dock', importResourceId: 'raw_iron' }] } };
   assert.equal(Network.hasReceivingDock(state, depot), true);
   Network.transferDockStockToBuildings(state);
   assert.equal(depot.inventory.raw_iron, 6);
@@ -667,7 +673,7 @@ test('goods cross the sea between two ports: trucks, ship, trucks', () => {
   road(node(portA, 'marine'), node(portB, 'marine'), 200, 'marine');
   road(node(portB), node(factory), 100);
   const state = { surfaceBuildings: [mine, portA, portB, factory], roadNetworks: { [planetId]: network },
-    factoryPlans: { [factory.id]: { machines: [{ type: 'input_dock' }] } } };
+    factoryPlans: { [factory.id]: { machines: [{ type: 'input_dock', importResourceId: 'coal' }] } } };
   assert.equal(Network.hasBuiltLandPath(network, mine.id, factory.id), true);
   const pulse = vm.createContext({});
   vm.runInContext(readFileSync(resolve(__dirname, '../src/rendering/vehicleRenderer.js'), 'utf8'), pulse);
@@ -1039,10 +1045,26 @@ test('entry cards come and go with the destinations chosen for them', () => {
   Gates.syncAll(state);
   assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId)), ['crushed_rock']);
   assert.equal(entries('depot', 'depot_input').length, 1);
-  // A depot's output gate pointed at the factory: one more dock, open to any resource.
+  assert.deepEqual(plain(entries('depot', 'depot_input').map(gate => gate.importResourceId)), ['raw_rock']);
+  // A depot's output gate pointed at the factory: one dock per resource it
+  // sends (queued or already delivered), not one open to everything.
   Graph.addMachine(state.factoryPlans.depot, { id: 'gate-out', type: 'depot_output', x: 400, y: 0, config: { destinationId: 'mill' } });
+  depot.gateStock = { mill: { raw_iron: 3 } };
   Gates.syncAll(state);
-  assert.equal(entries('mill', 'input_dock').length, 2);
+  assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId).sort()), ['crushed_rock', 'raw_iron']);
+  depot.gateStock.mill = {}; mill.receivedFrom = { depot: { raw_iron: 3 } };
+  Gates.syncAll(state);
+  assert.equal(entries('mill', 'input_dock').length, 2, 'a delivered resource keeps its dock between deliveries');
+  // A free entry card laid by the player is linked to the next resource sent.
+  Graph.addMachine(state.factoryPlans.mill, { id: 'mine-free', type: 'input_dock', x: 900, y: 0 });
+  mine.dockDestinations.water = 'mill';
+  Gates.syncAll(state);
+  assert.equal(entries('mill', 'input_dock').find(dock => dock.id === 'mine-free').importResourceId, 'water');
+  assert.equal(entries('mill', 'input_dock').length, 3);
+  // The player's card stays once nothing is sent to it any more.
+  delete mine.dockDestinations.water;
+  Gates.syncAll(state);
+  assert.ok(entries('mill', 'input_dock').some(dock => dock.id === 'mine-free'));
   // Removing the depot's entry gate by hand clears what fed it, not the docks.
   const [gate] = entries('depot', 'depot_input');
   Graph.removeMachine(state.factoryPlans.depot, gate.id);
@@ -1051,9 +1073,10 @@ test('entry cards come and go with the destinations chosen for them', () => {
   assert.equal(mine.dockDestinations.crushed_rock, 'mill', 'the other destination stays');
   Gates.syncAll(state);
   assert.equal(entries('depot', 'depot_input').length, 0, 'and the gate does not come back');
-  // Clearing the last destination toward the factory removes its docks.
+  // Clearing the last destination toward the factory removes the docks the
+  // game laid, not the player's.
   delete mine.dockDestinations.crushed_rock;
   delete state.factoryPlans.depot.machines.find(machine => machine.id === 'gate-out').config.destinationId;
   Gates.syncAll(state);
-  assert.equal(entries('mill', 'input_dock').length, 0);
+  assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.id)), ['mine-free']);
 });

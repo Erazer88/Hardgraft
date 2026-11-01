@@ -33,7 +33,7 @@
     waterPump: { salt: { throughput: 4, energyMW: 3 }, fresh: { throughput: 1.5, energyMW: 2 } },
     // Depot routing cards: gate rate, per-card holding and buffer capacity.
     // Depot cards are logical sorters: gates have no throughput limit (null).
-    depot: { gateThroughput: null, cardCapacity: 20, bufferCapacity: 200, splitRatios: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
+    depot: { gateThroughput: null, cardCapacity: 20, bufferCapacity: 1000, splitRatios: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
     // Ground under an extractor: rock hardness, and the share of the extracted
     // material assumed when a building has none recorded.
     geology: { hardnessRange: [.8, 1.8], defaultShare: .1 },
@@ -220,14 +220,16 @@
   const mixed = (id, label) => ({ id, label, resourceId: null, mixed: true });
   const depotCards = {
     depot_input: { id: 'depot_input', label: 'PORTE D’ENTRÉE', mark: 'PE', routing: true, gate: 'input', throughput: config.depot.gateThroughput,
-      description: 'Fait entrer dans le circuit tout ce que le dépôt reçoit par route.',
+      description: 'Fait entrer dans le circuit une ressource reçue par route.',
       inputPorts: [], outputPorts: [mixed('out', 'Flux entrant')], recipe: null, energyMW: 0 },
     depot_output: { id: 'depot_output', label: 'PORTE DE SORTIE', mark: 'PS', routing: true, gate: 'output', throughput: config.depot.gateThroughput,
       description: 'Envoie tout ce qui lui parvient vers un bâtiment relié par route.',
       inputPorts: [mixed('in', 'Flux sortant')], outputPorts: [], recipe: null, energyMW: 0 },
-    depot_buffer: { id: 'depot_buffer', label: 'TAMPON', mark: 'TA', routing: true,
-      description: 'Stocke jusqu’à 200 unités par ressource et amortit les à-coups.',
-      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('out', 'Sortie')], recipe: null, energyMW: 0 },
+    // Storage: holds up to bufferCapacity units in all, drawing its power
+    // all the time (it holds nothing new and lets nothing out without it).
+    depot_buffer: { id: 'depot_buffer', label: 'STOCKAGE', mark: 'SK', routing: true, constantEnergy: true,
+      description: 'Stocke jusqu’à 1 000 unités et amortit les à-coups.',
+      inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('out', 'Sortie')], recipe: null, energyMW: 15 },
     depot_filter: { id: 'depot_filter', label: 'FILTRE', mark: 'FI', routing: true,
       description: 'Laisse passer la ressource choisie ; le reste part sur la seconde sortie.',
       inputPorts: [mixed('in', 'Entrée')], outputPorts: [mixed('match', 'Ressource choisie'), mixed('other', 'Le reste')],

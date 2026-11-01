@@ -85,8 +85,7 @@
       const generated = generatedMW(graph, seconds);
       building.energyOutputWatts = generated * 1e6;
       entry.megawatts += generated;
-      if (isDepot(building)) continue;
-      const demand = Simulation.demand(graph, building.inventory) * energyFactor(building);
+      const demand = isDepot(building) ? Routing.demand(graph) : Simulation.demand(graph, building.inventory) * energyFactor(building);
       demands.set(building.planetId, (demands.get(building.planetId) || 0) + demand);
     }
 
@@ -99,8 +98,12 @@
       if (building.constructionState !== 'complete' || !state.factoryPlans[building.id]) continue;
       const graph = ensureGraph(state, building);
       if (isDepot(building)) {
-        Routing.advance(graph, seconds, building);
-        building.energyUse = 0;
+        // Its storage cards draw their power from the planet like any card.
+        const available = power.get(building.planetId) || { unlimited: false, megawatts: 0 };
+        const planetDemand = demands.get(building.planetId) || 0;
+        const ratio = available.unlimited || planetDemand <= 1e-9 ? 1 : Math.min(1, available.megawatts / planetDemand);
+        Routing.advance(graph, seconds, building, ratio);
+        building.energyUse = graph.energyUsedMW * 1e6;
         building.flowPerMinute = graph.machines.reduce((sum, machine) =>
           Graph.definitionOf(machine).gate === 'output' ? sum + machine.currentRate * 60 : sum, 0);
         building.status = graph.machines.some(machine => machine.state === 'active') ? 'active' : 'waiting';
