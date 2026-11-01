@@ -180,16 +180,20 @@ puis une plaque par 10 fers.
 Chaque éolienne fournit environ 32 MW à sa planète, multipliés par le **vent de son
 site** et par son **sillage** (`src/simulation/windPower.js`, réglages `config.wind`) :
 
-- Le site (fixé à la pose, `building.windSite`) va de ×0,55 sur un relief accidenté à
-  ×1,08 sur un terrain dégagé, plus l'altitude (+0,2 par 1 000 m, +0,45 au plus),
-  borné entre ×0,5 et ×1,5. Le relief se mesure par l'écart-type des altitudes des
-  terres dans un rayon de 15 km (la mer ne compte pas) : grandes plaines et hauts
-  plateaux rapportent plus. Sur une planète type, la médiane est d'environ ×1.
+- Le site (`building.windSite`, recalculé dès que le terrain est connu) part de la
+  **qualité** du lieu : son ouverture (1 − écart-type des altitudes des terres dans un
+  rayon de 15 km / 350 m ; la mer ne compte pas), relevée par l'altitude là où c'est
+  ouvert (jusqu'à +25 % à 3 000 m). Sous une qualité de 0,4, le vent est quasi nul
+  (×0,02) ; il monte ensuite lentement (au carré) jusqu'à ×1,5 pour une qualité de
+  1,05 : seules les grandes plaines bien dégagées et les hauts plateaux rapportent.
+  Sur la planète de départ, la moitié des terres donne presque rien (médiane ×0,05)
+  et les 10 % les plus dégagés ×0,9 et plus.
 - Le sillage : une éolienne à moins de 90 km d'une autre perd du vent, d'autant plus
   que l'autre est proche ; rendement 1 / (1 + 0,6 × Σ (1 − distance / 90 km)). Dix
   éoliennes au même endroit donnent à peine plus que deux.
-- À la pose ou à la sélection, la vue vent colore toute la planète : vert où le site
-  dépasse la moyenne, rouge où il est moins bon, clair autour de ×1, en transparence ;
+- À la pose ou à la sélection, la vue vent colore toute la planète : vert à partir de
+  ×0,8 (plus intense quand c'est plus riche), rouge en dessous (plus intense vers
+  zéro), en transparence ;
   les cercles de sillage des éoliennes existantes sont en pointillés. Le texte sous
   l'aperçu donne « Vent ×1,2 · sillage −15 % · ≈ 33 MW », la fiche le vent du site et
   le sillage. Les éoliennes posées avant reçoivent leur site dès que le terrain de leur

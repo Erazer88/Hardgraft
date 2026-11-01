@@ -1056,14 +1056,15 @@ globalThis.OrbitVersion = "0.129.0";
     // One wind turbine powers about one full ore line (≈ 23,5 MW).
     windPowerUnlimited: false,
     windPowerMW: 32,
-    // Wind turbines (src/simulation/windPower.js): a site's factor goes from
-    // roughBase on broken ground to openBase on open ground (spread of the
-    // relief within siteRadiusKm, against roughnessScaleM), plus altitude
-    // (per 1 000 m, capped), within minSite–maxSite. Turbines closer than
-    // wakeRadiusKm take each other's wind: efficiency 1 / (1 + wakeLoss × Σ
-    // (1 − distance / wakeRadiusKm)).
-    wind: { siteRadiusKm: 15, roughnessScaleM: 420, roughBase: .55, openBase: 1.08,
-      altitudeBonusPer1000M: .2, altitudeBonusMax: .45, minSite: .5, maxSite: 1.5,
+    // Wind turbines (src/simulation/windPower.js). A site's quality is its
+    // openness (1 − spread of the land relief within siteRadiusKm /
+    // roughnessScaleM) raised by altitude where open (up to altitudeBoost at
+    // altitudeFullM). Its factor stays almost nil below calmBelow, then grows
+    // slowly (power `curve`) up to maxSite at fullAt: only open plains and
+    // high plateaus give much. Turbines closer than wakeRadiusKm take each
+    // other's wind: efficiency 1 / (1 + wakeLoss × Σ (1 − distance / wakeRadiusKm)).
+    wind: { siteRadiusKm: 15, roughnessScaleM: 350, altitudeFullM: 3000, altitudeBoost: .25,
+      calmBelow: .4, fullAt: 1.05, curve: 2, minSite: .02, maxSite: 1.5,
       wakeRadiusKm: 90, wakeLoss: .6 },
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).
@@ -1682,7 +1683,7 @@ globalThis.OrbitVersion = "0.129.0";
     wind_turbine: {
       id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
       description: 'Produit de l’énergie sur la terre ferme.',
-      details: 'Produit environ 32 MW pour toute la planète, sans carburant. Le vent dépend du site : les grandes plaines et les hauts plateaux rapportent plus qu’un relief accidenté. Une éolienne trop proche d’une autre perd du vent (sillage) : espacez-les. Une puissance insuffisante ralentit toutes les cartes de la planète.',
+      details: 'Produit environ 32 MW pour toute la planète, sans carburant. Le vent dépend du site : presque rien sur un relief accidenté (zones rouges), beaucoup sur les grandes plaines dégagées et les hauts plateaux (zones vertes). Une éolienne trop proche d’une autre perd du vent (sillage) : espacez-les. Une puissance insuffisante ralentit toutes les cartes de la planète.',
       functions: { generatesEnergy: true },
       cost: { iron: 12, copper: 8, carbon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 22, height: 30 }, roadRequired: true,
@@ -2335,13 +2336,13 @@ globalThis.OrbitVersion = "0.129.0";
       // relief hides; links in sight green, cut by a hill red.
       coverageSeen: Object.freeze([60, 255, 110, 104]), coverageHidden: Object.freeze([255, 40, 64, 78]),
       seenColor: '#6fe88a', blockedColor: '#ff6b6b' }),
-    // Wind view of a turbine placed or selected: richer sites than average
-    // (×1) green, poorer red, more opaque the further from average (up to
-    // alpha, 0–255), clear within `neutral` of it; see-through over the
-    // relief. Dashed wake circles of the turbines standing and of the one
-    // being placed.
+    // Wind view of a turbine placed or selected: sites from greenFrom (site
+    // factor) green, richer more opaque; below, red, stronger toward nothing
+    // (up to alpha, 0–255); clear within `neutral` of greenFrom; see-through
+    // over the relief. Dashed wake circles of the turbines standing and of
+    // the one being placed.
     windView: Object.freeze({ poor: Object.freeze([255, 56, 64]), rich: Object.freeze([60, 255, 110]),
-      alpha: 120, neutral: .06, wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
+      alpha: 112, neutral: .06, greenFrom: .8, wakeColor: '#ff8a6a', ownWakeColor: '#eefcff' }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,
@@ -5832,9 +5833,10 @@ globalThis.OrbitVersion = "0.129.0";
 (function (root) {
   'use strict';
 
-  // Wind turbines. A site catches more wind on wide plains and high plateaus:
-  // open ground (little relief around it) and altitude raise its factor,
-  // broken ground lowers it. A turbine in the wake of others (closer than
+  // Wind turbines. A site catches wind on wide plains and high plateaus:
+  // open ground (little relief around it), more so up high; broken ground
+  // catches almost none, and the output grows slowly until the ground is
+  // really open. A turbine in the wake of others (closer than
   // wakeRadiusKm) catches less: its efficiency falls with each neighbour, the
   // more the closer, so ten turbines on one spot give little more than a few.
   // Output = windPowerMW × site factor × wake efficiency. No DOM.
@@ -5877,8 +5879,9 @@ globalThis.OrbitVersion = "0.129.0";
       const count = Math.max(1, area(lands, x0, y0, x1, y1)), mean = area(sum, x0, y0, x1, y1) / count;
       const spread = Math.sqrt(Math.max(0, area(squares, x0, y0, x1, y1) / count - mean * mean));
       const openness = Math.max(0, 1 - spread / wind.roughnessScaleM);
-      const altitude = Math.min(wind.altitudeBonusMax, ground[cell] / 1000 * wind.altitudeBonusPer1000M);
-      factors[cell] = Math.max(wind.minSite, Math.min(wind.maxSite, wind.roughBase + (wind.openBase - wind.roughBase) * openness + altitude));
+      const quality = openness * (1 + wind.altitudeBoost * Math.min(1, ground[cell] / wind.altitudeFullM));
+      const share = Math.max(0, Math.min(1, (quality - wind.calmBelow) / (wind.fullAt - wind.calmBelow)));
+      factors[cell] = Math.max(wind.minSite, wind.maxSite * share ** wind.curve);
     }
     grids.set(terrain, factors);
     return factors;
@@ -9464,12 +9467,13 @@ globalThis.OrbitVersion = "0.129.0";
     const factors = Wind.siteGrid(terrain), style = Style.windView;
     const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
     const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
-    // An average site (×1) stays clear; richer ones turn green, poorer ones
-    // red, the more the further from average.
+    // Good sites (from greenFrom) turn green, the more the richer; below,
+    // red, the stronger the closer to nothing; clear right at greenFrom.
     for (let cell = 0; cell < factors.length; cell++) {
       const factor = factors[cell];
       if (!factor) continue;
-      const rich = factor >= 1, strength = rich ? (factor - 1) / (wind.maxSite - 1) : (1 - factor) / (1 - wind.minSite);
+      const rich = factor >= style.greenFrom;
+      const strength = rich ? (factor - style.greenFrom) / (wind.maxSite - style.greenFrom) : 1 - factor / style.greenFrom;
       if (strength < style.neutral) continue;
       image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
     }
@@ -15684,11 +15688,12 @@ globalThis.OrbitVersion = "0.129.0";
   }
   const terrainOf = planetId => terrainRecord(planetId)?.data || null;
 
-  // Wind turbines placed before sites counted take theirs once their
-  // planet's terrain is known.
+  // A wind turbine's site follows the current wind rules whenever its
+  // planet's terrain is known (turbines placed earlier, or under other
+  // values, are brought up to date); the saved value serves meanwhile.
   function settleWindSites() {
     for (const turbine of state.surfaceBuildings) {
-      if (turbine.type !== 'wind_turbine' || Number.isFinite(turbine.windSite)) continue;
+      if (turbine.type !== 'wind_turbine') continue;
       const terrain = terrainOf(turbine.planetId);
       if (terrain) turbine.windSite = globalThis.OrbitWindPower.siteFactor(terrain, turbine);
     }

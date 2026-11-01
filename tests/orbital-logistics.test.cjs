@@ -964,16 +964,21 @@ function windTerrain(level, { rough = false, water = false } = {}) {
   return { width, height, seaLevel, elevation };
 }
 
-test('a wind site catches more on open ground and high plateaus, less on broken ground, nothing on water', () => {
+test('a wind site catches much on open plains and high plateaus, almost nothing on broken ground, nothing on water', () => {
   const Wind = context.OrbitWindPower, wind = context.OrbitProcessData.config.wind;
   const middle = { x: cellX(20), y: cellX(20) };
+  const factor = quality => Math.max(wind.minSite, wind.maxSite *
+    Math.max(0, Math.min(1, (quality - wind.calmBelow) / (wind.fullAt - wind.calmBelow))) ** wind.curve);
   const plain = Wind.siteFactor(windTerrain(110), middle);
   const plateau = Wind.siteFactor(windTerrain(157), middle);
   const broken = Wind.siteFactor(windTerrain(110, { rough: true }), middle);
-  // Flat ground at 350 m: open ground and a small altitude bonus.
-  assert.ok(Math.abs(plain - (wind.openBase + .35 * wind.altitudeBonusPer1000M)) < 1e-3, `${plain}`);
-  assert.ok(plateau > plain + .25 && plateau <= wind.maxSite, `a high plateau (${plateau}) beats a low plain (${plain})`);
-  assert.ok(broken < .8 && broken >= wind.minSite, `broken ground catches less (${broken})`);
+  // Flat ground at 350 m: fully open, a little raised by altitude.
+  assert.ok(Math.abs(plain - factor(1 + wind.altitudeBoost * 350 / wind.altitudeFullM)) < 1e-3, `${plain}`);
+  assert.ok(plain > 1.2, `an open plain gives much (${plain})`);
+  assert.ok(Math.abs(plateau - wind.maxSite) < 1e-6, 'an open high plateau gives the most');
+  assert.ok(Math.abs(broken - wind.minSite) < 1e-6, `broken ground gives almost nothing (${broken})`);
+  // The output grows slowly until the ground is really open.
+  assert.ok(factor(.6) < .15 && factor(.8) < .6 && factor(.95) > 1, 'slow at first, strong once open');
   assert.equal(Wind.siteGrid(windTerrain(110, { water: true }))[20 * 40 + 20], 0, 'no wind site on water');
   assert.equal(Wind.siteFactor(null, middle), 1, 'unknown terrain: an average site');
 });

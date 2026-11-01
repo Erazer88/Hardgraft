@@ -1259,11 +1259,12 @@
   }
   const terrainOf = planetId => terrainRecord(planetId)?.data || null;
 
-  // Wind turbines placed before sites counted take theirs once their
-  // planet's terrain is known.
+  // A wind turbine's site follows the current wind rules whenever its
+  // planet's terrain is known (turbines placed earlier, or under other
+  // values, are brought up to date); the saved value serves meanwhile.
   function settleWindSites() {
     for (const turbine of state.surfaceBuildings) {
-      if (turbine.type !== 'wind_turbine' || Number.isFinite(turbine.windSite)) continue;
+      if (turbine.type !== 'wind_turbine') continue;
       const terrain = terrainOf(turbine.planetId);
       if (terrain) turbine.windSite = globalThis.OrbitWindPower.siteFactor(terrain, turbine);
     }

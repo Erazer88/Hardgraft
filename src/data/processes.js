@@ -16,14 +16,15 @@
     // One wind turbine powers about one full ore line (≈ 23,5 MW).
     windPowerUnlimited: false,
     windPowerMW: 32,
-    // Wind turbines (src/simulation/windPower.js): a site's factor goes from
-    // roughBase on broken ground to openBase on open ground (spread of the
-    // relief within siteRadiusKm, against roughnessScaleM), plus altitude
-    // (per 1 000 m, capped), within minSite–maxSite. Turbines closer than
-    // wakeRadiusKm take each other's wind: efficiency 1 / (1 + wakeLoss × Σ
-    // (1 − distance / wakeRadiusKm)).
-    wind: { siteRadiusKm: 15, roughnessScaleM: 420, roughBase: .55, openBase: 1.08,
-      altitudeBonusPer1000M: .2, altitudeBonusMax: .45, minSite: .5, maxSite: 1.5,
+    // Wind turbines (src/simulation/windPower.js). A site's quality is its
+    // openness (1 − spread of the land relief within siteRadiusKm /
+    // roughnessScaleM) raised by altitude where open (up to altitudeBoost at
+    // altitudeFullM). Its factor stays almost nil below calmBelow, then grows
+    // slowly (power `curve`) up to maxSite at fullAt: only open plains and
+    // high plateaus give much. Turbines closer than wakeRadiusKm take each
+    // other's wind: efficiency 1 / (1 + wakeLoss × Σ (1 − distance / wakeRadiusKm)).
+    wind: { siteRadiusKm: 15, roughnessScaleM: 350, altitudeFullM: 3000, altitudeBoost: .25,
+      calmBelow: .4, fullAt: 1.05, curve: 2, minSite: .02, maxSite: 1.5,
       wakeRadiusKm: 90, wakeLoss: .6 },
     geothermalPowerMW: 80,
     // Water pumps: salt water flows faster than fresh water (first drafts).

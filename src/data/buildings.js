@@ -92,7 +92,7 @@
     wind_turbine: {
       id: 'wind_turbine', label: 'ÉOLIENNE', shortLabel: 'ÉO', category: 'energy', icon: 'wind-turbine',
       description: 'Produit de l’énergie sur la terre ferme.',
-      details: 'Produit environ 32 MW pour toute la planète, sans carburant. Le vent dépend du site : les grandes plaines et les hauts plateaux rapportent plus qu’un relief accidenté. Une éolienne trop proche d’une autre perd du vent (sillage) : espacez-les. Une puissance insuffisante ralentit toutes les cartes de la planète.',
+      details: 'Produit environ 32 MW pour toute la planète, sans carburant. Le vent dépend du site : presque rien sur un relief accidenté (zones rouges), beaucoup sur les grandes plaines dégagées et les hauts plateaux (zones vertes). Une éolienne trop proche d’une autre perd du vent (sillage) : espacez-les. Une puissance insuffisante ralentit toutes les cartes de la planète.',
       functions: { generatesEnergy: true },
       cost: { iron: 12, copper: 8, carbon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 22, height: 30 }, roadRequired: true,

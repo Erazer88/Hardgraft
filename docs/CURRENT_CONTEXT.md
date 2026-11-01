@@ -108,7 +108,8 @@ laboratoires sur d'autres mondes.
 - Bâtiments spécialisés : Station de pompage, Dépôt répartiteur, Terril (retraitement
   ou incinération productrice d'énergie), Plateforme de lancement. Pas de pollution.
 - Énergie limitée (colonie 12 MW, incinérateur lissé sur 20 s). Une éolienne donne
-  ≈ 32 MW × le vent de son site (×0,55 relief accidenté → ×1,5 haut plateau dégagé)
+  ≈ 32 MW × le vent de son site (quasi nul en zone rouge, montée lente, jusqu'à ×1,5
+  sur les grandes plaines dégagées et hauts plateaux, en vert)
   × son sillage (perte si une autre est à moins de 90 km) ; vue vent verte/rouge à la
   pose et à la sélection, avec les cercles de sillage. Au doigt, l'antenne relais et
   l'éolienne se posent 72 px au-dessus du point touché (`touchLiftPx`). Deux

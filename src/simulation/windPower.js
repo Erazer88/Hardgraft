@@ -1,9 +1,10 @@
 (function (root) {
   'use strict';
 
-  // Wind turbines. A site catches more wind on wide plains and high plateaus:
-  // open ground (little relief around it) and altitude raise its factor,
-  // broken ground lowers it. A turbine in the wake of others (closer than
+  // Wind turbines. A site catches wind on wide plains and high plateaus:
+  // open ground (little relief around it), more so up high; broken ground
+  // catches almost none, and the output grows slowly until the ground is
+  // really open. A turbine in the wake of others (closer than
   // wakeRadiusKm) catches less: its efficiency falls with each neighbour, the
   // more the closer, so ten turbines on one spot give little more than a few.
   // Output = windPowerMW × site factor × wake efficiency. No DOM.
@@ -46,8 +47,9 @@
       const count = Math.max(1, area(lands, x0, y0, x1, y1)), mean = area(sum, x0, y0, x1, y1) / count;
       const spread = Math.sqrt(Math.max(0, area(squares, x0, y0, x1, y1) / count - mean * mean));
       const openness = Math.max(0, 1 - spread / wind.roughnessScaleM);
-      const altitude = Math.min(wind.altitudeBonusMax, ground[cell] / 1000 * wind.altitudeBonusPer1000M);
-      factors[cell] = Math.max(wind.minSite, Math.min(wind.maxSite, wind.roughBase + (wind.openBase - wind.roughBase) * openness + altitude));
+      const quality = openness * (1 + wind.altitudeBoost * Math.min(1, ground[cell] / wind.altitudeFullM));
+      const share = Math.max(0, Math.min(1, (quality - wind.calmBelow) / (wind.fullAt - wind.calmBelow)));
+      factors[cell] = Math.max(wind.minSite, wind.maxSite * share ** wind.curve);
     }
     grids.set(terrain, factors);
     return factors;

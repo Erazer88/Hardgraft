@@ -524,12 +524,13 @@
     const factors = Wind.siteGrid(terrain), style = Style.windView;
     const canvas = root.document.createElement('canvas'); canvas.width = terrain.width; canvas.height = terrain.height;
     const context = canvas.getContext('2d'), image = context.createImageData(terrain.width, terrain.height);
-    // An average site (×1) stays clear; richer ones turn green, poorer ones
-    // red, the more the further from average.
+    // Good sites (from greenFrom) turn green, the more the richer; below,
+    // red, the stronger the closer to nothing; clear right at greenFrom.
     for (let cell = 0; cell < factors.length; cell++) {
       const factor = factors[cell];
       if (!factor) continue;
-      const rich = factor >= 1, strength = rich ? (factor - 1) / (wind.maxSite - 1) : (1 - factor) / (1 - wind.minSite);
+      const rich = factor >= style.greenFrom;
+      const strength = rich ? (factor - style.greenFrom) / (wind.maxSite - style.greenFrom) : 1 - factor / style.greenFrom;
       if (strength < style.neutral) continue;
       image.data.set([...(rich ? style.rich : style.poor), Math.round(style.alpha * Math.min(1, .3 + strength))], cell * 4);
     }
