@@ -11,7 +11,8 @@ sans carte : un Dock de sortie peut l'avoir pour destination. Son générateur f
 
 - **Population** : 100 habitants au départ, puis par paliers.
 - **Contexte** : 1 point par minute dès que la colonie est assemblée
-  (`state.contextPoints`, total galactique).
+  (`state.contextPoints`, total galactique), sauvegardé mais ni affiché ni dépensé
+  pour l'instant ; la barre du haut montre les points de technologie.
 - **Paliers** (`src/data/colony.js`) : chaque palier consomme les ressources qu'il
   demande (elles disparaissent), puis fait passer la population au niveau suivant. Ce
   que le palier ne demande pas attend en réserve dans la colonie.
@@ -53,7 +54,7 @@ palier, aucun flux n'est plus exigé ; les paliers suivants viendront plus tard.
 ## Menu de la colonie
 
 Un clic sur la colonie ouvre son propre menu (`src/ui/colonyPanel.js`) : nom modifiable,
-frise des paliers de population, contexte, quantités du palier en cours (barre,
+frise des paliers de population, quantités du palier en cours (barre,
 débit reçu et temps estimé), flux requis (débit reçu face au débit demandé, retard),
 arrivées par ressource et par fournisseur, réserve, total
 consommé, zone (surface, cible, maximum) et énergie de la planète. Les débits viennent

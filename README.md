@@ -35,8 +35,8 @@ Ouvrez ensuite le serveur dans un navigateur. Le projet utilise HTML, CSS et Can
 
 ## Navigation
 
-L'écran principal se limite à deux barres : en haut, la population, les points (Contexte,
-puis points de technologie), le bouton « Compétences » et le menu ☰ ; en bas, le retour
+L'écran principal se limite à deux barres : en haut, la population, les points de
+technologie (« TECH »), le bouton « Compétences » et le menu ☰ ; en bas, le retour
 vers l'échelle supérieure, « Route » et « Construction » sur une planète, « Sonde » en vue
 galaxie.
 

@@ -577,8 +577,7 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .top-stat-text{display:flex;flex-direction:column;gap:1px;line-height:1}
 .top-stat-label{color:#7e9bad;font-size:calc(7.5px*var(--ta) + var(--tb));letter-spacing:1.6px}
 #primary-stat svg{color:#ffd27b}
-#secondary-stat svg{color:#9fb8c6}
-#secondary-stat.tech svg{color:#9fd8ff}
+#secondary-stat svg{color:#9fd8ff}
 .top-bar .skill-tree-button{border-radius:9px;box-shadow:0 0 14px #efa35a1f}
 
 /* The hub's freight loading bar, a little thicker than the others. */
@@ -602,9 +601,9 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
         <span class="top-stat-text"><span id="stat-value">—</span><span class="top-stat-label" id="stat-label">HAB.</span></span>
       </div>
       <span class="top-divider" aria-hidden="true"></span>
-      <div class="top-stat" id="secondary-stat" title="Contexte">
+      <div class="top-stat" id="secondary-stat" title="Points de technologie">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/></svg>
-        <span class="top-stat-text"><span id="secondary-value">—</span><span class="top-stat-label" id="secondary-label">CONTEXTE</span></span>
+        <span class="top-stat-text"><span id="secondary-value">—</span><span class="top-stat-label" id="secondary-label">TECH</span></span>
       </div>
       <button class="skill-tree-button" id="skill-tree-button" type="button" aria-haspopup="dialog" aria-label="Ouvrir l’arbre de compétences" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5.5" cy="18" r="2.2"/><circle cx="18.5" cy="18" r="2.2"/><path d="M12 7.2V12m0 0-5.2 4.3M12 12l5.2 4.3"/></svg>
@@ -12110,21 +12109,17 @@ globalThis.OrbitVersion = "0.129.0";
       const level = state.level;
       document.body.dataset.level = level;
       document.body.dataset.tool = state.tool;
-      // Galaxy-wide totals: population of every colony and context gathered.
+      // Galaxy-wide totals: population of every colony and technology points,
+      // the same in every save (they used to show the context until the data
+      // network was acquired, so two games of one version read differently).
       const population = root.OrbitColony.totalPopulation(state);
-      const contextText = fmt(Math.floor((root.OrbitSkills.isUnlocked(state, 'computer_network') ? state.techPoints : state.contextPoints) || 0));
-      $('stat-label').textContent = 'HAB.';
+      const techText = fmt(Math.floor(state.techPoints || 0));
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
-      // Once the data network exists, technology points take the place of context.
-      const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
-      $('secondary-label').textContent = techShown ? 'TECH' : 'CONTEXTE';
-      $('secondary-stat').classList.toggle('tech', techShown);
-      $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
-      if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
+      if ($('secondary-value').textContent !== techText) $('secondary-value').textContent = techText;
       // The skills button drops its word when the bar runs out of room.
       const bar = $('skill-tree-button').parentElement;
-      const topSignature = [population, contextText, techShown, $('skill-tree-button').hidden, bar.clientWidth].join('|');
+      const topSignature = [population, techText, $('skill-tree-button').hidden, bar.clientWidth].join('|');
       if (topSignature !== topBarSignature) {
         topBarSignature = topSignature;
         bar.classList.remove('compact');

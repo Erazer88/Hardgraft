@@ -455,21 +455,17 @@
       const level = state.level;
       document.body.dataset.level = level;
       document.body.dataset.tool = state.tool;
-      // Galaxy-wide totals: population of every colony and context gathered.
+      // Galaxy-wide totals: population of every colony and technology points,
+      // the same in every save (they used to show the context until the data
+      // network was acquired, so two games of one version read differently).
       const population = root.OrbitColony.totalPopulation(state);
-      const contextText = fmt(Math.floor((root.OrbitSkills.isUnlocked(state, 'computer_network') ? state.techPoints : state.contextPoints) || 0));
-      $('stat-label').textContent = 'HAB.';
+      const techText = fmt(Math.floor(state.techPoints || 0));
       if ($('stat-value').textContent !== fmt(population)) $('stat-value').textContent = fmt(population);
-      // Once the data network exists, technology points take the place of context.
-      const techShown = root.OrbitSkills.isUnlocked(state, 'computer_network');
-      $('secondary-label').textContent = techShown ? 'TECH' : 'CONTEXTE';
-      $('secondary-stat').classList.toggle('tech', techShown);
-      $('secondary-stat').title = techShown ? 'Points de technologie' : 'Contexte';
       $('skill-tree-button').hidden = !root.OrbitSkills.available(state);
-      if ($('secondary-value').textContent !== contextText) $('secondary-value').textContent = contextText;
+      if ($('secondary-value').textContent !== techText) $('secondary-value').textContent = techText;
       // The skills button drops its word when the bar runs out of room.
       const bar = $('skill-tree-button').parentElement;
-      const topSignature = [population, contextText, techShown, $('skill-tree-button').hidden, bar.clientWidth].join('|');
+      const topSignature = [population, techText, $('skill-tree-button').hidden, bar.clientWidth].join('|');
       if (topSignature !== topBarSignature) {
         topBarSignature = topSignature;
         bar.classList.remove('compact');

@@ -25,8 +25,8 @@ l'instant.
   planètes ; en orbite des géantes gazeuses, depuis la vue système). Une fois la
   colonie posée, tout ce qui est débloqué s'y construit (`buildBlockedHere`).
 - **Points de technologie** (`state.techPoints`, sauvegardés) : produits par les
-  datacenters, ils paient la suite de l'arbre (`cost.tech`) et remplacent le Contexte
-  dans la télémétrie une fois le réseau acquis. Une compétence atteignable mais trop
+  datacenters, ils paient la suite de l'arbre (`cost.tech`) et sont le seul compteur
+  de points de la barre du haut (« TECH »), dans toute partie. Une compétence atteignable mais trop
   chère s'affiche « points insuffisants ».
 
 Une compétence se déclare dans `src/data/skills.js` : `id`, `label`, `mark`,

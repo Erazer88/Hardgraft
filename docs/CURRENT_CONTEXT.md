@@ -52,8 +52,8 @@ laboratoires sur d'autres mondes.
 
 ### Interface
 
-- Vue principale épurée : barre du haut (population « HAB. », points « TECH » ou
-  « CONTEXTE » en légende sous chaque chiffre, « Compétences » réduit à son icône quand
+- Vue principale épurée : barre du haut (population « HAB. », points de technologie
+  « TECH » en légende sous chaque chiffre, dans toute partie ; « Compétences » réduit à son icône quand
   la place manque, menu ☰) ; barre d'actions en bas (retour nommé d'après l'échelle
   visée, « Route », « Construction », « Sonde » en vue galaxie). Pause, plein écran et
   version sont dans le menu ; zoom au pincement, à la molette ou aux touches + et −.
@@ -119,8 +119,8 @@ laboratoires sur d'autres mondes.
   laboratoires partout).
 - Les données (géologiques, industrielles, planétaires) vont par une chaîne
   d'antennes relais au datacenter, ses analyses par l'antenne haute fréquence à
-  l'Arche, où chacune devient un point de technologie (monnaie de l'arbre, à la place
-  du Contexte). Débit stable, coupé par la conjonction solaire, 3× plus rapide que le
+  l'Arche, où chacune devient un point de technologie (monnaie de l'arbre, seule
+  affichée en haut). Débit stable, coupé par la conjonction solaire, 3× plus rapide que le
   fret ; un envoi (un point dans la vue système) toutes les 5 s.
 - Les antennes relais ne relient que ce que leur mât (120 m) voit au-dessus du relief :
   les petites bosses (jusqu'à 70 m au-dessus de la ligne) laissent passer, une colline
@@ -162,6 +162,8 @@ Proposées au joueur, non décidées — ne pas implémenter sans demande :
   ciment, résidus → granulats, saumure → sel, terril visible) ;
 - les matériaux rendus à la démolition vont dans `state.colonyMaterials`, que rien ne
   lit encore ;
+- le Contexte (`state.contextPoints`, 1/min par colonie) s'accumule et se sauvegarde
+  mais n'est plus affiché ni dépensé ;
 - pistes du dernier check-up des menus : menu ☰ au style des panneaux ; étoiles et
   planètes dans le panneau bas (tuiles température, atmosphère, distance) ; tuiles
   pour le hub en chantier et graduations de latitude écartées de la jauge d'énergie ;

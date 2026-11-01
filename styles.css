@@ -566,8 +566,7 @@ body:fullscreen,body:-webkit-full-screen{width:100%;height:100%;overflow:hidden}
 .top-stat-text{display:flex;flex-direction:column;gap:1px;line-height:1}
 .top-stat-label{color:#7e9bad;font-size:calc(7.5px*var(--ta) + var(--tb));letter-spacing:1.6px}
 #primary-stat svg{color:#ffd27b}
-#secondary-stat svg{color:#9fb8c6}
-#secondary-stat.tech svg{color:#9fd8ff}
+#secondary-stat svg{color:#9fd8ff}
 .top-bar .skill-tree-button{border-radius:9px;box-shadow:0 0 14px #efa35a1f}
 
 /* The hub's freight loading bar, a little thicker than the others. */

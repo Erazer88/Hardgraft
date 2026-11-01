@@ -2,7 +2,7 @@
 
 Débloqué par la compétence « Réseau informatique » (voir [`SKILL_TREE.md`](SKILL_TREE.md)),
 le réseau de données transforme l'activité des planètes en **points de technologie**,
-la monnaie de l'arbre (elle remplace le Contexte dans la télémétrie). Toute la galaxie
+la monnaie de l'arbre, affichée « TECH » dans la barre du haut. Toute la galaxie
 converge à terme vers l'Arche. Les mécaniques du datacenter s'inspirent d'Upload Labs
 (réception, compression, calcul, envoi, goulots à équilibrer). Réglages provisoires dans
 `src/data/dataNetwork.js` et `src/data/processes.js`. Une donnée vaut 1 u = 1 Mo.
