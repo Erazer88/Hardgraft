@@ -32,14 +32,21 @@
   }
 
   function give(machine, resourceId, amount, composition = null) {
+    // A filter gets an output for each resource that reaches it.
+    if (definition(machine)?.sortsByResource) Graph.addSortResource(machine, resourceId);
     Mix?.add(machine.storedMix ||= {}, resourceId, resourceId, machine.storedResources[resourceId] || 0, amount, composition);
     machine.storedResources[resourceId] = (machine.storedResources[resourceId] || 0) + amount;
   }
 
-  // Output ports a card would send this unit to, in order of preference.
-  function routes(machine, resourceId) {
+  // Output ports a card would send this unit to, in order of preference. A
+  // filter sends each resource to its own output, or to 'other' while that
+  // output is not linked.
+  function routes(machine, resourceId, linked) {
     const config = machine.config || {};
-    if (machine.type === 'depot_filter') return [resourceId === config.filterResourceId ? 'match' : 'other'];
+    if (machine.type === 'depot_filter') {
+      const port = Graph.sortPort(resourceId);
+      return [linked(machine, port) ? port : 'other'];
+    }
     if (machine.type === 'depot_priority') return ['primary', 'overflow'];
     if (machine.type === 'depot_splitter') {
       // Keep the sent counts near the chosen share, falling back to the other output.
@@ -54,6 +61,22 @@
   function gateCredit(machine, settings, step) {
     if (settings.gateThroughput == null) return Infinity;
     return Math.min(settings.gateThroughput, (machine.gateCredit || 0) + settings.gateThroughput * step);
+  }
+
+  // Resources that reach a card: what the cards before it hold, and what the
+  // entry gates before them let in.
+  function upstreamResources(graph, machine, seen = new Set()) {
+    const found = new Set();
+    for (const connection of graph.connections) {
+      if (connection.toMachineId !== machine.id) continue;
+      const from = graph.machines.find(item => item.id === connection.fromMachineId);
+      if (!from || seen.has(from.id)) continue;
+      seen.add(from.id);
+      for (const id of Object.keys(from.storedResources || {})) found.add(id);
+      for (const id of Object.keys(from.transited || {})) found.add(id);
+      for (const id of upstreamResources(graph, from, seen)) found.add(id);
+    }
+    return found;
   }
 
   // Power the depot's cards ask for: storage cards draw theirs all the time.
@@ -73,6 +96,11 @@
       const list = targets.get(`${connection.fromMachineId}:${connection.fromOutputId}`) || [];
       list.push(graph.machines.find(machine => machine.id === connection.toMachineId));
       targets.set(`${connection.fromMachineId}:${connection.fromOutputId}`, list.filter(Boolean));
+    }
+    const linked = (machine, port) => (targets.get(`${machine.id}:${port}`) || []).length > 0;
+    // A filter lists what its upstream cards hold or let in, before any of it arrives.
+    for (const machine of graph.machines) {
+      if (definition(machine)?.sortsByResource) for (const resourceId of upstreamResources(graph, machine)) Graph.addSortResource(machine, resourceId);
     }
     for (const machine of graph.machines) machine.movedUnits = 0;
     let ticks = 0;
@@ -122,7 +150,7 @@
         for (const resourceId of Object.keys(machine.storedResources).sort()) {
           while (machine.storedResources[resourceId] > 0) {
             let target = null;
-            for (const port of routes(machine, resourceId)) {
+            for (const port of routes(machine, resourceId, linked)) {
               target = (targets.get(`${machine.id}:${port}`) || []).find(candidate => room(candidate, resourceId) >= 1);
               if (target) { if (machine.splitSent) machine.splitSent[port] = (machine.splitSent[port] || 0) + 1; break; }
             }

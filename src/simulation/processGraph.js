@@ -9,8 +9,29 @@
   // An input dock's definition carries the resource it sends out; one copy
   // is kept per dock definition and resource (looked up many times a tick).
   const importedDefinitions = new WeakMap();
+  // A filter's definition has one output per resource it sorts.
+  const sortedDefinitions = new WeakMap();
+  const sortPort = resourceId => `r:${resourceId}`;
+  function filterDefinition(definition, resources) {
+    const key = resources.join('|');
+    let byKey = sortedDefinitions.get(definition);
+    if (!byKey) sortedDefinitions.set(definition, byKey = new Map());
+    if (!byKey.has(key)) byKey.set(key, Object.freeze({ ...definition, outputPorts: Object.freeze([
+      ...resources.map(id => Object.freeze({ id: sortPort(id), label: root.OrbitResourceData?.get(id)?.label || id,
+        resourceId: null, mixed: true, sortedResourceId: id })),
+      ...definition.outputPorts]) }));
+    return byKey.get(key);
+  }
+  // Adds a resource to what a filter sorts; returns whether it is new.
+  function addSortResource(machine, resourceId) {
+    if (!resourceId || !Array.isArray(machine?.sortResources) || machine.sortResources.includes(resourceId)) return false;
+    machine.sortResources = [...machine.sortResources, resourceId].sort();
+    return true;
+  }
+
   function definitionOf(machine) {
     const definition = Data.get(machine?.type, machine?.resourceId);
+    if (definition?.sortsByResource) return filterDefinition(definition, machine.sortResources || []);
     if (!definition?.externalInput) return definition;
     const resourceId = machine.importResourceId || null;
     let byResource = importedDefinitions.get(definition);
@@ -32,6 +53,14 @@
       ...(value.autoEntry === true ? { autoEntry: true } : {}) };
   }
 
+  // The resources a filter sorts (saved); a filter of an older save keeps
+  // the one resource it was set to.
+  function sortResourcesOf(value) {
+    const list = Array.isArray(value.sortResources) ? value.sortResources.filter(id => typeof id === 'string' && id) : [];
+    if (typeof value.config?.filterResourceId === 'string') list.push(value.config.filterResourceId);
+    return [...new Set(list)].sort();
+  }
+
   function createMachine(value = {}, geologyResourceId = null) {
     const resourceId = value.resourceId || geologyResourceId || 'iron';
     const definition = Data.get(value.type, resourceId);
@@ -44,6 +73,7 @@
       type: definition.id,
       resourceId,
       ...entryFields(definition, value),
+      ...(definition.sortsByResource ? { sortResources: sortResourcesOf(value) } : {}),
       x: Number.isFinite(value.x) ? value.x : 80,
       y: Number.isFinite(value.y) ? value.y : 80,
       inputBuffer,
@@ -94,7 +124,10 @@
       const machineIds = new Set(machines.map(machine => machine.id));
       for (const connection of value.connections || []) {
         if (!machineIds.has(connection?.fromMachineId) || !machineIds.has(connection?.toMachineId)) continue;
-        connect(graph, connection);
+        // An older filter's chosen output becomes the output of its resource.
+        const from = machines.find(machine => machine.id === connection.fromMachineId);
+        const chosen = from?.type === 'depot_filter' && connection.fromOutputId === 'match' && from.config?.filterResourceId;
+        connect(graph, chosen ? { ...connection, fromOutputId: sortPort(chosen) } : connection);
       }
     }
     return graph;
@@ -229,6 +262,7 @@
       machines: graph.machines.map(machine => ({ id: machine.id, type: machine.type,
         resourceId: machine.resourceId,
         ...entryFields(definitionOf(machine), machine),
+        ...(Array.isArray(machine.sortResources) ? { sortResources: [...machine.sortResources] } : {}),
         x: machine.x, y: machine.y, inputBuffer: clone(machine.inputBuffer),
         outputBuffer: clone(machine.outputBuffer), cycleProgress: machine.cycleProgress,
         storedResources: clone(machine.storedResources),
@@ -244,5 +278,5 @@
 
   root.OrbitProcessBlock = Object.freeze({ create: createMachine });
   root.OrbitProcessGraph = Object.freeze({ create, snapshot, connect, addMachine, removeMachine,
-    definitionOf, topologicalOrder, acceptsResource });
+    definitionOf, topologicalOrder, acceptsResource, addSortResource, sortPort });
 })(globalThis);

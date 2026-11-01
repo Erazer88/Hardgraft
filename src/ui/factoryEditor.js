@@ -62,7 +62,7 @@
       Data.contextForResource(machines.find(machine => machine.type === 'input_dock' && machine.importResourceId)?.importResourceId) || 'iron';
     const typeOf = value => Graph.definitionOf(typeof value === 'string'
       ? { type: value, resourceId: processingResource() } : value);
-    const routingControl = type => ({ depot_filter: 'filterResourceId', depot_splitter: 'splitPercent',
+    const routingControl = type => ({ depot_splitter: 'splitPercent',
       depot_output: 'destinationId' })[type] || null;
     const heightOf = value => {
       const definition = typeOf(value);
@@ -225,6 +225,13 @@
       const card = cards.get(machine.id);
       if (!card) return;
       const def = typeOf(machine), finite = Number.isFinite(def.throughput);
+      if (def.sortsByResource && card.dataset.portsKey !== def.outputPorts.map(port => port.id).join('|')) {
+        const fresh = createMachineCard(machine);
+        card.replaceWith(fresh); cards.set(machine.id, fresh);
+        renderConnections();
+        updateMachineReadout(machine);
+        return;
+      }
       const view = smoothed(machine, def), rate = view.rate;
       // State and rate on one line.
       const rateText = finite ? `${fmt(rate)} / ${fmt(def.throughput)} u/s` : `${fmt(rate)} u/s`;
@@ -295,8 +302,6 @@
     // Settings of depot cards: the filtered resource, the split share and
     // the destination of an output gate.
     function routingOptions(machine) {
-      if (machine.type === 'depot_filter') return root.OrbitResourceData.catalog()
-        .filter(resource => resource.transportable).map(resource => ({ value: resource.id, label: resource.label }));
       if (machine.type === 'depot_splitter') return Data.config.depot.splitRatios
         .map(percent => ({ value: String(percent), label: `A ${percent} % · B ${100 - percent} %` }));
       return (getDestinations(activeBuilding) || []).map(destination => ({ value: destination.id,
@@ -454,6 +459,9 @@
       const def = typeOf(machine), card = document.createElement('article');
       card.className = 'factory-node';
       card.dataset.machineId = machine.id;
+      // A filter's outputs grow with the resources reaching it: the card is
+      // laid out again when they change.
+      card.dataset.portsKey = def.outputPorts.map(port => port.id).join('|');
       card.style.left = `${machine.x}px`; card.style.top = `${machine.y}px`;
       const header = document.createElement('header'); header.className = 'factory-node-header';
       const mark = document.createElement('span'); mark.className = 'factory-node-mark'; mark.textContent = def.mark;
@@ -480,7 +488,7 @@
       if (def.routing && routingControl(def.id)) {
         const control = document.createElement('label'); control.className = 'factory-dock-route';
         const label = document.createElement('span');
-        label.textContent = { depot_filter: 'RESSOURCE FILTRÉE', depot_splitter: 'RÉPARTITION', depot_output: 'DESTINATION' }[def.id];
+        label.textContent = { depot_splitter: 'RÉPARTITION', depot_output: 'DESTINATION' }[def.id];
         const select = document.createElement('select');
         select.dataset.routingConfig = machine.id;
         select.setAttribute('aria-label', `${label.textContent} · ${def.label}`);

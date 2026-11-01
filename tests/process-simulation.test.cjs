@@ -575,13 +575,19 @@ test('depot cards route mixed flows through filters, splitters and priorities to
   const iron = machine(graph, 'gate-iron', 'depot_output', 900);
   const a = machine(graph, 'gate-a', 'depot_output', 900);
   const b = machine(graph, 'gate-b', 'depot_output', 900);
-  filter.config = { filterResourceId: 'raw_iron' };
   splitter.config = { splitPercent: 75 };
   iron.config = { destinationId: 'factory-iron' };
   a.config = { destinationId: 'factory-a' };
   b.config = { destinationId: 'factory-b' };
   connect(graph, 'c1', 'in', 'out', 'filter', 'in');
-  connect(graph, 'c2', 'filter', 'match', 'gate-iron', 'in');
+  // The filter lists what its entry gate lets in: one output per resource,
+  // once the first units are on their way.
+  assert.equal(Graph.connect(graph, { id: 'too-soon', fromMachineId: 'filter', fromOutputId: 'r:raw_iron',
+    toMachineId: 'gate-iron', toInputId: 'in' }).ok, false, 'no output before the resource shows up');
+  Industry.advance(state, .1);
+  assert.deepEqual(plain(Graph.definitionOf(filter).outputPorts.map(port => [port.id, port.label])),
+    [['r:raw_iron', 'Fer brut'], ['r:water', 'Eau douce'], ['other', 'Le reste']]);
+  connect(graph, 'c2', 'filter', 'r:raw_iron', 'gate-iron', 'in');
   connect(graph, 'c3', 'filter', 'other', 'split', 'in');
   connect(graph, 'c4', 'split', 'a', 'gate-a', 'in');
   connect(graph, 'c5', 'split', 'b', 'gate-b', 'in');
@@ -598,7 +604,13 @@ test('depot cards route mixed flows through filters, splitters and priorities to
   assert.deepEqual(Object.keys(entry.transited).sort(), ['raw_iron', 'water']);
   assert.deepEqual(Object.keys(saved.machines.find(item => item.id === 'in').transited).sort(), ['raw_iron', 'water']);
   assert.equal(saved.machines.find(item => item.id === 'split').config.splitPercent, 75);
-  assert.equal(saved.machines.find(item => item.id === 'filter').config.filterResourceId, 'raw_iron');
+  assert.deepEqual(plain(saved.machines.find(item => item.id === 'filter').sortResources), ['raw_iron', 'water']);
+  assert.ok(saved.connections.some(link => link.id === 'c2' && link.fromOutputId === 'r:raw_iron'), 'its links survive a save');
+  // A filter of an older save keeps its chosen resource as an output.
+  const old = Graph.create({ version: Data.config.version, machines: [
+    { id: 'f', type: 'depot_filter', config: { filterResourceId: 'raw_iron' } }, { id: 'g', type: 'depot_output', x: 300 }],
+    connections: [{ id: 'old', fromMachineId: 'f', fromOutputId: 'match', toMachineId: 'g', toInputId: 'in' }] });
+  assert.equal(old.connections[0]?.fromOutputId, 'r:raw_iron');
 });
 
 test('a depot priority card fills its first output before overflowing', () => {
