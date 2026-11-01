@@ -59,6 +59,11 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   Pause, plein écran, parties et version sont dans le menu ; zoom au pincement, à la
   molette ou aux touches + et −. En vue planète, une jauge « ⚡ consommation /
   production MW » (rouge en déficit).
+- « Annuler » (barre du bas, icône seule sur écran étroit, Ctrl+Z) défait la dernière
+  action des vues planète et galaxie, la plus récente d'abord : pose ou démolition d'un
+  bâtiment (avec ses cartes et ses routes), route tracée, sonde envoyée (tant qu'elle
+  vole). Historique en mémoire de 30 actions (`src/gameplay/undo.js`), vidé à chaque
+  changement de partie, non sauvegardé ; les routes rétablies gardent leur avancement.
 - Un même panneau bas pour tout ce qu'on touche sur une planète : badge et nom, tuiles
   à icônes, lignes pleine largeur (provenances et arrivées en bleu, destinations en
   ambre, stocks).

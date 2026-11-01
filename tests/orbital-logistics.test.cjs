@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
   'simulation/composition.js', 'data/colony.js', 'data/progression.js', 'simulation/colony.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
-  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js', 'gameplay/entryGates.js',
+  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js', 'gameplay/entryGates.js', 'gameplay/undo.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
   'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/windPower.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
@@ -1079,4 +1079,58 @@ test('entry cards come and go with the destinations chosen for them', () => {
   delete state.factoryPlans.depot.machines.find(machine => machine.id === 'gate-out').config.destinationId;
   Gates.syncAll(state);
   assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.id)), ['mine-free']);
+});
+
+test('the last actions of the planet and galaxy views can be undone, newest first', () => {
+  const Undo = context.OrbitUndo, Graph = context.OrbitProcessGraph;
+  const { factory, state } = fixture({ builtLength: 40 });
+  state.factoryPlans = { [factory.id]: Graph.create({ version: context.OrbitProcessData.config.version,
+    machines: [{ id: 'crusher', type: 'crusher', resourceId: 'rock' }] }) };
+  state.exploration = { missions: [] };
+  const history = Undo.create();
+  assert.equal(Undo.canUndo(history), false);
+  assert.equal(Undo.undo(history, state).ok, false);
+
+  // A building placed: undoing takes it off again.
+  const mill = Building.create({ id: 'mill', type: 'factory', planetId, x: 200, y: 10, constructionState: 'planned' });
+  state.surfaceBuildings.push(mill);
+  Undo.recordPlacement(history, mill);
+  // A road drawn to it: undoing brings the roads back as they were, keeping
+  // the progress of the road already there.
+  const before = Undo.beforeRoad(state, planetId);
+  const network = state.roadNetworks[planetId];
+  const millNode = Road.addNode(network, { x: 200, y: 10, buildingId: mill.id });
+  Road.addSegment(network, { from: network.nodes[1].id, to: millNode.id, points: [{ x: 80, y: 10 }, { x: 200, y: 10 }], builtLength: 0 });
+  Undo.recordRoad(history, before);
+  network.segments[0].builtLength = 70;
+  // The factory demolished: undoing brings it back with its cards and roads.
+  const demolition = Undo.beforeDemolition(state, factory);
+  Road.removeBuildingRoads(network, factory.id); Road.detachBuilding(network, factory.id);
+  state.surfaceBuildings = state.surfaceBuildings.filter(item => item.id !== factory.id);
+  delete state.factoryPlans[factory.id];
+  state.inventory.iron += 5;
+  Undo.recordDemolition(history, demolition, { iron: 5 });
+  // A probe sent from the galaxy view.
+  const mission = { x: 1, y: 2 };
+  state.exploration.missions.push(mission);
+  Undo.recordProbe(history, mission);
+
+  assert.equal(Undo.undo(history, state).message, 'Sonde rappelée.');
+  assert.deepEqual(plain(state.exploration.missions), []);
+
+  assert.equal(Undo.undo(history, state).ok, true);
+  const back = state.surfaceBuildings.find(item => item.id === 'factory-1');
+  assert.ok(back, 'the demolished factory is back');
+  assert.equal(state.factoryPlans['factory-1'].machines[0].type, 'crusher');
+  assert.equal(state.inventory.iron, 50, 'what its demolition gave back is taken again');
+  assert.ok(state.roadNetworks[planetId].nodes.some(node => node.buildingId === 'factory-1'), 'its road is back');
+  assert.equal(state.roadNetworks[planetId].segments[0].builtLength, 70, 'roads keep their progress');
+
+  assert.equal(Undo.undo(history, state).message, 'Route annulée.');
+  assert.equal(state.roadNetworks[planetId].segments.length, 1);
+  assert.ok(!state.roadNetworks[planetId].nodes.some(node => node.buildingId === 'mill'));
+
+  assert.equal(Undo.undo(history, state).ok, true);
+  assert.ok(!state.surfaceBuildings.some(item => item.id === 'mill'), 'the placed building is taken off');
+  assert.equal(Undo.canUndo(history), false);
 });

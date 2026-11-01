@@ -14,6 +14,8 @@
   const Logistics = globalThis.OrbitLogistics;
   const OrbitalLogisticsData = globalThis.OrbitOrbitalLogisticsData;
   const SurfaceStyle = globalThis.OrbitSurfaceStyle;
+  // The last actions of the planet and galaxy views, to undo them.
+  const Undo = globalThis.OrbitUndo, undoHistory = Undo.create();
   const surfaceAspect = Config.terrain.width / Config.terrain.height;
   const $ = id => document.getElementById(id);
   const canvas = $('universe');
@@ -292,6 +294,7 @@
 
   function regenerate(seed, restoring = null) {
     if (factoryEditor.isOpen()) factoryEditor.close();
+    Undo.clear(undoHistory);
     state.seed = normalizedSeed(seed); galaxy = World.createGalaxy(state.seed);
     home = galaxy.systems.find(s => s.id === galaxy.homeId);
     state.simulation = Simulation.create(); state.exploration = Exploration.create(home);
@@ -517,6 +520,7 @@
       updateUI(); return;
     }
     state.surfaceBuildings.push(building);
+    Undo.recordPlacement(undoHistory, building);
     if (template?.plan.machines.length && BuildingData.processTypes.includes(building.type)) {
       // Only the cards this building can hold here come back (a station on
       // fresh water has no desalinator); they work its ground's material.
@@ -589,8 +593,10 @@
     const building = state.selected?.kind === 'building'
       ? state.surfaceBuildings.find(candidate => candidate.id === state.selected.id) : null;
     if (!building || BuildingData.get(building.type)?.indestructible) return;
+    const before = Undo.beforeDemolition(state, building);
     const refund = Construction.demolish(building, state.inventory);
     if (refund === null) return;
+    Undo.recordDemolition(undoHistory, before, refund);
     // Its own roads go with it; roads shared beyond a junction stay.
     for (const network of Object.values(state.roadNetworks)) {
       RoadNetwork.removeBuildingRoads(network, building.id);
@@ -767,8 +773,10 @@
     const params = roadRouteParameters(drag.from, target);
     const preview = RoadPlacement.previewBetween(params);
     if (!preview.connected) { toast(preview.reason); updateUI(); return; }
+    const before = Undo.beforeRoad(state, params.planetId);
     const result = RoadPlacement.createBetween({ ...params, preview });
     if (!result.connected) { toast(result.reason); updateUI(); return; }
+    Undo.recordRoad(undoHistory, before);
     state.roadNetworks[params.planetId] = params.network;
     toast('Route ajoutée. Sa construction commence progressivement.');
     updateUI(); persist();
@@ -834,7 +842,7 @@
   }
   function scanAt(point) {
     const from = state.selected && !state.selected.surfacePoint ? state.selected : home;
-    Exploration.launch(state.exploration, from, point, performance.now());
+    Undo.recordProbe(undoHistory, Exploration.launch(state.exploration, from, point, performance.now()));
     toast('Sonde en route. Relevé du secteur en cours.'); state.tool = 'pan'; updateUI(); persist();
   }
   function completeMissions(now) {
@@ -850,6 +858,8 @@
     const buildingPosition = state.selected?.kind === 'building' && frame
       ? project(frame.x + state.selected.x * frame.scale, frame.y + state.selected.y * frame.scale) : null;
     hud.update({ state, galaxy, terrainData, width: W, scaleCamera, buildingPosition });
+    // Undo: in the planet and galaxy views, while there is something to undo.
+    $('undo-button').hidden = !['surface', 'galaxy'].includes(state.level) || !Undo.canUndo(undoHistory);
   }
 
   function clickMap(x, y, doubleClick = false) {
@@ -1000,6 +1010,21 @@
   canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * .0015), e.clientX, e.clientY); }, { passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   $('back-button').onclick = back;
+  // Undoes the newest action of the planet or galaxy view.
+  function undoLast() {
+    if (!['surface', 'galaxy'].includes(state.level) || !Undo.canUndo(undoHistory)) return;
+    cancelRoadDrag();
+    const result = Undo.undo(undoHistory, state);
+    if (result.ok) {
+      if (state.selected?.kind === 'building' && !state.surfaceBuildings.some(building => building.id === state.selected.id)) {
+        state.selected = null; $('inspector').hidden = true;
+      }
+      syncEntryCards();
+      persist();
+    }
+    toast(result.message); updateUI();
+  }
+  $('undo-button').onclick = undoLast;
   $('road-button').onclick = () => {
     if (state.level !== 'surface') return;
     cancelRoadDrag(); state.placement = null; state.buildMenuOpen = false;
@@ -1285,6 +1310,7 @@
     }
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement ||
         $('menu-dialog').open || $('developer-dialog').open) return;
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoLast(); return; }
     if (e.key === '+' || e.key === '=') zoomAt(1.4);
     if (e.key === '-') zoomAt(1 / 1.4);
     if (e.key === ' ' && !$('menu-dialog').open) { e.preventDefault(); setPause(!state.paused); }
