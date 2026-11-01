@@ -22,6 +22,26 @@
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const total = stock => Object.values(stock || {}).reduce((sum, amount) => sum + amount, 0);
 
+  // Whether two radio tops see each other over their planet's relief
+  // (terrainOf gives a planet's terrain; unknown terrain is open ground).
+  // Answers are kept per terrain and positions.
+  const sightCache = new WeakMap();
+  function inSight(terrainOf, from, fromHeightM, to, toHeightM) {
+    const terrain = terrainOf?.(from.planetId), Sight = root.OrbitLineOfSight;
+    if (!terrain || !Sight) return true;
+    let cache = sightCache.get(terrain);
+    if (!cache) sightCache.set(terrain, cache = new Map());
+    const key = `${from.x},${from.y},${fromHeightM}>${to.x},${to.y},${toHeightM}`;
+    if (!cache.has(key)) {
+      if (cache.size > 20000) cache.clear();
+      cache.set(key, Sight.clear(terrain, from, fromHeightM, to, toHeightM));
+    }
+    return cache.get(key);
+  }
+  // A relay's mast sees a building, or another mast (relay or high-frequency antenna).
+  const relaySees = (terrainOf, relay, target) => inSight(terrainOf, relay, Data.antenna.mastHeightM, target,
+    ['antenna', 'hf_antenna'].includes(target.type) ? Data.antenna.mastHeightM : Data.antenna.buildingHeightM);
+
   function nearest(candidates, point, maxDistance = Infinity) {
     let best = null, bestDistance = maxDistance;
     for (const candidate of candidates) {
@@ -73,7 +93,7 @@
   const datacenterRoom = center => resourceId => Data.datacenter.bufferMb - (center.inventory?.[resourceId] || 0);
   const queueRoom = antenna => () => Data.highFrequency.queueMb - total(antenna.dataQueue);
 
-  function advance(state, seconds) {
+  function advance(state, seconds, terrainOf = null) {
     if (!Number.isFinite(seconds) || seconds < 0) throw new RangeError('Data time must be finite and non-negative');
     const buildings = state.surfaceBuildings || [];
     const relays = buildings.filter(building => building.type === 'antenna' && complete(building));
@@ -84,8 +104,8 @@
       const spec = Data.sources[source.type];
       if (!spec || !complete(source) || !(spec.alwaysActive || source.status === 'active')) continue;
       const rate = Data.sourceRate(spec, source);
-      const relay = !orbitalLab(source) &&
-        nearest(relays.filter(candidate => candidate.planetId === source.planetId), source, Data.antenna.rangeKm);
+      const relay = !orbitalLab(source) && nearest(relays.filter(candidate => candidate.planetId === source.planetId &&
+        distance(candidate, source) <= Data.antenna.rangeKm && relaySees(terrainOf, candidate, source)), source, Data.antenna.rangeKm);
       // A lab out of a relay's reach uses its own transmitter.
       if (!relay && source.type === 'lab') {
         deposit(source, 'dataQueue', spec.resourceId, rate * seconds, queueRoom(source));
@@ -104,7 +124,8 @@
     for (const relay of relays) {
       const onPlanet = type => buildings.filter(candidate => candidate.type === type && complete(candidate) && candidate.planetId === relay.planetId);
       const centers = onPlanet('datacenter');
-      const sink = nearest(centers, relay, range) || (!centers.length && nearest(onPlanet('hf_antenna'), relay, range));
+      const seen = list => list.filter(candidate => distance(candidate, relay) <= range && relaySees(terrainOf, relay, candidate));
+      const sink = nearest(seen(centers), relay, range) || (!centers.length && nearest(seen(onPlanet('hf_antenna')), relay, range));
       if (!sink) continue;
       const link = links[relay.id];
       if (sink.type === 'datacenter') link.datacenterId = sink.id; else link.hfAntennaId = sink.id;
@@ -113,7 +134,8 @@
     while (queue.length) {
       const relay = queue.shift(), depth = hops.get(relay.id);
       for (const other of relays) {
-        if (hops.has(other.id) || other.planetId !== relay.planetId || distance(other, relay) > range) continue;
+        if (hops.has(other.id) || other.planetId !== relay.planetId || distance(other, relay) > range ||
+          !relaySees(terrainOf, relay, other)) continue;
         hops.set(other.id, depth + 1);
         Object.assign(links[other.id], { nextId: relay.id, hops: depth + 1,
           datacenterId: links[relay.id].datacenterId, hfAntennaId: links[relay.id].hfAntennaId });
@@ -158,5 +180,6 @@
     return links;
   }
 
-  root.OrbitDataNetwork = Object.freeze({ advance, nearest, byRoad, uplinkCandidates, uplinkAntenna, orbitalLab, deposit, datacenterRoom });
+  root.OrbitDataNetwork = Object.freeze({ advance, nearest, byRoad, uplinkCandidates, uplinkAntenna, orbitalLab, deposit, datacenterRoom,
+    relaySees });
 })(globalThis);

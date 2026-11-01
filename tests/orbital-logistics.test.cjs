@@ -12,7 +12,7 @@ for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/re
   'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
-  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
+  'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
   vm.runInContext(readFileSync(resolve(__dirname, '../src', relative), 'utf8'), context);
 }
 const Data = context.OrbitOrbitalLogisticsData;
@@ -801,6 +801,49 @@ function joinByRoad(state, planet, a, b) {
     builtLength: Math.hypot(b.x - a.x, b.y - a.y) });
 }
 
+// A strip of flat land 350 m above the sea, with a ridge across it at
+// column 30 (cells of textureScale km).
+function ridgeTerrain(ridgeLevel) {
+  const width = 60, height = 5, seaLevel = 100, elevation = new Uint8Array(width * height).fill(110);
+  for (let y = 0; y < height; y++) elevation[y * width + 30] = ridgeLevel;
+  return { width, height, seaLevel, elevation };
+}
+const cellX = cell => (cell + .5) * context.OrbitConfig.terrain.textureScale;
+
+test('a relay mast sees over the relief: behind a ridge, no line of sight', () => {
+  const Sight = context.OrbitLineOfSight, mast = { x: cellX(10), y: cellX(2) }, target = { x: cellX(50), y: cellX(2) };
+  // Tops: 350 + 80 m at the mast, 350 + 15 m at the building; mid-way the line passes at 397,5 m.
+  assert.equal(Sight.clear(ridgeTerrain(110), mast, 80, target, 15), true, 'flat ground');
+  assert.equal(Sight.clear(ridgeTerrain(111), mast, 80, target, 15), true, 'a 35 m bump stays below the line');
+  assert.equal(Sight.clear(ridgeTerrain(112), mast, 80, target, 15), false, 'a 70 m ridge hides the building');
+  assert.equal(Sight.clear(ridgeTerrain(112), mast, 80, { x: cellX(20), y: cellX(2) }, 15), true, 'on this side of the ridge');
+  // The relief view agrees: in sight before the ridge, hidden behind it, nothing out of range.
+  const view = Sight.viewshed(ridgeTerrain(112), mast, 80, 300, 15);
+  const at = cell => view.cells[(2 - view.originCellY) * view.size + (cell - view.originCellX)];
+  assert.deepEqual([at(20), at(29), at(45), at(55)], [2, 2, 1, 1]);
+  assert.equal(view.cells[0], 0, 'corners of the square are out of range');
+});
+
+test('relay antennas only gather and pass on what their mast sees', () => {
+  const DataNetwork = context.OrbitDataNetwork;
+  const at = (id, type, cell, extras = {}) => ({ id, type, planetId, x: cellX(cell), y: cellX(2), constructionState: 'complete', status: 'active', ...extras });
+  const state = { surfaceBuildings: [at('dish', 'antenna', 10), at('near', 'extractor', 20), at('behind', 'extractor', 50),
+    at('dc', 'datacenter', 25, { inventory: {} })], roadNetworks: {} };
+  let links = DataNetwork.advance(state, 1, () => ridgeTerrain(112));
+  assert.deepEqual(plain(links.dish.sources), ['near'], 'the extractor behind the ridge is out of sight');
+  assert.equal(links.dish.datacenterId, 'dc');
+  links = DataNetwork.advance(state, 1, () => ridgeTerrain(110));
+  assert.deepEqual(plain(links.dish.sources), ['near', 'behind'], 'flat ground: both in sight');
+  // A datacenter behind the ridge cannot be reached either.
+  state.surfaceBuildings.find(building => building.id === 'dc').x = cellX(45);
+  links = DataNetwork.advance(state, 1, () => ridgeTerrain(112));
+  assert.equal(links.dish.datacenterId, null);
+  assert.equal(links.dish.hops, null);
+  // Unknown terrain (a planet not generated yet) is open ground.
+  links = DataNetwork.advance(state, 1);
+  assert.deepEqual(plain(links.dish.sources), ['near', 'behind']);
+});
+
 test('analyses go by road to a high-frequency antenna, then to the Ark, where they become technology points; the star can cut the link', () => {
   const DataNetwork = context.OrbitDataNetwork, DataTransit = context.OrbitDataTransit;
   const planet = { id: planetId, orbit: 100, radius: 5, phase: 0, speed: .03 };
@@ -816,15 +859,18 @@ test('analyses go by road to a high-frequency antenna, then to the Ark, where th
   DataTransit.advance(state, 0, new Map([['home', make(Math.PI)]]));
   assert.equal(state.dataTransit.packets.length, 0);
   assert.equal(hf.dataLink.reason, 'conjunction');
-  // In view: a packet at the antenna's bandwidth, 3× faster than freight.
-  const system = make(.6);
-  DataTransit.advance(state, 1, new Map([['home', system]]));
+  // In view: one packet every five seconds, up to five seconds of the
+  // antenna's bandwidth, 3× faster than freight.
+  const system = make(.6), spec = context.OrbitDataNetworkData.highFrequency;
+  DataTransit.advance(state, spec.dispatchIntervalSeconds - .5, new Map([['home', system]]));
+  assert.equal(state.dataTransit.packets.length, 0, 'nothing leaves between two sendings');
+  DataTransit.advance(state, spec.dispatchIntervalSeconds, new Map([['home', system]]));
   const [packet] = state.dataTransit.packets;
-  assert.equal(packet.amount, context.OrbitDataNetworkData.highFrequency.bandwidthMbPerSecond);
-  const freight = Transit.travelTime(system, planet, 1);
+  assert.equal(packet.amount, Math.min(10, spec.bandwidthMbPerSecond * spec.dispatchIntervalSeconds));
+  const freight = Transit.travelTime(system, planet, spec.dispatchIntervalSeconds);
   assert.ok(Math.abs((packet.arrivalTime - packet.departureTime) - freight / 3) < 1e-6);
   DataTransit.advance(state, packet.arrivalTime, new Map([['home', system]]), false);
-  assert.equal(state.techPoints, 4, 'each analysis reaching the Ark is a point');
+  assert.equal(state.techPoints, 10, 'each analysis reaching the Ark is a point');
 });
 
 test('raw data of a planet without datacenter crosses to the datacenter of another planet', () => {

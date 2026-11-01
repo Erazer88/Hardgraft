@@ -465,8 +465,60 @@
   // The data network: faint lines from working buildings to their dish, a
   // moving dashed beam from each dish to its datacenter, and the dish's range
   // while it is placed or selected. Purely visual (state.dataLinks).
+  // An antenna's relief view: within its range, the ground its mast sees is
+  // lit, the ground hidden behind the relief is veiled. One small image per
+  // antenna position (a pixel per terrain cell), drawn to scale.
+  const coverageCache = new Map();
+  function coverage(frame, dish) {
+    const Sight = root.OrbitLineOfSight, terrain = frame.terrain, antenna = root.OrbitDataNetworkData?.antenna;
+    if (!Sight || !terrain?.elevation || !antenna || !root.document) return null;
+    const key = `${frame.planet.id}|${dish.x}|${dish.y}`;
+    const cached = coverageCache.get(key);
+    if (cached?.terrain === terrain) return cached;
+    if (coverageCache.size > 8) coverageCache.clear();
+    const view = Sight.viewshed(terrain, dish, antenna.mastHeightM, antenna.rangeKm, antenna.buildingHeightM);
+    const canvas = root.document.createElement('canvas'); canvas.width = canvas.height = view.size;
+    const context = canvas.getContext('2d'), image = context.createImageData(view.size, view.size);
+    const [seen, hidden] = [Style.dataLinks.coverageSeen, Style.dataLinks.coverageHidden];
+    for (let index = 0; index < view.cells.length; index++) {
+      const color = view.cells[index] === 2 ? seen : view.cells[index] === 1 ? hidden : null;
+      if (color) image.data.set(color, index * 4);
+    }
+    context.putImageData(image, 0, 0);
+    const entry = { terrain, canvas, view };
+    coverageCache.set(key, entry);
+    return entry;
+  }
+
+  function drawReliefView(frame, dish) {
+    const ctx = frame.context, entry = coverage(frame, dish);
+    if (!entry) return;
+    const { view } = entry, origin = frame.project(view.originCellX * view.cellKm, view.originCellY * view.cellKm);
+    const size = view.size * view.cellKm * frame.zoom;
+    ctx.save(); ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(entry.canvas, origin.x, origin.y, size, size);
+    ctx.restore();
+    // Buildings sending data within reach: a blue line to those the mast
+    // sees, a red one to those behind the relief.
+    const Network = root.OrbitDataNetwork, sources = root.OrbitDataNetworkData?.sources || {};
+    const range = root.OrbitDataNetworkData.antenna.rangeKm, terrainOf = () => frame.terrain;
+    const mast = { ...dish, type: 'antenna', planetId: frame.planet.id }, top = frame.project(dish.x, dish.y);
+    ctx.save(); ctx.lineWidth = 1.2; ctx.setLineDash([3, 4]);
+    for (const building of visibleBuildings(frame)) {
+      if (!sources[building.type] || building.id === dish.id || Math.hypot(building.x - dish.x, building.y - dish.y) > range) continue;
+      const point = frame.project(building.x, building.y), seen = Network?.relaySees(terrainOf, mast, building) !== false;
+      ctx.strokeStyle = seen ? Style.dataLinks.color : Style.dataLinks.blockedColor; ctx.globalAlpha = seen ? .45 : .8;
+      ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(point.x, point.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function renderDataLinks(frame) {
     const state = frame.state, style = Style.dataLinks, ctx = frame.context;
+    // The relief view of the antenna being placed or selected, under its links.
+    const viewed = state.tool === 'build' && state.placement?.type === 'antenna' ? state.placement
+      : state.selected?.kind === 'building' && state.selected.type === 'antenna' ? state.selected : null;
+    if (viewed) drawReliefView(frame, viewed);
     // A dotted blue line with a few small packets gliding along it.
     const beam = (from, to) => {
       ctx.save();

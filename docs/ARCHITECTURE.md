@@ -48,6 +48,7 @@ Modules de la colonie et de la progression :
 | `src/ui/colonyPanel.js` | Menu de la colonie et débits en moyenne glissante |
 | `src/data/skills.js`, `src/gameplay/skills.js` | Compétences déclarées ; révélation à l'Arche, prérequis, acquisition |
 | `src/data/dataNetwork.js`, `src/simulation/dataNetwork.js` | Réseau de données en surface : sources, antennes relais, datacenter, température de site |
+| `src/simulation/lineOfSight.js` | Ligne de vue au-dessus du relief et couverture d'un mât (vue relief des antennes) |
 | `src/simulation/dataTransit.js`, `src/rendering/dataTrafficRenderer.js` | Paquets de données entre mondes et vers l'Arche, conjonction solaire, rendu bleu |
 | `src/ui/skillTree.js` | Menu de l'arbre de compétences (nœuds, brouillard, détail) |
 | `src/ui/hubPanel.js` | Menu du hub (plateforme de lancement) : chantier, matériaux à recevoir, lancements |

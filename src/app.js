@@ -450,8 +450,13 @@
     if (building.type === 'antenna') {
       const links = state.dataLinks?.[building.id];
       const network = globalThis.OrbitDataNetworkData.antenna;
-      return links && building.id ? `${links.sources.length} source${links.sources.length > 1 ? 's' : ''} · ${formatAmount(Math.round(links.carried * 10) / 10)} / ${formatAmount(network.bandwidthMbPerSecond)} Mo/s`
-        : `Portée ${formatAmount(network.rangeKm)} km · ${formatAmount(network.bandwidthMbPerSecond)} Mo/s`;
+      if (links && building.id) return `${links.sources.length} source${links.sources.length > 1 ? 's' : ''} · ${formatAmount(Math.round(links.carried * 10) / 10)} / ${formatAmount(network.bandwidthMbPerSecond)} Mo/s`;
+      // Being placed: the buildings sending data its mast would see over the relief.
+      const mast = { ...building, type: 'antenna', planetId: state.planet?.id };
+      const inReach = state.surfaceBuildings.filter(candidate => candidate.planetId === mast.planetId &&
+        globalThis.OrbitDataNetworkData.sources[candidate.type] && Math.hypot(candidate.x - mast.x, candidate.y - mast.y) <= network.rangeKm);
+      const seen = inReach.filter(candidate => globalThis.OrbitDataNetwork.relaySees(terrainOf, mast, candidate)).length;
+      return `${seen} en vue${inReach.length > seen ? ` · ${inReach.length - seen} derrière le relief` : ''} · portée ${formatAmount(network.rangeKm)} km`;
     }
     if (building.type === 'water_station' && building.resourceId) {
       return building.resourceId === 'salt_water' ? 'Eau salée · mer' : 'Eau douce · lac ou rivière';
@@ -1231,6 +1236,14 @@
     if (names.length) updateUI();
   }
 
+  // A planet's generated terrain, if any system holding it has been prepared.
+  function terrainRecord(planetId) {
+    let record = null;
+    for (const context of contexts.values()) if (context.terrains.has(planetId)) record = context.terrains.get(planetId);
+    return record;
+  }
+  const terrainOf = planetId => terrainRecord(planetId)?.data || null;
+
   // A colony's zone grows over its planet's terrain as it consumes. A zone
   // that could not grow is tried again only once something changed (its
   // target, its cells, the buildings of its planet, the terrain).
@@ -1243,8 +1256,7 @@
       const target = Colony.targetCells(colony.colony, cellKm2);
       if (colony.colony.cells.length >= target) continue;
       // Only terrain already generated: growing waits until the planet is seen.
-      let record = null;
-      for (const context of contexts.values()) if (context.terrains.has(colony.planetId)) record = context.terrains.get(colony.planetId);
+      const record = terrainRecord(colony.planetId);
       if (!record) continue;
       const neighbours = state.surfaceBuildings.reduce((count, building) => count + (building.planetId === colony.planetId), 0);
       const attempt = `${target}|${colony.colony.cells.length}|${neighbours}`;
@@ -1264,7 +1276,8 @@
       Construction.advance(state.surfaceBuildings, simulationDt);
       RoadConstruction.advance(state.roadNetworks, simulationDt);
       globalThis.OrbitIndustry.advance(state, simulationDt);
-      globalThis.OrbitDataNetwork.advance(state, simulationDt);
+      // Relay links need a line of sight over the relief of their planet.
+      globalThis.OrbitDataNetwork.advance(state, simulationDt, terrainOf);
       advanceColony(simulationDt);
     }
     const spaceSystems = logisticsSystemModels();

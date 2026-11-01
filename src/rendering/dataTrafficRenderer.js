@@ -2,8 +2,9 @@
   'use strict';
 
   // Data in the system view: a thin blue line between both ends of each
-  // transfer in flight, and each packet as a dot moving along it; labs
-  // orbiting gas giants show beside their planet. Purely visual (state.dataTransit).
+  // transfer in flight, and one dot per sending (an antenna's packets of
+  // different kinds leave together) moving along it; labs orbiting gas
+  // giants show beside their planet. Purely visual (state.dataTransit).
   const STYLE = Object.freeze({ color: '#9fd8ff', lineOpacity: .4, lineWidthPx: 1, packetOpacity: .95, packetRadiusPx: 2.2 });
 
   function draw(ctx, { state, system, camera, project }) {
@@ -11,7 +12,7 @@
     if (!Transit) return;
     const packets = (state.dataTransit?.packets || []).filter(packet => packet.systemId === system.id &&
       packet.departureTime <= time && packet.arrivalTime > time).slice(0, 64);
-    const drawn = new Set();
+    const drawn = new Set(), sent = new Set();
     ctx.save();
     ctx.strokeStyle = STYLE.color; ctx.fillStyle = STYLE.color; ctx.lineWidth = STYLE.lineWidthPx;
     for (const packet of packets) {
@@ -25,6 +26,9 @@
         ctx.globalAlpha = STYLE.lineOpacity;
         ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
       }
+      const sending = `${packet.fromId}|${packet.departureTime}|${key}`;
+      if (sent.has(sending)) continue;
+      sent.add(sending);
       const point = project(at.x, at.y, camera);
       ctx.globalAlpha = STYLE.packetOpacity;
       ctx.beginPath(); ctx.arc(point.x, point.y, STYLE.packetRadiusPx, 0, Math.PI * 2); ctx.fill();

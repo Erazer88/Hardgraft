@@ -19,13 +19,19 @@
     },
     // A relay antenna gathers the buildings within its range and passes data
     // to the next relay within linkRangeKm, down a chain to the datacenter;
-    // it carries at most its bandwidth (Mo/s), relayed data included.
-    antenna: { rangeKm: 300, linkRangeKm: 300, bandwidthMbPerSecond: 4 },
-    // A high-frequency antenna sends packets at a steady bandwidth, once per
-    // dispatch interval, holding at most queueMb. Packets fly 3× faster than
+    // it carries at most its bandwidth (Mo/s), relayed data included. Every
+    // radio link needs a line of sight over the relief: from the top of its
+    // mast (mastHeightM) to the top of a building (buildingHeightM) or of
+    // another mast; behind a hill, no network.
+    antenna: { rangeKm: 300, linkRangeKm: 300, bandwidthMbPerSecond: 4, mastHeightM: 80, buildingHeightM: 15 },
+    // Relief read for lines of sight: metres per elevation level (as the
+    // ground readout), and the sampling step along a line, in cells.
+    relief: { metersPerLevel: 35, sampleCells: .5 },
+    // A high-frequency antenna sends a packet every dispatch interval (5 s of
+    // its bandwidth at once), holding at most queueMb. Packets fly 3× faster than
     // interplanetary freight; the star between both ends cuts the link
     // (solar conjunction): within conjunctionStarRadii star radii of the line.
-    highFrequency: { bandwidthMbPerSecond: 4, queueMb: 400, dispatchIntervalSeconds: 1,
+    highFrequency: { bandwidthMbPerSecond: 4, queueMb: 400, dispatchIntervalSeconds: 5,
       speedOverFreight: 3, conjunctionStarRadii: 4 },
     // Data waiting at a datacenter, per kind; what arrives beyond is lost.
     // Its uplink cards hold at most uplinkMb for the high-frequency antenna.
