@@ -516,6 +516,19 @@ body[data-level="surface"] .corner-note{display:none}
 .panel-meta{justify-content:flex-start;color:#d6e5eb;font-size:calc(10px*var(--ta) + var(--tb));letter-spacing:.5px;padding:6px 10px}
 .colony-panel .colony-row small{white-space:normal}
 
+/* Flow cards: provenance (in, blue) and destinations (out, amber). */
+.building-flow{padding:0;border:0}
+.flow-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.flow-card{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1d2c99}
+.flow-card svg{width:26px;height:26px;flex:0 0 26px;stroke-width:2.2}
+.flow-card.in svg{color:#6fc8ff}.flow-card.in{border-color:#6fc8ff44}
+.flow-card.out svg{color:#efa35a}.flow-card.out{border-color:#efa35a44}
+.flow-card div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.flow-card strong{color:#e3eef3;font-size:calc(12px*var(--ta) + var(--tb));font-weight:500;overflow-wrap:anywhere}
+.flow-card span{color:#a9c0cc;font-size:calc(11px*var(--ta) + var(--tb));overflow-wrap:anywhere}
+.building-flow h3{font-size:calc(9px*var(--ta) + var(--tb))}
+.building-flow p{font-size:calc(11px*var(--ta) + var(--tb))}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to

@@ -85,6 +85,12 @@
         }
       }
 
+      // What the colony holds, waiting for a later tier.
+      const stock = Object.entries(building.inventory || {}).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]);
+      const held = section('STOCK');
+      if (!stock.length) held.append(element('p', 'colony-note', 'Tout ce qui arrive est consommé.'));
+      for (const [id, amount] of stock) row(held, resourceName(id), units(amount));
+
       // What arrives now (30 s average), and who sends it.
       const incoming = section('ARRIVÉES');
       const list = Kit.arrivals(live, state, resourceName);
