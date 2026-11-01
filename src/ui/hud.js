@@ -188,18 +188,7 @@
           tile('ore', 'Pétrole', Number.isFinite(building.resourceShare) ? approximateShare(building.resourceShare) : '—')];
         case 'water_station': return [tile('water', 'Eau', building.resourceId === 'salt_water' ? 'Salée' : 'Douce'), tile('flow', 'Débit', rate(flow))];
         case 'waste_heap': return [];
-        case 'storage': {
-          // What the depot holds: received and waiting at its gates.
-          const held = {};
-          for (const [id, amount] of Object.entries(building.inventory || {})) held[id] = (held[id] || 0) + amount;
-          for (const queue of Object.values(building.gateStock || {})) for (const [id, amount] of Object.entries(queue)) held[id] = (held[id] || 0) + amount;
-          for (const machine of currentState?.factoryPlans?.[building.id]?.machines || []) {
-            for (const [id, amount] of Object.entries(machine.storedResources || {})) held[id] = (held[id] || 0) + amount;
-          }
-          const entries = Object.entries(held).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]);
-          return entries.length ? entries.map(([id, amount]) => tile('box', resourceName(id), `${fmt(Math.floor(amount))} u`))
-            : [tile('box', 'Stock', 'Vide')];
-        }
+        case 'storage': return [];
         case 'antenna': case 'datacenter': case 'hf_antenna': case 'lab': return dataStats(building);
         default: return [];
       }
@@ -242,6 +231,16 @@
       return { arrivals: group(arrivals), departures: group(departures) };
     }
 
+    // What a depot holds: received, in its buffers and waiting at its gates.
+    function heldStock(building) {
+      const held = {};
+      const add = stock => { for (const [id, amount] of Object.entries(stock || {})) held[id] = (held[id] || 0) + amount; };
+      add(building.inventory);
+      for (const queue of Object.values(building.gateStock || {})) add(queue);
+      for (const machine of currentState?.factoryPlans?.[building.id]?.machines || []) add(machine.storedResources);
+      return Object.entries(held).filter(([, amount]) => amount >= 1).map(([id, amount]) => [id, Math.floor(amount)]).sort((a, b) => b[1] - a[1]);
+    }
+
     function renderFlows(building) {
       const list = $('building-flows');
       const shown = building.constructionState === 'complete' && ['factory', 'storage', 'waste_heap', 'extractor', 'water_station', 'oil_platform'].includes(building.type);
@@ -257,33 +256,32 @@
         for (const item of relayed) byResource.set(item.resource, [...(byResource.get(item.resource) || []), item.name]);
         flows.sources = [...byResource].map(([resource, names]) => ({ resource, names: names.join(', ') }));
       }
-      const key = JSON.stringify(flows);
+      const held = building.type === 'storage' && building.constructionState === 'complete' ? heldStock(building) : null;
+      const key = JSON.stringify([flows, held]);
       if (list.dataset.key === key) return;
       list.dataset.key = key;
-      // Each flow is a card: a large arrow (in or out), the resource, the buildings.
-      const ARROWS = { '←': 'M20 12H5M11 6l-6 6 6 6', '→': 'M4 12h15M13 6l6 6-6 6' };
+      // Each flow is a full-width line: an arrow (in or out), the resource, the buildings.
       const section = (title, entries, arrow, empty) => {
         const block = document.createElement('section'); block.className = 'building-flow';
         const heading = document.createElement('h3'); heading.textContent = title; block.append(heading);
         if (!entries.length) {
           const none = document.createElement('p'); none.textContent = empty; block.append(none);
         }
-        const grid = document.createElement('div'); grid.className = 'flow-cards';
-        for (const entry of entries) {
-          const card = document.createElement('div'); card.className = `flow-card ${arrow === '←' ? 'in' : 'out'}`;
-          card.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ARROWS[arrow]}"/></svg>`;
-          const text = document.createElement('div');
-          const resource = document.createElement('strong'); resource.textContent = entry.resource;
-          const names = document.createElement('span'); names.textContent = entry.names;
-          text.append(resource, names); card.append(text); grid.append(card);
-        }
-        if (entries.length) block.append(grid);
+        for (const entry of entries) block.append(root.OrbitPanelKit.line(document, arrow === '←' ? 'in' : 'out', entry.resource, entry.names));
         return block;
       };
       const blocks = [];
       if (shown && ['factory', 'storage', 'waste_heap'].includes(building.type)) blocks.push(section('PROVENANCE', flows.arrivals, '←', 'Rien n’arrive encore.'));
       if (shown) blocks.push(section('DESTINATIONS', flows.departures, '→', 'Aucune destination choisie (cartes du bâtiment).'));
       if (flows.sources) blocks.push(section('SOURCES', flows.sources, '←', ''));
+      // A depot's stock, as lines with a box.
+      if (held) {
+        const block = document.createElement('section'); block.className = 'building-flow';
+        const heading = document.createElement('h3'); heading.textContent = 'STOCK'; block.append(heading);
+        if (!held.length) { const none = document.createElement('p'); none.textContent = 'Vide.'; block.append(none); }
+        for (const [id, amount] of held) block.append(root.OrbitPanelKit.line(document, 'stock', resourceName(id), '', `${fmt(amount)} u`));
+        blocks.unshift(block);
+      }
       list.replaceChildren(...blocks);
       list.hidden = !blocks.length;
     }

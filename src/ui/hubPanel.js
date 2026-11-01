@@ -63,7 +63,7 @@
           root.OrbitLogistics.platformStatus(state, building, getSystem(building), state.simulation.time).toLowerCase());
         exportSection.append(bar(metrics.throughput, launch.capacityUPerSecond, null, 'ok'));
         for (const [id, amount] of Object.entries(building.launchStock || {}).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1])) {
-          row(exportSection, resourceName(id), units(amount), 'en attente');
+          exportSection.append(Kit.line(document, 'stock', resourceName(id), 'en attente de lancement', units(amount)));
         }
       }
 
@@ -71,7 +71,7 @@
       const incoming = section('ARRIVÉES');
       const list = Kit.arrivals(live, state, resourceName);
       if (!list.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
-      for (const item of list) row(incoming, item.label, perMinute(item.rate), item.from.length ? `← ${item.from.join(', ')}` : '');
+      for (const item of list) incoming.append(Kit.line(document, 'in', item.label, item.from.join(', '), perMinute(item.rate)));
     }
 
     // Quick update of the delivered quantities; a change of state redraws.

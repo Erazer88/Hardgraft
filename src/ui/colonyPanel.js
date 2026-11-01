@@ -89,13 +89,13 @@
       const stock = Object.entries(building.inventory || {}).filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]);
       const held = section('STOCK');
       if (!stock.length) held.append(element('p', 'colony-note', 'Tout ce qui arrive est consommé.'));
-      for (const [id, amount] of stock) row(held, resourceName(id), units(amount));
+      for (const [id, amount] of stock) held.append(Kit.line(document, 'stock', resourceName(id), '', units(amount)));
 
       // What arrives now (30 s average), and who sends it.
       const incoming = section('ARRIVÉES');
       const list = Kit.arrivals(live, state, resourceName);
       if (!list.length) incoming.append(element('p', 'colony-note', live.span < 5 ? 'Mesure en cours…' : 'Rien n’arrive pour l’instant.'));
-      for (const item of list) row(incoming, item.label, perMinute(item.rate), item.from.length ? `← ${item.from.join(', ')}` : '');
+      for (const item of list) incoming.append(Kit.line(document, 'in', item.label, item.from.join(', '), perMinute(item.rate)));
     }
 
     // Quick update of the tier's quantities; a new tier needs a full redraw.

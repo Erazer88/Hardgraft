@@ -529,8 +529,18 @@ body[data-level="surface"] .corner-note{display:none}
 .building-flow h3{font-size:calc(9px*var(--ta) + var(--tb))}
 .building-flow p{font-size:calc(11px*var(--ta) + var(--tb))}
 
+/* Full-width lines: flows in (blue) and out (amber), stocks (box). */
+.flow-line{display:flex;align-items:center;gap:10px;margin-top:5px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1d2c99}
+.flow-line svg{width:22px;height:22px;flex:0 0 22px;stroke-width:2.2;color:#9fb8c6}
+.flow-line.in{border-color:#6fc8ff44}.flow-line.in svg{color:#6fc8ff}
+.flow-line.out{border-color:#efa35a44}.flow-line.out svg{color:#efa35a}
+.flow-line-text{display:flex;flex:1;flex-wrap:wrap;align-items:baseline;gap:2px 10px;min-width:0}
+.flow-line-text strong{color:#e3eef3;font-size:calc(12px*var(--ta) + var(--tb));font-weight:500}
+.flow-line-text span{color:#a9c0cc;font-size:calc(11px*var(--ta) + var(--tb));overflow-wrap:anywhere}
+.flow-line b{flex:0 0 auto;color:#d6e5eb;font-size:calc(11px*var(--ta) + var(--tb));font-weight:500}
+
 /* Mobile portrait: every text grows, the smallest the most (7 px → 11 px,
    18 px → 21 px). Inside the zoomable factory plan the cards keep their size,
    so their text only gains a pixel. The panels opened by a tap grow less, to
    keep everything in view at a glance; a building's sheet grows least. */
-@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.inspector.building-panel{--ta:.85;--tb:.5px}.factory-add-block-trigger{min-width:150px;padding:0 12px}.factory-blueprints-trigger{min-width:0}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}
+@media(orientation:portrait) and (max-width:600px){:root{--ta:.9;--tb:4.5px}.inspector,.colony-panel{--ta:.9;--tb:2.5px}.inspector.building-panel,.colony-panel{--ta:.85;--tb:.5px}.factory-add-block-trigger{min-width:150px;padding:0 12px}.factory-blueprints-trigger{min-width:0}.factory-world{--ta:1;--tb:1px}.factory-viewport-hint{display:none}}

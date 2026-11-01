@@ -93,5 +93,21 @@
     root.OrbitBuildingRenderer?.drawBadge(canvas, type);
   }
 
-  root.OrbitPanelKit = Object.freeze({ fmt, units, perMinute, clamp, builders, rateTracker, arrivals, badge });
+  // A full-width line of a building's menu: an arrow in (blue) or out
+  // (amber), or a box for a stock; the resource, the buildings or a note,
+  // and a value on the right.
+  const LINE_ICONS = { in: 'M20 12H5M11 6l-6 6 6 6', out: 'M4 12h15M13 6l6 6-6 6',
+    stock: 'M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8' };
+  function line(document, kind, title, detail = '', value = '') {
+    const node = document.createElement('div'); node.className = `flow-line ${kind}`;
+    node.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${LINE_ICONS[kind]}"/></svg>`;
+    const text = document.createElement('div'); text.className = 'flow-line-text';
+    const name = document.createElement('strong'); name.textContent = title; text.append(name);
+    if (detail) { const note = document.createElement('span'); note.textContent = detail; text.append(note); }
+    node.append(text);
+    if (value) { const amount = document.createElement('b'); amount.textContent = value; node.append(amount); }
+    return node;
+  }
+
+  root.OrbitPanelKit = Object.freeze({ fmt, units, perMinute, clamp, builders, rateTracker, arrivals, badge, line });
 })(globalThis);
