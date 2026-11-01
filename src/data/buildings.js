@@ -96,8 +96,6 @@
       functions: { generatesEnergy: true },
       cost: { iron: 12, copper: 8, carbon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 22, height: 30 }, roadRequired: true,
-      // Placed with a finger, the preview stands this far above it.
-      touchLiftPx: 72,
       roadPortOffset: { x: 0, y: 15 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
@@ -134,8 +132,6 @@
       functions: { relaysData: true },
       cost: { iron: 10, copper: 8, silicon: 2 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 18, height: 18 }, roadRequired: true,
-      // Placed with a finger, the preview stands this far above it.
-      touchLiftPx: 72,
       roadPortOffset: { x: 0, y: 9 },
       placementRules: { landOnly: true }, preferredTerrain: ['elevated', 'flat']
     },
@@ -217,6 +213,10 @@
   // while pricesEnabled is false.
   const construction = Object.freeze({ crews: 2, pricesEnabled: false });
 
+  // Placed with a finger, every building's preview stands this far above it,
+  // so the finger does not hide it (a definition may set its own touchLiftPx).
+  const placement = Object.freeze({ touchLiftPx: 72 });
+
   // Buildings whose inside is a card plan, and those of them whose output
   // docks send resources by road (the depot uses its own gates).
   const processTypes = Object.freeze(['factory', 'extractor', 'oil_platform', 'water_station', 'storage', 'waste_heap', 'datacenter']);
@@ -229,6 +229,7 @@
     processTypes,
     dockSourceTypes,
     construction,
+    placement,
     catalog() { return catalogOrder.map(type => definitions[type]); },
     get(type) { return Object.prototype.hasOwnProperty.call(definitions, type) ? definitions[type] : null; }
   });

@@ -77,8 +77,8 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   (`details`, emplacement, route, énergie, chantier) avec « Construire ».
 - Vues de pose et de sélection : l'antenne relais montre sa vue relief, l'éolienne sa
   vue vent (voir plus bas), en teintes transparentes qui laissent lire le relief. Au
-  doigt, ces deux bâtiments se posent 72 px au-dessus du point touché (`touchLiftPx`)
-  pour rester visibles.
+  doigt, tout bâtiment se pose 72 px au-dessus du point touché
+  (`OrbitBuildingData.placement.touchLiftPx`) pour rester visible.
 - Éditeur de cartes : état et débit sur une ligne, une large barre bleue (unité en
   cours, ou remplissage d'un quai sur 100), « ⚡ MW » et une note (stock d'un quai,
   teneur d'un séparateur). Liaisons courbes ou à angle droit (bouton de l'en-tête,

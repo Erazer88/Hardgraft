@@ -422,8 +422,8 @@
     if (state.level !== 'surface' || !state.planet || !terrainData || !terrainTexture) return;
     const definition = BuildingData.get(type);
     if (!definition) return;
-    // Some buildings stand above the finger, so it does not hide them.
-    if (pointerKind === 'touch' && definition.touchLiftPx) screenY -= definition.touchLiftPx;
+    // Every building stands above the finger, so it does not hide it.
+    if (pointerKind === 'touch') screenY -= definition.touchLiftPx ?? BuildingData.placement.touchLiftPx;
     const frame = surfaceFrame(), worldPoint = unproject(screenX, screenY);
     const position = { x: (worldPoint.x - frame.x) / frame.scale, y: (worldPoint.y - frame.y) / frame.scale };
     const validation = BuildingPlacement.validate({ terrain: terrainData,
