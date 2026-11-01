@@ -498,7 +498,7 @@
     ctx.save(); ctx.imageSmoothingEnabled = true;
     ctx.drawImage(entry.canvas, origin.x, origin.y, size, size);
     ctx.restore();
-    // Buildings sending data within reach: a blue line to those the mast
+    // Buildings sending data within reach: a green line to those the mast
     // sees, a red one to those behind the relief.
     const Network = root.OrbitDataNetwork, sources = root.OrbitDataNetworkData?.sources || {};
     const range = root.OrbitDataNetworkData.antenna.rangeKm, terrainOf = () => frame.terrain;
@@ -507,7 +507,7 @@
     for (const building of visibleBuildings(frame)) {
       if (!sources[building.type] || building.id === dish.id || Math.hypot(building.x - dish.x, building.y - dish.y) > range) continue;
       const point = frame.project(building.x, building.y), seen = Network?.relaySees(terrainOf, mast, building) !== false;
-      ctx.strokeStyle = seen ? Style.dataLinks.color : Style.dataLinks.blockedColor; ctx.globalAlpha = seen ? .45 : .8;
+      ctx.strokeStyle = seen ? Style.dataLinks.seenColor : Style.dataLinks.blockedColor; ctx.globalAlpha = .85;
       ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(point.x, point.y); ctx.stroke();
     }
     ctx.restore();

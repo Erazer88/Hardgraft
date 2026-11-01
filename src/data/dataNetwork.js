@@ -23,10 +23,12 @@
     // radio link needs a line of sight over the relief: from the top of its
     // mast (mastHeightM) to the top of a building (buildingHeightM) or of
     // another mast; behind a hill, no network.
-    antenna: { rangeKm: 300, linkRangeKm: 300, bandwidthMbPerSecond: 4, mastHeightM: 80, buildingHeightM: 15 },
+    antenna: { rangeKm: 300, linkRangeKm: 300, bandwidthMbPerSecond: 4, mastHeightM: 120, buildingHeightM: 20 },
     // Relief read for lines of sight: metres per elevation level (as the
-    // ground readout), and the sampling step along a line, in cells.
-    relief: { metersPerLevel: 35, sampleCells: .5 },
+    // ground readout), the sampling step along a line, in cells, and how far
+    // the ground may rise above the line before it blocks (small bumps let
+    // the signal through; only real hills cut it).
+    relief: { metersPerLevel: 35, sampleCells: .5, obstructionToleranceM: 70 },
     // A high-frequency antenna sends a packet every dispatch interval (5 s of
     // its bandwidth at once), holding at most queueMb. Packets fly 3× faster than
     // interplanetary freight; the star between both ends cuts the link

@@ -810,17 +810,23 @@ function ridgeTerrain(ridgeLevel) {
 }
 const cellX = cell => (cell + .5) * context.OrbitConfig.terrain.textureScale;
 
-test('a relay mast sees over the relief: behind a ridge, no line of sight', () => {
-  const Sight = context.OrbitLineOfSight, mast = { x: cellX(10), y: cellX(2) }, target = { x: cellX(50), y: cellX(2) };
-  // Tops: 350 + 80 m at the mast, 350 + 15 m at the building; mid-way the line passes at 397,5 m.
-  assert.equal(Sight.clear(ridgeTerrain(110), mast, 80, target, 15), true, 'flat ground');
-  assert.equal(Sight.clear(ridgeTerrain(111), mast, 80, target, 15), true, 'a 35 m bump stays below the line');
-  assert.equal(Sight.clear(ridgeTerrain(112), mast, 80, target, 15), false, 'a 70 m ridge hides the building');
-  assert.equal(Sight.clear(ridgeTerrain(112), mast, 80, { x: cellX(20), y: cellX(2) }, 15), true, 'on this side of the ridge');
-  // The relief view agrees: in sight before the ridge, hidden behind it, nothing out of range.
-  const view = Sight.viewshed(ridgeTerrain(112), mast, 80, 300, 15);
+test('a relay mast sees over the relief: small bumps let the signal through, a hill blocks it', () => {
+  const Sight = context.OrbitLineOfSight, Spec = context.OrbitDataNetworkData;
+  const mast = { x: cellX(10), y: cellX(2) }, target = { x: cellX(50), y: cellX(2) };
+  const [mastM, buildingM] = [Spec.antenna.mastHeightM, Spec.antenna.buildingHeightM];
+  assert.deepEqual([mastM, buildingM, Spec.relief.obstructionToleranceM], [120, 20, 70]);
+  // Tops: 350 + 120 m at the mast, 350 + 20 m at the building; mid-way the
+  // line passes at 420 m, and the ground blocks above 490 m.
+  assert.equal(Sight.clear(ridgeTerrain(110), mast, mastM, target, buildingM), true, 'flat ground');
+  assert.equal(Sight.clear(ridgeTerrain(113), mast, mastM, target, buildingM), true, 'a 105 m bump does not block');
+  assert.equal(Sight.clear(ridgeTerrain(114), mast, mastM, target, buildingM), true, 'nor ground right at the limit');
+  assert.equal(Sight.clear(ridgeTerrain(115), mast, mastM, target, buildingM), false, 'a 175 m hill hides the building');
+  assert.equal(Sight.clear(ridgeTerrain(115), mast, mastM, { x: cellX(20), y: cellX(2) }, buildingM), true, 'on this side of the hill');
+  // The relief view agrees: in sight before the hill, hidden behind it, nothing out of range.
+  const view = Sight.viewshed(ridgeTerrain(115), mast, mastM, 300, buildingM);
   const at = cell => view.cells[(2 - view.originCellY) * view.size + (cell - view.originCellX)];
   assert.deepEqual([at(20), at(29), at(45), at(55)], [2, 2, 1, 1]);
+  assert.equal(at(50), Sight.clear(ridgeTerrain(115), mast, mastM, target, buildingM) ? 2 : 1, 'same answer as the line test');
   assert.equal(view.cells[0], 0, 'corners of the square are out of range');
 });
 
@@ -829,14 +835,14 @@ test('relay antennas only gather and pass on what their mast sees', () => {
   const at = (id, type, cell, extras = {}) => ({ id, type, planetId, x: cellX(cell), y: cellX(2), constructionState: 'complete', status: 'active', ...extras });
   const state = { surfaceBuildings: [at('dish', 'antenna', 10), at('near', 'extractor', 20), at('behind', 'extractor', 50),
     at('dc', 'datacenter', 25, { inventory: {} })], roadNetworks: {} };
-  let links = DataNetwork.advance(state, 1, () => ridgeTerrain(112));
-  assert.deepEqual(plain(links.dish.sources), ['near'], 'the extractor behind the ridge is out of sight');
+  let links = DataNetwork.advance(state, 1, () => ridgeTerrain(115));
+  assert.deepEqual(plain(links.dish.sources), ['near'], 'the extractor behind the hill is out of sight');
   assert.equal(links.dish.datacenterId, 'dc');
   links = DataNetwork.advance(state, 1, () => ridgeTerrain(110));
   assert.deepEqual(plain(links.dish.sources), ['near', 'behind'], 'flat ground: both in sight');
   // A datacenter behind the ridge cannot be reached either.
   state.surfaceBuildings.find(building => building.id === 'dc').x = cellX(45);
-  links = DataNetwork.advance(state, 1, () => ridgeTerrain(112));
+  links = DataNetwork.advance(state, 1, () => ridgeTerrain(115));
   assert.equal(links.dish.datacenterId, null);
   assert.equal(links.dish.hops, null);
   // Unknown terrain (a planet not generated yet) is open ground.

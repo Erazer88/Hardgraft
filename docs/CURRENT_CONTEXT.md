@@ -122,9 +122,10 @@ laboratoires sur d'autres mondes.
   l'Arche, où chacune devient un point de technologie (monnaie de l'arbre, à la place
   du Contexte). Débit stable, coupé par la conjonction solaire, 3× plus rapide que le
   fret ; un envoi (un point dans la vue système) toutes les 5 s.
-- Les antennes relais ne relient que ce que leur mât voit au-dessus du relief (derrière
-  une colline, pas de réseau). Sélectionnée ou en cours de pose, une antenne montre sa
-  vue relief : sol en vue éclairé, sol caché voilé, liaisons coupées en rouge. Voir
+- Les antennes relais ne relient que ce que leur mât (120 m) voit au-dessus du relief :
+  les petites bosses (jusqu'à 70 m au-dessus de la ligne) laissent passer, une colline
+  coupe le réseau. Sélectionnée ou en cours de pose, une antenne montre sa vue relief en
+  teintes transparentes : vert en vue, rouge caché, liaisons vertes ou rouges. Voir
   [`SKILL_TREE.md`](SKILL_TREE.md) et [`DATA_NETWORK.md`](DATA_NETWORK.md).
 
 ### Routes et logistique

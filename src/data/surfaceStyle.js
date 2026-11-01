@@ -149,10 +149,11 @@
     dataLinks: Object.freeze({ color: '#6fc8ff', sourceOpacity: .55, sourceWidthPx: 1.3, beamOpacity: .5, beamWidthPx: 1.1,
       packetColor: '#d8f2ff', packetOpacity: .85, packetSizePx: 2.4, packetSpacingPx: 70, packetsMax: 4, packetMs: 2600,
       rangeOpacity: .65,
-      // Relief view of an antenna (RGBA per terrain cell): ground in sight,
-      // ground hidden by the relief; links cut by a hill.
-      coverageSeen: Object.freeze([111, 200, 255, 62]), coverageHidden: Object.freeze([10, 6, 24, 150]),
-      blockedColor: '#ef8a6a' }),
+      // Relief view of an antenna (RGBA per terrain cell, see-through so the
+      // relief stays readable): green where its mast sees, red where the
+      // relief hides; links in sight green, cut by a hill red.
+      coverageSeen: Object.freeze([60, 255, 110, 104]), coverageHidden: Object.freeze([255, 40, 64, 78]),
+      seenColor: '#6fe88a', blockedColor: '#ff6b6b' }),
     buildings: Object.freeze({
       selectedOutlineColor: '#efa35a',
       selectedOutlineWidthPx: 1.2,

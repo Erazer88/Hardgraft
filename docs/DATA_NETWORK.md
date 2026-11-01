@@ -47,16 +47,17 @@ géante gazeuse) émet lui-même ses données comme une antenne haute fréquence
   la pose d'une pièce du réseau, les portées des antennes existantes s'affichent.
 - **Ligne de vue** : chaque liaison radio d'une antenne relais (vers une source, une
   autre antenne relais, le datacenter ou l'antenne haute fréquence du bout de chaîne)
-  exige une ligne de vue au-dessus du relief, du sommet de son mât (80 m) au sommet du
-  bâtiment visé (15 m) ou de l'autre mât. Derrière une colline, pas de réseau. Les
-  hauteurs viennent du terrain (paliers de 35 m, eau à la surface) ; le test échantillonne
-  la ligne toutes les demi-cases (`src/simulation/lineOfSight.js`, réglages `antenna` et
-  `relief` de `src/data/dataNetwork.js`). Un terrain pas encore généré compte comme
-  dégagé.
+  exige une ligne de vue au-dessus du relief, du sommet de son mât (120 m) au sommet du
+  bâtiment visé (20 m) ou de l'autre mât. Le sol peut dépasser la ligne de 70 m sans la
+  couper (`obstructionToleranceM`) : les petites bosses laissent passer le signal, une
+  vraie colline le coupe. Les hauteurs viennent du terrain (paliers de 35 m, eau à la
+  surface) ; le test échantillonne la ligne toutes les demi-cases
+  (`src/simulation/lineOfSight.js`, réglages `antenna` et `relief` de
+  `src/data/dataNetwork.js`). Un terrain pas encore généré compte comme dégagé.
 - **Vue relief** : une antenne relais sélectionnée ou en cours de pose montre sa
-  couverture dans sa portée : le sol en vue de son mât est éclairé, le sol caché par le
-  relief voilé. Les bâtiments émetteurs à portée sont reliés en bleu s'ils sont en vue,
-  en rouge s'ils sont derrière le relief ; pendant la pose, le texte sous l'antenne
+  couverture dans sa portée, en teintes transparentes qui laissent lire le relief : vert
+  là où son mât voit, rouge là où le relief cache. Les bâtiments émetteurs à portée sont
+  reliés en vert s'ils sont en vue, en rouge s'ils sont derrière le relief ; pendant la pose, le texte sous l'antenne
   donne « N en vue · M derrière le relief ».
 - **Antenne haute fréquence** (`hf_antenna`) : file d'attente de 400 Mo, envoie toutes
   les 5 secondes un paquet par ressource, à débit stable (4 Mo/s, soit 20 Mo par envoi,

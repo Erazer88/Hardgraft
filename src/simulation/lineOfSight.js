@@ -2,12 +2,12 @@
   'use strict';
 
   // Line of sight over a planet's relief, for the radio links of relay
-  // antennas: one top sees another when no ground rises above the straight
-  // line between them. Heights are metres above the sea (water is flat at
-  // sea level, a lake at its surface); positions are world km, read on cells
-  // of `textureScale` km. No DOM: the same answers serve the simulation and
-  // the map's coverage view.
-  const settings = () => root.OrbitDataNetworkData?.relief || { metersPerLevel: 35, sampleCells: .5 };
+  // antennas: one top sees another when no ground rises more than
+  // obstructionToleranceM above the straight line between them. Heights are
+  // metres above the sea (water is flat at sea level, a lake at its surface);
+  // positions are world km, read on cells of `textureScale` km. No DOM: the
+  // same answers serve the simulation and the map's coverage view.
+  const settings = () => root.OrbitDataNetworkData?.relief || { metersPerLevel: 35, sampleCells: .5, obstructionToleranceM: 0 };
   const scaleKm = () => root.OrbitConfig?.terrain?.textureScale || 1;
 
   function groundAtCell(terrain, cell) {
@@ -31,10 +31,11 @@
     const startTop = groundAt(terrain, from.x, from.y) + fromHeightM, endTop = groundAt(terrain, to.x, to.y) + toHeightM;
     const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / scaleKm() / settings().sampleCells);
     const startCell = cellAt(terrain, from.x, from.y), endCell = cellAt(terrain, to.x, to.y);
+    const tolerance = settings().obstructionToleranceM || 0;
     for (let step = 1; step < steps; step++) {
       const t = step / steps, cell = cellAt(terrain, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
       if (cell === startCell || cell === endCell) continue;
-      if (groundAtCell(terrain, cell) > startTop + (endTop - startTop) * t) return false;
+      if (groundAtCell(terrain, cell) - tolerance > startTop + (endTop - startTop) * t) return false;
     }
     return true;
   }
@@ -42,12 +43,14 @@
   // What a top `heightM` above `center` sees within `rangeKm`, for targets
   // `targetHeightM` tall: a square of cells around it, 0 out of range,
   // 1 hidden, 2 in sight. Rays swept from the centre keep the steepest ground
-  // met so far; a cell is in sight when its target top rises above it.
+  // met so far (less the tolerance); a cell is in sight when its target top
+  // rises above it.
   function viewshed(terrain, center, heightM, rangeKm, targetHeightM) {
     const scale = scaleKm(), radius = Math.max(1, Math.ceil(rangeKm / scale)), size = radius * 2 + 1;
     const cells = new Uint8Array(size * size);
     const cx = Math.floor(center.x / scale), cy = Math.floor(center.y / scale);
     const top = groundAt(terrain, center.x, center.y) + heightM, step = settings().sampleCells;
+    const tolerance = settings().obstructionToleranceM || 0;
     const rays = Math.ceil(Math.PI * 2 * radius * 1.5);
     for (let ray = 0; ray < rays; ray++) {
       const angle = ray / rays * Math.PI * 2, dx = Math.cos(angle), dy = Math.sin(angle);
@@ -60,7 +63,7 @@
         const index = (ty - cy + radius) * size + (tx - cx + radius);
         const seen = (ground + targetHeightM - top) / km >= steepest;
         if (seen) cells[index] = 2; else if (!cells[index]) cells[index] = 1;
-        steepest = Math.max(steepest, (ground - top) / km);
+        steepest = Math.max(steepest, (ground - tolerance - top) / km);
       }
     }
     return { radius, size, cells, originCellX: cx - radius, originCellY: cy - radius, cellKm: scale };
