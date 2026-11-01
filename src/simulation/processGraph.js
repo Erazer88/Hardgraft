@@ -20,13 +20,15 @@
     return byResource.get(resourceId);
   }
 
-  // Entry cards (input docks, depot entry gates) take in one resource,
-  // importResourceId; those the game laid itself (autoEntry) go when nothing
-  // is sent to them any more (src/gameplay/entryGates.js).
-  const takesImport = definition => Boolean(definition?.externalInput || definition?.gate === 'input');
+  // Entry cards: an input dock takes in one resource (importResourceId), a
+  // depot's entry gate everything (and notes what went through, transited). Those the game laid itself (autoEntry) go
+  // when nothing is sent to them any more (src/gameplay/entryGates.js).
   function entryFields(definition, value) {
-    if (!takesImport(definition)) return {};
-    return { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null,
+    if (!definition?.externalInput && definition?.gate !== 'input') return {};
+    return { ...(definition.externalInput ? { importResourceId: typeof value.importResourceId === 'string' ? value.importResourceId : null } : {}),
+      // A depot's entry gate remembers the resources that went through it.
+      ...(definition.gate === 'input' && value.transited && typeof value.transited === 'object'
+        ? { transited: Object.fromEntries(Object.keys(value.transited).filter(id => typeof id === 'string' && id).map(id => [id, true])) } : {}),
       ...(value.autoEntry === true ? { autoEntry: true } : {}) };
   }
 

@@ -552,7 +552,7 @@ test('depot cards carry rock compositions through their gates', () => {
     inventory: { raw_rock: 10 }, inventoryMix: { raw_rock: { iron: .3, rock: .7 } } };
   const state = { seed: 'depot-seed', surfaceBuildings: [depot], factoryPlans: {} };
   const graph = Industry.ensureGraph(state, depot);
-  machine(graph, 'in', 'depot_input').importResourceId = 'raw_rock';
+  machine(graph, 'in', 'depot_input');
   const gate = machine(graph, 'gate', 'depot_output', 300);
   gate.config = { destinationId: 'factory-a' };
   connect(graph, 'c1', 'in', 'out', 'gate', 'in');
@@ -568,9 +568,8 @@ test('depot cards route mixed flows through filters, splitters and priorities to
     inventory: { raw_iron: 30, water: 30 } };
   const state = { seed: 'depot-seed', surfaceBuildings: [depot], factoryPlans: {} };
   const graph = Industry.ensureGraph(state, depot);
-  // One entry gate per resource: no gate lets everything in.
-  machine(graph, 'in', 'depot_input').importResourceId = 'raw_iron';
-  machine(graph, 'in-water', 'depot_input').importResourceId = 'water';
+  // One entry gate for everything; it notes what went through.
+  const entry = machine(graph, 'in', 'depot_input');
   const filter = machine(graph, 'filter', 'depot_filter', 300);
   const splitter = machine(graph, 'split', 'depot_splitter', 600);
   const iron = machine(graph, 'gate-iron', 'depot_output', 900);
@@ -582,7 +581,6 @@ test('depot cards route mixed flows through filters, splitters and priorities to
   a.config = { destinationId: 'factory-a' };
   b.config = { destinationId: 'factory-b' };
   connect(graph, 'c1', 'in', 'out', 'filter', 'in');
-  connect(graph, 'c1-water', 'in-water', 'out', 'filter', 'in');
   connect(graph, 'c2', 'filter', 'match', 'gate-iron', 'in');
   connect(graph, 'c3', 'filter', 'other', 'split', 'in');
   connect(graph, 'c4', 'split', 'a', 'gate-a', 'in');
@@ -597,7 +595,8 @@ test('depot cards route mixed flows through filters, splitters and priorities to
   assert.equal(toA + toB, 30);
   assert.ok(Math.abs(toA - 22.5) <= 1, `three quarters of the water go to A (${toA})`);
   const saved = Graph.create(plain(Graph.snapshot(graph)));
-  assert.equal(saved.machines.find(item => item.id === 'in-water').importResourceId, 'water');
+  assert.deepEqual(Object.keys(entry.transited).sort(), ['raw_iron', 'water']);
+  assert.deepEqual(Object.keys(saved.machines.find(item => item.id === 'in').transited).sort(), ['raw_iron', 'water']);
   assert.equal(saved.machines.find(item => item.id === 'split').config.splitPercent, 75);
   assert.equal(saved.machines.find(item => item.id === 'filter').config.filterResourceId, 'raw_iron');
 });
@@ -608,7 +607,7 @@ test('a depot priority card fills its first output before overflowing', () => {
   const wind = { id: 'wind-depot', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' };
   const state = { seed: 'depot-seed', surfaceBuildings: [depot, wind], factoryPlans: {} };
   const graph = Industry.ensureGraph(state, depot);
-  machine(graph, 'in', 'depot_input').importResourceId = 'raw_iron';
+  machine(graph, 'in', 'depot_input');
   machine(graph, 'priority', 'depot_priority', 300);
   const primary = machine(graph, 'buffer', 'depot_buffer', 600);
   const overflow = machine(graph, 'gate', 'depot_output', 900);
@@ -735,11 +734,9 @@ test('a depot storage card holds 1 000 units in all and draws 15 MW, without whi
     if (withPower) buildings.push({ id: 'wind-tank', type: 'wind_turbine', planetId: 'planet-1', constructionState: 'complete' });
     const state = { seed: 'tank', surfaceBuildings: buildings, factoryPlans: {} };
     const graph = Industry.ensureGraph(state, depot);
-    machine(graph, 'in-iron', 'depot_input').importResourceId = 'raw_iron';
-    machine(graph, 'in-water', 'depot_input').importResourceId = 'water';
+    machine(graph, 'in', 'depot_input');
     const tank = machine(graph, 'tank', 'depot_buffer', 300);
-    connect(graph, 'c1', 'in-iron', 'out', 'tank', 'in');
-    connect(graph, 'c2', 'in-water', 'out', 'tank', 'in');
+    connect(graph, 'c1', 'in', 'out', 'tank', 'in');
     for (let round = 0; round < 6; round++) {
       depot.inventory.raw_iron = 100; depot.inventory.water = 100;
       Industry.advance(state, 1);

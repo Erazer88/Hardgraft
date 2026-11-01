@@ -1045,7 +1045,7 @@ test('entry cards come and go with the destinations chosen for them', () => {
   Gates.syncAll(state);
   assert.deepEqual(plain(entries('mill', 'input_dock').map(dock => dock.importResourceId)), ['crushed_rock']);
   assert.equal(entries('depot', 'depot_input').length, 1);
-  assert.deepEqual(plain(entries('depot', 'depot_input').map(gate => gate.importResourceId)), ['raw_rock']);
+  assert.equal(entries('depot', 'depot_input')[0].importResourceId, undefined, 'one depot gate takes everything');
   // A depot's output gate pointed at the factory: one dock per resource it
   // sends (queued or already delivered), not one open to everything.
   Graph.addMachine(state.factoryPlans.depot, { id: 'gate-out', type: 'depot_output', x: 400, y: 0, config: { destinationId: 'mill' } });

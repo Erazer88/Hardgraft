@@ -66,8 +66,10 @@
       depot_output: 'destinationId' })[type] || null;
     const heightOf = value => {
       const definition = typeOf(value);
-      if (definition.externalInput || definition.gate === 'input') return NODE.inputDockHeight;
+      if (definition.externalInput) return NODE.inputDockHeight;
       if (definition.routing && routingControl(definition.id)) return NODE.height + 64;
+      // A depot's entry gate lists where its goods come from and what went through.
+      if (definition.id === 'depot_input') return NODE.height + 64;
       if (definition.externalOutput) return NODE.outputDockHeight;
       const portRows = Math.max(1, definition.inputPorts.length, definition.outputPorts.length);
       return NODE.height + (portRows - 1) * 24;
@@ -276,6 +278,17 @@
       }
       updateDockDestination(machine);
       if (takesOneResource(def)) updateInputDock(machine);
+      if (def.id === 'depot_input') {
+        const sources = getSources(activeBuilding, null);
+        updateJumps(card, sources, '←');
+        const label = card.querySelector('[data-sources-label]'), text = sources.length ? 'PROVENANCE' : 'PROVENANCE · AUCUN ENVOI';
+        if (label && label.textContent !== text) label.textContent = text;
+        // The resources that went through the gate, by name.
+        const names = Object.keys(machine.transited || {}).sort()
+          .map(id => root.OrbitResourceData.get(id)?.label || id).join(' · ');
+        const transit = card.querySelector('[data-transited]'), transitText = names ? `Passé : ${names}` : 'Aucune ressource passée';
+        if (transit && transit.textContent !== transitText) { transit.textContent = transitText; transit.title = transitText; }
+      }
       if (def.routing) updateRoutingControl(machine);
     }
 
@@ -312,11 +325,9 @@
       select.value = options.some(item => item.value === String(current)) ? String(current) : '';
     }
 
-    // Entry cards (an input dock, a depot's entry gate) take in one resource;
-    // they change it only while unlinked and empty.
-    const takesOneResource = def => Boolean(def.externalInput || def.gate === 'input');
-    const entryHolds = machine => typeOf(machine).externalInput ? machine.outputBuffer.material > 0
-      : Object.values(machine.storedResources || {}).some(amount => amount > 0);
+    // An input dock takes in one resource; it changes it only while unlinked and empty.
+    const takesOneResource = def => Boolean(def.externalInput);
+    const entryHolds = machine => machine.outputBuffer.material > 0;
     function updateInputDock(machine) {
       const card = cards.get(machine.id), select = card?.querySelector('[data-dock-resource]');
       if (!select) return;
@@ -475,6 +486,16 @@
         select.setAttribute('aria-label', `${label.textContent} · ${def.label}`);
         control.append(label, select);
         dockControl = control;
+      }
+      if (def.id === 'depot_input') {
+        // Where the depot's goods come from (buttons to open their cards),
+        // and the resources that went through.
+        const sources = document.createElement('div'); sources.className = 'factory-dock-route';
+        const label = document.createElement('span'); label.textContent = 'PROVENANCE'; label.dataset.sourcesLabel = '';
+        const jumps = document.createElement('div'); jumps.className = 'factory-dock-jumps'; jumps.dataset.jumps = '';
+        const transited = document.createElement('small'); transited.className = 'factory-transited'; transited.dataset.transited = '';
+        sources.append(label, jumps, transited);
+        dockControl = sources;
       }
       card.style.height = `${heightOf(machine)}px`;
       if (def.externalOutput || takesOneResource(def)) {

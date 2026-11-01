@@ -61,13 +61,14 @@
     return Math.max(0, capacity - Math.floor(destination.inventory?.[resourceId] || 0));
   }
 
-  // A building with cards receives a resource through an entry card set to
-  // it (any entry card when no resource is named).
+  // A factory or a waste heap receives a resource through an input dock set
+  // to it (any input dock when no resource is named); a depot receives
+  // everything through its entry gate.
   function hasReceivingDock(state, building, resourceId = null) {
     if (building?.type === 'launch_platform' || building?.type === 'colony') return true;
     const entry = { factory: 'input_dock', waste_heap: 'input_dock', storage: 'depot_input' }[building?.type];
     return Boolean(entry && state.factoryPlans?.[building.id]?.machines?.some(machine => machine.type === entry &&
-      (!resourceId || machine.importResourceId === resourceId)));
+      (!resourceId || entry === 'depot_input' || machine.importResourceId === resourceId)));
   }
 
   // Moves every docked stock to its assigned destination. Besides the totals,

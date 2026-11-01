@@ -220,7 +220,7 @@
   const mixed = (id, label) => ({ id, label, resourceId: null, mixed: true });
   const depotCards = {
     depot_input: { id: 'depot_input', label: 'PORTE D’ENTRÉE', mark: 'PE', routing: true, gate: 'input', throughput: config.depot.gateThroughput,
-      description: 'Fait entrer dans le circuit une ressource reçue par route.',
+      description: 'Fait entrer dans le circuit tout ce que le dépôt reçoit par route.',
       inputPorts: [], outputPorts: [mixed('out', 'Flux entrant')], recipe: null, energyMW: 0 },
     depot_output: { id: 'depot_output', label: 'PORTE DE SORTIE', mark: 'PS', routing: true, gate: 'output', throughput: config.depot.gateThroughput,
       description: 'Envoie tout ce qui lui parvient vers un bâtiment relié par route.',

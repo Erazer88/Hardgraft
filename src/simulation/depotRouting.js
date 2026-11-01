@@ -2,10 +2,10 @@
   'use strict';
 
   // Depot routing: cards pass mixed flows (any resource) between each other.
-  // Each input gate draws the one resource it takes (importResourceId) from
-  // what the depot received; storage cards hold up to bufferCapacity units
-  // while powered; buffers, filters,
-  // splitters and priority cards route it; output gates queue it per
+  // Input gates draw everything the depot received (noting the resources
+  // that went through, machine.transited, saved); storage cards hold up to
+  // bufferCapacity units while powered; filters, splitters and priority
+  // cards route it; output gates queue it per
   // destination in building.gateStock, which the road network then delivers.
   // Every card holds its units in machine.storedResources.
   const Data = root.OrbitProcessData;
@@ -82,15 +82,22 @@
       for (const machine of order) {
         const gate = definition(machine).gate;
         if (gate === 'input') {
-          // Draw its one resource from the received stock.
+          // Draw received stock, one unit at a time across resources.
           machine.gateCredit = gateCredit(machine, settings, step);
-          const stock = building.inventory ||= {}, resourceId = machine.importResourceId;
-          while (resourceId && machine.gateCredit >= 1 && stock[resourceId] >= 1 && room(machine, resourceId) >= 1) {
-            const composition = Mix?.of(building.inventoryMix, resourceId);
-            stock[resourceId] -= 1;
-            if (stock[resourceId] <= 0) { delete stock[resourceId]; Mix?.prune(building.inventoryMix, resourceId, 0); }
-            give(machine, resourceId, 1, composition);
-            machine.gateCredit -= 1; machine.movedUnits++;
+          const stock = building.inventory ||= {};
+          let moved = true;
+          while (moved && machine.gateCredit >= 1) {
+            moved = false;
+            for (const resourceId of Object.keys(stock).sort()) {
+              if (machine.gateCredit < 1) break;
+              if (!(stock[resourceId] >= 1) || room(machine, resourceId) < 1) continue;
+              const composition = Mix?.of(building.inventoryMix, resourceId);
+              stock[resourceId] -= 1;
+              if (stock[resourceId] <= 0) { delete stock[resourceId]; Mix?.prune(building.inventoryMix, resourceId, 0); }
+              give(machine, resourceId, 1, composition);
+              (machine.transited ||= {})[resourceId] = true;
+              machine.gateCredit -= 1; machine.movedUnits++; moved = true;
+            }
           }
         }
         if (gate === 'output') {

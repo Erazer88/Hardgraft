@@ -17,8 +17,8 @@ Dock de sortie → dockStock → destination choisie au dock
 construction global. Dans l’éditeur de processus, chaque Dock de sortie choisit une
 destination pour sa ressource parmi les bâtiments terminés de la planète qui
 reçoivent : la Colonie et les Plateformes de lancement (nativement), les usines,
-terrils et dépôts, qui reçoivent chaque ressource par sa carte d'entrée (Quai ou Porte
-d'entrée), liée ou créée dès qu'on les choisit (`src/gameplay/entryGates.js`, voir
+terrils (chaque ressource par son Quai d'entrée) et dépôts (tout par leur Porte
+d'entrée), cartes liées ou créées dès qu'on les choisit (`src/gameplay/entryGates.js`, voir
 [`PROCESS_SYSTEM.md`](PROCESS_SYSTEM.md)).
 Le chantier d'un hub (`constructionState: 'supplying'`) est aussi une destination : il
 reçoit dans son inventaire ce qui lui manque encore pour être bâti, rien de plus (voir

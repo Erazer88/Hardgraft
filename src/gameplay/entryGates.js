@@ -1,13 +1,14 @@
 (function (root) {
   'use strict';
 
-  // Entry cards follow what is sent to a building. Every entry card takes in
-  // one resource (importResourceId): an input dock for a factory or a waste
-  // heap, an entry gate for a depot. When a building is chosen as the
-  // destination of an output dock (or of a depot's output gate), each
-  // resource sent to it gets its entry card: one already set to it, else a
-  // free one the player laid (it is linked to the resource), else a new one
-  // laid by the game (autoEntry). Cards laid by the game go once nothing is
+  // Entry cards follow what is sent to a building. A factory or a waste heap
+  // takes each resource through an input dock set to it (importResourceId);
+  // a depot takes everything through one entry gate. When a building is
+  // chosen as the destination of an output dock (or of a depot's output
+  // gate), each resource sent to a factory gets its input dock: one already
+  // set to it, else a free one the player laid (it is linked to the
+  // resource), else a new one laid by the game (autoEntry); a depot gets its
+  // entry gate (the player's, else one laid by the game). Cards laid by the game go once nothing is
   // sent to them any more; the player's own cards stay. Removing an entry
   // card by hand keeps the output docks that fed it and only clears their
   // destination. No DOM.
@@ -51,7 +52,8 @@
     const ids = new Set(graph.machines.map(machine => machine.id));
     let index = graph.machines.length + 1;
     while (ids.has(`entry-${index}`)) index++;
-    return Graph().addMachine(graph, { id: `entry-${index}`, type, ...freeSpot(graph), importResourceId, autoEntry: true }).ok;
+    return Graph().addMachine(graph, { id: `entry-${index}`, type, ...freeSpot(graph),
+      ...(type === 'input_dock' ? { importResourceId } : {}), autoEntry: true }).ok;
   }
 
   // Brings a building's entry cards in line with what is sent to it; returns
@@ -60,10 +62,19 @@
     const type = entryType(target);
     if (!type || target.constructionState !== 'complete' || !root.OrbitIndustry) return false;
     const wanted = incoming(state, target);
-    if (!wanted.size && !state.factoryPlans?.[target.id]) return false;
+    // Anything sent, or a depot gate pointed at it (whatever it carries).
+    const fed = wanted.size > 0 || (state.surfaceBuildings || []).some(source => source.id !== target.id &&
+      source.planetId === target.planetId && gatesTo(state, source, target));
+    if (!fed && !state.factoryPlans?.[target.id]) return false;
     const graph = root.OrbitIndustry.ensureGraph(state, target);
     const entries = graph.machines.filter(machine => machine.type === type);
     let changed = false;
+    if (type === 'depot_input') {
+      if (fed && !entries.length) changed = addEntry(graph, type, null);
+      // The game's gate goes once nothing comes any more.
+      if (!fed) for (const entry of entries) if (entry.autoEntry) changed = Graph().removeMachine(graph, entry.id).ok || changed;
+      return changed;
+    }
     for (const resourceId of [...wanted].sort()) {
       if (entries.some(entry => entry.importResourceId === resourceId)) continue;
       const free = entries.find(entry => !entry.importResourceId);
@@ -85,6 +96,18 @@
   // keep their card, only their destination is cleared (a gate's, once no
   // other entry card of the building takes what it sends).
   function detach(state, target, entry) {
+    if (entry.type === 'depot_input') {
+      // A depot's last entry gate: nothing is sent there any more.
+      if ((state.factoryPlans?.[target.id]?.machines || []).some(machine => machine.id !== entry.id && machine.type === 'depot_input')) return;
+      for (const source of state.surfaceBuildings || []) {
+        if (source.id === target.id) continue;
+        for (const [id, destination] of Object.entries(source.dockDestinations || {})) if (destination === target.id) delete source.dockDestinations[id];
+        for (const machine of state.factoryPlans?.[source.id]?.machines || []) {
+          if (machine.type === 'depot_output' && machine.config?.destinationId === target.id) delete machine.config.destinationId;
+        }
+      }
+      return;
+    }
     const resourceId = entry.importResourceId || null;
     if (!resourceId) return;
     const others = new Set((state.factoryPlans?.[target.id]?.machines || [])

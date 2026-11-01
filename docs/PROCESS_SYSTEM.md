@@ -81,15 +81,15 @@ accepte plusieurs liens) et gardent leurs unités dans `storedResources` :
 
 | Carte | Rôle | Réglage |
 | --- | --- | --- |
-| Porte d'entrée | Tire du stock reçu (`building.inventory`) sa seule ressource (`importResourceId`), sans limite de débit | Ressource |
+| Porte d'entrée | Tire tout le stock reçu (`building.inventory`), à tour de rôle par ressource, sans limite de débit ; note le nom de chaque ressource passée (`machine.transited`, sauvegardé) | — |
 | Stockage | Garde jusqu'à 1 000 unités en tout (`depot.bufferCapacity`) ; 15 MW en permanence, sans énergie il n'accepte ni ne rend rien | — |
 | Filtre | Ressource choisie → sortie 1, le reste → sortie 2 | Ressource filtrée |
 | Répartiteur | Partage selon un pourcentage (10 à 90 %) | Part A/B |
 | Priorité | Remplit la sortie prioritaire, puis déborde | — |
 | Porte de sortie | Met les unités en file vers un bâtiment (`building.gateStock`), sans limite de débit | Destination |
 
-Une Porte d'entrée ne gère qu'une ressource : il en faut une par ressource reçue. Les
-autres cartes gardent au plus 20 unités. Seules les cartes Stockage consomment de
+Une seule Porte d'entrée suffit pour tout ce que reçoit le dépôt ; le tri se fait
+ensuite avec les filtres. Les autres cartes gardent au plus 20 unités. Seules les cartes Stockage consomment de
 l'énergie (`constantEnergy`, demande du dépôt comptée avec la planète,
 `OrbitDepotRouting.demand`) ; les réglages sont dans `machine.config` et sauvegardés.
 
@@ -136,17 +136,18 @@ carte d'entrée d'une usine, d'un terril ou d'un dépôt se crée d'elle-même (
 de destination, il n'absorbe rien (état « SANS DESTINATION ») et ce qui l'alimente
 s'arrête. Référence : [`ORBITAL_LOGISTICS.md`](ORBITAL_LOGISTICS.md).
 
-**Cartes d'entrée** (`src/gameplay/entryGates.js`). Chaque carte d'entrée (Quai
-d'entrée d'une usine ou d'un terril, Porte d'entrée d'un dépôt) fait entrer une seule
-ressource (`importResourceId`) ; un bâtiment à cartes ne reçoit par route que les
-ressources qui ont leur carte (`hasReceivingDock(state, building, resourceId)`). Le
-joueur peut les poser depuis « Ajouter un bloc » : une carte posée sans ressource est
-libre. Quand on choisit un bâtiment comme destination d'un Dock de sortie ou d'une Porte
-de sortie de dépôt, chaque ressource envoyée prend la carte déjà réglée sur elle, sinon
-une carte libre (qui s'y lie), sinon une carte créée par le jeu (`autoEntry`). Pour une
-Porte de sortie, les ressources envoyées sont celles de sa file et celles déjà livrées
-(`receivedFrom`). Les cartes créées par le jeu disparaissent quand plus rien ne leur est
-envoyé ; celles du joueur restent. Supprimer une carte d'entrée à la main ne supprime
+**Cartes d'entrée** (`src/gameplay/entryGates.js`). Un Quai d'entrée (usine, terril)
+fait entrer une seule ressource (`importResourceId`) : une usine ou un terril ne reçoit
+par route que les ressources qui ont leur quai (`hasReceivingDock(state, building,
+resourceId)`). Un dépôt reçoit tout par sa Porte d'entrée. Le joueur peut poser ces
+cartes depuis « Ajouter un bloc » : un quai posé sans ressource est libre. Quand on
+choisit une usine ou un terril comme destination d'un Dock de sortie ou d'une Porte de
+sortie de dépôt, chaque ressource envoyée prend le quai déjà réglé sur elle, sinon un
+quai libre (qui s'y lie), sinon un quai créé par le jeu (`autoEntry`) ; pour une Porte
+de sortie, les ressources envoyées sont celles de sa file et celles déjà livrées
+(`receivedFrom`). Un dépôt choisi comme destination reçoit une Porte d'entrée s'il n'en
+a pas. Les cartes créées par le jeu disparaissent quand plus rien ne leur est envoyé ;
+celles du joueur restent. Supprimer une carte d'entrée à la main ne supprime
 pas les Docks ou Portes de sortie qui l'alimentaient : leur destination est seulement
 effacée. La synchronisation se fait à chaque choix de destination, à chaque démolition
 et toutes les 2 s.
@@ -161,8 +162,9 @@ de plus. La Colonie et les Plateformes
 de lancement reçoivent nativement, sans cette carte.
 
 Dans l'éditeur, un Dock de sortie porte un bouton vers le bâtiment destinataire, un
-Quai d'entrée ou une Porte d'entrée de dépôt sa « RESSOURCE » et des boutons vers les
-bâtiments qui la lui envoient ; le changement de
+Quai d'entrée sa « RESSOURCE » et des boutons vers les bâtiments qui la lui envoient, la
+Porte d'entrée d'un dépôt sa « PROVENANCE » (tous les bâtiments qui lui envoient quelque
+chose) et le nom des ressources passées ; le changement de
 bâtiment se fait par un court glissement.
 
 **Blueprints.** Le bouton « BLUEPRINTS », à côté d'« AJOUTER UN BLOC », liste les plans
