@@ -86,8 +86,10 @@
     for (const building of buildings) {
       if (building.constructionState === 'supplying') supply(building);
       if (building.constructionState !== 'constructing') continue;
-      if (busy >= crews) { building.status = 'queued'; continue; }
-      busy++;
+      // A lab in orbit of a gas giant is assembled by the Ark's own robots.
+      const byArk = building.type === 'lab' && building.siteKind === 'gazeuse';
+      if (!byArk && busy >= crews) { building.status = 'queued'; continue; }
+      if (!byArk) busy++;
       building.status = 'building';
       const duration = Number.isFinite(building.constructionDurationSeconds) && building.constructionDurationSeconds > 0
         ? building.constructionDurationSeconds : defaultDurationSeconds;

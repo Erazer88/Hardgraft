@@ -6,6 +6,7 @@
   // different kinds leave together) moving along it; labs orbiting gas
   // giants show beside their planet. Purely visual (state.dataTransit).
   const STYLE = Object.freeze({ color: '#9fd8ff', lineOpacity: .4, lineWidthPx: 1, packetOpacity: .95, packetRadiusPx: 2.2 });
+  const LAB = Object.freeze({ radiusPx: 7, fill: '#163a52', pendingFill: '#0d1d2b', selected: '#efa35a' });
 
   function draw(ctx, { state, system, camera, project }) {
     const Transit = root.OrbitDataTransit, time = state.simulation.time;
@@ -33,14 +34,30 @@
       ctx.globalAlpha = STYLE.packetOpacity;
       ctx.beginPath(); ctx.arc(point.x, point.y, STYLE.packetRadiusPx, 0, Math.PI * 2); ctx.fill();
     }
-    // Labs in orbit of gas giants: a small blue ring around their planet.
-    for (const lab of (state.surfaceBuildings || []).filter(building => building.type === 'lab' && building.siteKind === 'gazeuse')) {
+    // Labs in orbit of gas giants: a small hexagon beside their planet (tap
+    // it to open its sheet); while assembled, a ring fills with its progress.
+    for (const lab of (state.surfaceBuildings || []).filter(building => root.OrbitOrbitalLab?.isOrbitalLab(building))) {
       const planet = system.planets.find(item => item.id === lab.planetId);
       if (!planet) continue;
-      const center = root.OrbitWorld.planetPosition(planet, time), angle = time * .6;
-      const point = project(center.x + Math.cos(angle) * planet.radius * 1.8, center.y + Math.sin(angle) * planet.radius * 1.8, camera);
-      ctx.globalAlpha = lab.constructionState === 'complete' ? 1 : .5;
-      ctx.fillStyle = STYLE.color; ctx.beginPath(); ctx.arc(point.x, point.y, 2.2, 0, Math.PI * 2); ctx.fill();
+      const at = root.OrbitOrbitalLab.position(planet, time), point = project(at.x, at.y, camera);
+      const done = lab.constructionState === 'complete', r = LAB.radiusPx;
+      ctx.globalAlpha = 1; ctx.lineWidth = 1.4;
+      ctx.fillStyle = done ? LAB.fill : LAB.pendingFill; ctx.strokeStyle = STYLE.color;
+      ctx.beginPath();
+      for (let side = 0; side < 6; side++) {
+        const angle = Math.PI / 6 + side * Math.PI / 3;
+        ctx[side ? 'lineTo' : 'moveTo'](point.x + Math.cos(angle) * r, point.y + Math.sin(angle) * r);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = STYLE.color; ctx.beginPath(); ctx.arc(point.x, point.y, r * .32, 0, Math.PI * 2); ctx.fill();
+      if (!done) {
+        ctx.lineWidth = 2; ctx.globalAlpha = .9;
+        ctx.beginPath(); ctx.arc(point.x, point.y, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (lab.constructionProgress || 0)); ctx.stroke();
+      }
+      if (state.selected?.id === lab.id) {
+        ctx.globalAlpha = .8; ctx.lineWidth = 1; ctx.strokeStyle = LAB.selected;
+        ctx.beginPath(); ctx.arc(point.x, point.y, r + 7, 0, Math.PI * 2); ctx.stroke();
+      }
     }
     ctx.restore();
   }

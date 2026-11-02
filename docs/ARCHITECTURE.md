@@ -50,6 +50,7 @@ Modules de la colonie et de la progression :
 | `src/data/dataNetwork.js`, `src/simulation/dataNetwork.js` | Réseau de données en surface : sources, antennes relais, datacenter, température de site |
 | `src/simulation/lineOfSight.js` | Ligne de vue au-dessus du relief et couverture d'un mât (vue relief des antennes) |
 | `src/gameplay/entryGates.js` | Cartes d'entrée créées et retirées selon les destinations choisies |
+| `src/gameplay/orbitalLab.js` | Laboratoires en orbite des géantes gazeuses : coût pris à l'Arche, assemblage, position en orbite |
 | `src/gameplay/undo.js` | Annulation des dernières actions des vues planète et galaxie (pose, démolition, route, sonde) |
 | `src/storage/saveSlots.js` | Plusieurs parties : index, mise de côté, ouverture, nouvelle partie, export et import de fichier |
 | `src/simulation/windPower.js` | Vent d'un site d'éolienne (relief, altitude) et sillage entre éoliennes |

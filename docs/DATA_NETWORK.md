@@ -32,7 +32,10 @@ planète arrivent dans l'inventaire du datacenter comme les autres.
 
 Seuls les bâtiments en activité émettent ; le laboratoire, autonome en énergie, émet
 toujours. Un laboratoire sans antenne relais à portée (monde sans colonie, orbite d'une
-géante gazeuse) émet lui-même ses données comme une antenne haute fréquence.
+géante gazeuse) émet lui-même ses données comme une antenne haute fréquence, vers la
+destination choisie sur sa fiche (l'Arche ou une antenne haute fréquence d'une autre
+planète). Le labo en orbite se construit avec la compétence « Laboratoire orbital »
+(voir [`SKILL_TREE.md`](SKILL_TREE.md)).
 
 ## Antennes
 

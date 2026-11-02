@@ -59,6 +59,10 @@
     if (!colonies.length) return type === 'colony' ? null : 'Posez d’abord la colonie.';
     if (colonies.some(building => building.planetId === planet?.id)) return null;
     if (!everything() && !state.skills?.unlocked?.includes('lander')) return 'Planète sans colonie : il faut la compétence Atterrisseur.';
+    // A lab in orbit of a gas giant has its own skill.
+    if (type === 'lab' && planet?.kind === 'gazeuse' && !everything() && !state.skills?.unlocked?.includes('orbital_lab')) {
+      return 'Il faut la compétence Laboratoire orbital.';
+    }
     if (type === 'lab') return null;
     if (type === 'colony') return planet?.kind === 'gazeuse' ? 'Pas de colonie sur une géante gazeuse.' : null;
     return 'Planète sans colonie : seuls une colonie et des laboratoires peuvent y être posés.';

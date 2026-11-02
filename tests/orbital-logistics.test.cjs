@@ -9,7 +9,7 @@ const { test } = require('node:test');
 const context = vm.createContext({});
 for (const relative of ['data/resources.js', 'data/processes.js', 'simulation/resourceStack.js',
   'simulation/composition.js', 'data/colony.js', 'data/progression.js', 'simulation/colony.js', 'simulation/processGraph.js', 'simulation/processSimulation.js', 'simulation/depotRouting.js', 'gameplay/industry.js',
-  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js', 'gameplay/entryGates.js', 'gameplay/undo.js',
+  'data/orbitalLogistics.js', 'data/worldgen.js', 'data/buildings.js', 'gameplay/entryGates.js', 'gameplay/undo.js', 'gameplay/orbitalLab.js',
   'world.js', 'world/system.js', 'simulation/buildings.js', 'simulation/roadNetwork.js',
   'simulation/logisticsNetwork.js', 'simulation/orbitalTransit.js', 'gameplay/logistics.js',
   'data/config.js', 'simulation/inventory.js', 'simulation/construction.js', 'gameplay/colonyZone.js', 'gameplay/progression.js', 'gameplay/alerts.js', 'data/skills.js', 'gameplay/skills.js', 'data/dataNetwork.js', 'simulation/lineOfSight.js', 'simulation/windPower.js', 'simulation/dataNetwork.js', 'simulation/dataTransit.js']) {
@@ -919,6 +919,8 @@ test('worlds without colony take only a colony (rocky worlds) or a lab, once the
   state.skills.unlocked.push('lander');
   assert.equal(Progression.buildBlockedHere(state, 'lab', rocky), null);
   assert.equal(Progression.buildBlockedHere(state, 'colony', rocky), null);
+  assert.equal(Progression.buildBlockedHere(state, 'lab', gas), 'Il faut la compétence Laboratoire orbital.');
+  state.skills.unlocked.push('orbital_lab');
   assert.equal(Progression.buildBlockedHere(state, 'lab', gas), null);
   assert.ok(Progression.buildBlockedHere(state, 'colony', gas));
   assert.ok(Progression.buildBlockedHere(state, 'factory', rocky));
@@ -1133,4 +1135,34 @@ test('the last actions of the planet and galaxy views can be undone, newest firs
   assert.equal(Undo.undo(history, state).ok, true);
   assert.ok(!state.surfaceBuildings.some(item => item.id === 'mill'), 'the placed building is taken off');
   assert.equal(Undo.canUndo(history), false);
+});
+
+test('a lab in orbit of a gas giant takes its skill, is paid from the Ark stock and assembled by the Ark robots', () => {
+  const Lab = context.OrbitOrbitalLab, Construction = context.OrbitConstruction;
+  const gas = { id: 'home:p-2', kind: 'gazeuse', name: 'Géante', orbit: 300, radius: 9, phase: 0, speed: .01 };
+  const system = { id: 'home', planets: [gas] };
+  const colony = Building.create({ id: 'colony-1', type: 'colony', planetId, x: 0, y: 0, constructionState: 'complete' });
+  const state = { surfaceBuildings: [colony], skills: { unlocked: ['lander'] },
+    orbitalLogistics: { hubs: { home: { id: 'home:ark', stock: { metal_plate: 25, raw_copper: 10, raw_silicon: 4 } } } } };
+  const build = () => Lab.build(state, system, gas, { id: 'lab-gas', name: 'Laboratoire 1' });
+  assert.equal(build().reason, 'Il faut la compétence Laboratoire orbital.');
+  state.skills.unlocked.push('orbital_lab');
+  assert.equal(build().reason, 'Stock de l’Arche insuffisant.');
+  assert.deepEqual(plain(Lab.missing(state, 'home')), { raw_silicon: 6 });
+  state.orbitalLogistics.hubs.home.stock.raw_silicon = 10;
+  const result = build();
+  assert.equal(result.ok, true);
+  assert.deepEqual(plain(state.orbitalLogistics.hubs.home.stock), { metal_plate: 5 }, 'the Ark stock pays for it');
+  assert.equal(result.building.constructionState, 'constructing');
+  assert.equal(build().reason, 'Un laboratoire y est déjà en orbite.');
+  // The Ark's robots assemble it in 90 s, without taking the colony's crews.
+  const sites = ['a', 'b'].map(id => Building.create({ id, type: 'factory', planetId, x: 10, y: 10, constructionState: 'constructing',
+    constructionDurationSeconds: 1000 }));
+  state.surfaceBuildings.push(...sites);
+  Construction.advance(state.surfaceBuildings, 45);
+  assert.ok(Math.abs(result.building.constructionProgress - .5) < 1e-9);
+  assert.deepEqual(sites.map(site => site.status), ['building', 'building'], 'both crews still at work on the planet');
+  Construction.advance(state.surfaceBuildings, 45);
+  assert.equal(result.building.constructionState, 'complete');
+  assert.ok(Lab.isOrbitalLab(result.building));
 });

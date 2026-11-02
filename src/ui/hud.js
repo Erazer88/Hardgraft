@@ -326,7 +326,8 @@
       $('factory-edit-button').hidden = !hasFactoryEditor;
       // Only buildings with cards can be saved to the build menu.
       $('save-building-button').hidden = !hasFactoryEditor;
-      $('hf-destination').hidden = !(isBuilding && item.type === 'hf_antenna');
+      // A high-frequency antenna, or a lab (its own transmitter), picks where its data goes.
+      $('hf-destination').hidden = !(isBuilding && ['hf_antenna', 'lab'].includes(item.type));
       if (state.level !== 'system' || item.kind !== 'gazeuse') $('orbital-lab-button').hidden = true;
       $('selection-info').hidden = isBuilding || isArk || isSurvey;
       $('selection-meta').hidden = isBuilding || isArk || isSurvey;
@@ -346,7 +347,7 @@
         $('selection-meta').textContent = '';
         $('enter-button').hidden = true;
         renderOrbitalHub(state, systemModel);
-      } else if (state.level === 'system') {
+      } else if (state.level === 'system' && item.kind !== 'building') {
         $('selection-type').textContent = 'CORPS PLANÉTAIRE';
         $('selection-name').textContent = item.name;
         $('selection-info').textContent = item.kind === 'gazeuse' ? 'Géante gazeuse. Une atmosphère profonde, sans surface solide.' :
@@ -355,13 +356,20 @@
         $('enter-label').textContent = item.kind === 'gazeuse' ? 'Aucune surface solide' : 'Zoomer sur la surface';
         $('enter-button').hidden = false;
         $('enter-button').disabled = item.kind === 'gazeuse';
-        // A gas giant takes a lab in orbit, once the skill "Atterrisseur" is acquired.
+        // A gas giant takes a lab in orbit, once the skill "Laboratoire orbital"
+        // is acquired; the Ark's stock pays for it.
+        const Lab = root.OrbitOrbitalLab;
         const orbitalLabAllowed = item.kind === 'gazeuse' && !root.OrbitProgression.buildBlockedHere(state, 'lab', item) &&
           root.OrbitProgression.buildingUnlocked(state, 'lab');
-        const hasLab = (state.surfaceBuildings || []).some(building => building.type === 'lab' && building.planetId === item.id);
+        const lab = (state.surfaceBuildings || []).find(building => building.type === 'lab' && building.planetId === item.id);
         $('orbital-lab-button').hidden = !orbitalLabAllowed;
-        $('orbital-lab-button').disabled = hasLab;
-        $('orbital-lab-label').textContent = hasLab ? 'Laboratoire en orbite' : 'Poser un laboratoire en orbite';
+        $('orbital-lab-button').disabled = Boolean(lab);
+        const cost = Object.entries(root.OrbitDataNetworkData.orbitalLab.cost)
+          .map(([id, amount]) => `${fmt(amount)} × ${root.OrbitResourceData.get(id)?.label.toLowerCase() || id}`).join(', ');
+        $('orbital-lab-label').textContent = lab
+          ? (lab.constructionState === 'complete' ? 'Laboratoire en orbite' : `Assemblage en orbite · ${Math.round((lab.constructionProgress || 0) * 100)} %`)
+          : `Construire un laboratoire en orbite · ${cost} (stock de l’Arche)`;
+        $('orbital-lab-button').title = !lab && Lab && systemModel ? (Object.keys(Lab.missing(state, systemModel.id)).length ? 'Stock de l’Arche insuffisant' : '') : '';
       } else if (item.kind === 'building') {
         const definition = BuildingData.get(item.type);
         $('selection-type').textContent = definition?.label || 'INFRASTRUCTURE';
@@ -450,7 +458,7 @@
       currentState = state;
       const selectedBuilding = state.selected?.kind === 'building'
         ? state.surfaceBuildings.find(building => building.id === state.selected.id) : null;
-      if (selectedBuilding?.type === 'hf_antenna' && !$('hf-destination').hidden) renderHfDestination(selectedBuilding);
+      if (['hf_antenna', 'lab'].includes(selectedBuilding?.type) && !$('hf-destination').hidden) renderHfDestination(selectedBuilding);
       if (selectedBuilding && !$('building-readout').hidden) renderBuildingReadout(selectedBuilding);
       if (state.selected?.kind === 'orbital-hub' && !$('orbital-hub-logistics').hidden && state.system) {
         renderOrbitalHub(state, state.system);

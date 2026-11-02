@@ -20,10 +20,18 @@ l'instant.
   Débloque le Datacenter, l'Antenne relais, l'Antenne haute fréquence et leurs cartes (étape `network` de
   `src/data/progression.js`, condition `{ skill }`). Voir
   [`DATA_NETWORK.md`](DATA_NETWORK.md).
-- **Atterrisseur** (`lander`, 200 points tech) : sur une planète sans colonie, permet
-  de poser une colonie (mondes rocheux) et des laboratoires d'analyse (toutes les
-  planètes ; en orbite des géantes gazeuses, depuis la vue système). Une fois la
-  colonie posée, tout ce qui est débloqué s'y construit (`buildBlockedHere`).
+- **Atterrisseur** (`lander`, 200 points tech) : sur une planète rocheuse sans colonie,
+  permet de poser une colonie et des laboratoires d'analyse. Une fois la colonie posée,
+  tout ce qui est débloqué s'y construit (`buildBlockedHere`).
+- **Laboratoire orbital** (`orbital_lab`, 300 points tech, après l'Atterrisseur) : dans
+  la vue système, la fiche d'une géante gazeuse propose « Construire un laboratoire en
+  orbite ». Le coût est pris dans le stock de l'Arche du système
+  (`OrbitDataNetworkData.orbitalLab.cost` : 20 plaques de métal, 10 cuivre brut, 10
+  silicium brut), puis les robots de l'Arche l'assemblent en 90 s (`buildSeconds`), sans
+  prendre les équipes de la colonie (`src/gameplay/orbitalLab.js`). Un labo par géante.
+  Dans la vue système, le labo est un hexagone bleu à côté de sa planète (anneau de
+  progression pendant l'assemblage) ; le toucher ouvre sa fiche, avec sa destination :
+  l'Arche ou une antenne haute fréquence d'une autre planète (`hfTarget`).
 - **Points de technologie** (`state.techPoints`, sauvegardés) : produits par les
   datacenters, ils paient la suite de l'arbre (`cost.tech`) et sont le seul compteur
   de points de la barre du haut (« TECH »), dans toute partie. Une compétence atteignable mais trop

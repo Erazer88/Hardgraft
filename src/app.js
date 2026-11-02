@@ -886,6 +886,20 @@
         const pos = planetWorldPosition(planet), p = project(pos.x, pos.y), d = Math.hypot(p.x - x, p.y - y);
         if (d < bestDistance) { best = planet; bestDistance = d; }
       }
+      // A lab in orbit of a gas giant: its own sheet (where it sends its data).
+      let lab = null;
+      for (const building of state.surfaceBuildings) {
+        if (!globalThis.OrbitOrbitalLab.isOrbitalLab(building)) continue;
+        const planet = state.system.planets.find(item => item.id === building.planetId);
+        if (!planet) continue;
+        const pos = Camera.worldPoint(state.context.frame, globalThis.OrbitOrbitalLab.position(planet, state.simulation.time));
+        const p = project(pos.x, pos.y), d = Math.hypot(p.x - x, p.y - y);
+        if (d < Math.min(bestDistance, 16)) { lab = building; bestDistance = d; }
+      }
+      if (lab) {
+        state.selected = { kind: 'building', ...lab, groundText: null };
+        hud.showSelection(state.selected, { state }); updateUI(); return;
+      }
       if (best) { select(best); if (doubleClick && best.kind !== 'orbital-hub') enterPlanet(); }
       else { $('inspector').hidden = true; state.selected = null; }
     } else {
@@ -1109,17 +1123,20 @@
     toast(building.hfTarget ? 'Antenne pointée vers une autre antenne haute fréquence.' : 'Antenne pointée vers l’Arche.');
     persist(); updateUI();
   });
-  // A lab in orbit of the selected gas giant (skill "Atterrisseur").
+  // A lab in orbit of the selected gas giant (skill "Laboratoire orbital"),
+  // built from the Ark's stock.
   $('orbital-lab-button').onclick = () => {
     const planet = state.level === 'system' ? state.system?.planets.find(item => item.id === state.selected?.id) : null;
-    if (!planet || planet.kind !== 'gazeuse' || Progression.buildBlockedHere(state, 'lab', planet) ||
-        state.surfaceBuildings.some(building => building.type === 'lab' && building.planetId === planet.id)) return;
-    const building = BuildingModel.create({ id: `lab-${planet.id}-${nextBuildingId++}`, type: 'lab', planetId: planet.id,
-      x: 0, y: 0, siteKind: 'gazeuse', customName: BuildingNames.nextName(state, 'lab'),
-      constructionState: 'planned', constructionProgress: 0, status: 'planned' });
-    if (!Construction.start(building, state.inventory, Construction.costFor('lab')).started) { toast('Construction impossible pour le moment.'); return; }
-    state.surfaceBuildings.push(building);
-    toast(`${building.customName} : assemblage en orbite de ${planet.name}. Il émet lui-même ses données.`);
+    if (!planet) return;
+    const result = globalThis.OrbitOrbitalLab.build(state, state.system, planet,
+      { id: `lab-${planet.id}-${nextBuildingId++}`, name: BuildingNames.nextName(state, 'lab') });
+    if (!result.ok) {
+      const lacking = globalThis.OrbitOrbitalLab.missing(state, state.system.id);
+      const detail = Object.entries(lacking).map(([id, amount]) => `${formatAmount(amount)} ${resourceName(id)}`).join(', ');
+      toast(detail && result.reason === 'Stock de l’Arche insuffisant.' ? `Il manque dans le stock de l’Arche : ${detail}.` : result.reason);
+      return;
+    }
+    toast(`${result.building.customName} : assemblage en orbite de ${planet.name} par les robots de l’Arche.`);
     hud.showSelection(planet, { state, systemModel: state.system }); updateUI(); persist();
   };
   $('enter-button').onclick = () => {

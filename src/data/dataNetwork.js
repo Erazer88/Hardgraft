@@ -17,6 +17,9 @@
       lab: { resourceId: 'planetary_data', mbPerSecond: 1, alwaysActive: true,
         byPlanetKind: { tellurique: 1, aride: 1, océanique: 1.5, glacée: 1.5, volcanique: 2, gazeuse: 3 } }
     },
+    // A lab in orbit of a gas giant (skill "Laboratoire orbital"): paid from
+    // the stock of the system's Ark, then assembled by its robots.
+    orbitalLab: { cost: { metal_plate: 20, raw_copper: 10, raw_silicon: 10 }, buildSeconds: 90 },
     // A relay antenna gathers the buildings within its range and passes data
     // to the next relay within linkRangeKm, down a chain to the datacenter;
     // it carries at most its bandwidth (Mo/s), relayed data included. Every

@@ -156,8 +156,11 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
 
 - L'arbre de compétences s'ouvre aux premières ressources reçues par l'Arche :
   « Réveil des archives », « Réseau informatique » (Datacenter, Antenne relais,
-  Antenne haute fréquence), « Atterrisseur » (colonie sur les autres mondes rocheux,
-  laboratoires partout).
+  Antenne haute fréquence), « Atterrisseur » (colonie et laboratoires sur les autres
+  mondes rocheux), « Laboratoire orbital » (300 tech : labo en orbite d'une géante
+  gazeuse, payé sur le stock de l'Arche — 20 plaques, 10 cuivre brut, 10 silicium
+  brut — et assemblé en 90 s par ses robots ; cliquable en vue système, sa fiche
+  choisit la destination de ses données : l'Arche ou une antenne haute fréquence).
 - Les données (géologiques, industrielles, planétaires) vont par une chaîne
   d'antennes relais au datacenter, ses analyses par l'antenne haute fréquence à
   l'Arche, où chacune devient un point de technologie (monnaie de l'arbre, seule

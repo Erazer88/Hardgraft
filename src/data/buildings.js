@@ -151,7 +151,7 @@
     lab: {
       id: 'lab', label: 'LABORATOIRE D’ANALYSE', shortLabel: 'LA', category: 'data', icon: 'lab',
       description: 'Étudie sa planète et produit des données planétaires, plus riches sur les mondes extrêmes.',
-      details: 'Posé sur un autre monde grâce à la compétence Atterrisseur, il étudie sa planète et produit des données planétaires, plus riches sur les mondes extrêmes. Autonome en énergie, il émet lui-même ses données s’il n’a pas d’antenne relais à portée.',
+      details: 'Posé sur un autre monde grâce à la compétence Atterrisseur (en orbite d’une géante gazeuse, avec la compétence Laboratoire orbital), il étudie sa planète et produit des données planétaires, plus riches sur les mondes extrêmes. Autonome en énergie, il émet lui-même ses données s’il n’a pas d’antenne relais à portée.',
       functions: { studiesPlanet: true },
       cost: { iron: 12, copper: 10, silicon: 6 }, constructionDurationSeconds: 2, demolitionRefundRate: 1,
       footprint: { width: 22, height: 20 }, roadRequired: true,
