@@ -12,7 +12,8 @@ ports. Une connexion nomme ses deux machines et ses deux ports :
 ```
 
 Les connexions n'ont pas de débit indépendant. Elles transfèrent des unités entières
-entre buffers ; les cycles des machines déterminent le débit. Les quantités de toutes
+entre buffers. Seules les sources (Foreuse, pompes) ont un débit : les cartes de
+transformation n'en ont pas et suivent leur rythme (voir « Rythme, énergie et état »). Les quantités de toutes
 les recettes sont entières. Les boucles restent désactivées.
 
 ## Roche et composition
@@ -41,21 +42,21 @@ donne pas de concentré de fer.
 | Carte | Entrée | Sortie | Débit | Énergie |
 | --- | --- | --- | ---: | ---: |
 | Foreuse (une par extracteur) | Sol de l'Extracteur | Roche brute (composition du sol) | 6 u/s | 2,5 MW |
-| Concasseur | Roche brute | Roche concassée, 1:1 | 6 u/s | 2 MW |
-| Broyeur | Roche concassée | Roche broyée, 1:1 | 6 u/s | 6 MW |
-| Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | 6 u/s | 3 MW |
-| Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | 2 u/s | 3 MW |
-| Trieuse de carbone | 5 roches broyées | Charbon selon la teneur + résidus | 2 u/s | 3 MW |
-| Laveuse de silice | 20 roches broyées + 5 eaux | Silicium impur humide selon la teneur + résidus | 2 u/s | 3 MW |
-| Sécheur de silice | Silicium impur humide | Silicium impur sec, 1:1 | 2 u/s | 4 MW |
-| Lavage du charbon | 20 charbons + 5 eaux | 8 carbones + 12 boues | 2 u/s | 3 MW |
-| Four de réduction · fer / cuivre / silice | 2 concentrés | 1 métal brut + 1 laitier | 2 u/s | 10 MW |
-| Four à goudron | 4 roches concassées + 1 charbon | 1 goudron + 3 déchets | 2 u/s | 6 MW |
-| Laminoir | 10 fers bruts | 1 plaque de métal | 2 u/s | 8 MW |
+| Concasseur | Roche brute | Roche concassée, 1:1 | sans limite | 2 MW |
+| Broyeur | Roche concassée | Roche broyée, 1:1 | sans limite | 6 MW |
+| Séparateur magnétique | 5 roches broyées | Concentré de fer selon la teneur + résidus | sans limite | 3 MW |
+| Séparateur gravitaire | 5 roches broyées | Concentré de cuivre selon la teneur + résidus | sans limite | 3 MW |
+| Trieuse de carbone | 5 roches broyées | Charbon selon la teneur + résidus | sans limite | 3 MW |
+| Laveuse de silice | 20 roches broyées + 5 eaux | Silicium impur humide selon la teneur + résidus | sans limite | 3 MW |
+| Sécheur de silice | Silicium impur humide | Silicium impur sec, 1:1 | sans limite | 4 MW |
+| Lavage du charbon | 20 charbons + 5 eaux | 8 carbones + 12 boues | sans limite | 3 MW |
+| Four de réduction · fer / cuivre / silice | 2 concentrés | 1 métal brut + 1 laitier | sans limite | 10 MW |
+| Four à goudron | 4 roches concassées + 1 charbon | 1 goudron + 3 déchets | sans limite | 6 MW |
+| Laminoir | 10 fers bruts | 1 plaque de métal | sans limite | 8 MW |
 | Quai d'entrée | Stock reçu par route | Une matière choisie, 1:1 | Illimité (connecteur) | 0 MW |
 | Dock de sortie | Une matière | Stock à envoyer par route | Illimité (connecteur) | 0 MW |
 | Réserve d'eau | Réserve infinie temporaire | Eau | Sans plafond | 0 MW |
-| Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s | 2,5 / 4 MW |
+| Pompe pétrolière → Séparateur triphasé | Pétrole brut | 20 → 16 pétrole + 3 gaz + 1 déchet | 2 u/s / sans limite | 2,5 / 4 MW |
 
 Chaque carte a son bâtiment : l'Extracteur fore, concasse et broie sur place (Foreuse,
 une seule par extracteur, Concasseur, Broyeur, Dock de sortie) ; l'Usine fait le reste
@@ -96,10 +97,8 @@ l'énergie (`constantEnergy`, demande du dépôt comptée avec la planète,
 **Terril.** Bâtiment qui reçoit les déchets par route. Cartes : Quai d'entrée,
 Retraitement (10 résidus → 1 roche broyée qui garde leur composition, 4 MW),
 Incinérateur (4 MW par déchet brûlé chaque seconde, `generatedMWPerUnit`, jusqu'à 8 MW
-par carte), Stockage et Dock de sortie. Retraitement et Incinérateur sont immédiats
-(`instant: true`, sans débit propre) : tout ce qui leur arrive est traité dans le pas de
-simulation, au plus un buffer d'entrée plein (20 u) par pas de 0,1 s ; ils comptent les
-unités reçues (`machine.movedTotal`) pour leur débit affiché, moyen sur 5 s. La
+par carte), Stockage et Dock de sortie. Retraitement et Incinérateur sont, comme toutes
+les cartes de transformation, sans débit propre (voir « Rythme, énergie et état »). La
 puissance de l'incinérateur suit ce qu'il a réellement brûlé, lissé sur environ 20 s
 (`generationSmoothingSeconds`, `machine.burningMW` puis `machine.generatedMW` plafonné,
 non sauvegardés) : une
@@ -115,11 +114,34 @@ ne ressort pas. Pas de débordement ni de pollution pour l'instant.
 bande favorable de ±10°, les parallèles (15°) et les méridiens (30°) ; la balise affiche
 la latitude et la puissance de lancement.
 
-## Buffers, énergie et état
+## Rythme, énergie et état
 
-Les machines de traitement ont des buffers entiers de 20 unités par port. Un cycle ne
-commence que si tous ses ingrédients entiers sont présents et s'il y a de la place pour
-tous ses produits. Un sous-produit bloqué arrête donc le cycle sans perte de matière.
+**Rythme.** Seules les sources ont un débit : la Foreuse (6 u/s), la pompe pétrolière
+(2 u/s) et la pompe à eau (`config.waterPump`). Toutes les cartes de transformation
+(concasseur, broyeur, séparateurs, laveuses, sécheur, fours, laminoir, séparateur
+triphasé, dessalinisateur, retraitement, incinérateur) sont `instant: true`, sans
+débit : à chaque pas de 0,1 s, elles traitent tous les lots complets qu'elles ont reçus
+et suivent ainsi le rythme de l'amont. Les transferts se font de l'aval vers l'amont
+(ordre topologique inverse) : une carte a déjà passé ce qu'elle a fait quand la carte
+d'avant lui passe le sien, si bien qu'une unité traverse une carte par pas.
+
+**Pas de bride par tampon.** Une carte de transformation n'a pas de plafond de buffer :
+elle prend tout ce qui lui arrive tant qu'elle suit (moins d'un lot en attente). Elle ne
+s'arrête (`SORTIE PLEINE`) que si ce qu'elle a fait ne peut pas sortir : sortie non
+reliée, carte suivante arrêtée, Dock de sortie plein ou sans destination ; elle ne garde
+alors qu'un lot en main et l'arrêt remonte la chaîne jusqu'à la source. Une carte qui
+attend une autre entrée (four à goudron sans charbon) ou de l'énergie garde au plus deux
+lots et ralentit de même l'amont. Les cartes du datacenter gardent leurs débits et leurs
+buffers de 20 u (`inputCapacity`, `outputCapacity`).
+
+**Énergie selon la charge.** Une carte de transformation consomme selon son débit réel,
+moyenné sur 2 s (`machine.loadRate`, non sauvegardé) : `energyMW × (débit / 6 u/s) ^ 1,5`
+(`config.load`, `OrbitProcessSimulation.loadEnergy`) ; `energyMW` est donc sa puissance
+au rythme d'une Foreuse, deux fois plus de débit coûte 2,8 fois plus. Une carte qui a du
+travail en main demande au moins la puissance de le traiter (jusqu'au débit de
+référence), pour ne pas démarrer sans énergie. En manque d'énergie, elle ne traite que
+la part de ses lots que la planète peut alimenter (le reste attend, `cycleProgress`) ;
+l'éditeur affiche ce qu'elle consomme à l'instant (« ⚡ 2,3 MW »).
 Une simulation avance au plus 100 pas de 0,1 s par appel (`maxTicksPerAdvance`).
 
 **Docks et quais.** Ce sont des connecteurs logiques, sans limite de débit, qui gardent

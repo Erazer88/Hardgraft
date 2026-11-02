@@ -49,12 +49,29 @@
     return !resourceId || !graph.dockOpen(resourceId);
   }
 
-  // Cycles a card can run per second at this power. An instant card handles
-  // what reaches it within the step: at most a full input buffer per step.
+  // Units of input a card can take per second at this power. An instant card
+  // has no throughput: it keeps the pace of what reaches it.
+  const UNBOUNDED_RATE = 1e6;
   function nominalRate(def, powerRatio) {
-    if (def.instant) return def.energyMW > 0 && powerRatio <= 0 ? 0
-      : (def.inputCapacity ?? Data.config.inputCapacity) / Data.config.fixedStepSeconds;
+    if (def.instant) return def.energyMW > 0 && powerRatio <= 0 ? 0 : UNBOUNDED_RATE;
     return def.throughput * (def.energyMW > 0 ? powerRatio : 1);
+  }
+  // Power of an instant card at `rate` units of input per second: energyMW at
+  // the reference rate, growing along a power curve (config.load).
+  function loadEnergy(def, rate) {
+    const load = Data.config.load;
+    if (!(def.energyMW > 0) || !(rate > 0)) return 0;
+    return def.energyMW * Math.pow(rate / load.referenceRate, load.exponent);
+  }
+  // An instant card is blocked while what it made could not leave.
+  const outputsStuck = machine => (definition(machine).recipe?.outputs || []).some(item => machine.outputBuffer[item.outputId] > 0);
+  // What an instant card takes on one input: everything while it keeps up;
+  // a batch in hand (two when waiting for another input or for power) once
+  // it falls behind; one batch at most while blocked.
+  function instantRoom(machine, inputId) {
+    const batch = inputBatch(machine, inputId), held = machine.inputBuffer[inputId] || 0;
+    if (outputsStuck(machine)) return Math.max(0, batch - held);
+    return held < batch ? Infinity : Math.max(0, 2 * batch - held);
   }
   function sourceRateForTarget(graph, source, target, connection, powerRatio) {
     const sourceDef = definition(source), targetDef = definition(target);
@@ -128,10 +145,19 @@
     return outputRates;
   }
 
+  // Power the plan asks for: an instant card by its load (averaged), the
+  // others in full while they run.
   function demand(graph, externalStock = {}) {
     estimateRates(graph, 1, externalStock);
     return graph.machines.reduce((sum, machine) => {
       const def = definition(machine);
+      if (def.instant) {
+        // A card with work in hand asks at least for the power of handling
+        // it now (up to the reference rate), so it does not start unpowered.
+        const ready = !outputsStuck(machine) && inputsReady(machine) && primaryInput(machine)
+          ? Math.min(Data.config.load.referenceRate, (machine.inputBuffer[primaryInput(machine).inputId] || 0) / Data.config.fixedStepSeconds) : 0;
+        return sum + loadEnergy(def, Math.max(machine.loadRate || 0, ready));
+      }
       return machine.currentRate > 0 ? sum + def.energyMW : sum;
     }, 0);
   }
@@ -153,8 +179,13 @@
     return ordered;
   }
 
+  // Downstream cards hand on what they made first, so a card's outputs are
+  // already gone (or known to be stuck) when the cards before it pass theirs.
   function transfer(graph, powerRatio) {
-    for (const { connection, remaining } of sharedOrder(graph)) {
+    const rank = new Map(Graph.topologicalOrder(graph).map((machine, index) => [machine.id, index]));
+    const order = sharedOrder(graph).map((item, index) => ({ ...item, index }))
+      .sort((a, b) => (rank.get(b.connection.fromMachineId) ?? 0) - (rank.get(a.connection.fromMachineId) ?? 0) || a.index - b.index);
+    for (const { connection, remaining } of order) {
       const from = graph.machines.find(machine => machine.id === connection.fromMachineId);
       const to = graph.machines.find(machine => machine.id === connection.toMachineId);
       const out = port(from, 'output', connection.fromOutputId), input = port(to, 'input', connection.toInputId);
@@ -170,7 +201,8 @@
         Mix?.prune(from.outputMix, out.id, 0);
         continue;
       }
-      if (definition(from).source && !definition(to).sink) {
+      // A source without throughput (water supply) tops its card up directly.
+      if (definition(from).source && !definition(to).sink && definition(from).throughput == null) {
         const sourceDef = definition(from);
         if ((powerRatio <= 0 && sourceDef.energyMW > 0) || !sourceAvailable(graph, from) || !outputsReady(to)) continue;
         const needed = inputBatch(to, input.id);
@@ -180,10 +212,11 @@
         to.inputBuffer[input.id] += amount;
         continue;
       }
-      // A card may hold more than the usual buffer (a storage card).
-      const capacity = definition(to).inputCapacity ?? Data.config.inputCapacity;
-      const amount = integer(Math.min(Math.ceil(from.outputBuffer[out.id] / remaining),
-        capacity - to.inputBuffer[input.id]));
+      // A card may hold more than the usual buffer (a storage card); an
+      // instant card takes what it keeps up with.
+      const room = definition(to).instant ? instantRoom(to, input.id)
+        : (definition(to).inputCapacity ?? Data.config.inputCapacity) - to.inputBuffer[input.id];
+      const amount = integer(Math.min(Math.ceil(from.outputBuffer[out.id] / remaining), room));
       if (!amount) continue;
       // The rock keeps its composition from one card to the next.
       addMix(to.inputMix ||= {}, input.id, out.resourceId, to.inputBuffer[input.id], amount, Mix?.of(from.outputMix, out.id));
@@ -244,10 +277,15 @@
       const link = graph.connections.find(connection => connection.fromMachineId === machine.id);
       const target = link && graph.machines.find(item => item.id === link.toMachineId);
       const validDeposit = sourceAvailable(graph, machine);
-      if (validDeposit && target && definition(target).sink) {
+      // A source with a throughput (a drill, a pump) sets the pace: it fills
+      // its output, which the card or dock after it takes; it stops while
+      // that output cannot leave.
+      const paced = Number.isFinite(def.throughput) || definition(target || {})?.sink;
+      if (validDeposit && target && paced) {
         const outputId = def.outputPorts[0].id;
         if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
-        if (machine.outputBuffer[outputId] >= Data.config.outputCapacity || dockClosed(graph, target)) {
+        const stuck = definition(target).instant ? machine.outputBuffer[outputId] > 0 : machine.outputBuffer[outputId] >= Data.config.outputCapacity;
+        if (stuck || dockClosed(graph, target)) {
           machine.state = 'output_full';
           return;
         }
@@ -255,7 +293,7 @@
         machine.energyMW = def.energyMW > 0 ? def.energyMW * powerRatio : 0;
         machine.cycleProgress += Data.config.fixedStepSeconds * machine.currentRate;
         while (machine.cycleProgress + CYCLE_EPSILON >= 1 &&
-          machine.outputBuffer[outputId] < Data.config.outputCapacity) {
+          (definition(target).instant || machine.outputBuffer[outputId] < Data.config.outputCapacity)) {
           addMix(machine.outputMix ||= {}, outputId, def.outputPorts[0].resourceId, machine.outputBuffer[outputId], 1, groundMix(graph));
           machine.outputBuffer[outputId] += 1;
           machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
@@ -268,22 +306,13 @@
       machine.energyMW = machine.state === 'active' && def.energyMW > 0 ? def.energyMW * powerRatio : 0;
       return;
     }
+    if (def.instant) { runInstant(machine, def, powerRatio); return; }
     if (!outputsReady(machine)) { machine.state = 'output_full'; return; }
     if (!inputsReady(machine)) { machine.state = 'waiting_input'; return; }
     if (powerRatio <= 0 && def.energyMW > 0) { machine.state = 'no_energy'; return; }
     machine.state = 'active';
     machine.energyMW = def.energyMW * powerRatio;
     const primary = primaryInput(machine);
-    if (def.instant) {
-      // Every full batch it holds, at once; it counts the units it took in
-      // (movedTotal, runtime only) for its shown rate and its power.
-      while (inputsReady(machine) && outputsReady(machine)) {
-        runCycle(machine, def);
-        machine.movedTotal = (machine.movedTotal || 0) + (primary?.amount || 0);
-      }
-      machine.cycleProgress = 0;
-      return;
-    }
     const cycleRate = primary ? (machine.currentRate > 0 ? machine.currentRate :
       def.throughput * (def.energyMW > 0 ? powerRatio : 1)) / primary.amount : 0;
     machine.cycleProgress += Data.config.fixedStepSeconds * cycleRate;
@@ -291,6 +320,35 @@
       runCycle(machine, def);
       machine.cycleProgress = Math.max(0, machine.cycleProgress - 1);
     }
+  }
+
+  // An instant card: every full batch it holds, within the step, unless what
+  // it made could not leave. Short of power, it runs only that share of its
+  // batches (the fraction carries over in cycleProgress). It counts the
+  // units it took in (movedTotal, runtime only) for its shown rate and its
+  // power, and averages its rate (loadRate) for its load.
+  function runInstant(machine, def, powerRatio) {
+    const primary = primaryInput(machine), step = Data.config.fixedStepSeconds;
+    let consumed = 0;
+    if (outputsStuck(machine)) machine.state = 'output_full';
+    else if (!inputsReady(machine)) machine.state = 'waiting_input';
+    else if (powerRatio <= 0 && def.energyMW > 0) machine.state = 'no_energy';
+    else {
+      let batches = Math.min(...def.recipe.inputs.map(item => Math.floor((machine.inputBuffer[item.inputId] || 0) / item.amount)));
+      if (def.energyMW > 0 && powerRatio < 1) {
+        machine.cycleProgress = Math.min(1, (machine.cycleProgress || 0)) + batches * powerRatio;
+        batches = Math.floor(machine.cycleProgress + CYCLE_EPSILON);
+        machine.cycleProgress = Math.max(0, machine.cycleProgress - batches);
+      } else machine.cycleProgress = 0;
+      for (let index = 0; index < batches; index++) runCycle(machine, def);
+      consumed = batches * (primary?.amount || 0);
+      machine.state = consumed > 0 ? 'active' : 'no_energy';
+    }
+    machine.movedTotal = (machine.movedTotal || 0) + consumed;
+    const blend = 1 - Math.exp(-step / Data.config.load.smoothingSeconds);
+    machine.loadRate = (machine.loadRate || 0) + (consumed / step - (machine.loadRate || 0)) * blend;
+    if (machine.loadRate < 1e-4 && !consumed) machine.loadRate = 0;
+    machine.energyMW = loadEnergy(def, machine.loadRate) * (def.energyMW > 0 ? Math.min(1, powerRatio) : 0);
   }
 
   // One recipe cycle. Rock outputs keep the composition of the rock consumed;
@@ -369,5 +427,5 @@
     return graph;
   }
 
-  root.OrbitProcessSimulation = Object.freeze({ advance, demand, estimateRates });
+  root.OrbitProcessSimulation = Object.freeze({ advance, demand, estimateRates, loadEnergy });
 })(globalThis);

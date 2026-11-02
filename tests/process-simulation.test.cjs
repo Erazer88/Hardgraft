@@ -100,14 +100,19 @@ test('old industrial plans reset without migrating their graph schema', () => {
   assert.deepEqual(plain(reset.machines), []);
 });
 
-test('the crusher processes six whole units per second and the rock keeps its composition', () => {
+test('a crusher has no throughput: it handles all it holds at once, and waits while its output cannot leave', () => {
   const graph = Graph.create(), crusher = machine(graph, 'crusher', 'crusher');
   crusher.inputBuffer.rock = 10;
   crusher.inputMix = { rock: { iron: .2, rock: .8 } };
-  advance(graph, 1);
-  assert.equal(crusher.inputBuffer.rock, 4);
-  assert.equal(crusher.outputBuffer.rock, 6);
+  advance(graph, .1);
+  assert.equal(crusher.inputBuffer.rock, 0);
+  assert.equal(crusher.outputBuffer.rock, 10);
   assert.deepEqual(plain(crusher.outputMix.rock), { iron: .2, rock: .8 });
+  // Nothing takes its rock away: it does not go on.
+  crusher.inputBuffer.rock = 5;
+  advance(graph, 1);
+  assert.equal(crusher.state, 'output_full');
+  assert.equal(crusher.inputBuffer.rock, 5);
 });
 
 test('the drill extracts raw rock with the composition of the ground below the extractor', () => {
@@ -188,13 +193,17 @@ test('reprocessed tailings carry only the metal the separator left', () => {
   const separator = machine(graph, 'separator', 'magnetic_separator');
   const reprocessor = machine(graph, 'reprocessor', 'reprocessor', 300, 'rock');
   connect(graph, 'tailings', 'separator', 'residue', 'reprocessor', 'waste');
+  let recovered = 0, grade = null;
   for (let cycle = 0; cycle < 40; cycle++) {
     separator.inputBuffer.rock = 5; separator.inputMix = { rock: { iron: .3, rock: .7 } };
     advance(graph, 20);
     separator.outputBuffer.concentrate = 0;
+    // What the reprocessor made is taken away, so it never waits.
+    if (reprocessor.outputBuffer.rock) { recovered += reprocessor.outputBuffer.rock; grade = reprocessor.outputMix.rock.iron; }
+    reprocessor.outputBuffer.rock = 0;
   }
-  assert.ok(reprocessor.outputBuffer.rock >= 10, `${reprocessor.outputBuffer.rock} ground rock`);
-  const grade = reprocessor.outputMix.rock.iron, expected = .3 * .1 / (1 - .3 * .9);
+  assert.ok(recovered >= 10, `${recovered} ground rock`);
+  const expected = .3 * .1 / (1 - .3 * .9);
   assert.ok(Math.abs(grade - expected) < 1e-3, `reprocessed rock at ${grade} iron, expected ${expected}`);
 });
 
@@ -211,11 +220,15 @@ test('from the ground to plates: a 30 % iron line makes the plates its grade all
   const byId = id => graph.machines.find(item => item.id === id);
   const stored = (id, resourceId) => byId(id).storedResources[resourceId] || 0;
   // 6 rock/s → 1,62 concentrate/s → 0,81 raw iron/s → 0,081 plate/s, less
-  // what is still on its way through the line.
+  // what is still on its way through the line: no card holds the line back.
   const rock = 6 * seconds, plates = stored('plates', 'metal_plate');
   const expected = rock * .3 * Data.config.separation.recovery / 2 / 10;
   assert.ok(plates <= expected && plates >= expected - 2, `${plates} plates, ≈ ${expected} expected`);
-  for (const id of ['drill', 'crusher', 'grinder', 'separator']) assert.equal(byId(id).state, 'active', `${id} never stalls`);
+  assert.equal(byId('drill').state, 'active', 'the drill never stalls');
+  for (const id of ['crusher', 'grinder', 'separator']) {
+    const pace = byId(id).movedTotal / seconds;
+    assert.ok(Math.abs(pace - 6) < .1, `${id} keeps the drill's pace (${pace} u/s)`);
+  }
   assert.ok(Math.abs(stored('tailings', 'tailings') / rock - (1 - .3 * Data.config.separation.recovery)) < .02,
     `${stored('tailings', 'tailings')} tailings for ${rock} rock`);
   const rawIron = plates * 10 + byId('mill').inputBuffer.iron + byId('furnace').outputBuffer.product;
@@ -276,22 +289,39 @@ test('carbon washing and petroleum separation keep their fixed yields', () => {
   machine(oilGraph, 'pump', 'oil_pump', 0, 'oil');
   const separator = machine(oilGraph, 'separator', 'triphasic_separator', 300, 'oil');
   connect(oilGraph, 'pump-separator', 'pump', 'raw_oil', 'separator', 'raw_oil');
-  advance(oilGraph, 10);
+  advance(oilGraph, 6); advance(oilGraph, 6);
   assert.equal(separator.outputBuffer.oil, 16);
   assert.equal(separator.outputBuffer.gas, 3);
   assert.equal(separator.outputBuffer.waste, 1);
 });
 
-test('the whole rock line runs at six units per second and energy shortage slows it down', () => {
-  const graph = chain();
-  advance(graph, 3);
-  for (const id of ['crusher', 'grinder', 'separator']) assert.equal(graph.machines.find(item => item.id === id).currentRate, 6, id);
-  advance(graph, 2);
-  assert.ok(graph.machines.find(item => item.id === 'furnace').outputBuffer.product > 0);
-  const starved = chain();
-  advance(starved, 3, { energyAvailableMW: Simulation.demand(starved) / 2 });
-  const starvedRate = starved.machines.find(item => item.id === 'separator').currentRate;
-  assert.ok(starvedRate > 0 && starvedRate < 6, `half the power slows the separator (${starvedRate})`);
+test('the whole rock line keeps the drill pace, its power follows the load and a shortage slows it down', () => {
+  // What the line makes leaves it (an output that cannot leave stops its card).
+  const drained = () => {
+    const line = chain();
+    machine(line, 'tailings', 'terril', 1400); machine(line, 'out', 'terril', 1750);
+    connect(line, 'c5', 'separator', 'residue', 'tailings', 'material');
+    connect(line, 'c6', 'furnace', 'product', 'out', 'material');
+    connect(line, 'c7', 'furnace', 'slag', 'out', 'material');
+    return line;
+  };
+  const graph = drained();
+  advance(graph, 12);
+  const card = id => graph.machines.find(item => item.id === id);
+  for (const id of ['crusher', 'grinder', 'separator']) assert.ok(Math.abs(card(id).loadRate - 6) < .8, `${id} at ${card(id).loadRate}`);
+  assert.ok(card('out').storedResources.raw_iron > 0);
+  // At the reference rate (6 u/s) a card draws its energyMW; twice the rate,
+  // 2^1.5 times as much.
+  const crusher = Data.get('crusher');
+  assert.ok(Math.abs(card('crusher').energyMW - crusher.energyMW) < .3, `${card('crusher').energyMW} MW at 6 u/s`);
+  assert.ok(Math.abs(Simulation.loadEnergy(crusher, 12) - crusher.energyMW * Math.pow(2, 1.5)) < 1e-9);
+  assert.equal(Simulation.loadEnergy(crusher, 0), 0);
+  const starved = drained();
+  advance(starved, 12);
+  const full = Simulation.demand(starved);
+  for (let second = 0; second < 20; second++) advance(starved, 1, { energyAvailableMW: full / 3 });
+  const starvedRate = starved.machines.find(item => item.id === 'separator').loadRate;
+  assert.ok(starvedRate > 0 && starvedRate < 5.5, `a third of the power slows the separator (${starvedRate})`);
   assert.ok(integral(graph) && integral(starved));
 });
 
@@ -308,8 +338,11 @@ test('machines show the four essential states and stop without power', () => {
   crusher.inputBuffer.rock = 10;
   advance(graph, .5, { energyAvailableMW: 0 });
   assert.equal(crusher.state, 'no_energy');
-  advance(graph, .5);
+  advance(graph, .1);
   assert.equal(crusher.state, 'active');
+  assert.equal(crusher.outputBuffer.rock, 10, 'with power, all at once');
+  advance(graph, .1);
+  assert.equal(crusher.state, 'output_full', 'then it waits while its rock cannot leave');
   assert.equal(machine(graph, 'grinder', 'grinder').state, 'waiting_input');
 });
 
@@ -345,11 +378,11 @@ test('the drill only works in an extractor, with a receiver and power', () => {
 
 test('a saturated crusher pauses the drill without discarding rock', () => {
   const graph = chain(), crusher = graph.machines.find(item => item.id === 'crusher');
-  crusher.outputBuffer.rock = Data.config.outputCapacity;
+  crusher.outputBuffer.rock = 1;
   graph.connections = graph.connections.filter(link => link.id === 'c1');
   advance(graph, .5);
   assert.equal(graph.machines[0].state, 'output_full');
-  assert.equal(crusher.inputBuffer.rock, 0);
+  assert.ok(crusher.inputBuffer.rock <= 1, 'the crusher keeps one batch in hand');
 });
 
 test('an extractor drills rock with the composition recorded at placement', () => {
@@ -471,11 +504,15 @@ test('the desalinator turns salt water into fresh water and brine', () => {
   const pump = machine(graph, 'pump', 'water_pump');
   const desalinator = machine(graph, 'desalinator', 'desalinator', 300);
   connect(graph, 'pump-desalinator', 'pump', 'water', 'desalinator', 'salt_water');
+  const fresh = machine(graph, 'fresh', 'terril', 600), brine = machine(graph, 'brine', 'terril', 600);
+  connect(graph, 'fresh-out', 'desalinator', 'water', 'fresh', 'material');
+  connect(graph, 'brine-out', 'desalinator', 'brine', 'brine', 'material');
   assert.equal(pump.resourceId, 'salt_water');
   Simulation.advance(graph, 5, { energyUnlimited: true });
-  assert.equal(desalinator.state, 'active');
-  assert.ok(desalinator.outputBuffer.water >= 3);
-  assert.equal(desalinator.outputBuffer.water, desalinator.outputBuffer.brine * 3);
+  assert.ok(desalinator.movedTotal >= 16, `${desalinator.movedTotal} salt water desalinated in 5 s`);
+  assert.ok(fresh.storedResources.water >= 3);
+  assert.equal(fresh.storedResources.water + desalinator.outputBuffer.water,
+    (brine.storedResources.brine + desalinator.outputBuffer.brine) * 3);
 });
 
 test('the waste heap reprocesses tailings at a low yield, or burns waste for energy', () => {
@@ -488,6 +525,8 @@ test('the waste heap reprocesses tailings at a low yield, or burns waste for ene
   tailings.importResourceId = 'tailings';
   const reprocessor = machine(graph, 'reprocessor', 'reprocessor', 300);
   connect(graph, 'tailings-reprocessor', 'dock-tailings', 'material', 'reprocessor', 'waste');
+  machine(graph, 'kept-rock', 'terril', 600);
+  connect(graph, 'reprocessor-kept', 'reprocessor', 'rock', 'kept-rock', 'material');
   const waste = machine(graph, 'dock-waste', 'input_dock', 0);
   waste.importResourceId = 'waste';
   const incinerator = machine(graph, 'incinerator', 'incinerator', 600);
@@ -498,11 +537,10 @@ test('the waste heap reprocesses tailings at a low yield, or burns waste for ene
   assert.equal(incinerator.movedTotal, 40);
   assert.equal(heap.inventory.tailings || 0, 0);
   assert.equal(reprocessor.movedTotal, 40);
-  assert.ok(reprocessor.outputBuffer.rock >= 1, 'ten tailings give one ground rock');
   for (let second = 0; second < 11; second++) Industry.advance(state, 1);
   assert.ok(heap.energyOutputWatts > 0, 'burning waste feeds the grid');
-  assert.ok(reprocessor.outputBuffer.rock >= 1, 'ten tailings give one ground rock');
-  assert.deepEqual(plain(reprocessor.outputMix.rock), { iron: .1, rock: .9 });
+  const kept = graph.machines.find(item => item.id === 'kept-rock').storedResources.ground_rock || 0;
+  assert.equal(kept + (reprocessor.outputBuffer.rock || 0), 4, 'ten tailings give one ground rock');
 });
 
 test('an input dock feeds several cards and shares its stock between them', () => {
@@ -514,15 +552,18 @@ test('an input dock feeds several cards and shares its stock between them', () =
   const dock = machine(graph, 'dock-rock', 'input_dock', 0);
   dock.importResourceId = 'raw_rock';
   const first = machine(graph, 'crusher-a', 'crusher', 300), second = machine(graph, 'crusher-b', 'crusher', 600);
+  // What they crush leaves them (an output that cannot leave stops its card).
+  machine(graph, 'kept-a', 'terril', 900); machine(graph, 'kept-b', 'terril', 900);
+  connect(graph, 'a-kept', 'crusher-a', 'rock', 'kept-a', 'material');
+  connect(graph, 'b-kept', 'crusher-b', 'rock', 'kept-b', 'material');
   connect(graph, 'dock-a', 'dock-rock', 'material', 'crusher-a', 'rock');
   connect(graph, 'dock-b', 'dock-rock', 'material', 'crusher-b', 'rock');
   assert.equal(Graph.connect(graph, { id: 'dock-a-again', fromMachineId: 'dock-rock', fromOutputId: 'material',
     toMachineId: 'crusher-a', toInputId: 'rock' }).ok, false, 'one link per pair of ports');
   for (let second = 0; second < 3; second++) Industry.advance(state, 1);
-  assert.equal(first.state, 'active');
-  assert.equal(second.state, 'active');
-  const crushed = machine => machine.outputBuffer.rock;
-  assert.ok(crushed(first) >= 12 && crushed(second) >= 12, `${crushed(first)} / ${crushed(second)}`);
+  // Without throughput, the crushers take the whole stock at once, in turns.
+  const crushed = machine => machine.movedTotal || 0;
+  assert.equal(crushed(first) + crushed(second), 60);
   assert.ok(Math.abs(crushed(first) - crushed(second)) <= 2, `${crushed(first)} / ${crushed(second)}`);
 });
 

@@ -5,8 +5,17 @@
     version: 5,
     fixedStepSeconds: .1,
     maxTicksPerAdvance: 100,
+    // Buffers of the cards that keep a throughput (the datacenter's).
     inputCapacity: 20,
     outputCapacity: 20,
+    // Cards that transform matter have no throughput of their own (instant):
+    // they keep the pace of the sources upstream (a drill: 6 u/s) and handle
+    // what reaches them within the step; nothing holds them back but a
+    // blocked line downstream. Their power grows with their load: energyMW
+    // at referenceRate units of input per second, times
+    // (rate / referenceRate) ^ exponent, the rate averaged over
+    // smoothingSeconds.
+    load: { referenceRate: 6, exponent: 1.5, smoothingSeconds: 2 },
     // A dock holds at most this many units per resource: what a building
     // received (input docks) and what waits to leave it (output docks).
     dockCapacity: 100,
@@ -80,21 +89,20 @@
     crusher: { id: 'crusher', label: 'CONCASSEUR', mark: 'CO', description: 'Brise la roche brute en roche concassée, sans séparer les matières.',
       inputPorts: [input('rock', 'Roche brute', 'raw_rock')], outputPorts: [output('rock', 'Roche concassée', 'crushed_rock')],
       recipe: { inputs: [rockInput()], outputs: [{ outputId: 'rock', resourceId: 'crushed_rock', amount: 1 }] },
-      // Matched to the drill it sits next to.
-      throughput: 6, energyMW: 2 },
+      throughput: null, instant: true, energyMW: 2 },
     grinder: { id: 'grinder', label: 'BROYEUR', mark: 'BR', description: 'Réduit la roche concassée en poudre fine, prête à séparer.',
       inputPorts: [input('rock', 'Roche concassée', 'crushed_rock')], outputPorts: [output('rock', 'Roche broyée', 'ground_rock')],
       recipe: { inputs: [rockInput()], outputs: [{ outputId: 'rock', resourceId: 'ground_rock', amount: 1 }] },
-      throughput: 6, energyMW: 6 },
+      throughput: null, instant: true, energyMW: 6 },
     magnetic_separator: { id: 'magnetic_separator', label: 'SÉPARATEUR MAGNÉTIQUE', mark: 'SM',
       description: 'Attire le fer hors de la roche broyée, selon sa teneur ; le reste part en résidus.',
-      ...separator('iron'), throughput: 6, energyMW: 3 },
+      ...separator('iron'), throughput: null, instant: true, energyMW: 3 },
     gravity_separator: { id: 'gravity_separator', label: 'SÉPARATEUR GRAVITAIRE', mark: 'SG',
       description: 'Concentre le cuivre de la roche broyée, selon sa teneur ; le reste part en résidus.',
-      ...separator('copper'), throughput: 2, energyMW: 3 },
+      ...separator('copper'), throughput: null, instant: true, energyMW: 3 },
     carbon_separator: { id: 'carbon_separator', label: 'TRIEUSE DE CARBONE', mark: 'TC',
       description: 'Trie le charbon de la roche broyée, selon sa teneur ; le reste part en résidus.',
-      ...separator('carbon'), throughput: 2, energyMW: 3 },
+      ...separator('carbon'), throughput: null, instant: true, energyMW: 3 },
     silicon_washer: { id: 'silicon_washer', label: 'LAVEUSE DE SILICE', mark: 'LS',
       description: 'Lave la roche broyée à l’eau et en retire la silice, selon sa teneur.',
       inputPorts: [input('rock', 'Roche broyée', 'ground_rock'), input('water', 'Eau', 'water')],
@@ -102,23 +110,23 @@
       recipe: { inputs: [rockInput('rock', 20), { inputId: 'water', amount: 5 }], outputs: [
         { outputId: 'wet_silicon', resourceId: 'impure_silicon_wet', amount: 20, yieldOf: 'silicon' },
         { outputId: 'residue', resourceId: 'tailings', amount: 20, remainder: true }] },
-      throughput: 2, energyMW: 3 },
+      throughput: null, instant: true, energyMW: 3 },
     silicon_dryer: { id: 'silicon_dryer', label: 'SÉCHEUR DE SILICE', mark: 'SS',
       description: 'Retire l’humidité du silicium lavé avant réduction.',
       inputPorts: [input('wet_silicon', 'Silicium impur humide', 'impure_silicon_wet')],
       outputPorts: [output('dry_silicon', 'Silicium impur sec', 'impure_silicon_dry')],
       recipe: { inputs: [{ inputId: 'wet_silicon', amount: 1 }], outputs: [
         { outputId: 'dry_silicon', resourceId: 'impure_silicon_dry', amount: 1 }] },
-      throughput: 2, energyMW: 4 },
+      throughput: null, instant: true, energyMW: 4 },
     carbon_washer: { id: 'carbon_washer', label: 'LAVAGE DU CHARBON', mark: 'LC',
       description: 'Lave le charbon à l’eau pour obtenir du carbone.',
       inputPorts: [input('coal', 'Charbon', 'coal'), input('water', 'Eau', 'water')],
       outputPorts: [output('carbon', 'Carbone', 'carbon'), output('sludge', 'Boues carbonées', 'carbon_sludge')],
       recipe: { inputs: [{ inputId: 'coal', amount: 20 }, { inputId: 'water', amount: 5 }], outputs: [
         { outputId: 'carbon', resourceId: 'carbon', amount: 8 }, { outputId: 'sludge', resourceId: 'carbon_sludge', amount: 12 }] },
-      throughput: 2, energyMW: 3 },
+      throughput: null, instant: true, energyMW: 3 },
     reduction_furnace: { id: 'reduction_furnace', label: 'FOUR DE RÉDUCTION', mark: 'FR',
-      description: 'Transforme un concentré en métal brut et en laitier.', throughput: 2, energyMW: 10 },
+      description: 'Transforme un concentré en métal brut et en laitier.', throughput: null, instant: true, energyMW: 10 },
     // Colony goods.
     tar_furnace: { id: 'tar_furnace', label: 'FOUR À GOUDRON', mark: 'FG',
       description: 'Cuit la roche concassée avec du charbon : goudron pour la colonie, et des déchets.',
@@ -126,14 +134,14 @@
       outputPorts: [output('tar', 'Goudron', 'tar'), output('waste', 'Déchets', 'waste')],
       recipe: { inputs: [rockInput('rock', 4), { inputId: 'coal', amount: 1 }], outputs: [
         { outputId: 'tar', resourceId: 'tar', amount: 1 }, { outputId: 'waste', resourceId: 'waste', amount: 3 }] },
-      throughput: 2, energyMW: 6 },
+      throughput: null, instant: true, energyMW: 6 },
     rolling_mill: { id: 'rolling_mill', label: 'LAMINOIR', mark: 'LA',
       description: 'Lamine le fer brut en plaques de métal (10 pour 1).',
       inputPorts: [input('iron', 'Fer brut', 'raw_iron')], outputPorts: [output('plate', 'Plaque de métal', 'metal_plate')],
       recipe: { inputs: [{ inputId: 'iron', amount: 10 }], outputs: [{ outputId: 'plate', resourceId: 'metal_plate', amount: 1 }] },
-      throughput: 2, energyMW: 8 },
+      throughput: null, instant: true, energyMW: 8 },
     triphasic_separator: { id: 'triphasic_separator', label: 'SÉPARATEUR TRIPHASÉ', mark: 'ST',
-      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: 2, energyMW: 4 },
+      description: 'Sépare le pétrole brut en pétrole, gaz et déchets.', throughput: null, instant: true, energyMW: 4 },
     // Waste heap: the reprocessor recovers a little ground rock from tailings.
     // Waste heap cards are instant: whatever reaches them is handled within
     // the step (as fast as the card buffers allow), with no throughput.
@@ -150,7 +158,7 @@
       outputPorts: [output('water', 'Eau douce', 'water'), output('brine', 'Saumure', 'brine')],
       recipe: { inputs: [{ inputId: 'salt_water', amount: 4 }], outputs: [
         { outputId: 'water', resourceId: 'water', amount: 3 }, { outputId: 'brine', resourceId: 'brine', amount: 1 }] },
-      throughput: 4, energyMW: 6 },
+      throughput: null, instant: true, energyMW: 6 },
     // Waste heap: burning waste yields energy instead of consuming it.
     incinerator: { id: 'incinerator', label: 'INCINÉRATEUR', mark: 'IN', description: 'Brûle les déchets reçus et produit de l’énergie.',
       inputPorts: [input('waste', 'Déchets', null, { acceptsAnyResource: true, accepts: { tag: 'waste' } })],

@@ -112,6 +112,12 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
   son bâtiment : l'Extracteur fore (une seule Foreuse, 6 u/s), concasse et broie ;
   l'Usine sépare, réduit, fabrique goudron et plaques. Pour forer plus, poser plusieurs
   extracteurs côte à côte.
+- Rythme : seules les sources ont un débit (Foreuse 6 u/s, pompes). Les cartes de
+  transformation n'en ont pas (`instant`) : elles traitent au pas ce qui leur arrive et
+  suivent l'amont ; pas de bride par tampon, une carte ne s'arrête que si sa sortie ne
+  peut pas partir (l'arrêt remonte la chaîne). Leur énergie suit leur charge :
+  `energyMW × (débit / 6 u/s) ^ 1,5` (`config.load`), moyennée sur 2 s. Les cartes du
+  datacenter gardent leurs débits.
 - La roche reste une seule ressource à chaque étape ; chaque stock garde une
   composition moyenne. Les séparateurs récupèrent lot × teneur × 90 % en unités
   entières (la fraction attend dans un crédit) et leurs résidus perdent exactement
@@ -212,7 +218,6 @@ laboratoires sur d'autres mondes, plusieurs parties par navigateur.
 
 Proposées au joueur, non décidées — ne pas implémenter sans demande :
 
-- passer les séparateurs gravitaire et de carbone à 6 u/s comme le magnétique ;
 - flux exigés par la colonie après le dernier palier ;
 - traitement des déchets par type (incinération réservée aux combustibles, laitier →
   ciment, résidus → granulats, saumure → sel, terril visible) ;

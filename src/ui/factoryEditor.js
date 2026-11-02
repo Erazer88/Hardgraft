@@ -135,7 +135,9 @@
         ? `PARABOLES · ${fmt(def.throughput)} Mo/s · ${fmt(def.energyMW)} MW` : `ROUTE · ${fmt(Data.config.dockCapacity)} u PAR RESSOURCE`;
       if (def.gate) return Data.config.depot.gateThroughput == null ? 'FLUX MIXTE' : `FLUX MIXTE · ${fmt(Data.config.depot.gateThroughput)} u/s`;
       if (def.routing) return 'FLUX MIXTE · SANS ÉNERGIE';
-      if (def.generatesMW) return `${def.instant ? 'IMMÉDIAT' : `${fmt(def.throughput)} u/s`} · +${fmt(def.generatesMW)} MW`;
+      if (def.generatesMW) return `${def.instant ? 'SANS LIMITE' : `${fmt(def.throughput)} u/s`} · +${fmt(def.generatesMW)} MW`;
+      // Without throughput, its power follows its load (energyMW at the reference rate).
+      if (def.instant) return def.energyMW ? `SANS LIMITE · ${fmt(def.energyMW)} MW à ${fmt(Data.config.load.referenceRate)} u/s` : 'SANS LIMITE · SANS ÉNERGIE';
       if (def.storesResources) return 'STOCKAGE';
       if (def.dataUplink) return `ANTENNE HF · ${fmt(def.energyMW)} MW`;
       if (def.externalOutput) return `ROUTE · ${fmt(Data.config.dockCapacity)} u EN ATTENTE`;
@@ -242,7 +244,9 @@
       if (state.textContent !== stateText) state.textContent = stateText;
       // Power: what the card draws (or makes), plainly.
       const energy = card.querySelector('[data-readout="energy"]');
+      // An instant card draws by its load: what it draws now.
       const energyText = def.generatesMW ? `+${fmt(machine.generatedMW || 0)} / ${fmt(def.generatesMW)} MW`
+        : def.instant && def.energyMW > 0 ? `${decimal.format(machine.energyMW || 0)} MW`
         : def.energyMW > 0 ? view.state === 'no_energy' ? `${fmt(machine.energyMW || 0)} / ${fmt(def.energyMW)} MW` : `${fmt(def.energyMW)} MW` : '';
       if (energy.textContent !== energyText) energy.textContent = energyText;
       energy.hidden = !energyText;
